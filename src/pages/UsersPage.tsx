@@ -1,0 +1,183 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Plus, Crown } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
+import { Modal } from '@/components/Modal';
+import { PageSpinner } from '@/components/Spinner';
+import { Avatar } from '@/components/Avatar';
+import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { useI18n } from '@/lib/i18n';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import type { AppUser } from '@/types';
+
+export const UsersPage = () => {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const { isOwner } = useAuth();
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    const { data } = await supabase.from('app_users').select('*').order('created_at');
+    setUsers((data as AppUser[]) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  if (!isOwner) return <Navigate to="/" replace />;
+
+  const createUser = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    // User creation requires the service role, so it goes through the
+    // admin-create-user edge function (see supabase/functions).
+    const { error } = await supabase.functions.invoke('admin-create-user', {
+      body: { name: form.name.trim(), email: form.email.trim(), password: form.password },
+    });
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setFormOpen(false);
+    setForm({ name: '', email: '', password: '' });
+    await load();
+  };
+
+  if (loading) return <PageSpinner />;
+
+  const columns: Column<AppUser>[] = [
+    {
+      id: 'name',
+      header: t('name'),
+      accessor: (u) => u.name,
+      render: (u) => (
+        <div className="flex items-center gap-2.5">
+          <Avatar name={u.name} size={28} />
+          <span>{u.name}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'email',
+      header: t('email'),
+      accessor: (u) => u.email,
+      render: (u) => <span className="text-text-secondary">{u.email}</span>,
+    },
+    {
+      id: 'role',
+      header: t('role'),
+      accessor: (u) => u.role,
+      render: (u) =>
+        u.role === 'owner' ? (
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+            <Crown size={15} className="text-accent" />
+            {t('owner')}
+          </span>
+        ) : (
+          <span className="text-sm text-text-secondary">{t('member')}</span>
+        ),
+    },
+    {
+      id: 'access',
+      header: t('projectAccess'),
+      accessor: (u) => (u.role === 'owner' || u.all_projects ? 0 : 1),
+      render: (u) => (
+        <span className="text-sm text-text-secondary">
+          {u.role === 'owner' || u.all_projects ? t('allProjectsAccess') : t('selectedProjects')}
+        </span>
+      ),
+    },
+  ];
+
+  const filters: FilterDef<AppUser>[] = [
+    {
+      id: 'role',
+      label: t('role'),
+      options: [
+        { value: 'owner', label: t('owner') },
+        { value: 'member', label: t('member') },
+      ],
+      predicate: (u, v) => u.role === v,
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title={t('users')}
+        actions={
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus size={16} />
+            {t('newUser')}
+          </Button>
+        }
+      />
+
+      {error && <p className="text-sm text-accent mb-4">{error}</p>}
+
+      <DataTable
+        rows={users}
+        columns={columns}
+        getRowId={(u) => u.id}
+        onRowClick={(u) => navigate(`/admin/users/${u.id}`)}
+        search={(u) => `${u.name} ${u.email}`}
+        filters={filters}
+        emptyMessage={t('noResults')}
+      />
+
+      <Modal
+        open={formOpen}
+        title={t('newUser')}
+        onClose={() => setFormOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setFormOpen(false)}>
+              {t('cancel')}
+            </Button>
+            <Button type="submit" form="user-form" disabled={saving}>
+              {saving ? t('loading') : t('create')}
+            </Button>
+          </>
+        }
+      >
+        <form id="user-form" onSubmit={createUser} className="space-y-4">
+          <Input
+            label={t('name')}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+            autoFocus
+          />
+          <Input
+            type="email"
+            label={t('email')}
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+          />
+          <Input
+            type="password"
+            label={t('password')}
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
+          />
+          {error && <p className="text-sm text-accent">{error}</p>}
+        </form>
+      </Modal>
+    </>
+  );
+};

@@ -1,0 +1,58 @@
+import { supabase } from './supabase';
+import type { AttendanceStatus, Member } from '@/types';
+
+export interface AttendanceCounts {
+  attended: number;
+  excused: number;
+  absent: number;
+}
+
+export interface ProjectMemberAttendance {
+  members: Member[];
+  countsByMember: Record<string, AttendanceCounts>;
+  eventCount: number;
+}
+
+export const loadProjectMemberAttendance = async (
+  projectId: string,
+): Promise<ProjectMemberAttendance> => {
+  const [membersResult, eventsResult, attendanceResult] = await Promise.all([
+    supabase
+      .from('members')
+      .select('*')
+      .eq('project_id', projectId)
+      .in('status', ['active', 'archived'])
+      .order('last_name'),
+    supabase.from('events').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
+    supabase
+      .from('attendance')
+      .select('member_id, status, events!inner(project_id)')
+      .eq('events.project_id', projectId),
+  ]);
+
+  const eventCount = eventsResult.count ?? 0;
+  const explicitCounts: Record<string, Pick<AttendanceCounts, 'attended' | 'excused'>> = {};
+  for (const row of
+    (attendanceResult.data as Array<{ member_id: string; status: AttendanceStatus }> | null) ?? []) {
+    const counts = explicitCounts[row.member_id] ?? { attended: 0, excused: 0 };
+    if (row.status === 'attended') counts.attended += 1;
+    if (row.status === 'excused') counts.excused += 1;
+    explicitCounts[row.member_id] = counts;
+  }
+
+  const members = (membersResult.data as Member[] | null) ?? [];
+  const countsByMember = Object.fromEntries(
+    members.map((member) => {
+      const counts = explicitCounts[member.id] ?? { attended: 0, excused: 0 };
+      return [
+        member.id,
+        {
+          ...counts,
+          absent: Math.max(0, eventCount - counts.attended - counts.excused),
+        },
+      ];
+    }),
+  );
+
+  return { members, countsByMember, eventCount };
+};

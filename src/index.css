@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Branding accent comes from VITE_ACCENT_COLOR; applyBranding() overrides
+     --color-accent / --color-accent-hover on :root at startup. */
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-border: #e5e5e5;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-tertiary: #9a9a9a;
+  --color-accent: #efa100;
+  --color-accent-hover: #d99000;
+  --color-black: #1a1a1a;
+  --color-black-hover: #333333;
+  --color-white: #ffffff;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Simple animated border-ring spinner. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-black);
+  border-radius: 9999px;
+  animation: spin 0.7s linear infinite;
+}

@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    image: anwesenheit:latest
+    container_name: anwesenheit
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:80"
+    environment:
+      # Runtime configuration — injected into the browser at container start.
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+      VITE_DEFAULT_LANGUAGE: ${VITE_DEFAULT_LANGUAGE:-en}
+      VITE_APP_NAME: ${VITE_APP_NAME:-Anwesenheit}
+      VITE_ACCENT_COLOR: ${VITE_ACCENT_COLOR:-#efa100}
