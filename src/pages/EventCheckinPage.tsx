@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  AlertTriangle,
   CheckCircle2,
   Copy,
   Image,
   Lock,
   Maximize2,
   Play,
+  Plus,
   RotateCcw,
   Search,
   Settings2,
@@ -134,7 +136,7 @@ const qrSvgToPng = (svg: SVGSVGElement) =>
   });
 
 export const EventCheckinPage = () => {
-  const { event, reloadCheckinWarnings } = useEventContext();
+  const { project, event, reloadCheckinWarnings } = useEventContext();
   const { lang, t } = useI18n();
   const [checkin, setCheckin] = useState<EventCheckin | null>(null);
   const [submissions, setSubmissions] = useState<CheckinSubmission[]>([]);
@@ -143,6 +145,7 @@ export const EventCheckinPage = () => {
   const [configOpen, setConfigOpen] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [assigningSubmission, setAssigningSubmission] = useState<CheckinSubmission | null>(null);
+  const [creatingFromSubmission, setCreatingFromSubmission] = useState<CheckinSubmission | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null);
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const feedbackTimerRef = useRef<number | null>(null);
@@ -277,6 +280,10 @@ export const EventCheckinPage = () => {
   if (!checkin) return null;
 
   const publicUrl = `${window.location.origin}/check-in/${checkin.token}`;
+  const logoSrc = checkin.show_logo ? project.image_url : null;
+  const qrImageSettings = logoSrc
+    ? { src: logoSrc, height: 52, width: 52, excavate: true }
+    : undefined;
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(publicUrl);
@@ -330,6 +337,7 @@ export const EventCheckinPage = () => {
             size={264}
             level="H"
             marginSize={0}
+            imageSettings={qrImageSettings}
             className={`h-auto w-[264px] max-w-full ${checkin.is_active ? '' : 'opacity-15'}`}
           />
           {!checkin.is_active ? (
@@ -393,7 +401,10 @@ export const EventCheckinPage = () => {
             <div className="mb-4 flex items-center gap-2">
               <UserX size={18} className="text-text-secondary" />
               <h2 className="text-lg font-semibold">{t('unrecognizedCheckIns')}</h2>
-              <span className="text-sm text-text-tertiary">{unrecognized.length}</span>
+              <span className="inline-flex items-center gap-1 rounded-md bg-[#fef2f2] px-1.5 py-0.5 text-xs font-semibold text-[#b91c1c]">
+                <AlertTriangle size={12} />
+                {t('unrecognizedWarning').replace('{n}', String(unrecognized.length))}
+              </span>
             </div>
             <DataTable
               rows={unrecognized}
@@ -403,6 +414,9 @@ export const EventCheckinPage = () => {
                 <>
                   <RowActionButton label={t('assignCheckIn')} onClick={() => setAssigningSubmission(row)}>
                     <UserRoundCheck size={15} />
+                  </RowActionButton>
+                  <RowActionButton label={t('saveAsNewMember')} onClick={() => setCreatingFromSubmission(row)}>
+                    <Plus size={15} />
                   </RowActionButton>
                   <RowActionButton label={t('delete')} onClick={() => removeSubmission(row.id)}>
                     <Trash2 size={15} />
@@ -434,10 +448,12 @@ export const EventCheckinPage = () => {
       <CheckinConfigModal
         open={configOpen}
         value={checkin.attendance_status}
+        showLogo={checkin.show_logo}
+        hasLogo={Boolean(project.image_url)}
         busy={busy}
         onClose={() => setConfigOpen(false)}
-        onSave={async (status) => {
-          await updateCheckin({ attendance_status: status });
+        onSave={async (status, showLogo) => {
+          await updateCheckin({ attendance_status: status, show_logo: showLogo });
           setConfigOpen(false);
         }}
       />
@@ -447,6 +463,7 @@ export const EventCheckinPage = () => {
           eventName={event.name}
           publicUrl={publicUrl}
           active={checkin.is_active}
+          logoSrc={logoSrc}
           onClose={closeFullscreen}
         />
       ) : null}
@@ -461,7 +478,114 @@ export const EventCheckinPage = () => {
         }}
       />
 
+      <CreateMemberFromCheckinModal
+        submission={creatingFromSubmission}
+        projectId={event.project_id}
+        onClose={() => setCreatingFromSubmission(null)}
+        onCreated={async () => {
+          setCreatingFromSubmission(null);
+          await Promise.all([loadSubmissions(), reloadCheckinWarnings()]);
+        }}
+      />
     </>
+  );
+};
+
+// Saves an unrecognized check-in submission as a brand new project member and
+// assigns the submission to it. The data is prefilled but editable before saving.
+const CreateMemberFromCheckinModal = ({
+  submission,
+  projectId,
+  onClose,
+  onCreated,
+}: {
+  submission: CheckinSubmission | null;
+  projectId: string;
+  onClose: () => void;
+  onCreated: () => Promise<void>;
+}) => {
+  const { t } = useI18n();
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
+  const [groupName, setGroupName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!submission) return;
+    setFirst(submission.first_name);
+    setLast(submission.last_name);
+    setGroupName(submission.group_name ?? '');
+    setError('');
+    setSaving(false);
+  }, [submission]);
+
+  const valid = first.trim() && last.trim();
+
+  const save = async () => {
+    if (!submission || !valid) return;
+    setSaving(true);
+    setError('');
+    const { data: member, error: insertError } = await supabase
+      .from('members')
+      .insert({
+        project_id: projectId,
+        first_name: first.trim(),
+        last_name: last.trim(),
+        group_name: groupName.trim() || null,
+        status: 'active',
+      })
+      .select()
+      .single();
+
+    if (insertError || !member) {
+      setSaving(false);
+      setError(t('assignmentError'));
+      return;
+    }
+
+    const { error: rpcError } = await supabase.rpc('assign_checkin_submission', {
+      p_submission_id: submission.id,
+      p_member_id: (member as Member).id,
+    });
+    setSaving(false);
+    if (rpcError) {
+      setError(t('assignmentError'));
+      return;
+    }
+    await onCreated();
+  };
+
+  return (
+    <Modal
+      open={Boolean(submission)}
+      title={t('saveAsNewMember')}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {t('cancel')}
+          </Button>
+          <Button disabled={!valid || saving} onClick={save}>
+            {t('save')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-text-secondary">{t('saveAsNewMemberHint')}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Input label={t('firstName')} value={first} onChange={(e) => setFirst(e.target.value)} autoFocus />
+          <Input label={t('lastName')} value={last} onChange={(e) => setLast(e.target.value)} />
+        </div>
+        <Input label={t('group')} value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+        {error ? (
+          <p className="text-sm text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </Modal>
   );
 };
 
@@ -623,11 +747,13 @@ const FullscreenQrCode = ({
   eventName,
   publicUrl,
   active,
+  logoSrc,
   onClose,
 }: {
   eventName: string;
   publicUrl: string;
   active: boolean;
+  logoSrc: string | null;
   onClose: () => void;
 }) => {
   const { t } = useI18n();
@@ -669,6 +795,7 @@ const FullscreenQrCode = ({
           size={640}
           level="H"
           marginSize={0}
+          imageSettings={logoSrc ? { src: logoSrc, height: 120, width: 120, excavate: true } : undefined}
           className={`h-auto w-[min(60vw,60vh)] max-w-[640px] ${active ? '' : 'opacity-15'}`}
         />
         {!active ? (
@@ -695,22 +822,30 @@ const FullscreenQrCode = ({
 const CheckinConfigModal = ({
   open,
   value,
+  showLogo,
+  hasLogo,
   busy,
   onClose,
   onSave,
 }: {
   open: boolean;
   value: CheckinStatus;
+  showLogo: boolean;
+  hasLogo: boolean;
   busy: boolean;
   onClose: () => void;
-  onSave: (status: CheckinStatus) => Promise<void>;
+  onSave: (status: CheckinStatus, showLogo: boolean) => Promise<void>;
 }) => {
   const { t } = useI18n();
   const [status, setStatus] = useState<CheckinStatus>(value);
+  const [logo, setLogo] = useState(showLogo);
 
   useEffect(() => {
-    if (open) setStatus(value);
-  }, [open, value]);
+    if (open) {
+      setStatus(value);
+      setLogo(showLogo);
+    }
+  }, [open, value, showLogo]);
 
   return (
     <Modal
@@ -722,7 +857,7 @@ const CheckinConfigModal = ({
           <Button variant="secondary" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button disabled={busy} onClick={() => onSave(status)}>
+          <Button disabled={busy} onClick={() => onSave(status, logo)}>
             {t('save')}
           </Button>
         </>
@@ -751,6 +886,21 @@ const CheckinConfigModal = ({
           ))}
         </div>
       </fieldset>
+
+      {hasLogo ? (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-4 py-3 hover:bg-[#fafafa]">
+          <input
+            type="checkbox"
+            checked={logo}
+            onChange={(e) => setLogo(e.target.checked)}
+            className="mt-0.5 accent-black"
+          />
+          <span>
+            <span className="block text-sm font-medium">{t('showLogoInQr')}</span>
+            <span className="mt-0.5 block text-sm text-text-secondary">{t('showLogoInQrHint')}</span>
+          </span>
+        </label>
+      ) : null}
     </Modal>
   );
 };

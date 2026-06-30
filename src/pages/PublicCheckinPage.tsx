@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, LockKeyhole, QrCode } from 'lucide-react';
+import { CheckCircle2, LockKeyhole } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -75,20 +75,22 @@ export const PublicCheckinPage = () => {
   if (!info) return <PageSpinner />;
 
   return (
-    <main className="min-h-full px-4 py-10 sm:py-16">
-      <div className="mx-auto w-full max-w-md">
+    <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
+      <div className="mx-auto w-full max-w-xl">
         {info.state === 'active' ? (
           <>
             <header className="mb-8 text-center">
-              <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-black text-white">
-                <QrCode size={22} />
-              </span>
-              <h1 className="text-2xl font-bold">{t('checkInFormTitle')}</h1>
+              <img
+                src="/favicon.svg"
+                alt=""
+                className="mx-auto mb-5 h-12 w-12 sm:h-14 sm:w-14"
+              />
+              <h1 className="text-2xl font-bold sm:text-3xl">{t('checkInFormTitle')}</h1>
               <p className="mt-2 text-text-secondary">{info.event_name}</p>
               <p className="mt-0.5 text-sm text-text-tertiary">{info.project_name}</p>
             </header>
 
-            <Card className="p-5 sm:p-6">
+            <Card className="p-5 sm:p-7">
               {submitted ? (
                 <div className="py-7 text-center" role="status">
                   <CheckCircle2 size={42} className="mx-auto text-[#16a34a]" />

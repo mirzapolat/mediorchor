@@ -4,22 +4,33 @@ import type { ReactNode } from 'react';
 import { Overlay } from './Overlay';
 import { useI18n } from '@/lib/i18n';
 
+type ModalSize = 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+
+const sizeClasses: Record<ModalSize, string> = {
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+  '3xl': 'max-w-3xl',
+};
+
 interface ModalProps {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  size?: ModalSize;
 }
 
-export const Modal = ({ open, title, onClose, children, footer }: ModalProps) => {
+export const Modal = ({ open, title, onClose, children, footer, size = 'md' }: ModalProps) => {
   const { t } = useI18n();
   if (!open) return null;
 
   return createPortal(
     <Overlay onClick={onClose}>
       <div
-        className="bg-white border border-border rounded-md w-full max-w-md max-h-[90vh] flex flex-col mx-4 animate-[fadein_200ms_ease-in-out]"
+        className={`bg-white border border-border rounded-md w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col mx-4 animate-[fadein_200ms_ease-in-out]`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

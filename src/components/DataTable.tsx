@@ -35,6 +35,13 @@ interface DataTableProps<T> {
   emptyMessage: string;
   emptyIcon?: LucideIcon;
   onVisibleRowsChange?: (rows: T[]) => void;
+  // Row id pinned to the top and visually highlighted (e.g. the next event).
+  highlightRowId?: string | null;
+  // Called when the user resets filters, so callers can also clear any pin.
+  onClearFilters?: () => void;
+  // Enables a leading checkbox column. Selection is controlled by the caller.
+  selectedIds?: string[];
+  onSelectedIdsChange?: (ids: string[]) => void;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -64,6 +71,10 @@ export function DataTable<T>({
   emptyMessage,
   emptyIcon,
   onVisibleRowsChange,
+  highlightRowId,
+  onClearFilters,
+  selectedIds,
+  onSelectedIdsChange,
 }: DataTableProps<T>) {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
@@ -91,8 +102,15 @@ export function DataTable<T>({
         });
       }
     }
+    // Pin the highlighted row to the very top, regardless of sort order.
+    if (highlightRowId) {
+      const pinned = out.filter((r) => getRowId(r) === highlightRowId);
+      if (pinned.length > 0) {
+        out = [...pinned, ...out.filter((r) => getRowId(r) !== highlightRowId)];
+      }
+    }
     return out;
-  }, [rows, columns, filters, filterValues, query, search, sortId, sortDir]);
+  }, [rows, columns, filters, filterValues, query, search, sortId, sortDir, highlightRowId, getRowId]);
 
   useEffect(() => {
     onVisibleRowsChange?.(processed);
@@ -112,11 +130,39 @@ export function DataTable<T>({
 
   const hasToolbar = Boolean(search) || filters.length > 0;
   const hasActiveFilters =
-    query.trim() !== '' || filters.some((f) => (filterValues[f.id] ?? '') !== '');
+    query.trim() !== '' ||
+    filters.some((f) => (filterValues[f.id] ?? '') !== '') ||
+    Boolean(highlightRowId);
 
   const clearAll = () => {
     setQuery('');
     setFilterValues(Object.fromEntries(filters.map((f) => [f.id, ''])));
+    onClearFilters?.();
+  };
+
+  const selectable = Boolean(onSelectedIdsChange);
+  const selectedSet = new Set(selectedIds ?? []);
+  const allVisibleSelected =
+    processed.length > 0 && processed.every((r) => selectedSet.has(getRowId(r)));
+  const someVisibleSelected = processed.some((r) => selectedSet.has(getRowId(r)));
+
+  const toggleAll = () => {
+    if (!onSelectedIdsChange) return;
+    const visibleIds = processed.map(getRowId);
+    if (allVisibleSelected) {
+      const visible = new Set(visibleIds);
+      onSelectedIdsChange((selectedIds ?? []).filter((id) => !visible.has(id)));
+    } else {
+      onSelectedIdsChange([...new Set([...(selectedIds ?? []), ...visibleIds])]);
+    }
+  };
+
+  const toggleRow = (id: string) => {
+    if (!onSelectedIdsChange) return;
+    const next = new Set(selectedIds ?? []);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectedIdsChange([...next]);
   };
 
   return (
@@ -169,6 +215,20 @@ export function DataTable<T>({
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-[#f5f5f5] text-sm font-medium text-text-secondary text-left">
+                {selectable && (
+                  <th className="w-px border-b border-r border-border px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={t('all')}
+                      className="block accent-black"
+                      checked={allVisibleSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                      }}
+                      onChange={toggleAll}
+                    />
+                  </th>
+                )}
                 {columns.map((c) => {
                   const sortable = c.sortable ?? Boolean(c.accessor);
                   const active = sortId === c.id;
@@ -206,15 +266,38 @@ export function DataTable<T>({
               </tr>
             </thead>
             <tbody>
-              {processed.map((row) => (
+              {processed.map((row) => {
+                const rowId = getRowId(row);
+                const highlighted = highlightRowId != null && rowId === highlightRowId;
+                const selected = selectedSet.has(rowId);
+                return (
                 <tr
-                  key={getRowId(row)}
+                  key={rowId}
                   className={cn(
                     'text-base',
-                    onRowClick && 'cursor-pointer hover:bg-[#fcfcfc] transition-colors duration-150',
+                    selected
+                      ? 'bg-[#eff6ff] hover:bg-[#e3eeff]'
+                      : highlighted
+                        ? 'bg-[#f0fdf4] hover:bg-[#e3f8ea]'
+                        : onRowClick && 'hover:bg-[#fcfcfc]',
+                    onRowClick && 'cursor-pointer transition-colors duration-150',
                   )}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
+                  {selectable && (
+                    <td
+                      className="w-px border-b border-r border-border px-4 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={t('status')}
+                        className="block accent-black"
+                        checked={selected}
+                        onChange={() => toggleRow(rowId)}
+                      />
+                    </td>
+                  )}
                   {columns.map((c) => (
                     <td
                       key={c.id}
@@ -232,7 +315,8 @@ export function DataTable<T>({
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

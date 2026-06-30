@@ -28,21 +28,34 @@ export const useSidebar = () => useContext(SidebarContext);
 // Shared sidebar shell used by every layout. It is collapsible (to an icon
 // rail) and resizable by dragging its right edge; both states persist to
 // localStorage so the choice survives navigation and reloads.
-export const Sidebar = ({ children }: { children: ReactNode }) => {
+//
+// `storageKey` namespaces the persisted collapsed/width state so several
+// sidebars (e.g. a primary one and a nested secondary one) keep independent
+// preferences.
+export const Sidebar = ({
+  children,
+  storageKey,
+}: {
+  children: ReactNode;
+  storageKey?: string;
+}) => {
   const { t } = useI18n();
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === '1');
+  const widthKey = storageKey ? `${WIDTH_KEY}.${storageKey}` : WIDTH_KEY;
+  const collapsedKey = storageKey ? `${COLLAPSED_KEY}.${storageKey}` : COLLAPSED_KEY;
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(collapsedKey) === '1');
   const [width, setWidth] = useState(() => {
-    const v = Number(localStorage.getItem(WIDTH_KEY));
+    const v = Number(localStorage.getItem(widthKey));
     return v >= MIN_WIDTH && v <= MAX_WIDTH ? v : DEFAULT_WIDTH;
   });
   const widthRef = useRef(width);
   widthRef.current = width;
   const dragging = useRef(false);
+  const navRef = useRef<HTMLElement>(null);
 
   const toggle = () =>
     setCollapsed((c) => {
       const next = !c;
-      localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0');
+      localStorage.setItem(collapsedKey, next ? '1' : '0');
       return next;
     });
 
@@ -56,14 +69,17 @@ export const Sidebar = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return;
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX)));
+      // Measure from the sidebar's own left edge so nested/offset sidebars
+      // resize correctly (not just one anchored at the viewport edge).
+      const left = navRef.current?.getBoundingClientRect().left ?? 0;
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX - left)));
     };
     const onUp = () => {
       if (!dragging.current) return;
       dragging.current = false;
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
-      localStorage.setItem(WIDTH_KEY, String(widthRef.current));
+      localStorage.setItem(widthKey, String(widthRef.current));
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -76,6 +92,7 @@ export const Sidebar = ({ children }: { children: ReactNode }) => {
   return (
     <SidebarContext.Provider value={{ collapsed }}>
       <nav
+        ref={navRef}
         style={{ width: collapsed ? COLLAPSED_WIDTH : width }}
         className="relative flex-shrink-0 h-full bg-surface border-r border-border flex flex-col"
       >

@@ -72,6 +72,22 @@ export const UserDetailPage = () => {
   const accessLabel =
     isOwnerUser || user.all_projects ? t('allProjectsAccess') : t('selectedProjects');
 
+  const toggleProjectsAccess = async () => {
+    if (!user) return;
+    const next = !user.can_access_projects;
+    setUser({ ...user, can_access_projects: next });
+    await supabase.from('app_users').update({ can_access_projects: next }).eq('id', user.id);
+    if (isSelf) await refreshUser();
+  };
+
+  const toggleClubAccess = async () => {
+    if (!user) return;
+    const next = !user.can_access_club;
+    setUser({ ...user, can_access_club: next });
+    await supabase.from('app_users').update({ can_access_club: next }).eq('id', user.id);
+    if (isSelf) await refreshUser();
+  };
+
   return (
     <>
       <button
@@ -98,13 +114,49 @@ export const UserDetailPage = () => {
       <Card className="max-w-xl space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
+            <p className="font-medium">{t('projectsAccess')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">{t('projectsAccessHint')}</p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-black disabled:opacity-50"
+              checked={isOwnerUser || user.can_access_projects}
+              disabled={isOwnerUser}
+              onChange={toggleProjectsAccess}
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <div>
             <p className="font-medium">{t('projectAccess')}</p>
             <p className="text-sm text-text-secondary mt-0.5">{accessLabel}</p>
           </div>
-          <Button variant="secondary" onClick={() => setAccessOpen(true)} disabled={isOwnerUser}>
+          <Button
+            variant="secondary"
+            onClick={() => setAccessOpen(true)}
+            disabled={isOwnerUser || !user.can_access_projects}
+          >
             <FolderKanban size={15} />
             {t('manageAccess')}
           </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <div>
+            <p className="font-medium">{t('clubAccess')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">{t('clubAccessHint')}</p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-black disabled:opacity-50"
+              checked={isOwnerUser || user.can_access_club}
+              disabled={isOwnerUser}
+              onChange={toggleClubAccess}
+            />
+          </label>
         </div>
       </Card>
 

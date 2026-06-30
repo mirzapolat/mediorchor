@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -25,6 +25,8 @@ export const EventsPage = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [warningCounts, setWarningCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  // The next/today rehearsal is pinned + highlighted until the user resets filters.
+  const [highlightNext, setHighlightNext] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Event | null>(null);
@@ -96,6 +98,19 @@ export const EventsPage = () => {
     await load();
   };
 
+  // The upcoming rehearsal with the nearest date (today counts as upcoming).
+  const nextEventId = useMemo(() => {
+    const todayStr = today();
+    const upcoming = events
+      .filter((ev) => ev.date && ev.date >= todayStr)
+      .sort((a, b) =>
+        a.date === b.date ? (a.time ?? '').localeCompare(b.time ?? '') : (a.date ?? '').localeCompare(b.date ?? ''),
+      );
+    return upcoming[0]?.id ?? null;
+  }, [events]);
+
+  const highlightRowId = highlightNext ? nextEventId : null;
+
   if (loading) return <PageSpinner />;
 
   const columns: Column<Event>[] = [
@@ -106,6 +121,11 @@ export const EventsPage = () => {
       render: (ev) => (
         <div className="flex items-center gap-2">
           <span className="truncate">{ev.name}</span>
+          {highlightRowId === ev.id ? (
+            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#dcfce7] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
+              {ev.date === today() ? t('todayRehearsal') : t('nextRehearsal')}
+            </span>
+          ) : null}
           {(warningCounts[ev.id] ?? 0) > 0 ? (
             <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#fef2f2] px-2 py-1 text-xs font-semibold text-[#b91c1c]">
               <AlertTriangle size={13} />
@@ -179,6 +199,8 @@ export const EventsPage = () => {
         onRowClick={(ev) => navigate(`/projects/${project.id}/events/${ev.id}`)}
         search={(ev) => ev.name}
         filters={filters}
+        highlightRowId={highlightRowId}
+        onClearFilters={() => setHighlightNext(false)}
         emptyMessage={t('noEvents')}
         emptyIcon={CalendarDays}
         actions={(ev) => (

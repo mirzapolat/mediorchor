@@ -192,7 +192,7 @@ export const EventAttendancePage = () => {
     <>
       <PageHeader
         title={t('attendance')}
-        subtitle={`${counts.attended} ${t('attended').toLowerCase()} · ${counts.excused} ${t('excused').toLowerCase()} · ${counts.total}`}
+        subtitle={`${counts.attended} ${t('attended').toLowerCase()} · ${counts.excused} ${t('excused').toLowerCase()} · ${counts.total} ${t('total')}`}
         actions={
           <Button onClick={() => setAddOpen(true)}>
             <UserPlus size={16} />

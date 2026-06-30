@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
-import { CalendarDays, CalendarX2, Users, Settings, ArrowLeft } from 'lucide-react';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Users, Settings, ArrowLeft } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -46,6 +46,7 @@ export const ProjectLayout = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
+  const [unrecognizedCount, setUnrecognizedCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,6 +67,24 @@ export const ProjectLayout = () => {
     };
   }, [projectId]);
 
+  const loadCheckinWarnings = useCallback(async () => {
+    if (!projectId) return;
+    const { count } = await supabase
+      .from('checkin_submissions')
+      .select('id, events!inner(project_id)', { count: 'exact', head: true })
+      .eq('events.project_id', projectId)
+      .eq('recognized', false);
+    setUnrecognizedCount(count ?? 0);
+  }, [projectId]);
+
+  useEffect(() => {
+    void loadCheckinWarnings();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadCheckinWarnings();
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [loadCheckinWarnings]);
+
   if (loading) return <PageSpinner />;
   if (!project) {
     navigate('/');
@@ -80,9 +99,16 @@ export const ProjectLayout = () => {
         <ProjectHeader project={project} onBack={() => navigate('/')} />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <SidebarNavItem to={`${base}/events`} label={t('events')} icon={CalendarDays} />
+          <SidebarNavItem
+            to={`${base}/events`}
+            label={t('events')}
+            icon={CalendarDays}
+            warningCount={unrecognizedCount}
+          />
           <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
+          <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
           <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
+          <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />
           <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
         </div>
 

@@ -12,7 +12,6 @@ import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
-import { loadProjectMemberAttendance, type AttendanceCounts } from '@/lib/memberAttendance';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member } from '@/types';
 
@@ -21,7 +20,6 @@ export const MembersPage = () => {
   const { project } = useProjectContext();
   const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
-  const [attendanceCounts, setAttendanceCounts] = useState<Record<string, AttendanceCounts>>({});
   const [loading, setLoading] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -30,9 +28,13 @@ export const MembersPage = () => {
   const [toDelete, setToDelete] = useState<Member | null>(null);
 
   const load = useCallback(async () => {
-    const result = await loadProjectMemberAttendance(project.id);
-    setMembers(result.members);
-    setAttendanceCounts(result.countsByMember);
+    const { data } = await supabase
+      .from('members')
+      .select('*')
+      .eq('project_id', project.id)
+      .in('status', ['active', 'archived'])
+      .order('last_name');
+    setMembers((data as Member[] | null) ?? []);
     setLoading(false);
   }, [project.id]);
 
@@ -96,33 +98,6 @@ export const MembersPage = () => {
       header: t('email'),
       accessor: (m) => m.email,
       render: (m) => <span className="text-text-secondary">{m.email ?? '—'}</span>,
-    },
-    {
-      id: 'attended',
-      header: t('attended'),
-      accessor: (m) => attendanceCounts[m.id]?.attended ?? 0,
-      render: (m) => (
-        <span className="font-medium text-[#16803b]">{attendanceCounts[m.id]?.attended ?? 0}</span>
-      ),
-      className: 'w-px text-center whitespace-nowrap',
-    },
-    {
-      id: 'excused',
-      header: t('excused'),
-      accessor: (m) => attendanceCounts[m.id]?.excused ?? 0,
-      render: (m) => (
-        <span className="font-medium text-text-secondary">{attendanceCounts[m.id]?.excused ?? 0}</span>
-      ),
-      className: 'w-px text-center whitespace-nowrap',
-    },
-    {
-      id: 'absent',
-      header: t('notAttended'),
-      accessor: (m) => attendanceCounts[m.id]?.absent ?? 0,
-      render: (m) => (
-        <span className="font-medium text-text-secondary">{attendanceCounts[m.id]?.absent ?? 0}</span>
-      ),
-      className: 'w-px text-center whitespace-nowrap',
     },
   ];
 

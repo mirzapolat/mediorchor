@@ -15,6 +15,8 @@ interface AuthContextValue {
   user: AppUser | null;
   loading: boolean;
   isOwner: boolean;
+  canAccessProjects: boolean;
+  canAccessClub: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -62,6 +64,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user,
       loading,
       isOwner: user?.role === 'owner',
+      // Default-allow: only an explicit `false` denies access (also keeps things
+      // working before the column has propagated).
+      canAccessProjects: user?.role === 'owner' || user?.can_access_projects !== false,
+      canAccessClub: user?.role === 'owner' || Boolean(user?.can_access_club),
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error?.message ?? null };

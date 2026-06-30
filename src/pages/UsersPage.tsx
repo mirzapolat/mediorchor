@@ -58,6 +58,15 @@ export const UsersPage = () => {
 
   if (loading) return <PageSpinner />;
 
+  // 'all' = every project, 'partial' = selected projects, 'none' = no access.
+  const projectAccessState = (u: AppUser): 'all' | 'partial' | 'none' => {
+    if (u.role === 'owner') return 'all';
+    if (!u.can_access_projects) return 'none';
+    return u.all_projects ? 'all' : 'partial';
+  };
+  const projectAccessLabel = { all: t('accessAll'), partial: t('accessPartial'), none: t('accessNone') };
+  const hasClubAccess = (u: AppUser) => u.role === 'owner' || u.can_access_club;
+
   const columns: Column<AppUser>[] = [
     {
       id: 'name',
@@ -93,10 +102,25 @@ export const UsersPage = () => {
     {
       id: 'access',
       header: t('projectAccess'),
-      accessor: (u) => (u.role === 'owner' || u.all_projects ? 0 : 1),
+      accessor: (u) => ({ all: 0, partial: 1, none: 2 })[projectAccessState(u)],
+      render: (u) => {
+        const state = projectAccessState(u);
+        return (
+          <span
+            className={`text-sm ${state === 'none' ? 'text-text-tertiary' : 'text-text-secondary'}`}
+          >
+            {projectAccessLabel[state]}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'club',
+      header: t('memberManagement'),
+      accessor: (u) => (hasClubAccess(u) ? 0 : 1),
       render: (u) => (
-        <span className="text-sm text-text-secondary">
-          {u.role === 'owner' || u.all_projects ? t('allProjectsAccess') : t('selectedProjects')}
+        <span className={`text-sm ${hasClubAccess(u) ? 'text-text-secondary' : 'text-text-tertiary'}`}>
+          {hasClubAccess(u) ? t('yes') : t('no')}
         </span>
       ),
     },
@@ -111,6 +135,25 @@ export const UsersPage = () => {
         { value: 'member', label: t('member') },
       ],
       predicate: (u, v) => u.role === v,
+    },
+    {
+      id: 'access',
+      label: t('projectAccess'),
+      options: [
+        { value: 'all', label: t('accessAll') },
+        { value: 'partial', label: t('accessPartial') },
+        { value: 'none', label: t('accessNone') },
+      ],
+      predicate: (u, v) => projectAccessState(u) === v,
+    },
+    {
+      id: 'club',
+      label: t('memberManagement'),
+      options: [
+        { value: 'yes', label: t('yes') },
+        { value: 'no', label: t('no') },
+      ],
+      predicate: (u, v) => (v === 'yes' ? hasClubAccess(u) : !hasClubAccess(u)),
     },
   ];
 

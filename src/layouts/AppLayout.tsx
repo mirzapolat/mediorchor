@@ -1,10 +1,11 @@
 import { Outlet } from 'react-router-dom';
-import { FolderKanban } from 'lucide-react';
+import { FolderKanban, UsersRound } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
+import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
 
 const AppHeader = () => {
@@ -24,6 +25,7 @@ const AppHeader = () => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
+  const { canAccessProjects, canAccessClub } = useAuth();
 
   return (
     <div className="flex h-full">
@@ -31,16 +33,19 @@ export const AppLayout = () => {
         <AppHeader />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
+          {canAccessProjects && (
+            <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
+          )}
+          {canAccessClub && (
+            <SidebarNavItem to="/club" label={t('clubMembers')} icon={UsersRound} />
+          )}
         </div>
 
         <SidebarFooter />
       </Sidebar>
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-8 max-w-[1400px]">
-          <Outlet />
-        </div>
+      <main className="flex-1 overflow-y-auto min-w-0">
+        <Outlet />
       </main>
     </div>
   );
