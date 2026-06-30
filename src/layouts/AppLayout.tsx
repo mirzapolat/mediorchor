@@ -44,7 +44,7 @@ export const AppLayout = () => {
         <SidebarFooter />
       </Sidebar>
 
-      <main className="flex-1 overflow-y-auto min-w-0">
+      <main className="flex-1 overflow-y-auto min-w-0 pt-14 md:pt-0">
         <Outlet />
       </main>
     </div>

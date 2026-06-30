@@ -86,20 +86,20 @@ export const MemberDetailPage = () => {
         {t('members')}
       </button>
 
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <Avatar name={`${member.first_name} ${member.last_name}`} photoUrl={member.photo_url} size={64} />
-          <div>
-            <h1 className="text-2xl font-bold">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold break-words">
               {member.first_name} {member.last_name}
             </h1>
-            <p className="text-text-secondary text-sm mt-1">
+            <p className="text-text-secondary text-sm mt-1 break-words">
               {member.group_name ? `${member.group_name} · ` : ''}
               {member.email ?? '—'}
             </p>
           </div>
         </div>
-        <Button variant="secondary" onClick={() => setEditOpen(true)}>
+        <Button variant="secondary" onClick={() => setEditOpen(true)} className="sm:flex-shrink-0">
           <Pencil size={15} />
           {t('edit')}
         </Button>

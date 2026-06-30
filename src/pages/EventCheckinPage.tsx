@@ -309,12 +309,12 @@ export const EventCheckinPage = () => {
   return (
     <>
       <h1 className="sr-only">{t('checkIn')}</h1>
-      <div className="flex items-center justify-between gap-3 mb-8">
-        <Button variant="secondary" onClick={() => setConfigOpen(true)}>
+      <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="secondary" onClick={() => setConfigOpen(true)} className="sm:flex-shrink-0">
           <Settings2 size={16} />
           {t('configuration')}
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" disabled={busy} onClick={reset}>
             <RotateCcw size={16} />
             {t('clearFilters')}

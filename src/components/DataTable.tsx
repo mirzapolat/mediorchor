@@ -211,8 +211,8 @@ export function DataTable<T>({
       {processed.length === 0 ? (
         <EmptyState icon={emptyIcon} message={emptyMessage} />
       ) : (
-        <div className="border border-border rounded-md overflow-hidden bg-surface">
-          <table className="w-full border-collapse">
+        <div className="border border-border rounded-md overflow-x-auto bg-surface">
+          <table className="w-full min-w-[640px] border-collapse">
             <thead>
               <tr className="bg-[#f5f5f5] text-sm font-medium text-text-secondary text-left">
                 {selectable && (

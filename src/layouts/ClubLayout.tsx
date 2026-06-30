@@ -1,5 +1,5 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { FileText, ScrollText, UsersRound } from 'lucide-react';
+import { NavLink, Navigate, Outlet } from 'react-router-dom';
+import { FileText, ScrollText, UsersRound, type LucideIcon } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/cn';
@@ -22,8 +22,26 @@ const ClubHeader = () => {
   );
 };
 
-// The "Vereinsmitglieder" section. It lives inside the top dashboard (the
-// primary app sidebar stays visible) and adds its own secondary sidebar.
+// Horizontal tab shown in place of the secondary sidebar on small screens.
+const MobileTab = ({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) => (
+  <NavLink
+    to={to}
+    className={({ isActive }) =>
+      cn(
+        'inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150',
+        isActive ? 'bg-[#f0f0f0] text-text' : 'text-text-secondary hover:bg-[#f5f5f5]',
+      )
+    }
+  >
+    <Icon size={16} />
+    {label}
+  </NavLink>
+);
+
+// The "Vereinsmitglieder" section. On desktop it lives inside the top dashboard
+// (the primary app sidebar stays visible) and adds its own secondary sidebar.
+// On mobile the secondary sidebar collapses to a horizontal tab strip so the
+// app's single drawer stays the only off-canvas menu.
 export const ClubLayout = () => {
   const { t } = useI18n();
   const { canAccessClub } = useAuth();
@@ -32,7 +50,8 @@ export const ClubLayout = () => {
 
   return (
     <div className="flex h-full">
-      <Sidebar storageKey="club">
+      {/* Secondary sidebar — desktop only; the parent app drawer covers mobile. */}
+      <Sidebar storageKey="club" hideMobileBar>
         <ClubHeader />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
@@ -46,8 +65,15 @@ export const ClubLayout = () => {
         </div>
       </Sidebar>
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-8 max-w-[1400px]">
+      <main className="flex-1 overflow-y-auto min-w-0">
+        {/* Mobile secondary navigation. */}
+        <div className="flex gap-1.5 overflow-x-auto border-b border-border bg-surface px-4 py-2 md:hidden">
+          <MobileTab to="/club/members" label={t('members')} icon={UsersRound} />
+          <MobileTab to="/club/applications" label={t('membershipApplications')} icon={FileText} />
+          <MobileTab to="/club/rules" label={t('rules')} icon={ScrollText} />
+        </div>
+
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
           <Outlet />
         </div>
       </main>
