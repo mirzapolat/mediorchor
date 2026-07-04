@@ -28,6 +28,9 @@ import { EventAttendancePage } from '@/pages/EventAttendancePage';
 import { EventSettingsPage } from '@/pages/EventSettingsPage';
 import { EventCheckinPage } from '@/pages/EventCheckinPage';
 import { RegistrationsPage } from '@/pages/RegistrationsPage';
+import { PiecesPage } from '@/pages/PiecesPage';
+import { PieceDetailPage } from '@/pages/PieceDetailPage';
+import { PiecePracticePage } from '@/pages/PiecePracticePage';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
 import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
@@ -111,6 +114,9 @@ export const App = () => {
         <Route path="members" element={<MembersPage />} />
         <Route path="absences" element={<AbsencesPage />} />
         <Route path="statistics" element={<StatisticsPage />} />
+        <Route path="pieces" element={<PiecesPage />} />
+        <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
+        <Route path="pieces/:pieceId/practice/:blockId" element={<PiecePracticePage />} />
         <Route path="registrations" element={<RegistrationsPage />} />
         <Route path="registrations/:pageId" element={<RegistrationPageDetail />} />
         <Route path="members/:memberId" element={<MemberDetailPage />} />

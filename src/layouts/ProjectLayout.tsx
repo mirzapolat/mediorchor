@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
-import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Users, Settings, ArrowLeft } from 'lucide-react';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, Users, Settings, ArrowLeft } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -106,6 +106,7 @@ export const ProjectLayout = () => {
             warningCount={unrecognizedCount}
           />
           <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
+          <SidebarNavItem to={`${base}/pieces`} label={t('pieces')} icon={Music} />
           <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
           <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
           <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />

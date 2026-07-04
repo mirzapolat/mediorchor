@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, X, type LucideIcon } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, X, type LucideIcon } from 'lucide-react';
 import { Input, Select } from './Input';
 import { EmptyState } from './EmptyState';
+import { useDragReorder } from '@/hooks/useDragReorder';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
@@ -28,6 +29,8 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   getRowId: (row: T) => string;
   onRowClick?: (row: T) => void;
+  // Limits onRowClick to specific rows (others get no pointer/hover styling).
+  rowClickable?: (row: T) => boolean;
   actions?: (row: T) => ReactNode;
   search?: (row: T) => string;
   searchPlaceholder?: string;
@@ -42,6 +45,9 @@ interface DataTableProps<T> {
   // Enables a leading checkbox column. Selection is controlled by the caller.
   selectedIds?: string[];
   onSelectedIdsChange?: (ids: string[]) => void;
+  // Enables drag & drop row reordering via a leading grip column. Column
+  // sorting is disabled in this mode (the manual order is the order).
+  onReorder?: (rows: T[]) => void;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -64,6 +70,7 @@ export function DataTable<T>({
   columns,
   getRowId,
   onRowClick,
+  rowClickable,
   actions,
   search,
   searchPlaceholder,
@@ -75,8 +82,10 @@ export function DataTable<T>({
   onClearFilters,
   selectedIds,
   onSelectedIdsChange,
+  onReorder,
 }: DataTableProps<T>) {
   const { t } = useI18n();
+  const reorderable = Boolean(onReorder);
   const [query, setQuery] = useState('');
   const [sortId, setSortId] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -92,7 +101,7 @@ export function DataTable<T>({
     }
     const q = query.trim().toLowerCase();
     if (q && search) out = out.filter((r) => search(r).toLowerCase().includes(q));
-    if (sortId) {
+    if (sortId && !reorderable) {
       const col = columns.find((c) => c.id === sortId);
       if (col?.accessor) {
         const acc = col.accessor;
@@ -110,11 +119,13 @@ export function DataTable<T>({
       }
     }
     return out;
-  }, [rows, columns, filters, filterValues, query, search, sortId, sortDir, highlightRowId, getRowId]);
+  }, [rows, columns, filters, filterValues, query, search, sortId, sortDir, highlightRowId, getRowId, reorderable]);
 
   useEffect(() => {
     onVisibleRowsChange?.(processed);
   }, [onVisibleRowsChange, processed]);
+
+  const dnd = useDragReorder(processed, getRowId, onReorder ?? (() => undefined));
 
   // Click cycles: none → asc → desc → none.
   const toggleSort = (id: string) => {
@@ -215,6 +226,11 @@ export function DataTable<T>({
           <table className="w-full min-w-[640px] border-collapse">
             <thead>
               <tr className="bg-[#f5f5f5] text-sm font-medium text-text-secondary text-left">
+                {reorderable && (
+                  <th className="w-px border-b border-r border-border px-2 py-3">
+                    <ArrowUpDown size={14} className="mx-auto text-text-tertiary" aria-label={t('reorder')} />
+                  </th>
+                )}
                 {selectable && (
                   <th className="w-px border-b border-r border-border px-4 py-3">
                     <input
@@ -230,7 +246,7 @@ export function DataTable<T>({
                   </th>
                 )}
                 {columns.map((c) => {
-                  const sortable = c.sortable ?? Boolean(c.accessor);
+                  const sortable = !reorderable && (c.sortable ?? Boolean(c.accessor));
                   const active = sortId === c.id;
                   return (
                     <th
@@ -266,24 +282,64 @@ export function DataTable<T>({
               </tr>
             </thead>
             <tbody>
-              {processed.map((row) => {
+              {processed.map((row, rowIndex) => {
                 const rowId = getRowId(row);
                 const highlighted = highlightRowId != null && rowId === highlightRowId;
                 const selected = selectedSet.has(rowId);
+                const dragging = reorderable && dnd.isDragging(rowId);
+                const clickable = Boolean(onRowClick) && (rowClickable?.(row) ?? true);
                 return (
                 <tr
                   key={rowId}
+                  ref={reorderable ? (el) => dnd.setItemRef(rowId, el) : undefined}
+                  style={
+                    // Only style rows while a drag is active: a permanent
+                    // position/transform would create a stacking context that
+                    // paints hover backgrounds over the collapsed cell borders.
+                    reorderable && dnd.dragActive
+                      ? {
+                          transform: `translateY(${dnd.shiftFor(rowIndex)}px)`,
+                          transition: dragging ? 'none' : 'transform 150ms ease',
+                          position: dragging ? 'relative' : undefined,
+                          zIndex: dragging ? 10 : undefined,
+                        }
+                      : undefined
+                  }
                   className={cn(
                     'text-base',
-                    selected
-                      ? 'bg-[#eff6ff] hover:bg-[#e3eeff]'
-                      : highlighted
-                        ? 'bg-[#f0fdf4] hover:bg-[#e3f8ea]'
-                        : onRowClick && 'hover:bg-[#fcfcfc]',
-                    onRowClick && 'cursor-pointer transition-colors duration-150',
+                    dragging
+                      ? 'bg-white shadow-lg'
+                      : selected
+                        ? 'bg-[#eff6ff] hover:bg-[#e3eeff]'
+                        : highlighted
+                          ? 'bg-[#f0fdf4] hover:bg-[#e3f8ea]'
+                          : clickable && 'hover:bg-[#fcfcfc]',
+                    clickable && 'cursor-pointer transition-colors duration-150',
                   )}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  onClick={clickable && onRowClick ? () => onRowClick(row) : undefined}
                 >
+                  {reorderable && (
+                    <td
+                      className="w-px border-b border-r border-border px-2 py-3 align-middle"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        aria-label={t('reorder')}
+                        onPointerDown={(e) => dnd.startDrag(e, rowId, rowIndex)}
+                        onPointerMove={dnd.moveDrag}
+                        onPointerUp={dnd.endDrag}
+                        onPointerCancel={dnd.endDrag}
+                        style={{ touchAction: 'none' }}
+                        className={cn(
+                          'flex h-8 w-6 items-center justify-center rounded text-text-tertiary hover:text-text-secondary',
+                          processed.length < 2 ? 'invisible' : 'cursor-grab active:cursor-grabbing',
+                        )}
+                      >
+                        <GripVertical size={16} />
+                      </button>
+                    </td>
+                  )}
                   {selectable && (
                     <td
                       className="w-px border-b border-r border-border px-4 py-3"
@@ -308,7 +364,7 @@ export function DataTable<T>({
                   ))}
                   {actions && (
                     <td
-                      className="border-b border-border px-4 py-3"
+                      className="border-b border-border px-4 py-3 align-middle"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1">{actions(row)}</div>

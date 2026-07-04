@@ -136,6 +136,51 @@ export interface Registration {
   created_at: string;
 }
 
+export interface Piece {
+  id: string;
+  project_id: string;
+  name: string;
+  composer: string;
+  position: number;
+  created_at: string;
+}
+
+export type PieceBlockType = 'file' | 'audio' | 'link' | 'text';
+
+// One content block on a piece's info page. Which fields are set depends on
+// the type: file/audio use file_path + file_name, link uses url, text uses
+// content (Markdown).
+export interface PieceBlock {
+  id: string;
+  piece_id: string;
+  type: PieceBlockType;
+  title: string;
+  url: string | null;
+  file_path: string | null;
+  file_name: string | null;
+  content: string | null;
+  // Audio blocks may map the recording onto score bars (Takte); the practice
+  // page then lets playback start at any bar between bars_start and bars_end.
+  has_bars: boolean;
+  bars_start: number | null;
+  bars_end: number | null;
+  // Optional score PDF shown on the practice page; bars can be anchored onto
+  // it (keyed by bar number) so their buttons sit on the sheet music.
+  score_path: string | null;
+  score_name: string | null;
+  bar_anchors: Record<string, BarAnchor>;
+  position: number;
+  created_at: string;
+}
+
+// Position of a bar button on the score PDF: page number (1-based) and the
+// x/y position as fractions of the page size, so it scales with any width.
+export interface BarAnchor {
+  page: number;
+  x: number;
+  y: number;
+}
+
 // A member joined with their attendance status for a given event.
 export interface AttendanceRow {
   member: Member;
