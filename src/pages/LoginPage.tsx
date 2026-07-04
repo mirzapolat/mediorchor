@@ -1,15 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
+import { safeRedirectPath } from '@/lib/safePath';
 
 export const LoginPage = () => {
   const { t } = useI18n();
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Deep link the user originally requested before being sent to /login.
+  const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +31,7 @@ export const LoginPage = () => {
       setError(/invalid/i.test(error) ? t('invalidCredentials') : error);
       return;
     }
-    navigate('/');
+    navigate(from ?? '/', { replace: true });
   };
 
   return (

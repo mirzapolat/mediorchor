@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { safeRedirectPath } from '@/lib/safePath';
 import { PageSpinner } from '@/components/Spinner';
 import { LoginPage } from '@/pages/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
@@ -51,10 +52,13 @@ export const App = () => {
   }
   if (loading) return <PageSpinner />;
   if (!session) {
+    // Remember where the user wanted to go so the login page can send them
+    // back there afterwards (e.g. when someone shares a deep link).
+    const from = location.pathname + location.search + location.hash;
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace state={{ from }} />} />
       </Routes>
     );
   }
@@ -62,9 +66,13 @@ export const App = () => {
   // Where to send a user who lands on a section they cannot access.
   const homePath = canAccessProjects ? '/' : canAccessClub ? '/club' : '/account';
 
+  // After signing in the user is still on /login; return them to the page
+  // they originally requested (carried via router state), if any.
+  const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
+
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to={homePath} replace />} />
+      <Route path="/login" element={<Navigate to={from ?? homePath} replace />} />
 
       {/* Top-level workspace */}
       <Route element={<AppLayout />}>
