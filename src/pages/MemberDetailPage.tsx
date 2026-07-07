@@ -9,6 +9,7 @@ import { MemberForm } from '@/components/MemberForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { DataTable } from '@/components/DataTable';
 import { useI18n } from '@/lib/i18n';
+import { accountNameDeviation } from '@/lib/accountName';
 import { supabase } from '@/lib/supabase';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AttendanceStatus, Event, Member } from '@/types';
@@ -29,10 +30,21 @@ export const MemberDetailPage = () => {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [accountName, setAccountName] = useState<string | undefined>(undefined);
 
   const load = async () => {
     const { data: m } = await supabase.from('members').select('*').eq('id', memberId).maybeSingle();
     setMember((m as Member) ?? null);
+
+    // Name of the linked account (if any), to flag a deviating member name.
+    const { data: names } = await supabase.rpc('linked_account_names', {
+      p_project_id: project.id,
+    });
+    setAccountName(
+      ((names as { member_id: string; account_name: string }[] | null) ?? []).find(
+        (row) => row.member_id === memberId,
+      )?.account_name,
+    );
 
     // Existing group names in this project, for the edit form's suggestions.
     const { data: g } = await supabase
@@ -93,6 +105,11 @@ export const MemberDetailPage = () => {
             <h1 className="text-xl sm:text-2xl font-bold break-words">
               {member.first_name} {member.last_name}
             </h1>
+            {accountNameDeviation(member, accountName) && (
+              <p className="text-sm text-accent mt-1 break-words">
+                {t('nameDiffersFromAccount')}: {accountNameDeviation(member, accountName)}
+              </p>
+            )}
             <p className="text-text-secondary text-sm mt-1 break-words">
               {member.group_name ? `${member.group_name} · ` : ''}
               {member.email ?? '—'}

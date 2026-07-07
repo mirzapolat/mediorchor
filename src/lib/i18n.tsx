@@ -198,6 +198,10 @@ const dict: Dict = {
     de: 'Kein passendes Konto gefunden. Das Mitglied wird manuell erstellt.',
     en: 'No matching account found. The member will be created manually.',
   },
+  nameDiffersFromAccount: {
+    de: 'Name weicht vom Konto ab',
+    en: 'Name differs from account',
+  },
 
   // CSV import
   importCsv: { de: 'CSV importieren', en: 'Import CSV' },

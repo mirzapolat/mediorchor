@@ -11,6 +11,7 @@ import { MemberImport } from '@/components/MemberImport';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
+import { accountNameDeviation } from '@/lib/accountName';
 import { supabase } from '@/lib/supabase';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member } from '@/types';
@@ -20,6 +21,8 @@ export const MembersPage = () => {
   const { project } = useProjectContext();
   const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
+  // Account display names behind linked members, to flag deviating names.
+  const [accountNames, setAccountNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -28,13 +31,23 @@ export const MembersPage = () => {
   const [toDelete, setToDelete] = useState<Member | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase
-      .from('members')
-      .select('*')
-      .eq('project_id', project.id)
-      .in('status', ['active', 'archived'])
-      .order('last_name');
-    setMembers((data as Member[] | null) ?? []);
+    const [membersResult, namesResult] = await Promise.all([
+      supabase
+        .from('members')
+        .select('*')
+        .eq('project_id', project.id)
+        .in('status', ['active', 'archived'])
+        .order('last_name'),
+      supabase.rpc('linked_account_names', { p_project_id: project.id }),
+    ]);
+    setMembers((membersResult.data as Member[] | null) ?? []);
+    setAccountNames(
+      Object.fromEntries(
+        ((namesResult.data as { member_id: string; account_name: string }[] | null) ?? []).map(
+          (row) => [row.member_id, row.account_name],
+        ),
+      ),
+    );
     setLoading(false);
   }, [project.id]);
 
@@ -73,19 +86,27 @@ export const MembersPage = () => {
       id: 'name',
       header: t('name'),
       accessor: (m) => `${m.last_name} ${m.first_name}`,
-      render: (m) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
-          <span>
-            {m.first_name} {m.last_name}
-          </span>
-          {m.status === 'archived' && (
-            <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
-              {t('archived')}
+      render: (m) => {
+        const deviation = accountNameDeviation(m, accountNames[m.id]);
+        return (
+          <div className="flex items-center gap-2.5">
+            <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
+            <span>
+              {m.first_name} {m.last_name}
+              {deviation && (
+                <span className="block text-xs text-accent">
+                  {t('nameDiffersFromAccount')}: {deviation}
+                </span>
+              )}
             </span>
-          )}
-        </div>
-      ),
+            {m.status === 'archived' && (
+              <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
+                {t('archived')}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: 'group',
