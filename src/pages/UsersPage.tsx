@@ -16,7 +16,7 @@ import type { AppUser } from '@/types';
 export const UsersPage = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { isOwner } = useAuth();
+  const { isAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +35,7 @@ export const UsersPage = () => {
     void load();
   }, []);
 
-  if (!isOwner) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   const createUser = async (e: FormEvent) => {
     e.preventDefault();
@@ -58,14 +58,15 @@ export const UsersPage = () => {
 
   if (loading) return <PageSpinner />;
 
-  // 'all' = every project, 'partial' = selected projects, 'none' = no access.
+  // 'all' = manages every project, 'partial' = selected projects, 'none' = a
+  // plain participant account without management rights.
   const projectAccessState = (u: AppUser): 'all' | 'partial' | 'none' => {
-    if (u.role === 'owner') return 'all';
-    if (!u.can_access_projects) return 'none';
+    if (u.is_admin) return 'all';
+    if (!u.can_manage_projects) return 'none';
     return u.all_projects ? 'all' : 'partial';
   };
   const projectAccessLabel = { all: t('accessAll'), partial: t('accessPartial'), none: t('accessNone') };
-  const hasClubAccess = (u: AppUser) => u.role === 'owner' || u.can_access_club;
+  const hasClubAccess = (u: AppUser) => u.is_admin || u.can_access_club;
 
   const columns: Column<AppUser>[] = [
     {
@@ -88,9 +89,9 @@ export const UsersPage = () => {
     {
       id: 'role',
       header: t('role'),
-      accessor: (u) => u.role,
+      accessor: (u) => (u.is_admin ? 0 : 1),
       render: (u) =>
-        u.role === 'owner' ? (
+        u.is_admin ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium">
             <Crown size={15} className="text-accent" />
             {t('owner')}
@@ -101,7 +102,7 @@ export const UsersPage = () => {
     },
     {
       id: 'access',
-      header: t('projectAccess'),
+      header: t('projectManagement'),
       accessor: (u) => ({ all: 0, partial: 1, none: 2 })[projectAccessState(u)],
       render: (u) => {
         const state = projectAccessState(u);
@@ -131,14 +132,14 @@ export const UsersPage = () => {
       id: 'role',
       label: t('role'),
       options: [
-        { value: 'owner', label: t('owner') },
+        { value: 'admin', label: t('owner') },
         { value: 'member', label: t('member') },
       ],
-      predicate: (u, v) => u.role === v,
+      predicate: (u, v) => (v === 'admin' ? u.is_admin : !u.is_admin),
     },
     {
       id: 'access',
-      label: t('projectAccess'),
+      label: t('projectManagement'),
       options: [
         { value: 'all', label: t('accessAll') },
         { value: 'partial', label: t('accessPartial') },

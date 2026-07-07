@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Upload } from 'lucide-react';
+import { Search, Upload, UserRound, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -8,6 +8,12 @@ import { useI18n } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import { uploadImage } from '@/lib/uploadImage';
 import type { Member } from '@/types';
+
+interface AccountResult {
+  id: string;
+  name: string;
+  email: string;
+}
 
 interface MemberFormProps {
   open: boolean;
@@ -44,6 +50,10 @@ export const MemberForm = ({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Optional link to an existing account (only when creating a new member).
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountResults, setAccountResults] = useState<AccountResult[]>([]);
+  const [linkedAccount, setLinkedAccount] = useState<AccountResult | null>(null);
 
   // The dialog stays mounted between openings, so reset the fields each time it
   // opens (or the edited member changes) instead of keeping stale values.
@@ -53,8 +63,41 @@ export const MemberForm = ({
       setPhotoUrl(member?.photo_url ?? null);
       setSaving(false);
       setUploadError(null);
+      setAccountQuery('');
+      setAccountResults([]);
+      setLinkedAccount(null);
     }
   }, [open, member]);
+
+  // Debounced account search while creating a new member.
+  useEffect(() => {
+    if (!open || member || linkedAccount) return;
+    const query = accountQuery.trim();
+    if (!query) {
+      setAccountResults([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const { data } = await supabase.rpc('search_accounts', { p_query: query });
+      setAccountResults((data as AccountResult[]) ?? []);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [accountQuery, open, member, linkedAccount]);
+
+  const selectAccount = (account: AccountResult) => {
+    setLinkedAccount(account);
+    setAccountResults([]);
+    setAccountQuery('');
+    // Prefill from the account; the group stays a per-project choice.
+    const name = account.name.trim();
+    const lastSpace = name.lastIndexOf(' ');
+    setForm((f) => ({
+      ...f,
+      first_name: lastSpace > 0 ? name.slice(0, lastSpace) : name,
+      last_name: lastSpace > 0 ? name.slice(lastSpace + 1) : f.last_name,
+      email: account.email,
+    }));
+  };
 
   const uploadPhoto = async (file: File) => {
     setUploading(true);
@@ -78,6 +121,23 @@ export const MemberForm = ({
     };
     if (member) {
       await supabase.from('members').update(payload).eq('id', member.id);
+    } else if (linkedAccount) {
+      // The account may already have a (possibly archived) member row in this
+      // project — one link per project, so re-activate it instead.
+      const { data: existing } = await supabase
+        .from('members')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('user_id', linkedAccount.id)
+        .maybeSingle();
+      if (existing) {
+        await supabase
+          .from('members')
+          .update({ ...payload, status: 'active' })
+          .eq('id', (existing as { id: string }).id);
+      } else {
+        await supabase.from('members').insert({ ...payload, user_id: linkedAccount.id });
+      }
     } else {
       await supabase.from('members').insert(payload);
     }
@@ -109,6 +169,67 @@ export const MemberForm = ({
       }
     >
       <form id="member-form" onSubmit={save} className="space-y-4">
+        {!member && (
+          <div className="rounded-md border border-border p-3 space-y-2">
+            {linkedAccount ? (
+              <div className="flex items-center gap-3">
+                <UserRound size={18} className="text-text-secondary flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{linkedAccount.name || linkedAccount.email}</p>
+                  <p className="text-sm text-text-secondary truncate">{linkedAccount.email}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label={t('remove')}
+                  onClick={() => setLinkedAccount(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-[#f0f0f0] hover:text-text"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <Input
+                  label={
+                    <span className="inline-flex items-center gap-1.5">
+                      <Search size={13} />
+                      {`${t('searchAccount')} (${t('optional')})`}
+                    </span>
+                  }
+                  value={accountQuery}
+                  onChange={(e) => setAccountQuery(e.target.value)}
+                  placeholder={t('searchAccountPlaceholder')}
+                />
+                {accountResults.length > 0 ? (
+                  <div className="max-h-44 space-y-0.5 overflow-y-auto">
+                    {accountResults.map((account) => (
+                      <button
+                        key={account.id}
+                        type="button"
+                        onClick={() => selectAccount(account)}
+                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-[#f5f5f5] transition-colors duration-150"
+                      >
+                        <Avatar name={account.name || account.email} size={24} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">
+                            {account.name || account.email}
+                          </span>
+                          <span className="block truncate text-sm text-text-secondary">
+                            {account.email}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : accountQuery.trim() ? (
+                  <p className="text-sm text-text-secondary">{t('noAccountsFound')}</p>
+                ) : (
+                  <p className="text-sm text-text-secondary">{t('searchAccountHint')}</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-4">
           <Avatar name={fullName || '?'} photoUrl={photoUrl} size={56} />
           <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">

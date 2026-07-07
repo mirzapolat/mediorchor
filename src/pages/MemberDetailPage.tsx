@@ -176,7 +176,7 @@ export const MemberDetailPage = () => {
         open={editOpen}
         projectId={project.id}
         member={member}
-        groups={groups}
+        groups={project.groups.length > 0 ? project.groups : groups}
         onClose={() => setEditOpen(false)}
         onSaved={load}
       />

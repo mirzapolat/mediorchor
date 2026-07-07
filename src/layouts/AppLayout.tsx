@@ -25,7 +25,7 @@ const AppHeader = () => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canAccessProjects, canAccessClub } = useAuth();
+  const { canAccessClub } = useAuth();
 
   return (
     <div className="flex h-full">
@@ -33,9 +33,7 @@ export const AppLayout = () => {
         <AppHeader />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {canAccessProjects && (
-            <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
-          )}
+          <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
           {canAccessClub && (
             <SidebarNavItem to="/club" label={t('clubMembers')} icon={UsersRound} />
           )}

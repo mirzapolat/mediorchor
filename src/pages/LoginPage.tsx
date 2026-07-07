@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { MailCheck } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
+import { supabase } from '@/lib/supabase';
 import { safeRedirectPath } from '@/lib/safePath';
 
 export const LoginPage = () => {
@@ -14,15 +16,54 @@ export const LoginPage = () => {
   const location = useLocation();
   // Deep link the user originally requested before being sent to /login.
   const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [allowSelfSignup, setAllowSelfSignup] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signedUp, setSignedUp] = useState(false);
+
+  useEffect(() => {
+    // Whether the sign-up option is offered is an instance setting readable
+    // without a session.
+    supabase.rpc('get_public_config').then(({ data }) => {
+      setAllowSelfSignup(
+        Boolean((data as { allow_self_signup?: boolean } | null)?.allow_self_signup),
+      );
+    });
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+
+    if (mode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name: name.trim() },
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
+      });
+      setSubmitting(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      // With email confirmation enabled there is no session yet; the user
+      // first has to click the link in the email.
+      if (!data.session) {
+        setSignedUp(true);
+        return;
+      }
+      navigate(from ?? '/', { replace: true });
+      return;
+    }
+
     const { error } = await signIn(email, password);
     setSubmitting(false);
     if (error) {
@@ -34,6 +75,12 @@ export const LoginPage = () => {
     navigate(from ?? '/', { replace: true });
   };
 
+  const switchMode = (next: 'signin' | 'signup') => {
+    setMode(next);
+    setError(null);
+    setSignedUp(false);
+  };
+
   return (
     <div className="flex h-full items-center justify-center bg-bg p-6">
       <div className="w-full max-w-sm">
@@ -43,33 +90,93 @@ export const LoginPage = () => {
         </div>
 
         <div className="bg-surface border border-border rounded-md p-6">
-          <h1 className="text-xl font-semibold">{t('loginTitle')}</h1>
-          <p className="text-text-secondary text-sm mt-1 mb-6">{t('loginSubtitle')}</p>
+          {signedUp ? (
+            <div className="py-4 text-center" role="status">
+              <MailCheck size={38} className="mx-auto text-[#16a34a]" />
+              <h1 className="mt-4 text-lg font-semibold">{t('confirmEmailTitle')}</h1>
+              <p className="text-text-secondary text-sm mt-2">{t('confirmEmailHint')}</p>
+              <button
+                type="button"
+                onClick={() => switchMode('signin')}
+                className="mt-5 text-sm font-medium text-text-secondary hover:text-text underline"
+              >
+                {t('signIn')}
+              </button>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-xl font-semibold">
+                {mode === 'signup' ? t('signUpTitle') : t('loginTitle')}
+              </h1>
+              <p className="text-text-secondary text-sm mt-1 mb-6">
+                {mode === 'signup' ? t('signUpSubtitle') : t('loginSubtitle')}
+              </p>
 
-          <form onSubmit={onSubmit} className="space-y-4">
-            <Input
-              id="email"
-              type="email"
-              label={t('email')}
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              id="password"
-              type="password"
-              label={t('password')}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            {error && <p className="text-sm text-accent">{error}</p>}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? t('loading') : t('signIn')}
-            </Button>
-          </form>
+              <form onSubmit={onSubmit} className="space-y-4">
+                {mode === 'signup' && (
+                  <Input
+                    id="name"
+                    label={t('name')}
+                    autoComplete="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                )}
+                <Input
+                  id="email"
+                  type="email"
+                  label={t('email')}
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <Input
+                  id="password"
+                  type="password"
+                  label={t('password')}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={mode === 'signup' ? 8 : undefined}
+                  required
+                />
+                {error && <p className="text-sm text-accent">{error}</p>}
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting ? t('loading') : mode === 'signup' ? t('signUp') : t('signIn')}
+                </Button>
+              </form>
+
+              {allowSelfSignup && (
+                <p className="text-sm text-text-secondary mt-5 text-center">
+                  {mode === 'signup' ? (
+                    <>
+                      {t('haveAccount')}{' '}
+                      <button
+                        type="button"
+                        onClick={() => switchMode('signin')}
+                        className="font-medium text-text underline"
+                      >
+                        {t('signIn')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {t('noAccount')}{' '}
+                      <button
+                        type="button"
+                        onClick={() => switchMode('signup')}
+                        className="font-medium text-text underline"
+                      >
+                        {t('signUp')}
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

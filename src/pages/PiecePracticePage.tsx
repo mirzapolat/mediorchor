@@ -35,7 +35,7 @@ const PdfScoreView = lazy(() =>
 // playing. Bars are assumed to be evenly spaced across the recording.
 export const PiecePracticePage = () => {
   const { t } = useI18n();
-  const { project } = useProjectContext();
+  const { project, canManage } = useProjectContext();
   const { pieceId, blockId } = useParams();
   const navigate = useNavigate();
 
@@ -338,34 +338,37 @@ export const PiecePracticePage = () => {
         title={block.title || block.file_name || t('blockAudio')}
         subtitle={`${totalBars} ${t('barsCount').toLowerCase()} (${firstBar}–${lastBar})`}
         actions={
-          <>
-            <Button
-              variant="secondary"
-              disabled={scoreBusy}
-              onClick={() => scoreInputRef.current?.click()}
-            >
-              <FileUp size={16} />
-              {scoreBusy ? t('loading') : block.score_path ? t('replaceScorePdf') : t('addScorePdf')}
-            </Button>
-            {block.score_path && (
-              <>
-                <Button
-                  variant={anchorMode ? 'primary' : 'secondary'}
-                  onClick={() => {
-                    setAnchorMode((v) => !v);
-                    setPlaceBar(null);
-                  }}
-                >
-                  {anchorMode ? <Check size={16} /> : <MapPin size={16} />}
-                  {anchorMode ? t('done') : t('anchorBars')}
-                </Button>
-                <Button variant="secondary" onClick={() => setRemoveScoreOpen(true)}>
-                  <Trash2 size={16} />
-                  {t('removeScorePdf')}
-                </Button>
-              </>
-            )}
-          </>
+          // Score PDF and bar anchors are project content — management only.
+          canManage ? (
+            <>
+              <Button
+                variant="secondary"
+                disabled={scoreBusy}
+                onClick={() => scoreInputRef.current?.click()}
+              >
+                <FileUp size={16} />
+                {scoreBusy ? t('loading') : block.score_path ? t('replaceScorePdf') : t('addScorePdf')}
+              </Button>
+              {block.score_path && (
+                <>
+                  <Button
+                    variant={anchorMode ? 'primary' : 'secondary'}
+                    onClick={() => {
+                      setAnchorMode((v) => !v);
+                      setPlaceBar(null);
+                    }}
+                  >
+                    {anchorMode ? <Check size={16} /> : <MapPin size={16} />}
+                    {anchorMode ? t('done') : t('anchorBars')}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setRemoveScoreOpen(true)}>
+                    <Trash2 size={16} />
+                    {t('removeScorePdf')}
+                  </Button>
+                </>
+              )}
+            </>
+          ) : undefined
         }
       />
 

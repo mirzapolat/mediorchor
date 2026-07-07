@@ -88,9 +88,12 @@ export const EventLayout = () => {
     Promise.all([
       supabase.from('projects').select('*').eq('id', projectId).maybeSingle(),
       supabase.from('events').select('*').eq('id', eventId).maybeSingle(),
-    ]).then(([proj, ev]) => {
+      // Event administration is management-only; participants see events on
+      // their participation page instead.
+      supabase.rpc('can_access_project', { pid: projectId }),
+    ]).then(([proj, ev, manage]) => {
       if (cancelled) return;
-      setProject((proj.data as Project) ?? null);
+      setProject(manage.data ? ((proj.data as Project) ?? null) : null);
       setEvent((ev.data as Event) ?? null);
       setLoading(false);
     });
@@ -109,7 +112,7 @@ export const EventLayout = () => {
 
   if (loading) return <PageSpinner />;
   if (!project || !event) {
-    navigate(`/projects/${projectId}/events`);
+    navigate(`/projects/${projectId}`);
     return null;
   }
 

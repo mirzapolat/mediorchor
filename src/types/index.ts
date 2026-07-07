@@ -1,14 +1,15 @@
 // Shared domain types mirroring the Supabase schema (see supabase/schema.sql).
 
-export type Role = 'owner' | 'member';
-
+// Every account is the same kind of account; capability flags grant extra
+// rights. An account without any flag is a participant: it only sees projects
+// it participates in (via a members row linked through members.user_id).
 export interface AppUser {
   id: string;
   email: string;
   name: string;
-  role: Role;
-  all_projects: boolean; // false → access limited to user_projects rows
-  can_access_projects: boolean; // access to the projects section (on by default)
+  is_admin: boolean; // full access; several accounts may hold this
+  can_manage_projects: boolean; // project management (scoped via all_projects/user_projects)
+  all_projects: boolean; // false → management limited to user_projects rows
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
   created_at: string;
 }
@@ -19,6 +20,7 @@ export interface AppSettings {
   accent_color: string;
   icon: string | null; // lucide icon name
   language: 'de' | 'en';
+  allow_self_signup: boolean; // accounts can be created on the login page
 }
 
 export type ProjectStatus = 'active' | 'archived';
@@ -29,6 +31,13 @@ export interface Project {
   description: string | null;
   image_url: string | null; // round logo shown next to the name
   status: ProjectStatus;
+  groups: string[]; // central group list; the only groups selectable anywhere
+  allow_account_access: boolean; // participants may open the project
+  allow_account_checkin: boolean; // check-in forms offer signing in
+  allow_account_signup: boolean; // registration forms offer signing in
+  allow_guest_checkin: boolean; // check-in forms work without an account
+  allow_guest_signup: boolean; // registration forms work without an account
+  allow_participant_pieces: boolean; // participants see the Stücke page
   created_at: string;
   created_by: string | null;
 }
@@ -46,6 +55,7 @@ export interface Member {
   email: string | null;
   photo_url: string | null;
   status: MemberStatus;
+  user_id: string | null; // linked account; an active linked row = participation
   created_at: string;
 }
 
@@ -133,6 +143,7 @@ export interface Registration {
   group_name: string | null;
   member_id: string | null;
   transferred: boolean;
+  user_id: string | null; // set when the registration was submitted with an account
   created_at: string;
 }
 
@@ -179,6 +190,19 @@ export interface BarAnchor {
   page: number;
   x: number;
   y: number;
+}
+
+// Saved absence-condition preset. `conditions` holds StoredCondition[] (see
+// lib/absenceConditions). Public labels are shown to matching participants on
+// their "Meine Teilnahme" page.
+export interface AbsenceLabel {
+  id: string;
+  project_id: string;
+  name: string;
+  conditions: import('@/lib/absenceConditions').StoredCondition[];
+  is_public: boolean;
+  position: number;
+  created_at: string;
 }
 
 // A member joined with their attendance status for a given event.

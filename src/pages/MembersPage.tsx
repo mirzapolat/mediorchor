@@ -174,7 +174,7 @@ export const MembersPage = () => {
         open={formOpen}
         projectId={project.id}
         member={editing}
-        groups={groups}
+        groups={project.groups.length > 0 ? project.groups : groups}
         onClose={() => setFormOpen(false)}
         onSaved={load}
       />

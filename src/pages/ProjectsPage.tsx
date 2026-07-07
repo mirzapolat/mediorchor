@@ -19,7 +19,7 @@ const empty = { name: '', description: '' };
 
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { user } = useAuth();
+  const { user, canManageProjects } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,10 +128,12 @@ export const ProjectsPage = () => {
       <PageHeader
         title={t('projects')}
         actions={
-          <Button onClick={openCreate}>
-            <Plus size={16} />
-            {t('newProject')}
-          </Button>
+          canManageProjects ? (
+            <Button onClick={openCreate}>
+              <Plus size={16} />
+              {t('newProject')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -139,27 +141,31 @@ export const ProjectsPage = () => {
         rows={projects}
         columns={columns}
         getRowId={(p) => p.id}
-        onRowClick={(p) => navigate(`/projects/${p.id}/events`)}
+        onRowClick={(p) => navigate(`/projects/${p.id}`)}
         search={(p) => `${p.name} ${p.description ?? ''}`}
         filters={filters}
         emptyMessage={t('noProjects')}
         emptyIcon={FolderKanban}
-        actions={(p) => (
-          <>
-            <RowActionButton
-              label={t('edit')}
-              onClick={() => navigate(`/projects/${p.id}/settings`)}
-            >
-              <Pencil size={15} />
-            </RowActionButton>
-            <RowActionButton label={t('archive')} onClick={() => toggleArchive(p)}>
-              {p.status === 'archived' ? <ArchiveRestore size={15} /> : <Archive size={15} />}
-            </RowActionButton>
-            <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
-              <Trash2 size={15} />
-            </RowActionButton>
-          </>
-        )}
+        actions={
+          canManageProjects
+            ? (p) => (
+                <>
+                  <RowActionButton
+                    label={t('edit')}
+                    onClick={() => navigate(`/projects/${p.id}/settings`)}
+                  >
+                    <Pencil size={15} />
+                  </RowActionButton>
+                  <RowActionButton label={t('archive')} onClick={() => toggleArchive(p)}>
+                    {p.status === 'archived' ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+                  </RowActionButton>
+                  <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
+                    <Trash2 size={15} />
+                  </RowActionButton>
+                </>
+              )
+            : undefined
+        }
       />
 
       <Modal

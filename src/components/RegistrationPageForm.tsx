@@ -1,10 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { MarkdownEditor } from './MarkdownEditor';
 import { Modal } from './Modal';
-import { RowActionButton } from './RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import type { RegistrationPage } from '@/types';
@@ -14,7 +12,6 @@ interface FormState {
   description: string;
   ask_email: boolean;
   ask_group: boolean;
-  groups: string[];
   auto_transfer: boolean;
 }
 
@@ -23,7 +20,6 @@ const blank: FormState = {
   description: '',
   ask_email: true,
   ask_group: true,
-  groups: [''],
   auto_transfer: false,
 };
 
@@ -77,7 +73,6 @@ export const RegistrationPageForm = ({
         description: page.description,
         ask_email: page.ask_email,
         ask_group: page.ask_group,
-        groups: page.groups.length > 0 ? page.groups : [''],
         auto_transfer: page.auto_transfer,
       });
     } else {
@@ -94,9 +89,6 @@ export const RegistrationPageForm = ({
       description: form.description,
       ask_email: form.ask_email,
       ask_group: form.ask_group,
-      groups: form.ask_group
-        ? form.groups.map((g) => g.trim()).filter((g) => g !== '')
-        : [],
       auto_transfer: form.auto_transfer,
     };
     if (page) {
@@ -108,15 +100,6 @@ export const RegistrationPageForm = ({
     onSaved();
     onClose();
   };
-
-  const setGroup = (index: number, value: string) =>
-    setForm((f) => ({ ...f, groups: f.groups.map((g, i) => (i === index ? value : g)) }));
-  const addGroup = () => setForm((f) => ({ ...f, groups: [...f.groups, ''] }));
-  const removeGroup = (index: number) =>
-    setForm((f) => {
-      const groups = f.groups.filter((_, i) => i !== index);
-      return { ...f, groups: groups.length > 0 ? groups : [''] };
-    });
 
   return (
     <Modal
@@ -160,34 +143,9 @@ export const RegistrationPageForm = ({
             checked={form.ask_group}
             onChange={(v) => setForm({ ...form, ask_group: v })}
             label={t('askGroup')}
+            hint={t('askGroupProjectHint')}
           />
         </div>
-
-        {form.ask_group ? (
-          <div>
-            <p className="text-sm font-medium text-text">{t('groupsList')}</p>
-            <p className="mb-2 text-sm text-text-secondary">{t('groupsListHint')}</p>
-            <div className="space-y-2">
-              {form.groups.map((group, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Input
-                    value={group}
-                    placeholder={t('groupPlaceholder')}
-                    onChange={(e) => setGroup(index, e.target.value)}
-                    className="flex-1"
-                  />
-                  <RowActionButton label={t('remove')} onClick={() => removeGroup(index)}>
-                    <Trash2 size={15} />
-                  </RowActionButton>
-                </div>
-              ))}
-            </div>
-            <Button type="button" variant="secondary" className="mt-2" onClick={addGroup}>
-              <Plus size={15} />
-              {t('addGroup')}
-            </Button>
-          </div>
-        ) : null}
 
         <Checkbox
           checked={form.auto_transfer}

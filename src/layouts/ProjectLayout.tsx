@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
-import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, Users, Settings, ArrowLeft } from 'lucide-react';
+import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -9,6 +9,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
+import { useProjectContext } from '@/layouts/projectContext';
 import type { Project } from '@/types';
 
 const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => void }) => {
@@ -41,27 +42,53 @@ const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => vo
   );
 };
 
+// Index route: opening a project always starts on "Meine Teilnahme".
+export const ProjectIndexRedirect = () => {
+  return <Navigate to="participation" replace />;
+};
+
+// Wraps the Stücke pages: participants only get in while the project shows
+// the pieces page to participants (managers always do).
+export const RequirePiecesAccess = () => {
+  const ctx = useProjectContext();
+  if (!ctx.canManage && !ctx.project.allow_participant_pieces) {
+    return <Navigate to={`/projects/${ctx.project.id}/participation`} replace />;
+  }
+  return <Outlet context={ctx} />;
+};
+
+// Wraps the management-only pages; participants are sent to "Meine Teilnahme".
+export const RequireProjectManage = () => {
+  const ctx = useProjectContext();
+  if (!ctx.canManage) {
+    return <Navigate to={`/projects/${ctx.project.id}/participation`} replace />;
+  }
+  return <Outlet context={ctx} />;
+};
+
 export const ProjectLayout = () => {
   const { t } = useI18n();
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
+  const [canManage, setCanManage] = useState(false);
   const [unrecognizedCount, setUnrecognizedCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        setProject((data as Project) ?? null);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from('projects').select('*').eq('id', projectId).maybeSingle(),
+      // Management rights for this specific project (admin, or manager whose
+      // scope includes it) — evaluated by the same function RLS uses.
+      supabase.rpc('can_access_project', { pid: projectId }),
+    ]).then(([proj, manage]) => {
+      if (cancelled) return;
+      setProject((proj.data as Project) ?? null);
+      setCanManage(Boolean(manage.data));
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -78,12 +105,13 @@ export const ProjectLayout = () => {
   }, [projectId]);
 
   useEffect(() => {
+    if (!canManage) return;
     void loadCheckinWarnings();
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadCheckinWarnings();
     }, 5000);
     return () => window.clearInterval(interval);
-  }, [loadCheckinWarnings]);
+  }, [loadCheckinWarnings, canManage]);
 
   if (loading) return <PageSpinner />;
   if (!project) {
@@ -100,17 +128,32 @@ export const ProjectLayout = () => {
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem
-            to={`${base}/events`}
-            label={t('events')}
-            icon={CalendarDays}
-            warningCount={unrecognizedCount}
+            to={`${base}/participation`}
+            label={t('myParticipation')}
+            icon={UserRound}
           />
-          <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
-          <SidebarNavItem to={`${base}/pieces`} label={t('pieces')} icon={Music} />
-          <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
-          <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
-          <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />
-          <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
+          {canManage && (
+            <>
+              <SidebarNavItem
+                to={`${base}/events`}
+                label={t('events')}
+                icon={CalendarDays}
+                warningCount={unrecognizedCount}
+              />
+              <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
+            </>
+          )}
+          {(canManage || project.allow_participant_pieces) && (
+            <SidebarNavItem to={`${base}/pieces`} label={t('pieces')} icon={Music} />
+          )}
+          {canManage && (
+            <>
+              <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
+              <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
+              <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />
+              <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
+            </>
+          )}
         </div>
 
         <SidebarFooter />
@@ -118,7 +161,7 @@ export const ProjectLayout = () => {
 
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
         <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
-          <Outlet context={{ project, reloadProject: () => navigate(0) }} />
+          <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
         </div>
       </main>
     </div>

@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, Settings, ShieldCheck, Users } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -40,10 +40,10 @@ const AdminHeader = ({ onBack }: { onBack: () => void }) => {
 
 export const AdminLayout = () => {
   const { t } = useI18n();
-  const { isOwner } = useAuth();
+  const { isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  if (!isOwner) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   return (
     <div className="flex h-full">
@@ -52,9 +52,10 @@ export const AdminLayout = () => {
 
         <div className="flex-1 space-y-1 overflow-y-auto p-3">
           <SidebarNavItem to="/admin/users" label={t('users')} icon={Users} />
+          <SidebarNavItem to="/admin/config" label={t('configuration')} icon={Settings} />
         </div>
 
-        <SidebarFooter showAdminConfig={false} />
+        <SidebarFooter />
       </Sidebar>
 
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">

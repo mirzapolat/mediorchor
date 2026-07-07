@@ -79,7 +79,7 @@ const BlockTarget = ({ block }: { block: PieceBlock }) => {
 
 export const PieceDetailPage = () => {
   const { t } = useI18n();
-  const { project } = useProjectContext();
+  const { project, canManage } = useProjectContext();
   const { pieceId } = useParams();
   const navigate = useNavigate();
 
@@ -184,6 +184,7 @@ export const PieceDetailPage = () => {
         title={piece.name}
         subtitle={piece.composer || undefined}
         actions={
+          canManage ? (
           <>
             <Button variant="secondary" onClick={() => setPieceFormOpen(true)}>
               <Pencil size={16} />
@@ -214,6 +215,7 @@ export const PieceDetailPage = () => {
               )}
             </div>
           </>
+          ) : undefined
         }
       />
 
@@ -227,22 +229,26 @@ export const PieceDetailPage = () => {
         rowClickable={(block) =>
           block.type === 'audio' && block.has_bars && block.bars_start != null && block.bars_end != null
         }
-        onReorder={reorder}
+        onReorder={canManage ? reorder : undefined}
         emptyMessage={t('noBlocks')}
         emptyIcon={FileText}
-        actions={(block) => (
-          <>
-            <RowActionButton
-              label={t('edit')}
-              onClick={() => setBlockForm({ type: block.type, block })}
-            >
-              <Pencil size={15} />
-            </RowActionButton>
-            <RowActionButton label={t('delete')} onClick={() => setToDelete(block)}>
-              <Trash2 size={15} />
-            </RowActionButton>
-          </>
-        )}
+        actions={
+          canManage
+            ? (block) => (
+                <>
+                  <RowActionButton
+                    label={t('edit')}
+                    onClick={() => setBlockForm({ type: block.type, block })}
+                  >
+                    <Pencil size={15} />
+                  </RowActionButton>
+                  <RowActionButton label={t('delete')} onClick={() => setToDelete(block)}>
+                    <Trash2 size={15} />
+                  </RowActionButton>
+                </>
+              )
+            : undefined
+        }
       />
 
       <PieceForm

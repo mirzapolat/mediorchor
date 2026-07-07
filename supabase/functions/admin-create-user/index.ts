@@ -1,6 +1,6 @@
 // Edge function: create a new app user. Creating an auth user requires the
 // service role, which must never live in the browser — so this runs server-side
-// and only lets the current owner invoke it.
+// and only lets admins invoke it.
 //
 // Deploy:  supabase functions deploy admin-create-user
 // Secrets: SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
       headers: { ...cors, 'Content-Type': 'application/json' },
     });
 
-  // Verify the caller is the owner using their bearer token.
+  // Verify the caller is an admin using their bearer token.
   const authHeader = req.headers.get('Authorization') ?? '';
   const caller = createClient(url, anonKey, {
     global: { headers: { Authorization: authHeader } },
@@ -37,15 +37,16 @@ Deno.serve(async (req) => {
 
   const { data: me } = await caller
     .from('app_users')
-    .select('role')
+    .select('is_admin')
     .eq('id', userData.user.id)
     .maybeSingle();
-  if (me?.role !== 'owner') return json({ error: 'Forbidden: owner only' }, 403);
+  if (!me?.is_admin) return json({ error: 'Forbidden: admin only' }, 403);
 
   const { name, email, password } = await req.json().catch(() => ({}));
   if (!email || !password) return json({ error: 'email and password are required' }, 400);
 
-  // Create the auth user + app_users profile with the service role.
+  // Create the auth user with the service role. The on-insert trigger creates
+  // the app_users profile; upsert afterwards to be robust either way.
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email,
@@ -55,14 +56,13 @@ Deno.serve(async (req) => {
   });
   if (createErr) return json({ error: createErr.message }, 400);
 
-  const { error: profileErr } = await admin.from('app_users').insert({
+  const { error: profileErr } = await admin.from('app_users').upsert({
     id: created.user.id,
     email,
     name: name ?? '',
-    role: 'member',
   });
   if (profileErr) {
-    // Roll back the auth user if the profile insert failed.
+    // Roll back the auth user if the profile upsert failed.
     await admin.auth.admin.deleteUser(created.user.id);
     return json({ error: profileErr.message }, 400);
   }

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { CheckCircle2, LockKeyhole } from 'lucide-react';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import { CheckCircle2, LockKeyhole, LogIn, UserRound } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
 import { Markdown } from '@/lib/markdown';
 import { useI18n } from '@/lib/i18n';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
 type RegistrationInfo =
@@ -20,9 +21,15 @@ type RegistrationInfo =
       ask_group: boolean;
       groups: string[];
       project_name: string;
+      allow_guest_signup: boolean;
+      allow_account_signup: boolean;
+      logged_in: boolean;
+      me: { name: string; email: string; participating: boolean } | null;
     };
 
-type SubmitResult = { state: 'success' | 'invalid' | 'inactive' | 'invalid_input' };
+type SubmitResult = {
+  state: 'success' | 'invalid' | 'inactive' | 'invalid_input' | 'not_allowed';
+};
 
 const TOTAL_STEPS = 4;
 
@@ -42,6 +49,8 @@ const StepDots = ({ step }: { step: number }) => (
 export const PublicRegistrationPage = () => {
   const { token = '' } = useParams();
   const { t } = useI18n();
+  const location = useLocation();
+  const { session } = useAuth();
   const [info, setInfo] = useState<RegistrationInfo | null>(null);
   const [step, setStep] = useState(1);
   const [firstName, setFirstName] = useState('');
@@ -49,6 +58,8 @@ export const PublicRegistrationPage = () => {
   const [email, setEmail] = useState('');
   const [groupName, setGroupName] = useState('');
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  // Logged-in visitors may opt out of the account flow and register as guest.
+  const [asGuest, setAsGuest] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,22 +67,37 @@ export const PublicRegistrationPage = () => {
     let cancelled = false;
     supabase.rpc('get_public_registration', { p_token: token }).then(({ data, error: rpcError }) => {
       if (cancelled) return;
-      setInfo(rpcError ? { state: 'invalid' } : (data as RegistrationInfo));
+      const next = rpcError ? ({ state: 'invalid' } as RegistrationInfo) : (data as RegistrationInfo);
+      setInfo(next);
+      // Prefill from the account when signing up while logged in.
+      if (next.state === 'active' && next.me) {
+        const name = next.me.name.trim();
+        const lastSpace = name.lastIndexOf(' ');
+        setFirstName((v) => v || (lastSpace > 0 ? name.slice(0, lastSpace) : name));
+        setLastName((v) => v || (lastSpace > 0 ? name.slice(lastSpace + 1) : ''));
+        setEmail((v) => v || next.me!.email);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+    // Reload once the session is known so `me` / logged_in reflect it.
+  }, [token, session?.user.id]);
 
   const active = info?.state === 'active' ? info : null;
+  // Logged-in visitors register with their account when the project allows it.
+  const accountMode = Boolean(
+    active && active.logged_in && active.allow_account_signup && !asGuest,
+  );
+  const guestBlocked = Boolean(active && !active.allow_guest_signup && !accountMode);
 
   const dataValid = useMemo(() => {
     if (!active) return false;
     if (!firstName.trim() || !lastName.trim()) return false;
-    if (active.ask_email && !email.trim()) return false;
+    if (active.ask_email && !accountMode && !email.trim()) return false;
     if (active.ask_group && active.groups.length > 0 && !groupName.trim()) return false;
     return true;
-  }, [active, firstName, lastName, email, groupName]);
+  }, [active, accountMode, firstName, lastName, email, groupName]);
 
   const submit = async () => {
     setSubmitting(true);
@@ -82,6 +108,7 @@ export const PublicRegistrationPage = () => {
       p_last_name: lastName,
       p_email: email,
       p_group_name: groupName,
+      p_as_account: accountMode,
     });
     setSubmitting(false);
 
@@ -96,6 +123,8 @@ export const PublicRegistrationPage = () => {
       setInfo({ state: 'inactive', title: active?.title, project_name: active?.project_name });
     } else if (result.state === 'invalid') {
       setInfo({ state: 'invalid' });
+    } else if (result.state === 'not_allowed') {
+      setError(t('registrationNotAllowed'));
     } else {
       setError(t('registrationSubmitError'));
     }
@@ -122,6 +151,30 @@ export const PublicRegistrationPage = () => {
   }
   if (!active) return null;
 
+  if (guestBlocked) {
+    return (
+      <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
+        <div className="mx-auto w-full max-w-xl">
+          <Card className="p-8 text-center">
+            <LockKeyhole size={38} className="mx-auto text-text-secondary" />
+            <p className="mt-5 font-semibold">{active.title}</p>
+            <h1 className="mt-2 text-lg font-semibold">{t('guestSignupDisabled')}</h1>
+            {active.allow_account_signup ? (
+              <Link
+                to="/login"
+                state={{ from: location.pathname }}
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium underline"
+              >
+                <LogIn size={15} />
+                {t('signInToRegister')}
+              </Link>
+            ) : null}
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
       <div className="mx-auto w-full max-w-2xl">
@@ -144,9 +197,48 @@ export const PublicRegistrationPage = () => {
               ) : (
                 <p className="text-text-secondary">{t('startRegistration')}</p>
               )}
+              {accountMode && active.me ? (
+                <div className="flex items-center gap-3 rounded-md border border-border px-4 py-3">
+                  <UserRound size={20} className="text-text-secondary" />
+                  <div>
+                    <p className="font-medium">{active.me.name || active.me.email}</p>
+                    <p className="text-sm text-text-secondary">{t('registeringWithAccount')}</p>
+                  </div>
+                </div>
+              ) : null}
               <Button className="w-full" onClick={() => setStep(2)}>
                 {t('next')}
               </Button>
+              {!active.logged_in && active.allow_account_signup ? (
+                <p className="text-center text-sm text-text-secondary">
+                  <Link
+                    to="/login"
+                    state={{ from: location.pathname }}
+                    className="inline-flex items-center gap-1.5 font-medium underline"
+                  >
+                    <LogIn size={14} />
+                    {t('signInToRegister')}
+                  </Link>
+                </p>
+              ) : null}
+              {accountMode && active.allow_guest_signup ? (
+                <button
+                  type="button"
+                  onClick={() => setAsGuest(true)}
+                  className="w-full text-sm text-text-secondary hover:text-text underline"
+                >
+                  {t('continueAsGuestInstead')}
+                </button>
+              ) : null}
+              {asGuest && active.logged_in && active.allow_account_signup ? (
+                <button
+                  type="button"
+                  onClick={() => setAsGuest(false)}
+                  className="w-full text-sm text-text-secondary hover:text-text underline"
+                >
+                  {t('continueWithAccountInstead')}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -159,6 +251,11 @@ export const PublicRegistrationPage = () => {
               className="space-y-4"
             >
               <h2 className="text-base font-semibold">{t('enterYourData')}</h2>
+              {accountMode ? (
+                <p className="rounded-md bg-[#fafafa] px-3 py-2.5 text-sm text-text-secondary">
+                  {t('dataFromAccountHint')}
+                </p>
+              ) : null}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Input
                   label={t('firstName')}
@@ -167,7 +264,10 @@ export const PublicRegistrationPage = () => {
                   autoComplete="given-name"
                   maxLength={120}
                   required
-                  autoFocus
+                  autoFocus={!accountMode}
+                  // Account sign-ups use the account's data; only the group is
+                  // chosen per project.
+                  disabled={accountMode}
                 />
                 <Input
                   label={t('lastName')}
@@ -176,9 +276,10 @@ export const PublicRegistrationPage = () => {
                   autoComplete="family-name"
                   maxLength={120}
                   required
+                  disabled={accountMode}
                 />
               </div>
-              {active.ask_email ? (
+              {active.ask_email || accountMode ? (
                 <Input
                   type="email"
                   label={t('email')}
@@ -187,6 +288,8 @@ export const PublicRegistrationPage = () => {
                   autoComplete="email"
                   maxLength={200}
                   required
+                  // The account's address is authoritative for account sign-ups.
+                  disabled={accountMode}
                 />
               ) : null}
               {active.ask_group ? (
@@ -213,6 +316,18 @@ export const PublicRegistrationPage = () => {
                   {t('next')}
                 </Button>
               </div>
+              {!active.logged_in && active.allow_account_signup ? (
+                <p className="text-center text-sm text-text-secondary">
+                  <Link
+                    to="/login"
+                    state={{ from: location.pathname }}
+                    className="inline-flex items-center gap-1.5 font-medium underline"
+                  >
+                    <LogIn size={14} />
+                    {t('signInToRegister')}
+                  </Link>
+                </p>
+              ) : null}
             </form>
           ) : null}
 

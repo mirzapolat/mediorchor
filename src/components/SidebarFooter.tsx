@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 export const SidebarFooter = ({ showAdminConfig = true }: { showAdminConfig?: boolean }) => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
-  const { user, isOwner, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -20,7 +20,7 @@ export const SidebarFooter = ({ showAdminConfig = true }: { showAdminConfig?: bo
 
   return (
     <div className="p-3 border-t border-border space-y-1">
-      {showAdminConfig && isOwner ? (
+      {showAdminConfig && isAdmin ? (
         <SidebarNavItem to="/admin" label={t('adminConfig')} icon={ShieldCheck} />
       ) : null}
       <SidebarNavItem to="/account" label={user?.name || t('account')} icon={UserCircle} />

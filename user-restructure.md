@@ -10,4 +10,4 @@ In the project settings add the settings
 - enable guest sign-up (on the sign up forms you can sign up without logging in to your account)
 all are default on
 
-you can not create an account yourself on the auth page. you can only create it on sign up form or on check in form. if you have a 
+you can can create an account sourself on the auth page if you want (this can be disabled in admin config settings). if you checked in or signed uo as a guest in the past and then create an account with the same email, your attendance is connected with everything you already had submtitted in the past

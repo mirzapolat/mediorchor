@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       headers: { ...cors, 'Content-Type': 'application/json' },
     });
 
-  // Verify the caller is the owner using their bearer token.
+  // Verify the caller is an admin using their bearer token.
   const authHeader = req.headers.get('Authorization') ?? '';
   const caller = createClient(url, anonKey, {
     global: { headers: { Authorization: authHeader } },
@@ -35,10 +35,10 @@ Deno.serve(async (req) => {
 
   const { data: me } = await caller
     .from('app_users')
-    .select('role')
+    .select('is_admin')
     .eq('id', userData.user.id)
     .maybeSingle();
-  if (me?.role !== 'owner') return json({ error: 'Forbidden: owner only' }, 403);
+  if (!me?.is_admin) return json({ error: 'Forbidden: admin only' }, 403);
 
   const { userId } = await req.json().catch(() => ({}));
   if (!userId) return json({ error: 'userId is required' }, 400);
@@ -46,13 +46,13 @@ Deno.serve(async (req) => {
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
-  // Guard against deleting another owner.
+  // Guard against deleting another admin.
   const { data: target } = await admin
     .from('app_users')
-    .select('role')
+    .select('is_admin')
     .eq('id', userId)
     .maybeSingle();
-  if (target?.role === 'owner') return json({ error: 'Cannot delete an owner' }, 400);
+  if (target?.is_admin) return json({ error: 'Cannot delete an admin' }, 400);
 
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) return json({ error: error.message }, 400);

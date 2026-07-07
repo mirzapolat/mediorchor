@@ -69,6 +69,19 @@ const dict: Dict = {
   loginTitle: { de: 'Willkommen zurück', en: 'Welcome back' },
   loginSubtitle: { de: 'Melde dich bei deinem Konto an', en: 'Sign in to your account' },
   invalidCredentials: { de: 'Ungültige Anmeldedaten', en: 'Invalid credentials' },
+  signUp: { de: 'Konto erstellen', en: 'Create account' },
+  signUpTitle: { de: 'Konto erstellen', en: 'Create an account' },
+  signUpSubtitle: {
+    de: 'Erstelle ein Konto, um deine Teilnahme zu verwalten',
+    en: 'Create an account to manage your participation',
+  },
+  confirmEmailTitle: { de: 'Bestätige deine E-Mail', en: 'Confirm your email' },
+  confirmEmailHint: {
+    de: 'Wir haben dir einen Bestätigungslink geschickt. Öffne die E-Mail und bestätige deine Adresse, um dich anzumelden.',
+    en: 'We sent you a confirmation link. Open the email and confirm your address to sign in.',
+  },
+  haveAccount: { de: 'Du hast bereits ein Konto?', en: 'Already have an account?' },
+  noAccount: { de: 'Noch kein Konto?', en: "Don't have an account?" },
   notConfigured: {
     de: 'Supabase ist nicht konfiguriert. Setze VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY.',
     en: 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
@@ -102,10 +115,19 @@ const dict: Dict = {
     de: 'Nur der Admin kann diese Seite sehen.',
     en: 'Only the admin can view this page.',
   },
-  projectsAccess: { de: 'Zugriff auf Projekte', en: 'Projects access' },
-  projectsAccessHint: {
-    de: 'Wenn deaktiviert, ist die Projekte-Seite für diesen Benutzer komplett gesperrt.',
-    en: 'When off, the projects page is completely blocked for this user.',
+  adminRights: { de: 'Administrator', en: 'Administrator' },
+  adminRightsHint: {
+    de: 'Voller Zugriff auf alles, inklusive Benutzerverwaltung.',
+    en: 'Full access to everything, including user management.',
+  },
+  adminRightsSelfHint: {
+    de: 'Du kannst deine eigenen Admin-Rechte nicht entziehen.',
+    en: 'You cannot remove your own admin rights.',
+  },
+  projectManagement: { de: 'Projektverwaltung', en: 'Project management' },
+  projectManagementHint: {
+    de: 'Wenn aktiv, kann dieser Benutzer Projekte verwalten (alle oder ausgewählte).',
+    en: 'When on, this user can manage projects (all or selected ones).',
   },
   clubAccess: { de: 'Zugriff auf Vereinsmitglieder', en: 'Club members access' },
   clubAccessHint: {
@@ -136,6 +158,13 @@ const dict: Dict = {
   newPassword: { de: 'Neues Passwort', en: 'New password' },
   language: { de: 'Sprache', en: 'Language' },
 
+  // Admin config
+  allowSelfSignup: { de: 'Selbstregistrierung erlauben', en: 'Allow self-signup' },
+  allowSelfSignupHint: {
+    de: 'Wenn aktiv, können auf der Anmeldeseite eigene Konten erstellt werden.',
+    en: 'When on, accounts can be created on the login page.',
+  },
+
   // Settings
   appName: { de: 'App-Name', en: 'App name' },
   accentColor: { de: 'Akzentfarbe', en: 'Accent color' },
@@ -158,6 +187,16 @@ const dict: Dict = {
   selectOrCreateGroup: {
     de: 'Gruppe wählen oder neu eingeben',
     en: 'Select or type a new group',
+  },
+  searchAccount: { de: 'Konto suchen', en: 'Search account' },
+  searchAccountPlaceholder: { de: 'Name oder E-Mail…', en: 'Name or email…' },
+  searchAccountHint: {
+    de: 'Wähle ein bestehendes Konto, um es als Mitglied hinzuzufügen — oder fülle die Felder unten aus, um ein Mitglied manuell zu erstellen.',
+    en: 'Select an existing account to add it as a member — or fill in the fields below to create a member manually.',
+  },
+  noAccountsFound: {
+    de: 'Kein passendes Konto gefunden. Das Mitglied wird manuell erstellt.',
+    en: 'No matching account found. The member will be created manually.',
   },
 
   // CSV import
@@ -257,6 +296,15 @@ const dict: Dict = {
   lessThan: { de: 'weniger als', en: 'less than' },
   atMost: { de: 'höchstens', en: 'at most' },
   matchingMembers: { de: 'Gefundene Mitglieder', en: 'Matching members' },
+  saveAsLabel: { de: 'Als Label speichern', en: 'Save as label' },
+  labelName: { de: 'Label-Name', en: 'Label name' },
+  manageLabels: { de: 'Labels verwalten', en: 'Manage labels' },
+  noLabels: { de: 'Noch keine Labels', en: 'No labels yet' },
+  publicLabel: { de: 'Öffentlich', en: 'Public' },
+  publicLabelHint: {
+    de: 'Öffentliche Labels werden Teilnehmenden unter „Meine Teilnahme“ angezeigt, wenn sie auf sie zutreffen.',
+    en: 'Public labels are shown to participants on "My participation" when they apply to them.',
+  },
   noAbsenceResults: {
     de: 'Keine Mitglieder entsprechen diesen Bedingungen.',
     en: 'No members match these conditions.',
@@ -340,6 +388,108 @@ const dict: Dict = {
   noGroupsAvailable: {
     de: 'Für dieses Projekt sind keine Gruppen verfügbar.',
     en: 'No groups are available for this project.',
+  },
+  checkInNotAllowed: {
+    de: 'Diese Art von Check-in ist für dieses Projekt nicht erlaubt.',
+    en: 'This kind of check-in is not allowed for this project.',
+  },
+  checkInAsGuestInstead: {
+    de: 'Stattdessen als Gast einchecken',
+    en: 'Check in as a guest instead',
+  },
+  checkInWithAccountInstead: {
+    de: 'Stattdessen mit Konto einchecken',
+    en: 'Check in with your account instead',
+  },
+  guestCheckInDisabled: {
+    de: 'Der Check-in ohne Konto ist für dieses Projekt deaktiviert.',
+    en: 'Checking in without an account is disabled for this project.',
+  },
+  signInToCheckIn: {
+    de: 'Anmelden und mit Konto einchecken',
+    en: 'Sign in to check in with your account',
+  },
+  accountCheckInJoinHint: {
+    de: 'Du bist noch kein Mitglied dieses Projekts. Mit dem Check-in trittst du dem Projekt bei.',
+    en: 'You are not part of this project yet. Checking in will add you to the project.',
+  },
+
+  // Participation (Meine Teilnahme)
+  myParticipation: { de: 'Meine Teilnahme', en: 'My participation' },
+  joinProject: { de: 'Projekt beitreten', en: 'Join project' },
+  joinProjectHint: {
+    de: 'Du nimmst an diesem Projekt noch nicht teil. Tritt bei, um in der Anwesenheit geführt zu werden.',
+    en: 'You are not participating in this project yet. Join to be included in attendance.',
+  },
+  rejoinProjectHint: {
+    de: 'Du hast dieses Projekt verlassen. Du kannst jederzeit wieder beitreten; deine bisherige Anwesenheit bleibt erhalten.',
+    en: 'You left this project. You can rejoin at any time; your previous attendance is kept.',
+  },
+  leaveProject: { de: 'Projekt verlassen', en: 'Leave project' },
+  leaveProjectHint: {
+    de: 'Du wirst aus der aktiven Mitgliederliste entfernt. Deine bisherige Anwesenheit bleibt gespeichert.',
+    en: 'You are removed from the active member list. Your attendance history is kept.',
+  },
+  confirmLeaveProject: {
+    de: 'Dieses Projekt wirklich verlassen?',
+    en: 'Really leave this project?',
+  },
+  myGroup: { de: 'Meine Gruppe', en: 'My group' },
+  myGroupHint: {
+    de: 'Deine Gruppe in diesem Projekt. Gruppen gelten pro Projekt.',
+    en: 'Your group in this project. Groups are per project.',
+  },
+  upcomingEvents: { de: 'Kommende Proben', en: 'Upcoming events' },
+  noUpcomingEvents: { de: 'Keine kommenden Proben', en: 'No upcoming events' },
+  myAttendance: { de: 'Meine Anwesenheit', en: 'My attendance' },
+  noAttendanceYet: { de: 'Noch keine Anwesenheit erfasst', en: 'No attendance recorded yet' },
+  participationError: {
+    de: 'Die Aktion konnte nicht ausgeführt werden. Bitte versuche es erneut.',
+    en: 'The action could not be completed. Please try again.',
+  },
+
+  // Project access settings
+  projectGroupsHint: {
+    de: 'Diese Gruppen gelten für das gesamte Projekt und sind beim Check-in, bei Anmeldungen und in der Teilnahme auswählbar.',
+    en: 'These groups apply to the whole project and are selectable on check-in, sign-up and participation.',
+  },
+  accessSettings: { de: 'Zugriff & Formulare', en: 'Access & forms' },
+  accessSettingsHint: {
+    de: 'Lege fest, wie Konten und Gäste mit diesem Projekt interagieren dürfen.',
+    en: 'Control how accounts and guests may interact with this project.',
+  },
+  allowAccountAccess: { de: 'Konto-Zugriff erlauben', en: 'Allow account access' },
+  allowAccountAccessHint: {
+    de: 'Teilnehmende können sich anmelden, das Projekt sehen und ihre eigene Anwesenheit einsehen.',
+    en: 'Participants can log in, see the project and view their own attendance.',
+  },
+  allowAccountCheckin: { de: 'Konto-Check-in erlauben', en: 'Allow account check-in' },
+  allowAccountCheckinHint: {
+    de: 'Auf den Check-in-Formularen kann man sich anmelden und mit Konto einchecken.',
+    en: 'Check-in forms offer signing in and checking in with an account.',
+  },
+  allowAccountSignup: { de: 'Konto-Anmeldung erlauben', en: 'Allow account sign-up' },
+  allowAccountSignupHint: {
+    de: 'Auf den Anmeldeformularen kann man sich mit Konto anmelden.',
+    en: 'Registration forms offer signing up with an account.',
+  },
+  allowGuestCheckin: { de: 'Gast-Check-in erlauben', en: 'Allow guest check-in' },
+  allowGuestCheckinHint: {
+    de: 'Auf den Check-in-Formularen kann man ohne Konto einchecken.',
+    en: 'Check-in forms work without logging in to an account.',
+  },
+  allowGuestSignup: { de: 'Gast-Anmeldung erlauben', en: 'Allow guest sign-up' },
+  allowGuestSignupHint: {
+    de: 'Auf den Anmeldeformularen kann man sich ohne Konto anmelden.',
+    en: 'Registration forms work without logging in to an account.',
+  },
+  allowParticipantPieces: {
+    de: 'Stücke für Teilnehmende anzeigen',
+    en: 'Show pieces to participants',
+  },
+  allowParticipantPiecesHint: {
+    de: 'Teilnehmende sehen die Stücke-Seite mit Noten, Audio und Übungsansicht.',
+    en: 'Participants see the pieces page with scores, audio and the practice view.',
   },
 
   // Club members (Vereinsmitglieder)
@@ -468,6 +618,10 @@ const dict: Dict = {
   },
   askEmail: { de: 'E-Mail erfragen', en: 'Ask for email' },
   askGroup: { de: 'Gruppe erfragen', en: 'Ask for group' },
+  askGroupProjectHint: {
+    de: 'Die auswählbaren Gruppen werden in den Projekteinstellungen festgelegt.',
+    en: 'The selectable groups are defined in the project settings.',
+  },
   groupsList: { de: 'Gruppen', en: 'Groups' },
   groupsListHint: {
     de: 'Lege die Gruppen fest, aus denen später ausgewählt werden kann.',
@@ -540,6 +694,34 @@ const dict: Dict = {
     en: 'This registration link is no longer valid.',
   },
   startRegistration: { de: 'Anmeldung starten', en: 'Start registration' },
+  registrationNotAllowed: {
+    de: 'Diese Art der Anmeldung ist für dieses Projekt nicht erlaubt.',
+    en: 'This kind of registration is not allowed for this project.',
+  },
+  guestSignupDisabled: {
+    de: 'Die Anmeldung ohne Konto ist für dieses Projekt deaktiviert.',
+    en: 'Registering without an account is disabled for this project.',
+  },
+  signInToRegister: {
+    de: 'Anmelden und mit Konto registrieren',
+    en: 'Sign in to register with your account',
+  },
+  registeringWithAccount: {
+    de: 'Du meldest dich mit deinem Konto an.',
+    en: 'You are registering with your account.',
+  },
+  continueAsGuestInstead: {
+    de: 'Stattdessen als Gast fortfahren',
+    en: 'Continue as a guest instead',
+  },
+  continueWithAccountInstead: {
+    de: 'Stattdessen mit Konto fortfahren',
+    en: 'Continue with your account instead',
+  },
+  dataFromAccountHint: {
+    de: 'Name und E-Mail werden aus deinem Konto übernommen. Nur die Gruppe wählst du pro Projekt.',
+    en: 'Name and email are taken from your account. Only the group is chosen per project.',
+  },
 
   // Confirmations
   confirmDelete: {

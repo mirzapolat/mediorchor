@@ -7,7 +7,12 @@ import { LoginPage } from '@/pages/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { PaddedPage } from '@/layouts/PaddedPage';
 import { ClubLayout } from '@/layouts/ClubLayout';
-import { ProjectLayout } from '@/layouts/ProjectLayout';
+import {
+  ProjectLayout,
+  ProjectIndexRedirect,
+  RequirePiecesAccess,
+  RequireProjectManage,
+} from '@/layouts/ProjectLayout';
 import { EventLayout } from '@/layouts/EventLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ProjectsPage } from '@/pages/ProjectsPage';
@@ -17,6 +22,7 @@ import { ClubApplicationsPage } from '@/pages/ClubApplicationsPage';
 import { ClubRulesPage } from '@/pages/ClubRulesPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
+import { AdminConfigPage } from '@/pages/AdminConfigPage';
 import { AccountPage } from '@/pages/AccountPage';
 import { EventsPage } from '@/pages/EventsPage';
 import { MembersPage } from '@/pages/MembersPage';
@@ -24,6 +30,7 @@ import { AbsencesPage } from '@/pages/AbsencesPage';
 import { StatisticsPage } from '@/pages/StatisticsPage';
 import { MemberDetailPage } from '@/pages/MemberDetailPage';
 import { ProjectSettingsPage } from '@/pages/ProjectSettingsPage';
+import { MyParticipationPage } from '@/pages/MyParticipationPage';
 import { EventAttendancePage } from '@/pages/EventAttendancePage';
 import { EventSettingsPage } from '@/pages/EventSettingsPage';
 import { EventCheckinPage } from '@/pages/EventCheckinPage';
@@ -37,7 +44,7 @@ import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { NotConfiguredPage } from '@/pages/NotConfiguredPage';
 
 export const App = () => {
-  const { session, loading, canAccessProjects, canAccessClub } = useAuth();
+  const { session, loading } = useAuth();
   const location = useLocation();
 
   if (!isSupabaseConfigured) return <NotConfiguredPage />;
@@ -66,8 +73,9 @@ export const App = () => {
     );
   }
 
-  // Where to send a user who lands on a section they cannot access.
-  const homePath = canAccessProjects ? '/' : canAccessClub ? '/club' : '/account';
+  // Every account lands on the projects list; participants only see the
+  // projects they belong to (enforced by RLS), managers/admins see everything.
+  const homePath = '/';
 
   // After signing in the user is still on /login; return them to the page
   // they originally requested (carried via router state), if any.
@@ -80,10 +88,7 @@ export const App = () => {
       {/* Top-level workspace */}
       <Route element={<AppLayout />}>
         <Route element={<PaddedPage />}>
-          <Route
-            index
-            element={canAccessProjects ? <ProjectsPage /> : <Navigate to={homePath} replace />}
-          />
+          <Route index element={<ProjectsPage />} />
           <Route path="account" element={<AccountPage />} />
         </Route>
 
@@ -97,37 +102,38 @@ export const App = () => {
         </Route>
       </Route>
 
-      {/* Owner-only administration — isolated in its own sidebar layout. */}
+      {/* Admin-only administration — isolated in its own sidebar layout. */}
       <Route path="admin" element={<AdminLayout />}>
         <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="users/:userId" element={<UserDetailPage />} />
+        <Route path="config" element={<AdminConfigPage />} />
       </Route>
 
-      {/* Inside a project */}
-      <Route
-        path="projects/:projectId"
-        element={canAccessProjects ? <ProjectLayout /> : <Navigate to={homePath} replace />}
-      >
-        <Route index element={<Navigate to="events" replace />} />
-        <Route path="events" element={<EventsPage />} />
-        <Route path="members" element={<MembersPage />} />
-        <Route path="absences" element={<AbsencesPage />} />
-        <Route path="statistics" element={<StatisticsPage />} />
-        <Route path="pieces" element={<PiecesPage />} />
-        <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
-        <Route path="pieces/:pieceId/practice/:blockId" element={<PiecePracticePage />} />
-        <Route path="registrations" element={<RegistrationsPage />} />
-        <Route path="registrations/:pageId" element={<RegistrationPageDetail />} />
-        <Route path="members/:memberId" element={<MemberDetailPage />} />
-        <Route path="settings" element={<ProjectSettingsPage />} />
+      {/* Inside a project. Access (manager vs. participant) is resolved in the
+          layout; management pages are additionally wrapped in a guard. */}
+      <Route path="projects/:projectId" element={<ProjectLayout />}>
+        <Route index element={<ProjectIndexRedirect />} />
+        <Route path="participation" element={<MyParticipationPage />} />
+        <Route element={<RequirePiecesAccess />}>
+          <Route path="pieces" element={<PiecesPage />} />
+          <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
+          <Route path="pieces/:pieceId/practice/:blockId" element={<PiecePracticePage />} />
+        </Route>
+        <Route element={<RequireProjectManage />}>
+          <Route path="events" element={<EventsPage />} />
+          <Route path="members" element={<MembersPage />} />
+          <Route path="absences" element={<AbsencesPage />} />
+          <Route path="statistics" element={<StatisticsPage />} />
+          <Route path="registrations" element={<RegistrationsPage />} />
+          <Route path="registrations/:pageId" element={<RegistrationPageDetail />} />
+          <Route path="members/:memberId" element={<MemberDetailPage />} />
+          <Route path="settings" element={<ProjectSettingsPage />} />
+        </Route>
       </Route>
 
-      {/* Inside a single event — its own sidebar layout */}
-      <Route
-        path="projects/:projectId/events/:eventId"
-        element={canAccessProjects ? <EventLayout /> : <Navigate to={homePath} replace />}
-      >
+      {/* Inside a single event — its own sidebar layout (management only) */}
+      <Route path="projects/:projectId/events/:eventId" element={<EventLayout />}>
         <Route index element={<EventAttendancePage />} />
         <Route path="check-in" element={<EventCheckinPage />} />
         <Route path="settings" element={<EventSettingsPage />} />

@@ -1,15 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarX2, ClipboardCopy, FileDown, FileText, Plus, Trash2 } from 'lucide-react';
+import {
+  Bookmark,
+  CalendarX2,
+  ClipboardCopy,
+  FileDown,
+  FileText,
+  GripVertical,
+  Plus,
+  Settings2,
+  Trash2,
+} from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { Input, Select } from '@/components/Input';
+import { Modal } from '@/components/Modal';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
+import { useDragReorder } from '@/hooks/useDragReorder';
 import { useProjectContext } from '@/layouts/projectContext';
+import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
+import {
+  matchesConditions,
+  type Comparison,
+  type Connector,
+  type Metric,
+  type StoredCondition,
+} from '@/lib/absenceConditions';
 import {
   createAbsencesCsv,
   createAbsencesPdf,
@@ -21,18 +41,12 @@ import {
   loadProjectMemberAttendance,
   type AttendanceCounts,
 } from '@/lib/memberAttendance';
-import type { Member } from '@/types';
+import { supabase } from '@/lib/supabase';
+import type { AbsenceLabel, Member } from '@/types';
 
-type Metric = keyof AttendanceCounts;
-type Comparison = 'gte' | 'gt' | 'eq' | 'lt' | 'lte';
-type Connector = 'and' | 'or';
-
-interface Condition {
+// Editor rows carry a client-side id on top of the stored shape.
+interface Condition extends StoredCondition {
   id: string;
-  connector: Connector;
-  metric: Metric;
-  comparison: Comparison;
-  value: number;
 }
 
 interface ResultRow {
@@ -61,25 +75,119 @@ const createCondition = (): Condition => ({
   value: 1,
 });
 
-const compare = (actual: number, comparison: Comparison, expected: number) => {
-  if (comparison === 'gte') return actual >= expected;
-  if (comparison === 'gt') return actual > expected;
-  if (comparison === 'eq') return actual === expected;
-  if (comparison === 'lt') return actual < expected;
-  return actual <= expected;
-};
+// Strips editor ids so only the stored shape is persisted.
+const toStoredConditions = (conditions: Condition[]): StoredCondition[] =>
+  conditions.map(({ connector, metric, comparison, value }) => ({
+    connector,
+    metric,
+    comparison,
+    value,
+  }));
 
-// AND binds more tightly than OR: A OR B AND C is evaluated as A OR (B AND C).
-const matchesConditions = (counts: AttendanceCounts, conditions: Condition[]) => {
-  if (conditions.length === 0) return true;
+// Manage saved labels: drag to reorder, toggle public, delete. Every change
+// persists immediately.
+const LabelSettingsModal = ({
+  open,
+  labels,
+  onClose,
+  onChanged,
+}: {
+  open: boolean;
+  labels: AbsenceLabel[];
+  onClose: () => void;
+  onChanged: (labels: AbsenceLabel[]) => void;
+}) => {
+  const { t } = useI18n();
 
-  const groups: Condition[][] = [[]];
-  for (const [index, condition] of conditions.entries()) {
-    if (index > 0 && condition.connector === 'or') groups.push([]);
-    groups[groups.length - 1].push(condition);
-  }
-  return groups.some((group) =>
-    group.every((condition) => compare(counts[condition.metric], condition.comparison, condition.value)),
+  const reorder = async (next: AbsenceLabel[]) => {
+    onChanged(next.map((label, index) => ({ ...label, position: index })));
+    await Promise.all(
+      next.map((label, index) =>
+        supabase.from('absence_labels').update({ position: index }).eq('id', label.id),
+      ),
+    );
+  };
+
+  const dnd = useDragReorder(labels, (label) => label.id, reorder, 8);
+
+  const togglePublic = async (label: AbsenceLabel) => {
+    const next = !label.is_public;
+    onChanged(labels.map((l) => (l.id === label.id ? { ...l, is_public: next } : l)));
+    await supabase.from('absence_labels').update({ is_public: next }).eq('id', label.id);
+  };
+
+  const remove = async (label: AbsenceLabel) => {
+    onChanged(labels.filter((l) => l.id !== label.id));
+    await supabase.from('absence_labels').delete().eq('id', label.id);
+  };
+
+  return (
+    <Modal open={open} title={t('manageLabels')} onClose={onClose}>
+      {labels.length === 0 ? (
+        <p className="text-sm text-text-secondary">{t('noLabels')}</p>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm text-text-secondary mb-3">{t('publicLabelHint')}</p>
+          {labels.map((label, index) => {
+            const dragging = dnd.isDragging(label.id);
+            return (
+              <div
+                key={label.id}
+                ref={(el) => dnd.setItemRef(label.id, el)}
+                style={
+                  dnd.dragActive
+                    ? {
+                        transform: `translateY(${dnd.shiftFor(index)}px)`,
+                        transition: dragging ? 'none' : 'transform 150ms ease',
+                        position: dragging ? 'relative' : undefined,
+                        zIndex: dragging ? 10 : undefined,
+                      }
+                    : undefined
+                }
+                className={cn(
+                  'flex items-center gap-2 rounded-md border border-border px-2 py-2',
+                  dragging && 'bg-surface shadow-lg',
+                )}
+              >
+                <button
+                  type="button"
+                  aria-label={t('reorder')}
+                  onPointerDown={(e) => dnd.startDrag(e, label.id, index)}
+                  onPointerMove={dnd.moveDrag}
+                  onPointerUp={dnd.endDrag}
+                  onPointerCancel={dnd.endDrag}
+                  style={{ touchAction: 'none' }}
+                  className={cn(
+                    'flex h-8 w-6 flex-shrink-0 items-center justify-center rounded text-text-tertiary hover:text-text-secondary',
+                    labels.length < 2 ? 'invisible' : 'cursor-grab active:cursor-grabbing',
+                  )}
+                >
+                  <GripVertical size={16} />
+                </button>
+                <span className="flex-1 truncate font-medium">{label.name}</span>
+                <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-black"
+                    checked={label.is_public}
+                    onChange={() => togglePublic(label)}
+                  />
+                  {t('publicLabel')}
+                </label>
+                <button
+                  type="button"
+                  aria-label={t('delete')}
+                  onClick={() => remove(label)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-[#f0f0f0] hover:text-text"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
   );
 };
 
@@ -93,11 +201,26 @@ export const AbsencesPage = () => {
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
+  const [labels, setLabels] = useState<AbsenceLabel[]>([]);
+  const [activeLabelId, setActiveLabelId] = useState<string | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [labelName, setLabelName] = useState('');
+  const [labelPublic, setLabelPublic] = useState(false);
+  const [savingLabel, setSavingLabel] = useState(false);
+  const [labelSettingsOpen, setLabelSettingsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    loadProjectMemberAttendance(project.id).then(({ members, countsByMember }) => {
+    Promise.all([
+      loadProjectMemberAttendance(project.id),
+      supabase
+        .from('absence_labels')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('position')
+        .order('created_at'),
+    ]).then(([{ members, countsByMember }, labelsResult]) => {
       if (cancelled) return;
       setRows(
         members.map((member) => ({
@@ -105,6 +228,7 @@ export const AbsencesPage = () => {
           counts: countsByMember[member.id] ?? { attended: 0, excused: 0, absent: 0 },
         })),
       );
+      setLabels((labelsResult.data as AbsenceLabel[]) ?? []);
       setLoading(false);
     });
     return () => {
@@ -226,9 +350,40 @@ export const AbsencesPage = () => {
   );
 
   const updateCondition = (id: string, patch: Partial<Condition>) => {
+    setActiveLabelId(null);
     setConditions((current) =>
       current.map((condition) => (condition.id === id ? { ...condition, ...patch } : condition)),
     );
+  };
+
+  // Load a saved label into the condition editor.
+  const applyLabel = (label: AbsenceLabel) => {
+    setActiveLabelId(label.id);
+    setConditions(label.conditions.map((c) => ({ ...c, id: `condition-${nextConditionId++}` })));
+  };
+
+  const saveLabel = async (e: FormEvent) => {
+    e.preventDefault();
+    setSavingLabel(true);
+    const { data } = await supabase
+      .from('absence_labels')
+      .insert({
+        project_id: project.id,
+        name: labelName.trim(),
+        conditions: toStoredConditions(conditions),
+        is_public: labelPublic,
+        position: labels.length,
+      })
+      .select('*')
+      .single();
+    setSavingLabel(false);
+    setSaveOpen(false);
+    setLabelName('');
+    setLabelPublic(false);
+    if (data) {
+      setLabels((current) => [...current, data as AbsenceLabel]);
+      setActiveLabelId((data as AbsenceLabel).id);
+    }
   };
 
   const baseFilename = `fehlzeiten-${filenamePart(project.name)}`;
@@ -266,6 +421,35 @@ export const AbsencesPage = () => {
         title={t('absences')}
         subtitle={`${matchingRows.length} ${t('matchingMembers').toLowerCase()}`}
       />
+
+      {/* Quick access: saved condition presets */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {labels.map((label) => (
+          <button
+            key={label.id}
+            type="button"
+            onClick={() => applyLabel(label)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors duration-150',
+              activeLabelId === label.id
+                ? 'border-text bg-text text-white'
+                : 'border-border text-text-secondary hover:text-text hover:bg-[#f5f5f5]',
+            )}
+          >
+            <Bookmark size={13} />
+            {label.name}
+          </button>
+        ))}
+        <button
+          type="button"
+          aria-label={t('manageLabels')}
+          title={t('manageLabels')}
+          onClick={() => setLabelSettingsOpen(true)}
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-text"
+        >
+          <Settings2 size={15} />
+        </button>
+      </div>
 
       <Card className="mb-8">
         <div className="mb-5">
@@ -336,9 +520,10 @@ export const AbsencesPage = () => {
               <button
                 type="button"
                 aria-label={t('remove')}
-                onClick={() =>
-                  setConditions((current) => current.filter((item) => item.id !== condition.id))
-                }
+                onClick={() => {
+                  setActiveLabelId(null);
+                  setConditions((current) => current.filter((item) => item.id !== condition.id));
+                }}
                 className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-[#f0f0f0] hover:text-text"
               >
                 <Trash2 size={16} />
@@ -347,14 +532,26 @@ export const AbsencesPage = () => {
           ))}
         </div>
 
-        <Button
-          variant="secondary"
-          className="mt-4"
-          onClick={() => setConditions((current) => [...current, createCondition()])}
-        >
-          <Plus size={16} />
-          {t('addCondition')}
-        </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setActiveLabelId(null);
+              setConditions((current) => [...current, createCondition()]);
+            }}
+          >
+            <Plus size={16} />
+            {t('addCondition')}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={conditions.length === 0}
+            onClick={() => setSaveOpen(true)}
+          >
+            <Bookmark size={16} />
+            {t('saveAsLabel')}
+          </Button>
+        </div>
       </Card>
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -397,6 +594,54 @@ export const AbsencesPage = () => {
         emptyMessage={t('noAbsenceResults')}
         emptyIcon={CalendarX2}
         onVisibleRowsChange={setVisibleRows}
+      />
+
+      <Modal
+        open={saveOpen}
+        title={t('saveAsLabel')}
+        onClose={() => setSaveOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setSaveOpen(false)}>
+              {t('cancel')}
+            </Button>
+            <Button type="submit" form="save-label-form" disabled={savingLabel || !labelName.trim()}>
+              {savingLabel ? t('loading') : t('save')}
+            </Button>
+          </>
+        }
+      >
+        <form id="save-label-form" onSubmit={saveLabel} className="space-y-4">
+          <Input
+            label={t('labelName')}
+            value={labelName}
+            onChange={(e) => setLabelName(e.target.value)}
+            maxLength={80}
+            required
+            autoFocus
+          />
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-black"
+              checked={labelPublic}
+              onChange={(e) => setLabelPublic(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium">{t('publicLabel')}</span>
+              <span className="mt-0.5 block text-sm text-text-secondary">
+                {t('publicLabelHint')}
+              </span>
+            </span>
+          </label>
+        </form>
+      </Modal>
+
+      <LabelSettingsModal
+        open={labelSettingsOpen}
+        labels={labels}
+        onClose={() => setLabelSettingsOpen(false)}
+        onChanged={setLabels}
       />
     </>
   );

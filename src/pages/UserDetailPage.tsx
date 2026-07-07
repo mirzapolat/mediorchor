@@ -16,12 +16,11 @@ export const UserDetailPage = () => {
   const { t } = useI18n();
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { user: me, isOwner, refreshUser } = useAuth();
+  const { user: me, isAdmin, refreshUser } = useAuth();
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accessOpen, setAccessOpen] = useState(false);
-  const [confirmTransfer, setConfirmTransfer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = async () => {
@@ -35,7 +34,7 @@ export const UserDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  if (!isOwner) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
   if (loading) return <PageSpinner />;
   if (!user) {
     navigate('/admin/users');
@@ -43,21 +42,19 @@ export const UserDetailPage = () => {
   }
 
   const isSelf = me?.id === user.id;
-  const isOwnerUser = user.role === 'owner';
 
-  const transferOwnership = async () => {
-    if (!me) return;
-    await supabase.from('app_users').update({ role: 'owner' }).eq('id', user.id);
-    await supabase.from('app_users').update({ role: 'member' }).eq('id', me.id);
-    setConfirmTransfer(false);
-    await refreshUser();
-    navigate('/');
+  const toggleFlag = async (flag: 'is_admin' | 'can_manage_projects' | 'can_access_club') => {
+    if (!user) return;
+    const next = !user[flag];
+    setUser({ ...user, [flag]: next });
+    await supabase.from('app_users').update({ [flag]: next }).eq('id', user.id);
+    if (isSelf) await refreshUser();
   };
 
   const deleteUser = async () => {
     setError(null);
     // Deleting the auth user requires the service role, so it goes through the
-    // admin-delete-user edge function (owner-only).
+    // admin-delete-user edge function (admin-only).
     const { error } = await supabase.functions.invoke('admin-delete-user', {
       body: { userId: user.id },
     });
@@ -70,23 +67,7 @@ export const UserDetailPage = () => {
   };
 
   const accessLabel =
-    isOwnerUser || user.all_projects ? t('allProjectsAccess') : t('selectedProjects');
-
-  const toggleProjectsAccess = async () => {
-    if (!user) return;
-    const next = !user.can_access_projects;
-    setUser({ ...user, can_access_projects: next });
-    await supabase.from('app_users').update({ can_access_projects: next }).eq('id', user.id);
-    if (isSelf) await refreshUser();
-  };
-
-  const toggleClubAccess = async () => {
-    if (!user) return;
-    const next = !user.can_access_club;
-    setUser({ ...user, can_access_club: next });
-    await supabase.from('app_users').update({ can_access_club: next }).eq('id', user.id);
-    if (isSelf) await refreshUser();
-  };
+    user.is_admin || user.all_projects ? t('allProjectsAccess') : t('selectedProjects');
 
   return (
     <>
@@ -103,7 +84,7 @@ export const UserDetailPage = () => {
         <div>
           <h1 className="text-2xl font-bold inline-flex items-center gap-2">
             {user.name}
-            {isOwnerUser && <Crown size={20} className="text-accent" />}
+            {user.is_admin && <Crown size={20} className="text-accent" />}
           </h1>
           <p className="text-text-secondary text-sm mt-1">{user.email}</p>
         </div>
@@ -114,16 +95,34 @@ export const UserDetailPage = () => {
       <Card className="max-w-xl space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="font-medium">{t('projectsAccess')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{t('projectsAccessHint')}</p>
+            <p className="font-medium">{t('adminRights')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">
+              {isSelf ? t('adminRightsSelfHint') : t('adminRightsHint')}
+            </p>
           </div>
           <label className="inline-flex cursor-pointer items-center">
             <input
               type="checkbox"
               className="h-4 w-4 accent-black disabled:opacity-50"
-              checked={isOwnerUser || user.can_access_projects}
-              disabled={isOwnerUser}
-              onChange={toggleProjectsAccess}
+              checked={user.is_admin}
+              disabled={isSelf}
+              onChange={() => toggleFlag('is_admin')}
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <div>
+            <p className="font-medium">{t('projectManagement')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">{t('projectManagementHint')}</p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-black disabled:opacity-50"
+              checked={user.is_admin || user.can_manage_projects}
+              disabled={user.is_admin}
+              onChange={() => toggleFlag('can_manage_projects')}
             />
           </label>
         </div>
@@ -136,7 +135,7 @@ export const UserDetailPage = () => {
           <Button
             variant="secondary"
             onClick={() => setAccessOpen(true)}
-            disabled={isOwnerUser || !user.can_access_projects}
+            disabled={user.is_admin || !user.can_manage_projects}
           >
             <FolderKanban size={15} />
             {t('manageAccess')}
@@ -152,9 +151,9 @@ export const UserDetailPage = () => {
             <input
               type="checkbox"
               className="h-4 w-4 accent-black disabled:opacity-50"
-              checked={isOwnerUser || user.can_access_club}
-              disabled={isOwnerUser}
-              onChange={toggleClubAccess}
+              checked={user.is_admin || user.can_access_club}
+              disabled={user.is_admin}
+              onChange={() => toggleFlag('can_access_club')}
             />
           </label>
         </div>
@@ -164,25 +163,10 @@ export const UserDetailPage = () => {
         <Card className="max-w-xl mt-6 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="font-medium">{t('transferOwnership')}</p>
-              <p className="text-sm text-text-secondary mt-0.5">{user.email}</p>
-            </div>
-            <Button
-              variant="secondary"
-              onClick={() => setConfirmTransfer(true)}
-              disabled={isOwnerUser}
-            >
-              <Crown size={15} />
-              {t('transferOwnership')}
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-            <div>
               <p className="font-medium">{t('deleteUser')}</p>
               <p className="text-sm text-text-secondary mt-0.5">{t('confirmDeleteUser')}</p>
             </div>
-            <Button variant="accent" onClick={() => setConfirmDelete(true)} disabled={isOwnerUser}>
+            <Button variant="accent" onClick={() => setConfirmDelete(true)} disabled={user.is_admin}>
               <Trash2 size={15} />
               {t('delete')}
             </Button>
@@ -194,15 +178,6 @@ export const UserDetailPage = () => {
         user={accessOpen ? user : null}
         onClose={() => setAccessOpen(false)}
         onSaved={load}
-      />
-
-      <ConfirmDialog
-        open={confirmTransfer}
-        title={t('transferOwnership')}
-        message={`${t('transferOwnership')} → ${user.name} (${user.email})`}
-        confirmLabel={t('confirm')}
-        onConfirm={transferOwnership}
-        onCancel={() => setConfirmTransfer(false)}
       />
 
       <ConfirmDialog

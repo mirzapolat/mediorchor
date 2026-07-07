@@ -16,7 +16,7 @@ import type { Piece } from '@/types';
 
 export const PiecesPage = () => {
   const { t } = useI18n();
-  const { project } = useProjectContext();
+  const { project, canManage } = useProjectContext();
   const navigate = useNavigate();
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,15 +87,17 @@ export const PiecesPage = () => {
       <PageHeader
         title={t('pieces')}
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus size={16} />
-            {t('newPiece')}
-          </Button>
+          canManage ? (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus size={16} />
+              {t('newPiece')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -104,25 +106,29 @@ export const PiecesPage = () => {
         columns={columns}
         getRowId={(p) => p.id}
         onRowClick={(p) => navigate(`/projects/${project.id}/pieces/${p.id}`)}
-        onReorder={reorder}
+        onReorder={canManage ? reorder : undefined}
         emptyMessage={t('noPieces')}
         emptyIcon={Music}
-        actions={(p) => (
-          <>
-            <RowActionButton
-              label={t('edit')}
-              onClick={() => {
-                setEditing(p);
-                setFormOpen(true);
-              }}
-            >
-              <Pencil size={15} />
-            </RowActionButton>
-            <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
-              <Trash2 size={15} />
-            </RowActionButton>
-          </>
-        )}
+        actions={
+          canManage
+            ? (p) => (
+                <>
+                  <RowActionButton
+                    label={t('edit')}
+                    onClick={() => {
+                      setEditing(p);
+                      setFormOpen(true);
+                    }}
+                  >
+                    <Pencil size={15} />
+                  </RowActionButton>
+                  <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
+                    <Trash2 size={15} />
+                  </RowActionButton>
+                </>
+              )
+            : undefined
+        }
       />
 
       <PieceForm

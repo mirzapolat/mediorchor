@@ -14,8 +14,8 @@ interface AuthContextValue {
   session: Session | null;
   user: AppUser | null;
   loading: boolean;
-  isOwner: boolean;
-  canAccessProjects: boolean;
+  isAdmin: boolean;
+  canManageProjects: boolean;
   canAccessClub: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -30,6 +30,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (uid: string) => {
+    // Attach any member rows whose (verified) email matches this account so
+    // past guest check-ins/sign-ups connect to the account. Idempotent.
+    await supabase.rpc('claim_my_memberships');
     const { data } = await supabase.from('app_users').select('*').eq('id', uid).maybeSingle();
     setUser((data as AppUser) ?? null);
   };
@@ -63,11 +66,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       session,
       user,
       loading,
-      isOwner: user?.role === 'owner',
-      // Default-allow: only an explicit `false` denies access (also keeps things
-      // working before the column has propagated).
-      canAccessProjects: user?.role === 'owner' || user?.can_access_projects !== false,
-      canAccessClub: user?.role === 'owner' || Boolean(user?.can_access_club),
+      isAdmin: Boolean(user?.is_admin),
+      canManageProjects: Boolean(user?.is_admin || user?.can_manage_projects),
+      canAccessClub: Boolean(user?.is_admin || user?.can_access_club),
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error?.message ?? null };
