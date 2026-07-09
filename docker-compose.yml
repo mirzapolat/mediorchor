@@ -1,11 +1,18 @@
+# mediorchor — single self-hosted container serving the app.
+# Fronted by an external Traefik instance (TLS + routing managed outside this project).
+# Runtime config (VITE_*) is injected into the browser at container start via
+# docker/env.sh, so the same image can be reconfigured without a rebuild.
+# Compose reads the local .env file automatically.
+#
+#   cp .env.example .env   # fill in your values
+#   docker compose up --build -d
+
 services:
   web:
     build: .
-    image: anwesenheit:latest
-    container_name: anwesenheit
+    image: mediorchor:latest
+    container_name: mediorchor
     restart: unless-stopped
-    ports:
-      - "${PORT:-8080}:80"
     environment:
       # Runtime configuration — injected into the browser at container start.
       VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
@@ -13,3 +20,19 @@ services:
       VITE_DEFAULT_LANGUAGE: ${VITE_DEFAULT_LANGUAGE:-en}
       VITE_APP_NAME: ${VITE_APP_NAME:-Anwesenheit}
       VITE_ACCENT_COLOR: ${VITE_ACCENT_COLOR:-#efa100}
+    expose:
+      - "80"
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mediorchor.rule: "Host(`app.medizinerorchester.de`)"
+      traefik.http.routers.mediorchor.entrypoints: websecure
+      traefik.http.routers.mediorchor.tls.certresolver: letsencrypt
+      traefik.http.routers.mediorchor.middlewares: secure-headers@file,compress@file
+      traefik.http.services.mediorchor.loadbalancer.server.port: "80"
+
+# Joins the existing Traefik network (created/managed outside this project).
+networks:
+  proxy:
+    external: true
