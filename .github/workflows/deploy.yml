@@ -25,7 +25,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p ~/docker/apps/${{ env.APP_NAME }}"
+            "mkdir -p ~/docker/${{ env.APP_NAME }}"
           rsync -avz --delete-after \
             --filter=":e- .gitignore" \
             --filter="- .git/" \
@@ -35,12 +35,12 @@ jobs:
             --filter="- instance/" \
             --filter="- data/" \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }}" \
-            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/docker/apps/${{ env.APP_NAME }}/
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/docker/${{ env.APP_NAME }}/
 
       - name: Build & Restart Containers
         run: |
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} " \
-            cd ~/docker/apps/${{ env.APP_NAME }} && \
+            cd ~/docker/${{ env.APP_NAME }} && \
             DOCKER_BUILDKIT=1 docker compose up -d --build --remove-orphans && \
             docker image prune -f "
