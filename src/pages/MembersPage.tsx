@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Users, Archive, ArchiveRestore, Pencil, Trash2, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
 import { MemberForm } from '@/components/MemberForm';
 import { MemberImport } from '@/components/MemberImport';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
@@ -27,6 +28,7 @@ export const MembersPage = () => {
   // Account display names behind linked members, to flag deviating names.
   const [accountNames, setAccountNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const tf = useTableFilters({ status: 'active' });
 
   const [formOpen, setFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -126,11 +128,10 @@ export const MembersPage = () => {
     },
   ];
 
-  const filters: FilterDef<Member>[] = [
+  const filters = tf.bind<Member>([
     {
       id: 'status',
       label: t('status'),
-      defaultValue: 'active',
       options: [
         { value: 'active', label: t('active') },
         { value: 'archived', label: t('archived') },
@@ -143,27 +144,30 @@ export const MembersPage = () => {
       options: groups.map((g) => ({ value: g, label: g })),
       predicate: (m, v) => m.group_name === v,
     },
-  ];
+  ]);
 
   return (
     <>
       <PageHeader
         title={t('members')}
+        inlineActions
         actions={
           <>
-            <Button variant="secondary" onClick={() => setImportOpen(true)}>
-              <Upload size={16} />
-              {t('importCsv')}
-            </Button>
-            <Button
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <HeaderAction
+              icon={Upload}
+              label={t('importCsv')}
+              variant="secondary"
+              onClick={() => setImportOpen(true)}
+            />
+            <HeaderAction
+              icon={Plus}
+              label={t('newMember')}
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
               }}
-            >
-              <Plus size={16} />
-              {t('newMember')}
-            </Button>
+            />
           </>
         }
       />
@@ -175,6 +179,8 @@ export const MembersPage = () => {
         onRowClick={(m) => navigate(`/projects/${project.id}/members/${m.id}`)}
         search={(m) => `${m.first_name} ${m.last_name} ${m.group_name ?? ''} ${m.email ?? ''}`}
         filters={filters}
+        query={tf.query}
+        hideToolbar
         emptyMessage={t('noMembers')}
         emptyIcon={Users}
         actions={(m) => (

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Search, X } from 'lucide-react';
+import type { FilterDef } from './DataTable';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
@@ -12,19 +13,43 @@ export interface FilterMenuFilter {
   onChange: (value: string) => void;
 }
 
+// Search text and filter values for a DataTable driven by a TableFilterMenu.
+// Call it before any early return; bind() the page's filter definitions later:
+//   const tf = useTableFilters({ status: 'active' });
+//   const filters = tf.bind(defs);
+//   <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+//   <DataTable filters={filters} query={tf.query} hideToolbar ... />
+export const useTableFilters = (defaults: Record<string, string> = {}) => {
+  const [query, setQuery] = useState('');
+  const [values, setValues] = useState(defaults);
+  const bind = <T,>(defs: FilterDef<T>[]): (FilterDef<T> & FilterMenuFilter)[] =>
+    defs.map((f) => ({
+      ...f,
+      defaultValue: defaults[f.id] ?? '',
+      value: values[f.id] ?? '',
+      onChange: (value: string) => setValues((s) => ({ ...s, [f.id]: value })),
+    }));
+  return { query, setQuery, bind };
+};
+
 // Search and filters of a DataTable collapsed into one icon button with a
 // popover, for page headers. A dot on the button marks a search or a filter
 // that differs from its default, so a narrowed list never goes unnoticed.
 export const TableFilterMenu = ({
   query,
   onQueryChange,
-  filters = [],
+  filters: allFilters = [],
   placeholder,
+  onReset,
+  canReset = false,
 }: {
   query: string;
   onQueryChange: (query: string) => void;
   filters?: FilterMenuFilter[];
   placeholder?: string;
+  // Extra state to clear on reset (e.g. a pinned row) and whether it is set.
+  onReset?: () => void;
+  canReset?: boolean;
 }) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -42,7 +67,8 @@ export const TableFilterMenu = ({
       const gutter = 16;
       const width = Math.min(320, window.innerWidth - 2 * gutter);
       const left = Math.min(Math.max(rect.right - width, gutter), window.innerWidth - gutter - width);
-      setPosition({ top: rect.bottom + 8, left, width });
+      const top = rect.bottom + 8;
+      setPosition({ top, left, width, maxHeight: window.innerHeight - top - gutter });
     };
     place();
     // Capture scrolls of any container (the page scrolls inside <main>).
@@ -54,6 +80,8 @@ export const TableFilterMenu = ({
     };
   }, [open]);
 
+  // A filter without options (e.g. no groups yet) has nothing to choose.
+  const filters = allFilters.filter((f) => f.options.length > 0);
   const modified =
     query.trim() !== '' || filters.some((f) => f.value !== (f.defaultValue ?? ''));
 
@@ -76,6 +104,7 @@ export const TableFilterMenu = ({
   const reset = () => {
     onQueryChange('');
     for (const f of filters) f.onChange(f.defaultValue ?? '');
+    onReset?.();
   };
 
   return (
@@ -102,7 +131,7 @@ export const TableFilterMenu = ({
       {open && (
         <div
           style={position}
-          className="fixed z-30 rounded-md border border-border bg-surface p-3 shadow-lg"
+          className="fixed z-30 overflow-y-auto overscroll-contain rounded-md border border-border bg-surface p-3 shadow-lg"
         >
           <div className="relative">
             <Search
@@ -155,7 +184,7 @@ export const TableFilterMenu = ({
             </div>
           ))}
 
-          {modified && (
+          {(modified || canReset) && (
             <div className="mt-3 border-t border-border pt-2">
               <button
                 type="button"

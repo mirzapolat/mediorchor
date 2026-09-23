@@ -7,7 +7,9 @@ import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { splitName } from '@/lib/accountName';
@@ -21,6 +23,7 @@ export const UsersPage = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [grantedUsers, setGrantedUsers] = useState<Set<string>>(new Set());
   const [twoFactorUsers, setTwoFactorUsers] = useState<Set<string>>(new Set());
+  const tf = useTableFilters();
   const [loading, setLoading] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -156,7 +159,7 @@ export const UsersPage = () => {
     },
   ];
 
-  const filters: FilterDef<AppUser>[] = [
+  const filters = tf.bind<AppUser>([
     {
       id: 'role',
       label: t('role'),
@@ -170,7 +173,8 @@ export const UsersPage = () => {
       id: 'access',
       label: t('projectManagement'),
       options: [
-        { value: 'all', label: t('accessAll') },
+        // Not just "All": the menu already offers that as "no filter".
+        { value: 'all', label: t('accessAllProjects') },
         { value: 'partial', label: t('accessPartial') },
         { value: 'none', label: t('accessNone') },
       ],
@@ -194,17 +198,18 @@ export const UsersPage = () => {
       ],
       predicate: (u, v) => (v === 'yes' ? hasTwoFactor(u) : !hasTwoFactor(u)),
     },
-  ];
+  ]);
 
   return (
     <>
       <PageHeader
         title={t('users')}
+        inlineActions
         actions={
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus size={16} />
-            {t('newUser')}
-          </Button>
+          <>
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <HeaderAction icon={Plus} label={t('newUser')} onClick={() => setFormOpen(true)} />
+          </>
         }
       />
 
@@ -217,6 +222,8 @@ export const UsersPage = () => {
         onRowClick={(u) => navigate(`/admin/users/${u.id}`)}
         search={(u) => `${u.name} ${u.email}`}
         filters={filters}
+        query={tf.query}
+        hideToolbar
         emptyMessage={t('noResults')}
       />
 

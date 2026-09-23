@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, FileText, Pencil, Plus, Trash2, Webhook } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationPageForm } from '@/components/RegistrationPageForm';
 import { useI18n } from '@/lib/i18n';
@@ -20,6 +21,7 @@ export const RegistrationsPage = () => {
   const [pages, setPages] = useState<RegistrationPage[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const tf = useTableFilters();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RegistrationPage | null>(null);
@@ -105,7 +107,7 @@ export const RegistrationsPage = () => {
     },
   ];
 
-  const filters: FilterDef<RegistrationPage>[] = [
+  const filters = tf.bind<RegistrationPage>([
     {
       id: 'source',
       label: t('registrationSource'),
@@ -124,22 +126,25 @@ export const RegistrationsPage = () => {
       ],
       predicate: (p, v) => (v === 'active' ? p.is_active : !p.is_active),
     },
-  ];
+  ]);
 
   return (
     <>
       <PageHeader
         title={t('registrationPages')}
+        inlineActions
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus size={16} />
-            {t('newRegistrationPage')}
-          </Button>
+          <>
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <HeaderAction
+              icon={Plus}
+              label={t('newRegistrationPage')}
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            />
+          </>
         }
       />
 
@@ -150,6 +155,8 @@ export const RegistrationsPage = () => {
         onRowClick={(p) => navigate(`/projects/${project.id}/registrations/${p.id}`)}
         search={(p) => p.title}
         filters={filters}
+        query={tf.query}
+        hideToolbar
         emptyMessage={t('noRegistrationPages')}
         emptyIcon={ClipboardList}
         actions={(p) => (

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Music, Pencil, Plus, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { PieceForm } from '@/components/PieceForm';
 import { useI18n } from '@/lib/i18n';
@@ -23,6 +24,8 @@ export const PiecesPage = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Piece | null>(null);
   const [toDelete, setToDelete] = useState<Piece | null>(null);
+  const tf = useTableFilters();
+  const searching = tf.query.trim() !== '';
 
   const load = useCallback(async () => {
     const { data } = await api
@@ -86,18 +89,21 @@ export const PiecesPage = () => {
     <>
       <PageHeader
         title={t('pieces')}
+        inlineActions
         actions={
-          canManage ? (
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus size={16} />
-              {t('newPiece')}
-            </Button>
-          ) : undefined
+          <>
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} />
+            {canManage && (
+              <HeaderAction
+                icon={Plus}
+                label={t('newPiece')}
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              />
+            )}
+          </>
         }
       />
 
@@ -106,7 +112,11 @@ export const PiecesPage = () => {
         columns={columns}
         getRowId={(p) => p.id}
         onRowClick={(p) => navigate(`/projects/${project.id}/pieces/${p.id}`)}
-        onReorder={canManage ? reorder : undefined}
+        search={(p) => `${p.name} ${p.composer ?? ''}`}
+        query={tf.query}
+        hideToolbar
+        // Reordering a filtered subset would scramble positions.
+        onReorder={canManage && !searching ? reorder : undefined}
         emptyMessage={t('noPieces')}
         emptyIcon={Music}
         actions={

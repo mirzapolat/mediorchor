@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderKanban, Archive, ArchiveRestore, Pencil, Trash2, UserCog } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { ProjectAccessModal } from '@/components/ProjectAccessModal';
-import { TableFilterMenu } from '@/components/TableFilterMenu';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,8 +24,7 @@ export const ProjectsPage = () => {
   const [toDelete, setToDelete] = useState<Project | null>(null);
   const [accessFor, setAccessFor] = useState<Project | null>(null);
   // Search and filter live in the header menu; the table only applies them.
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('active');
+  const tf = useTableFilters({ status: 'active' });
 
   const load = async () => {
     const { data } = await api
@@ -87,20 +86,17 @@ export const ProjectsPage = () => {
     },
   ];
 
-  const statusOptions = [
-    { value: 'active', label: t('active') },
-    { value: 'archived', label: t('archived') },
-  ];
-  const filters: FilterDef<Project>[] = [
+  const filters = tf.bind<Project>([
     {
       id: 'status',
       label: t('status'),
-      options: statusOptions,
-      value: status,
-      onChange: setStatus,
+      options: [
+        { value: 'active', label: t('active') },
+        { value: 'archived', label: t('archived') },
+      ],
       predicate: (p, v) => p.status === v,
     },
-  ];
+  ]);
 
   return (
     <>
@@ -109,31 +105,9 @@ export const ProjectsPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu
-              query={query}
-              onQueryChange={setQuery}
-              filters={[
-                {
-                  id: 'status',
-                  label: t('status'),
-                  options: statusOptions,
-                  value: status,
-                  defaultValue: 'active',
-                  onChange: setStatus,
-                },
-              ]}
-            />
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
             {canManageProjects && (
-              // Icon-only on phones to keep the header on one row.
-              <Button
-                onClick={() => navigate('/projects/new')}
-                aria-label={t('newProject')}
-                title={t('newProject')}
-                className="h-9 max-sm:w-9 max-sm:px-0"
-              >
-                <Plus size={16} />
-                <span className="hidden sm:inline">{t('newProject')}</span>
-              </Button>
+              <HeaderAction icon={Plus} label={t('newProject')} onClick={() => navigate('/projects/new')} />
             )}
           </>
         }
@@ -146,7 +120,7 @@ export const ProjectsPage = () => {
         onRowClick={(p) => navigate(`/projects/${p.id}`)}
         search={(p) => `${p.name} ${p.description ?? ''}`}
         filters={filters}
-        query={query}
+        query={tf.query}
         hideToolbar
         emptyMessage={t('noProjects')}
         emptyIcon={FolderKanban}

@@ -137,6 +137,7 @@ const dict: Dict = {
     en: 'When on, this user can view and manage the club members section.',
   },
   accessAll: { de: 'Alle', en: 'All' },
+  accessAllProjects: { de: 'Alle Projekte', en: 'All projects' },
   accessPartial: { de: 'Teilweise', en: 'Partial' },
   accessNone: { de: 'Nein', en: 'No' },
   memberManagement: { de: 'Mitgliederverwaltung', en: 'Member management' },

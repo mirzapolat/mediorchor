@@ -7,7 +7,9 @@ import { Input, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -27,6 +29,7 @@ export const EventsPage = () => {
   const [loading, setLoading] = useState(true);
   // The next/today rehearsal is pinned + highlighted until the user resets filters.
   const [highlightNext, setHighlightNext] = useState(true);
+  const tf = useTableFilters();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Event | null>(null);
@@ -172,7 +175,7 @@ export const EventsPage = () => {
     },
   ];
 
-  const filters: FilterDef<Event>[] = [
+  const filters = tf.bind<Event>([
     {
       id: 'timeframe',
       label: t('timeframe'),
@@ -185,17 +188,25 @@ export const EventsPage = () => {
         return v === 'upcoming' ? ev.date >= today() : ev.date < today();
       },
     },
-  ];
+  ]);
 
   return (
     <>
       <PageHeader
         title={t('events')}
+        inlineActions
         actions={
-          <Button onClick={openCreate}>
-            <Plus size={16} />
-            {t('newEvent')}
-          </Button>
+          <>
+            <TableFilterMenu
+              query={tf.query}
+              onQueryChange={tf.setQuery}
+              filters={filters}
+              // Resetting also releases the pinned next rehearsal.
+              onReset={() => setHighlightNext(false)}
+              canReset={Boolean(highlightRowId)}
+            />
+            <HeaderAction icon={Plus} label={t('newEvent')} onClick={openCreate} />
+          </>
         }
       />
 
@@ -206,6 +217,8 @@ export const EventsPage = () => {
         onRowClick={(ev) => navigate(`/projects/${project.id}/events/${ev.id}`)}
         search={(ev) => `${ev.name} ${ev.description ?? ''}`}
         filters={filters}
+        query={tf.query}
+        hideToolbar
         highlightRowId={highlightRowId}
         onClearFilters={() => setHighlightNext(false)}
         emptyMessage={t('noEvents')}
