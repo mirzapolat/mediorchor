@@ -6,6 +6,7 @@ import { Select } from './Input';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { parseCsv } from '@/lib/csv';
+import { splitName } from '@/lib/accountName';
 
 interface MemberImportProps {
   open: boolean;
@@ -67,15 +68,6 @@ const guessFullNameColumn = (headers: string[]): string => {
   return idx >= 0 ? String(idx) : NONE;
 };
 
-// Split a full name at the last space: everything before is the first name, the
-// trailing token is the last name. Single-token names keep an empty last name.
-const splitFullName = (full: string): { first: string; last: string } => {
-  const trimmed = full.trim();
-  const at = trimmed.lastIndexOf(' ');
-  if (at === -1) return { first: trimmed, last: '' };
-  return { first: trimmed.slice(0, at).trim(), last: trimmed.slice(at + 1).trim() };
-};
-
 export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: MemberImportProps) => {
   const { t } = useI18n();
   const [fileName, setFileName] = useState<string | null>(null);
@@ -132,7 +124,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
   // Resolve a row's first/last name honouring the chosen name mode.
   const namesOf = (row: string[]): { first: string; last: string } =>
     nameMode === 'combined'
-      ? splitFullName(colValue(row, fullNameCol))
+      ? splitName(colValue(row, fullNameCol))
       : { first: cellValue(row, 'first_name'), last: cellValue(row, 'last_name') };
 
   // A row is importable when it yields at least a first name. In split mode the

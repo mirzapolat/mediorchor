@@ -86,15 +86,18 @@ An account may edit its own display name, email and password, but must never be 
 
 ### 4.3 Automatic membership claiming
 
-Every time an account signs in, the system attaches any *unlinked* member rows whose email matches the account's **confirmed** email address:
+Unlinked member rows whose email matches an account's **confirmed** email address (ignoring case and surrounding whitespace) are attached to that account automatically:
 
+- **When a member row is created or its email changes** (manual add, CSV import, transfer, …) and a matching account already exists, it is linked immediately.
+- **When an account signs in** and whenever it opens "My participation", any still-unlinked matching rows are claimed.
 - At most one link per project; the oldest matching member row per project wins.
 - Never creates a second link where one already exists.
-- The operation is idempotent and safe to run on every login.
-- Effect: someone who checked in as a guest or registered publicly with the same email in the past automatically inherits that history when they later create an account.
+- The operation is idempotent and safe to run repeatedly.
+- Effect: someone a manager added (or who checked in as a guest or registered publicly) with the same email automatically sees that membership and history on "My participation".
 
 ### 4.4 Account settings page
 
+- Laid out in two columns when the screen is wide enough (profile left; language and two-factor right), one column otherwise.
 - Edit display name, email address and set a new password.
 - **Name propagation:** changing the display name renames every linked member row across all projects. The name is split into first/last at the last space. A manager may afterwards rename that member within a project; the UI then flags "name differs from account" and shows the account's name.
 - UI language switch (German / English), remembered per browser.
@@ -104,7 +107,7 @@ Every time an account signs in, the system attaches any *unlinked* member rows w
 
 A dedicated administration area with its own sidebar (Users, Configuration) and a "back" link to the main app.
 
-**User list** — a table of all accounts with: name + avatar, email, role (Administrator / Member), project-management state (*All* / *Partial* / *No*), and club access (*Yes* / *No*). Searchable by name/email, filterable by each of those three dimensions.
+**User list** — a table of all accounts with: first name (with avatar) and last name (the display name split at the last space), email, role (Administrator / Member), project-management state (*All* / *Partial* / *No*), and club access (*Yes* / *No*). Searchable by name/email, filterable by each of those three dimensions.
 
 **Create user** — name, email and password; the account is created already email-confirmed.
 
@@ -217,13 +220,16 @@ Users with project management get: a "New project" button (name + optional descr
 
 ### 6.2 Project settings
 
-A single form, saved as a whole, with a "✓" acknowledgement and a "delete project" card below.
+A single form, saved as a whole. The save button (with its "✓" acknowledgement) sits in the page header so it is always within reach. On wide screens the cards are laid out in two columns — identity and groups on the left, access settings and "delete project" on the right.
 
 **Identity**
 - Project image (round/square logo): upload, preview, remove. Shown next to the project name everywhere and, optionally, in the centre of check-in QR codes.
 - Project name (required) and optional description.
 
-**Groups** — an ordered, editable list. Each row has a drag handle, a text input and a remove button; a button appends a new empty row. Removing the last row leaves one empty row. The order set here is the order shown everywhere: check-in forms, registration forms, and the participation group picker. Blank entries are dropped on save.
+**Groups** — an ordered, editable list. Each row has a drag handle, a text input and a remove button; a button appends a new empty row. Removing the last row leaves one empty row. The order set here is the order shown everywhere: check-in forms, registration forms, the participation group picker, member forms and group filters. Blank entries are dropped on save. This list is the **single source of truth** for the project's groups:
+- Renaming a group renames it for every member in it.
+- Removing a group clears the group of every member in it.
+- Any group that reaches a member by another path (e.g. a CSV import that creates groups) is appended to the list automatically, so no member is ever in a group the list doesn't contain.
 
 **Access & forms** — six independent toggles:
 
@@ -253,7 +259,7 @@ The page every account gets inside a project — including managers and administ
 ### 7.1 Not participating
 
 A single card, "Join project":
-- If the account has never had a member row here: first name / last name (prefilled by splitting the account's display name at the last space) plus a group dropdown when the project defines groups. Hint: "You are not participating in this project yet. Join to be included in attendance."
+- If the account has never had a member row here: first name / last name (prefilled by splitting the account's display name at the last space) plus a **required** group dropdown when the project defines groups. Hint: "You are not participating in this project yet. Join to be included in attendance."
 - If the account previously left: no name fields, and the hint becomes "You left this project. You can rejoin at any time; your previous attendance is kept."
 
 Joining rules: a manager/administrator may join any project they can access. A plain account may only *re-activate* an existing link — new participants arrive via check-in, sign-up, or a manager adding them. A group must be one of the project's defined groups.
@@ -262,7 +268,7 @@ Joining rules: a manager/administrator may join any project they can access. A p
 
 Four cards:
 
-1. **My group** — a dropdown of the project's groups, saved immediately with a "✓". If the project defines no groups, a muted "No groups are available for this project."
+1. **My group** — a dropdown of the project's groups, saved immediately with a "✓". Once a group is set it can be changed but not cleared (the server rejects an empty group while the project has groups). If the project defines no groups, a muted "No groups are available for this project."
 2. **Upcoming events** — every event dated today or later, name plus date and time.
 3. **My attendance** — every past or undated event (newest first) with its own status badge. Undated events count as held. Above the list, any **public absence labels** whose conditions this person currently matches are shown as accent-outlined chips.
 4. **Leave project** — an accent button with a confirmation. Leaving archives the member row: the person disappears from the active member list and loses participant access, but their attendance history is preserved and rejoining restores everything.
@@ -273,7 +279,7 @@ Four cards:
 
 ### 8.1 Member list (managers)
 
-Table columns: name (avatar + full name, an "Archived" tag, and an accent "Name differs from account: …" note when the linked account's display name diverges), group, email. Searchable across name/group/email; filters for status (Active preselected / Archived) and group (built from the groups actually in use). Row click opens the member. Row actions: edit, archive/restore, delete.
+Table columns: first name (with avatar), last name (with an "Archived" tag and an accent "Name differs from account: …" note when the linked account's display name diverges), group, email. Searchable across name/group/email; filters for status (Active preselected / Archived) and group (the project's group list). Row click opens the member. Row actions: edit, archive/restore, delete.
 
 Guest members never appear here.
 
@@ -283,7 +289,7 @@ Guest members never appear here.
   - Saving with a linked account **re-activates** any existing member row for that account in this project instead of creating a duplicate — one link per account per project.
 - Photo upload with avatar preview.
 - First name, last name (both required).
-- Group — a free-text field with autocomplete suggestions from the project's groups ("Select or type a new group").
+- Group — a free-text field with autocomplete suggestions from the project's groups ("Select or type a new group"). A newly typed group is added to the project's group list.
 - Email (optional).
 
 ### 8.3 CSV import
@@ -294,7 +300,8 @@ A guided dialog:
 2. **Header row** — a checkbox for "First row contains column names"; when off, generic "Column N" headers are generated and every record is data.
 3. **Name format** — radio choice between *first and last name in separate columns* and *full name in one column*. In combined mode the name is split at the last space, and single-token names are allowed (empty last name); in split mode both are required.
 4. **Column mapping** — dropdowns mapping CSV columns to first name / last name (or full name), plus optional group and email. Mapping is **pre-guessed** from the headers by substring matching in both languages (`vorname/first/given`, `nachname/last/surname/familien`, `gruppe/group/team/klasse`, `mail`), and the full-name guess looks for a header containing "name" without a first/last qualifier.
-5. **Preview** — "*n* of *total* rows will be imported", the first 5 valid rows in a mini table, "… and *n* more", and the note "Rows without a first and last name are skipped."
+5. **New groups** — shown only when the mapped group column contains groups the project doesn't have (values matching an existing group apart from case are mapped to it silently). For each new group the manager chooses: **create it as a new group** (default; appended to the project's group list), **assign its rows to an existing group**, or **remove** it (those rows get no group).
+6. **Preview** — "*n* of *total* rows will be imported", the first 5 valid rows in a mini table, "… and *n* more", and the note "Rows without a first and last name are skipped."
 
 Import is a single batch operation; errors are surfaced inline.
 
@@ -311,7 +318,7 @@ Import is a single batch operation; errors are surfaced inline.
 
 ### 9.1 Events list (managers)
 
-Table sorted newest first, columns: name, date, time. Search by name; filter by timeframe (Upcoming / Past). Create/edit dialog: name (required), optional date, optional time.
+Table sorted by date ascending (then time; undated events last), columns: name, date, time. Search by name; filter by timeframe (Upcoming / Past). Create/edit dialog: name (required), optional date, optional time.
 
 Two badges appear inline on rows:
 - The **next rehearsal** — the nearest event dated today or later — is pinned to the top, tinted green, and tagged "Today" or "Next rehearsal". Resetting the filters unpins it.
@@ -365,7 +372,7 @@ A standalone centered page with the app logo, "Check in to event", the event nam
 - **Stopped** → padlock + the event name + "This check-in is not open right now."
 - **Active, signed in, account check-in allowed, already a member of this project** → a one-tap flow: a card showing their name and group and a single "Check in" button. If guest check-in is also allowed, a link offers "Check in as a guest instead".
 - **Active, signed in, but not yet in this project** → the normal form with the note "You are not part of this project yet. Checking in will add you to the project."
-- **Active, guest flow** → first name, last name, and a **required group dropdown** populated from the project's groups (falling back to the groups actually in use by active members if the project hasn't maintained the list). If no groups exist the form is disabled with "No groups are available for this project." When account check-in is allowed and the visitor is signed out, a "Sign in to check in with your account" link appears which returns to this exact page after signing in.
+- **Active, guest flow** → first name, last name, and a **required group dropdown** populated from the project's groups. If no groups exist the form is disabled with "No groups are available for this project." When account check-in is allowed and the visitor is signed out, a "Sign in to check in with your account" link appears which returns to this exact page after signing in.
 - **Guest check-in disabled and not signed in** → padlock + "Checking in without an account is disabled for this project." plus the sign-in link when account check-in is allowed.
 
 **Server-side matching rules for a guest submission:** an active member of that project is matched when first name AND last name (case- and whitespace-insensitive) AND group all match. On a match, attendance is written (or overwritten) with the configured status and an audit row is recorded as *recognized*. With no match, only an audit row is recorded as *not recognized* — no member is created. Fields are validated (non-empty, ≤120 characters).
@@ -589,7 +596,7 @@ checkin_submission id, event, member?, first_name, last_name, group_name,
                    recognized, attendance_status?, submitted_at
 
 registration_page  id, project, token, title, description, ask_email, ask_group,
-                   groups[] (legacy fallback), is_active, auto_transfer, created_at
+                   is_active, auto_transfer, created_at
 registration       id, page, first_name, last_name, email?, group_name?,
                    member?, transferred, account?, created_at
 
@@ -617,7 +624,7 @@ These are the non-obvious rules that make the app coherent. They are easy to mis
 1. **Registration ≠ membership.** Even an account-authenticated sign-up produces only a registration. Membership happens at transfer time. Check-in, by contrast, *does* create membership implicitly.
 2. **Leaving a project archives, never deletes.** History must survive, and rejoining must restore participation without any data loss.
 3. **One member row per account per project**, enforced everywhere: joining, check-in, registration transfer, and the manager's member form all re-activate rather than duplicate.
-4. **Groups are per project and centrally defined.** The check-in and registration forms fall back to "groups currently in use" only for projects that never maintained the list.
+4. **Groups are per project and centrally defined.** The project's group list is the only source of groups anywhere; member groups always stay in sync with it.
 5. **Absent is derived, not stored.** It is total events minus present minus excused. Undated events still count as held.
 6. **The account's email and name are authoritative** in account-mode flows; typed values are ignored.
 7. **Public endpoints leak nothing.** They return the event/project/page title and the group list, never member names or counts.

@@ -1,10 +1,31 @@
+# Only what the build needs goes into the context: sources, configs, lockfile
+# and docker/entrypoint.sh.
+
+# Dependencies & build output (rebuilt inside the image)
 node_modules
 dist
+.vite
+*.tsbuildinfo
+
+# Runtime data and secrets
 data
-.git
 .env
 .env.*
-!.env.example
-*.log
+*.local
+
+# Repository, CI and deployment files
+.git
+.github
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+*.md
+
+# Editors, OS, logs, scratch
+.vscode
+.idea
+.claude
 .DS_Store
-*.tsbuildinfo
+*.log
+tmp

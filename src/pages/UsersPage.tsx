@@ -10,6 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { splitName } from '@/lib/accountName';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppUser } from '@/types';
 
@@ -69,15 +70,21 @@ export const UsersPage = () => {
 
   const columns: Column<AppUser>[] = [
     {
-      id: 'name',
-      header: t('name'),
-      accessor: (u) => u.name,
+      id: 'first_name',
+      header: t('firstName'),
+      accessor: (u) => splitName(u.name).first,
       render: (u) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={u.name} size={28} />
-          <span>{u.name}</span>
+          <span>{splitName(u.name).first}</span>
         </div>
       ),
+    },
+    {
+      id: 'last_name',
+      header: t('lastName'),
+      accessor: (u) => splitName(u.name).last,
+      render: (u) => <span>{splitName(u.name).last || '—'}</span>,
     },
     {
       id: 'email',

@@ -74,16 +74,26 @@ export const MembersPage = () => {
 
   const columns: Column<Member>[] = [
     {
-      id: 'name',
-      header: t('name'),
-      accessor: (m) => `${m.last_name} ${m.first_name}`,
+      id: 'first_name',
+      header: t('firstName'),
+      accessor: (m) => m.first_name,
+      render: (m) => (
+        <div className="flex items-center gap-2.5">
+          <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
+          <span>{m.first_name}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'last_name',
+      header: t('lastName'),
+      accessor: (m) => m.last_name,
       render: (m) => {
         const deviation = accountNameDeviation(m, accountNames[m.id]);
         return (
           <div className="flex items-center gap-2.5">
-            <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
             <span>
-              {m.first_name} {m.last_name}
+              {m.last_name || '—'}
               {deviation && (
                 <span className="block text-xs text-accent">
                   {t('nameDiffersFromAccount')}: {deviation}

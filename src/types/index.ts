@@ -14,15 +14,6 @@ export interface AppUser {
   created_at: string;
 }
 
-export interface AppSettings {
-  id: number;
-  app_name: string;
-  accent_color: string;
-  icon: string | null; // lucide icon name
-  language: 'de' | 'en';
-  allow_self_signup: boolean; // accounts can be created on the login page
-}
-
 export type ProjectStatus = 'active' | 'archived';
 
 export interface Project {
@@ -128,7 +119,6 @@ export interface RegistrationPage {
   description: string;
   ask_email: boolean;
   ask_group: boolean;
-  groups: string[];
   is_active: boolean;
   auto_transfer: boolean;
   created_at: string;
@@ -203,12 +193,4 @@ export interface AbsenceLabel {
   is_public: boolean;
   position: number;
   created_at: string;
-}
-
-// A member joined with their attendance status for a given event.
-export interface AttendanceRow {
-  member: Member;
-  status: AttendanceStatus;
-  is_guest: boolean;
-  attendance_id: string | null;
 }

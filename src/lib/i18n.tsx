@@ -8,7 +8,6 @@ type Dict = Record<string, { de: string; en: string }>;
 
 const dict: Dict = {
   // Generic
-  appTagline: { de: 'Anwesenheitsverwaltung', en: 'Attendance management' },
   signIn: { de: 'Anmelden', en: 'Sign in' },
   signOut: { de: 'Abmelden', en: 'Sign out' },
   email: { de: 'E-Mail', en: 'Email' },
@@ -20,7 +19,6 @@ const dict: Dict = {
   edit: { de: 'Bearbeiten', en: 'Edit' },
   delete: { de: 'Löschen', en: 'Delete' },
   archive: { de: 'Archivieren', en: 'Archive' },
-  unarchive: { de: 'Wiederherstellen', en: 'Restore' },
   add: { de: 'Hinzufügen', en: 'Add' },
   close: { de: 'Schließen', en: 'Close' },
   search: { de: 'Suchen', en: 'Search' },
@@ -88,12 +86,8 @@ const dict: Dict = {
   editProject: { de: 'Projekt bearbeiten', en: 'Edit project' },
   projectName: { de: 'Projektname', en: 'Project name' },
   description: { de: 'Beschreibung', en: 'Description' },
-  color: { de: 'Farbe', en: 'Color' },
-  icon: { de: 'Symbol', en: 'Icon' },
   noProjects: { de: 'Noch keine Projekte', en: 'No projects yet' },
   projectImage: { de: 'Projektbild', en: 'Project image' },
-  showArchived: { de: 'Archivierte anzeigen', en: 'Show archived' },
-  hideArchived: { de: 'Archivierte verbergen', en: 'Hide archived' },
   archived: { de: 'Archiviert', en: 'Archived' },
 
   // Users
@@ -101,15 +95,10 @@ const dict: Dict = {
   owner: { de: 'Admin', en: 'Admin' },
   member: { de: 'Mitglied', en: 'Member' },
   role: { de: 'Rolle', en: 'Role' },
-  transferOwnership: { de: 'Admin übertragen', en: 'Transfer admin' },
   deleteUser: { de: 'Benutzer löschen', en: 'Delete user' },
   confirmDeleteUser: {
     de: 'Diesen Benutzer endgültig löschen? Der Zugang wird sofort entzogen.',
     en: 'Permanently delete this user? Their access is revoked immediately.',
-  },
-  ownerOnly: {
-    de: 'Nur der Admin kann diese Seite sehen.',
-    en: 'Only the admin can view this page.',
   },
   adminRights: { de: 'Administrator', en: 'Administrator' },
   adminRightsHint: {
@@ -159,7 +148,6 @@ const dict: Dict = {
     en: 'Enter the 6-digit code from your authenticator app.',
   },
   disable2fa: { de: '2FA deaktivieren', en: 'Disable 2FA' },
-  changePassword: { de: 'Passwort ändern', en: 'Change password' },
   newPassword: { de: 'Neues Passwort', en: 'New password' },
   language: { de: 'Sprache', en: 'Language' },
 
@@ -171,14 +159,6 @@ const dict: Dict = {
   },
 
   // Settings
-  appName: { de: 'App-Name', en: 'App name' },
-  accentColor: { de: 'Akzentfarbe', en: 'Accent color' },
-  branding: { de: 'Branding', en: 'Branding' },
-  smtp: { de: 'SMTP / E-Mail', en: 'SMTP / Email' },
-  smtpNote: {
-    de: 'SMTP wird über Umgebungsvariablen konfiguriert (siehe .env).',
-    en: 'SMTP is configured via environment variables (see .env).',
-  },
 
   // Members
   newMember: { de: 'Neues Mitglied', en: 'New member' },
@@ -212,7 +192,6 @@ const dict: Dict = {
   importCsv: { de: 'CSV importieren', en: 'Import CSV' },
   importMembers: { de: 'Mitglieder importieren', en: 'Import members' },
   selectCsvFile: { de: 'CSV-Datei auswählen', en: 'Select CSV file' },
-  changeFile: { de: 'Andere Datei', en: 'Change file' },
   firstRowHeader: {
     de: 'Erste Zeile enthält Spaltennamen',
     en: 'First row contains column names',
@@ -236,7 +215,6 @@ const dict: Dict = {
     de: 'Lege fest, welche Spalte der CSV welchem Feld entspricht.',
     en: 'Choose which CSV column maps to which field.',
   },
-  csvColumnFor: { de: 'CSV-Spalte für', en: 'CSV column for' },
   notMapped: { de: '— nicht zuordnen —', en: '— do not map —' },
   preview: { de: 'Vorschau', en: 'Preview' },
   rowsReadyToImport: {
@@ -294,7 +272,6 @@ const dict: Dict = {
     de: 'Soll diese Person als Gast oder als Projektmitglied hinzugefügt werden?',
     en: 'Should this person be added as a guest or as a project member?',
   },
-  present: { de: 'Anwesend', en: 'Present' },
   absenceConditions: { de: 'Bedingungen', en: 'Conditions' },
   absenceConditionsHint: {
     de: 'Kombiniere Anwesenheitswerte mit UND oder ODER.',
@@ -337,11 +314,6 @@ const dict: Dict = {
   showLogoInQrHint: {
     de: 'Das Projektbild wird in der Mitte des QR-Codes eingeblendet.',
     en: 'The project image is displayed in the centre of the QR code.',
-  },
-  resetQrCode: { de: 'QR-Code zurücksetzen', en: 'Reset QR code' },
-  resetQrCodeHint: {
-    de: 'Der bisherige QR-Code wird sofort ungültig. Fortfahren?',
-    en: 'The previous QR code will become invalid immediately. Continue?',
   },
   startCheckIn: { de: 'Starten', en: 'Start' },
   stopCheckIn: { de: 'Stoppen', en: 'Stop' },
@@ -522,7 +494,6 @@ const dict: Dict = {
   noClubMembers: { de: 'Noch keine Vereinsmitglieder', en: 'No club members yet' },
   memberTitle: { de: 'Titel', en: 'Title' },
   salutation: { de: 'Anrede', en: 'Salutation' },
-  address: { de: 'Adresse', en: 'Address' },
   careOf: { de: 'Zusatz / c/o', en: 'Care of (c/o)' },
   street: { de: 'Straße und Hausnummer', en: 'Street and number' },
   addressExtra: { de: 'Adresszusatz', en: 'Address addition' },
@@ -644,10 +615,6 @@ const dict: Dict = {
     en: 'The selectable groups are defined in the project settings.',
   },
   groupsList: { de: 'Gruppen', en: 'Groups' },
-  groupsListHint: {
-    de: 'Lege die Gruppen fest, aus denen später ausgewählt werden kann.',
-    en: 'Define the groups people can choose from.',
-  },
   addGroup: { de: 'Gruppe hinzufügen', en: 'Add group' },
   groupPlaceholder: { de: 'Gruppenname', en: 'Group name' },
   activate: { de: 'Aktivieren', en: 'Activate' },
@@ -674,15 +641,10 @@ const dict: Dict = {
     de: 'Neue Anmeldungen werden automatisch in die Mitgliederliste übertragen.',
     en: 'New registrations are automatically added to the members list.',
   },
-  transferError: {
-    de: 'Die Übertragung ist fehlgeschlagen.',
-    en: 'The transfer failed.',
-  },
   registeredAt: { de: 'Angemeldet', en: 'Registered' },
 
   // Public registration flow
   next: { de: 'Weiter', en: 'Next' },
-  step: { de: 'Schritt', en: 'Step' },
   enterYourData: { de: 'Deine Daten', en: 'Your details' },
   reviewYourData: { de: 'Angaben überprüfen', en: 'Review your details' },
   reviewHint: {

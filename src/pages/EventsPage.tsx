@@ -40,8 +40,9 @@ export const EventsPage = () => {
         .from('events')
         .select('*')
         .eq('project_id', project.id)
-        .order('date', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false }),
+        .order('date', { ascending: true, nullsFirst: false })
+        .order('time', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true }),
       api
         .from('checkin_submissions')
         .select('event_id, events!inner(project_id)')

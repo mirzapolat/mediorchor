@@ -15,3 +15,13 @@ export const accountNameDeviation = (
     ? accountName
     : null;
 };
+
+// Split a full name at the last space: everything before is the first name, the
+// trailing token is the last name (same rule the server uses for account names).
+// Single-token names keep an empty last name.
+export const splitName = (full: string): { first: string; last: string } => {
+  const trimmed = normalize(full);
+  const at = trimmed.lastIndexOf(' ');
+  if (at === -1) return { first: trimmed, last: '' };
+  return { first: trimmed.slice(0, at), last: trimmed.slice(at + 1) };
+};

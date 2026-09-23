@@ -1,12 +1,22 @@
+# Dependencies & build output
 node_modules
 dist
-dist-ssr
+.vite
+*.tsbuildinfo
+
+# Runtime data (SQLite database, uploaded files)
 data
-*.local
+
+# Environment (only the example is tracked)
 .env
 .env.*
 !.env.example
+*.local
+
+# Editors, OS, logs, scratch
+.vscode
+.idea
+.claude
 .DS_Store
 *.log
-.vite
-*.tsbuildinfo
+tmp

@@ -32,7 +32,6 @@ jobs:
             --filter="- .github/" \
             --filter="- .env" \
             --filter="- .env.*" \
-            --filter="- instance/" \
             --filter="- data/" \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }}" \
             ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/docker/${{ env.APP_NAME }}/

@@ -47,9 +47,3 @@ export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0 }:
     </NavLink>
   );
 };
-
-export const SidebarSection = ({ label }: { label: string }) => (
-  <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wide px-3 py-2">
-    {label}
-  </p>
-);
