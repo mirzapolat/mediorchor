@@ -19,7 +19,7 @@ const RichText = ({ text }: { text: string }) => (
   <>
     {text.split('`').map((part, i) =>
       i % 2 === 1 ? (
-        <code key={i} className="rounded bg-[#f5f5f5] px-1 py-0.5 font-mono text-[0.85em]">
+        <code key={i} className="rounded bg-surface-muted px-1 py-0.5 font-mono text-[0.85em]">
           {part}
         </code>
       ) : (
@@ -147,7 +147,7 @@ export const WebhookSetup = ({
             <h2 className="text-base font-medium">{t('webhookUrl')}</h2>
             <p className="mt-1 text-sm text-text-secondary">{t('webhookUrlHint')}</p>
           </div>
-          <code className="block break-all rounded-md border border-border bg-[#fafafa] px-3 py-2 font-mono text-sm">
+          <code className="block break-all rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-sm">
             {url}
           </code>
           <div className="flex flex-wrap gap-2">
@@ -172,7 +172,7 @@ export const WebhookSetup = ({
                   <span
                     className={cn(
                       'font-medium',
-                      page.webhook_last_status === 'ok' ? 'text-[#16803b]' : 'text-accent',
+                      page.webhook_last_status === 'ok' ? 'text-success-strong' : 'text-accent',
                     )}
                   >
                     {statusLabel(page.webhook_last_status)}
@@ -226,7 +226,7 @@ export const WebhookSetup = ({
           )}
 
           {remapNote && (
-            <p className="rounded-md bg-[#f0fdf4] px-3 py-2 text-sm text-[#16803b]">{remapNote}</p>
+            <p className="rounded-md bg-success-soft px-3 py-2 text-sm text-success-strong">{remapNote}</p>
           )}
 
           {(switchedOff.length > 0 || hasCustomMapping) && (
@@ -264,7 +264,7 @@ export const WebhookSetup = ({
                 'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors duration-150',
                 g.id === guide.id
                   ? 'border-black bg-black text-white'
-                  : 'border-border text-text-secondary hover:bg-[#f5f5f5]',
+                  : 'border-border text-text-secondary hover:bg-surface-muted',
               )}
             >
               {g.label}
@@ -280,7 +280,7 @@ export const WebhookSetup = ({
         </ol>
         {guide.code && (
           <div className="relative">
-            <pre className="overflow-x-auto rounded-md border border-border bg-[#fafafa] p-3 pr-12 font-mono text-xs leading-relaxed">
+            <pre className="overflow-x-auto rounded-md border border-border bg-surface-subtle p-3 pr-12 font-mono text-xs leading-relaxed">
               {guide.code(url)}
             </pre>
             <button

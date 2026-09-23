@@ -84,7 +84,7 @@ export const RegistrationSelectionDialog = ({
           <span className="min-w-0 flex-1 truncate">
             {p.first_name} {p.last_name}
           </span>
-          {result && <Check size={15} className="flex-shrink-0 text-[#16803b]" />}
+          {result && <Check size={15} className="flex-shrink-0 text-success-strong" />}
         </li>
       ))}
       {!result && people.length > PREVIEW_LIMIT && (
@@ -144,7 +144,7 @@ export const RegistrationSelectionDialog = ({
                 onClick={() => setMode(value)}
                 className={cn(
                   'flex items-start gap-3 rounded-md border px-4 py-3 text-left transition-colors duration-150',
-                  mode === value ? 'border-black bg-[#fafafa]' : 'border-border hover:bg-[#fafafa]',
+                  mode === value ? 'border-black bg-surface-subtle' : 'border-border hover:bg-surface-subtle',
                 )}
               >
                 <Icon size={18} className="mt-0.5 flex-shrink-0" />
@@ -165,7 +165,7 @@ export const RegistrationSelectionDialog = ({
                   aria-label="−"
                   onClick={() => setCount((c) => clamp(c - 1))}
                   disabled={count <= 1}
-                  className="flex h-9 w-9 items-center justify-center text-text-secondary hover:bg-[#f5f5f5] disabled:opacity-40"
+                  className="flex h-9 w-9 items-center justify-center text-text-secondary hover:bg-surface-muted disabled:opacity-40"
                 >
                   <Minus size={15} />
                 </button>
@@ -182,7 +182,7 @@ export const RegistrationSelectionDialog = ({
                   aria-label="+"
                   onClick={() => setCount((c) => clamp(c + 1))}
                   disabled={count >= total}
-                  className="flex h-9 w-9 items-center justify-center text-text-secondary hover:bg-[#f5f5f5] disabled:opacity-40"
+                  className="flex h-9 w-9 items-center justify-center text-text-secondary hover:bg-surface-muted disabled:opacity-40"
                 >
                   <Plus size={15} />
                 </button>

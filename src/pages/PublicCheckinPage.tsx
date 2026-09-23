@@ -8,6 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { AppLogo } from '@/components/AppLogo';
 
 type PublicCheckinInfo =
   | { state: 'invalid' }
@@ -113,11 +114,7 @@ export const PublicCheckinPage = () => {
         {active ? (
           <>
             <header className="mb-8 text-center">
-              <img
-                src="/favicon.svg"
-                alt=""
-                className="mx-auto mb-5 h-12 w-12 sm:h-14 sm:w-14"
-              />
+              <AppLogo className="mx-auto mb-5 h-12 w-12 sm:h-14 sm:w-14" />
               <h1 className="text-2xl font-bold sm:text-3xl">{t('checkInFormTitle')}</h1>
               <p className="mt-2 text-text-secondary">{active.event_name}</p>
               <p className="mt-0.5 text-sm text-text-tertiary">{active.project_name}</p>
@@ -126,7 +123,7 @@ export const PublicCheckinPage = () => {
             <Card className="p-5 sm:p-7">
               {submitted ? (
                 <div className="py-7 text-center" role="status">
-                  <CheckCircle2 size={42} className="mx-auto text-[#16a34a]" />
+                  <CheckCircle2 size={42} className="mx-auto text-success" />
                   <h2 className="mt-4 text-lg font-semibold">{t('checkInSuccess')}</h2>
                 </div>
               ) : accountMode && active.me ? (
@@ -144,7 +141,7 @@ export const PublicCheckinPage = () => {
                     </div>
                   </div>
                   {error ? (
-                    <p className="text-sm text-red-700" role="alert">
+                    <p className="text-sm text-danger-strong" role="alert">
                       {error}
                     </p>
                   ) : null}
@@ -181,7 +178,7 @@ export const PublicCheckinPage = () => {
                   {accountMode && !active.me ? (
                     // Logged in but not yet part of this project: checking in
                     // joins it with the entered details.
-                    <p className="rounded-md bg-[#fafafa] px-3 py-2.5 text-sm text-text-secondary">
+                    <p className="rounded-md bg-surface-subtle px-3 py-2.5 text-sm text-text-secondary">
                       {t('accountCheckInJoinHint')}
                     </p>
                   ) : null}
@@ -223,7 +220,7 @@ export const PublicCheckinPage = () => {
                     <p className="text-sm text-text-secondary">{t('noGroupsAvailable')}</p>
                   ) : null}
                   {error ? (
-                    <p className="text-sm text-red-700" role="alert">
+                    <p className="text-sm text-danger-strong" role="alert">
                       {error}
                     </p>
                   ) : null}

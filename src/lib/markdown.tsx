@@ -25,7 +25,7 @@ const renderInline = (text: string): ReactNode[] => {
       nodes.push(<em key={key++}>{italic}</em>);
     } else if (code !== undefined) {
       nodes.push(
-        <code key={key++} className="rounded bg-[#f0f0f0] px-1 py-0.5 text-[0.9em]">
+        <code key={key++} className="rounded bg-surface-hover px-1 py-0.5 text-[0.9em]">
           {code}
         </code>,
       );

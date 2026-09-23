@@ -38,7 +38,7 @@ export const Checkbox = ({
   label: string;
   hint?: string;
 }) => (
-  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-4 py-3 hover:bg-[#fafafa]">
+  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-4 py-3 hover:bg-surface-subtle">
     <input
       type="checkbox"
       checked={checked}
@@ -145,8 +145,8 @@ export const RegistrationPageForm = ({
                   className={cn(
                     'flex items-start gap-3 rounded-md border px-4 py-3 text-left transition-colors duration-150',
                     form.source === source
-                      ? 'border-black bg-[#fafafa]'
-                      : 'border-border hover:bg-[#fafafa]',
+                      ? 'border-black bg-surface-subtle'
+                      : 'border-border hover:bg-surface-subtle',
                   )}
                 >
                   <Icon size={18} className="mt-0.5 flex-shrink-0" />

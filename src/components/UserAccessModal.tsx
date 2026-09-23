@@ -92,7 +92,7 @@ export const UserAccessModal = ({
           {projects.map((p) => (
             <label
               key={p.id}
-              className="flex items-center gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-[#f5f5f5]"
+              className="flex items-center gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-surface-muted"
             >
               <input
                 type="checkbox"

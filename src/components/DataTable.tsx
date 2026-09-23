@@ -248,7 +248,7 @@ export function DataTable<T>({
         <div className="border border-border rounded-md overflow-x-auto bg-surface">
           <table className="w-full min-w-[640px] border-collapse">
             <thead>
-              <tr className="bg-[#f5f5f5] text-sm font-medium text-text-secondary text-left">
+              <tr className="bg-surface-muted text-sm font-medium text-text-secondary text-left">
                 {reorderable && (
                   <th className="w-px border-b border-r border-border px-2 py-3">
                     <ArrowUpDown size={14} className="mx-auto text-text-tertiary" aria-label={t('reorder')} />
@@ -333,10 +333,10 @@ export function DataTable<T>({
                     dragging
                       ? 'bg-white shadow-lg'
                       : selected
-                        ? 'bg-[#eff6ff] hover:bg-[#e3eeff]'
+                        ? 'bg-info-soft hover:bg-info-soft-strong'
                         : highlighted
-                          ? 'bg-[#f0fdf4] hover:bg-[#e3f8ea]'
-                          : clickable && 'hover:bg-[#fcfcfc]',
+                          ? 'bg-success-soft hover:bg-success-soft-strong'
+                          : clickable && 'hover:bg-surface-subtle',
                     clickable && 'cursor-pointer transition-colors duration-150',
                   )}
                   onClick={clickable && onRowClick ? () => onRowClick(row) : undefined}

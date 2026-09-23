@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
+import { AppLogo } from '@/components/AppLogo';
 
 const AppHeader = () => {
   const { collapsed } = useSidebar();
@@ -17,7 +18,7 @@ const AppHeader = () => {
         collapsed ? 'justify-center px-0' : 'gap-2.5 px-5',
       )}
     >
-      <img src="/favicon.svg" alt="" className="h-5 w-5 flex-shrink-0" />
+      <AppLogo className="h-5 w-5 flex-shrink-0" />
       {!collapsed && <span className="font-semibold truncate">{config.appName}</span>}
     </div>
   );

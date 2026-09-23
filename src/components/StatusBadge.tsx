@@ -2,7 +2,7 @@ import { useI18n } from '@/lib/i18n';
 import type { AttendanceStatus } from '@/types';
 
 const styles: Record<AttendanceStatus, string> = {
-  attended: 'border-[#16a34a] text-[#16a34a]',
+  attended: 'border-success text-success',
   excused: 'border-accent text-accent',
   not_attended: 'border-border text-text-tertiary',
 };

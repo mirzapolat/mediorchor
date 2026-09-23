@@ -97,7 +97,7 @@ export const MarkdownEditor = ({
                 title={toolLabel}
                 disabled={tab === 'preview'}
                 onClick={onClick}
-                className="flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-[#f0f0f0] hover:text-text disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-150"
+                className="flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text disabled:opacity-40 disabled:hover:bg-transparent transition-colors duration-150"
               >
                 <Icon size={16} />
               </button>
@@ -111,7 +111,7 @@ export const MarkdownEditor = ({
                 onClick={() => setTab(key)}
                 className={cn(
                   'rounded px-2 py-1 font-medium transition-colors duration-150',
-                  tab === key ? 'bg-[#f0f0f0] text-text' : 'text-text-secondary hover:text-text',
+                  tab === key ? 'bg-surface-hover text-text' : 'text-text-secondary hover:text-text',
                 )}
               >
                 {key === 'write' ? t('write') : t('preview')}

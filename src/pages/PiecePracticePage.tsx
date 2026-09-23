@@ -298,10 +298,10 @@ export const PiecePracticePage = () => {
                 // Bright red so the buttons stand out against the black-and-white
                 // score; the bar currently playing grows and gets a glowing halo.
                 isCurrent
-                  ? 'scale-150 border-2 border-white bg-[#dc2626] text-white shadow-[0_0_0_3px_#dc2626,0_0_14px_4px_rgba(220,38,38,0.6)]'
+                  ? 'scale-150 border-2 border-white bg-danger text-white shadow-[0_0_0_3px_#dc2626,0_0_14px_4px_rgba(220,38,38,0.6)]'
                   : selected
-                    ? 'border-[#dc2626] bg-white text-[#dc2626]'
-                    : 'border-[#dc2626] bg-[#ef4444] text-white hover:bg-[#dc2626]',
+                    ? 'border-danger bg-white text-danger'
+                    : 'border-danger bg-danger text-white hover:bg-danger',
                 anchorMode && 'cursor-move',
               )}
             >
@@ -391,7 +391,7 @@ export const PiecePracticePage = () => {
                   'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md transition-colors duration-150',
                   loop
                     ? 'bg-black text-white hover:bg-black-hover'
-                    : 'text-text-secondary hover:bg-[#f0f0f0] hover:text-text',
+                    : 'text-text-secondary hover:bg-surface-hover hover:text-text',
                 )}
               >
                 <Repeat size={16} />
@@ -447,7 +447,7 @@ export const PiecePracticePage = () => {
             </p>
           )}
           {anchorMode && (
-            <div className="mb-3 rounded-md border border-black bg-[#f5f5f5] px-4 py-3 text-sm">
+            <div className="mb-3 rounded-md border border-black bg-surface-muted px-4 py-3 text-sm">
               <span className="font-medium">
                 {nextPlaceBar != null
                   ? t('placeAnchorHint').replace('{n}', String(nextPlaceBar))

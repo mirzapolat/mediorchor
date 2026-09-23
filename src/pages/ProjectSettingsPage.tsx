@@ -108,7 +108,7 @@ export const ProjectSettingsPage = () => {
               <p className="text-sm font-medium text-text-secondary mb-2">{t('projectImage')}</p>
               <div className="flex items-center gap-4">
                 <Avatar name={form.name || project.name} photoUrl={imageUrl} size={56} square />
-                <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-surface-muted transition-colors duration-150">
                   <Upload size={15} />
                   {uploading ? t('loading') : `${t('projectImage')} (${t('optional')})`}
                   <input

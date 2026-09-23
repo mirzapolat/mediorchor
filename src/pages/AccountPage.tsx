@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, ShieldOff, Trash2, Upload, X } from 'lucide-react';
+import { Monitor, Moon, ShieldCheck, ShieldOff, Sun, Trash2, Upload, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
@@ -14,6 +14,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
+import { useTheme, type ThemePreference } from '@/lib/theme';
+import { cn } from '@/lib/cn';
 
 export const AccountPage = () => {
   const { t, lang, setLang } = useI18n();
@@ -66,7 +68,7 @@ export const AccountPage = () => {
               <div className="flex items-center gap-4">
                 <Avatar name={user.name || user.email} photoUrl={user.photo_url} size={56} />
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-surface-muted transition-colors duration-150">
                     <Upload size={15} />
                     {photoBusy ? t('loading') : user.photo_url ? t('changePhoto') : t('uploadPhoto')}
                     <input
@@ -130,6 +132,8 @@ export const AccountPage = () => {
               <option value="de">Deutsch</option>
             </Select>
           </Card>
+
+          <AppearanceCard />
 
           <TwoFactorCard />
 
@@ -342,6 +346,49 @@ const DeleteAccountCard = () => {
           {error && <p className="text-sm text-accent">{error}</p>}
         </form>
       </Modal>
+    </Card>
+  );
+};
+
+// Light / dark / system, stored on this device.
+const AppearanceCard = () => {
+  const { t } = useI18n();
+  const { preference, setPreference } = useTheme();
+  const options: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
+    { value: 'light', label: t('themeLight'), icon: Sun },
+    { value: 'dark', label: t('themeDark'), icon: Moon },
+    { value: 'system', label: t('themeSystem'), icon: Monitor },
+  ];
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium">{t('appearance')}</h2>
+        <p className="text-sm text-text-secondary mt-1">{t('appearanceHint')}</p>
+      </div>
+      <div role="radiogroup" aria-label={t('appearance')} className="grid grid-cols-3 gap-2">
+        {options.map(({ value, label, icon: Icon }) => {
+          const active = preference === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setPreference(value)}
+              className={cn(
+                'flex flex-col items-center gap-1.5 rounded-md border px-3 py-3 text-sm font-medium transition-colors duration-150',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-1 focus-visible:ring-offset-surface',
+                active
+                  ? 'border-black bg-surface-muted text-text'
+                  : 'border-border text-text-secondary hover:bg-surface-subtle hover:text-text',
+              )}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
     </Card>
   );
 };

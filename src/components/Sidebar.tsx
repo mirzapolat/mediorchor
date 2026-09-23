@@ -11,6 +11,7 @@ import { useLocation } from 'react-router-dom';
 import { Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { config } from '@/lib/config';
+import { AppLogo } from './AppLogo';
 
 const COLLAPSED_WIDTH = 64;
 const MIN_WIDTH = 200;
@@ -144,11 +145,11 @@ export const Sidebar = ({
           <button
             onClick={() => setMobileOpen(true)}
             aria-label={t('expand')}
-            className="-ml-1.5 rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-[#f0f0f0]"
+            className="-ml-1.5 rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-surface-hover"
           >
             <Menu size={20} />
           </button>
-          <img src="/favicon.svg" alt="" className="h-5 w-5 flex-shrink-0" />
+          <AppLogo className="h-5 w-5 flex-shrink-0" />
           <span className="truncate font-semibold">{config.appName}</span>
         </div>
       )}
@@ -156,7 +157,7 @@ export const Sidebar = ({
       {/* Backdrop behind the open mobile drawer. */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-scrim/40 backdrop-blur-sm md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -180,7 +181,7 @@ export const Sidebar = ({
         <button
           onClick={() => setMobileOpen(false)}
           aria-label={t('close')}
-          className="absolute right-2 top-2.5 z-20 rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-[#f0f0f0] md:hidden"
+          className="absolute right-2 top-2.5 z-20 rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-surface-hover md:hidden"
         >
           <X size={18} />
         </button>
@@ -191,7 +192,7 @@ export const Sidebar = ({
             <button
               onClick={toggle}
               title={t('expand')}
-              className="p-1.5 rounded-md text-text-secondary hover:bg-[#f0f0f0] transition-colors duration-150"
+              className="p-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors duration-150"
             >
               <PanelLeftOpen size={18} />
             </button>
@@ -201,7 +202,7 @@ export const Sidebar = ({
           <button
             onClick={toggle}
             title={t('collapse')}
-            className="absolute top-2.5 right-2 z-20 hidden p-1.5 rounded-md bg-surface text-text-secondary hover:bg-[#f0f0f0] transition-colors duration-150 md:block"
+            className="absolute top-2.5 right-2 z-20 hidden p-1.5 rounded-md bg-surface text-text-secondary hover:bg-surface-hover transition-colors duration-150 md:block"
           >
             <PanelLeftClose size={18} />
           </button>

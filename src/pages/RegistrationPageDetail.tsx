@@ -324,13 +324,13 @@ export const RegistrationPageDetail = () => {
       render: (r) => {
         const existing = r.transferred ? null : findMatchingMember(r, members);
         return r.transferred ? (
-          <span className="inline-flex items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
+          <span className="inline-flex items-center gap-1 rounded-md bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-strong">
             <Check size={12} />
             {t('transferred')}
           </span>
         ) : (
           <span className="inline-flex flex-col items-start gap-1">
-            <span className="inline-flex items-center gap-1 rounded-md bg-[#f5f5f5] px-2 py-0.5 text-xs font-semibold text-text-secondary">
+            <span className="inline-flex items-center gap-1 rounded-md bg-surface-muted px-2 py-0.5 text-xs font-semibold text-text-secondary">
               {t('notTransferred')}
             </span>
             {existing && (
@@ -419,11 +419,11 @@ export const RegistrationPageDetail = () => {
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium',
-                page.is_active ? 'bg-[#f0fdf4] text-[#16803b]' : 'bg-[#f5f5f5] text-text-secondary',
+                page.is_active ? 'bg-success-soft text-success-strong' : 'bg-surface-muted text-text-secondary',
               )}
             >
               <span
-                className={cn('h-1.5 w-1.5 rounded-full', page.is_active ? 'bg-[#16a34a]' : 'bg-text-tertiary')}
+                className={cn('h-1.5 w-1.5 rounded-full', page.is_active ? 'bg-success' : 'bg-text-tertiary')}
               />
               {page.is_active ? t('active') : t('registrationInactiveStatus')}
             </span>

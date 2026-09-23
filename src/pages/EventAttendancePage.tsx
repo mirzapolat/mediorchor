@@ -153,11 +153,11 @@ export const EventAttendancePage = () => {
                 'px-3 py-1.5 text-sm font-medium transition-colors duration-150 border-l border-border first:border-l-0',
                 r.status === s
                   ? s === 'attended'
-                    ? 'bg-[#16a34a] text-white'
+                    ? 'bg-success text-white'
                     : s === 'excused'
                       ? 'bg-accent text-white'
-                      : 'bg-[#f0f0f0] text-text'
-                  : 'bg-white text-text-secondary hover:bg-[#f5f5f5]',
+                      : 'bg-surface-hover text-text'
+                  : 'bg-white text-text-secondary hover:bg-surface-muted',
               )}
             >
               {s === 'attended' ? t('attended') : s === 'excused' ? t('excused') : t('notAttended')}

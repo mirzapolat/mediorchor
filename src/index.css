@@ -4,20 +4,108 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+   Theme tokens — the only place colors are defined.
+
+   Every UI color is a token stored as RGB channels (so Tailwind opacity
+   modifiers like bg-scrim/40 work) and exposed to Tailwind in
+   tailwind.config.ts. Use the token classes (bg-surface, text-text-secondary,
+   border-border, bg-success-soft, ...) — never hex values — and new pages get
+   dark mode for free. `npm run lint` rejects hardcoded colors.
+
+   Semantics:
+     bg / surface / surface-subtle / surface-muted / surface-hover
+                       page background → cards → hover/zebra → chips, tracks
+     border / border-strong
+     text / text-secondary / text-tertiary
+     black / white     "inverse": strong fill (primary buttons, selected chips,
+                       focus borders) and the color placed on it. They swap in
+                       dark mode, so bg-black text-white stays readable.
+                       bg-white also serves as the input field background.
+     accent            branding color (set at runtime by applyBranding)
+     success / danger / info (+ -strong text, -soft backgrounds)
+     scrim             backdrop behind dialogs; black in both themes
+
+   The active theme is html[data-theme="light" | "dark"], set before first
+   paint by the script in index.html and kept in sync by ThemeProvider.
+   For inline styles / SVG use the full-color aliases: var(--color-surface).
+   --------------------------------------------------------------------------- */
+
 :root {
-  /* Branding accent comes from VITE_ACCENT_COLOR; applyBranding() overrides
-     --color-accent / --color-accent-hover on :root at startup. */
-  --color-bg: #fafafa;
-  --color-surface: #ffffff;
-  --color-border: #e5e5e5;
-  --color-text: #1a1a1a;
-  --color-text-secondary: #6b6b6b;
-  --color-text-tertiary: #9a9a9a;
-  --color-accent: #efa100;
-  --color-accent-hover: #d99000;
-  --color-black: #1a1a1a;
-  --color-black-hover: #333333;
-  --color-white: #ffffff;
+  color-scheme: light;
+  --c-bg: 250 250 250;
+  --c-surface: 255 255 255;
+  --c-surface-subtle: 250 250 250;
+  --c-surface-muted: 245 245 245;
+  --c-surface-hover: 240 240 240;
+  --c-border: 229 229 229;
+  --c-border-strong: 212 212 212;
+  --c-text: 26 26 26;
+  --c-text-secondary: 107 107 107;
+  --c-text-tertiary: 154 154 154;
+  --c-black: 26 26 26;
+  --c-black-hover: 51 51 51;
+  --c-white: 255 255 255;
+  /* Branding: applyBranding() overrides these from VITE_ACCENT_COLOR. */
+  --c-accent: 239 161 0;
+  --c-accent-hover: 217 144 0;
+  --c-success: 22 163 74;
+  --c-success-strong: 22 128 59;
+  --c-success-soft: 240 253 244;
+  --c-success-soft-strong: 220 252 231;
+  --c-danger: 220 38 38;
+  --c-danger-strong: 185 28 28;
+  --c-danger-soft: 254 242 242;
+  --c-info-soft: 239 246 255;
+  --c-info-soft-strong: 227 238 255;
+  --c-scrim: 0 0 0;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: 12 12 13;
+  --c-surface: 24 24 27;
+  --c-surface-subtle: 29 29 32;
+  --c-surface-muted: 36 36 40;
+  --c-surface-hover: 44 44 48;
+  --c-border: 46 46 51;
+  --c-border-strong: 70 70 77;
+  --c-text: 236 236 238;
+  --c-text-secondary: 161 161 170;
+  --c-text-tertiary: 113 113 122;
+  --c-black: 236 236 238;
+  --c-black-hover: 212 212 216;
+  --c-white: 20 20 22;
+  --c-success: 34 197 94;
+  --c-success-strong: 74 222 128;
+  --c-success-soft: 17 38 25;
+  --c-success-soft-strong: 22 54 34;
+  --c-danger: 239 68 68;
+  --c-danger-strong: 248 113 113;
+  --c-danger-soft: 48 18 18;
+  --c-info-soft: 20 32 56;
+  --c-info-soft-strong: 27 44 76;
+}
+
+/* The app logo (public/favicon.svg) is drawn for light backgrounds; in dark
+   mode flip its lightness while keeping hues (works for black line art and
+   colored custom logos alike). Put the class on every logo <img>. */
+:root[data-theme='dark'] .app-logo {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Full-color aliases for inline styles and SVG attributes. */
+:root {
+  --color-bg: rgb(var(--c-bg));
+  --color-surface: rgb(var(--c-surface));
+  --color-surface-muted: rgb(var(--c-surface-muted));
+  --color-surface-hover: rgb(var(--c-surface-hover));
+  --color-border: rgb(var(--c-border));
+  --color-border-strong: rgb(var(--c-border-strong));
+  --color-text: rgb(var(--c-text));
+  --color-text-secondary: rgb(var(--c-text-secondary));
+  --color-black: rgb(var(--c-black));
+  --color-accent: rgb(var(--c-accent));
 }
 
 html,
@@ -29,6 +117,7 @@ body,
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
+  transition: background-color 150ms ease;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }

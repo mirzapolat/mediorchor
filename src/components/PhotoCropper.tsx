@@ -111,7 +111,7 @@ export const PhotoCropper = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     // Transparent areas (e.g. PNGs) become white in the JPEG.
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#ffffff'; // theme-ok: exported JPEG background
     ctx.fillRect(0, 0, OUTPUT, OUTPUT);
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, -view.x / s, -view.y / s, VIEWPORT / s, VIEWPORT / s, 0, 0, OUTPUT, OUTPUT);
@@ -144,7 +144,7 @@ export const PhotoCropper = ({
       <p className="text-sm text-text-secondary">{t('cropPhotoHint')}</p>
       <div className="flex justify-center">
         <div
-          className="relative cursor-grab touch-none select-none overflow-hidden rounded-md bg-[#f0f0f0] active:cursor-grabbing"
+          className="relative cursor-grab touch-none select-none overflow-hidden rounded-md bg-surface-hover active:cursor-grabbing"
           style={{ width: VIEWPORT, height: VIEWPORT }}
           onPointerDown={startDrag}
           onPointerMove={moveDrag}
@@ -167,10 +167,11 @@ export const PhotoCropper = ({
               }
             />
           )}
-          {/* Dims everything outside the circle that becomes the avatar. */}
+          {/* Dims everything outside the circle that becomes the avatar. It sits
+              on the photo, not the page, so it looks the same in both themes. */}
           <div
             className="pointer-events-none absolute inset-0 rounded-full"
-            style={{ boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', outline: '2px solid rgba(255,255,255,0.9)' }}
+            style={{ boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', outline: '2px solid rgba(255,255,255,0.9)' }} // theme-ok: overlay on the photo
           />
         </div>
       </div>

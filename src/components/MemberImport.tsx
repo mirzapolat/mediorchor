@@ -506,7 +506,7 @@ export const MemberImportFields = ({ imp }: { imp: MemberImportState }) => {
                 {resultRows.length > 0 ? (
                   <div className="overflow-hidden rounded-md border border-border">
                     <table className="w-full text-sm">
-                      <thead className="bg-[#f5f5f5] text-text-secondary">
+                      <thead className="bg-surface-muted text-text-secondary">
                         <tr>
                           {MAP_TARGETS.filter((m) => m.target !== 'full_name').map((m) => (
                             <th key={m.target} className="px-3 py-1.5 text-left font-medium">

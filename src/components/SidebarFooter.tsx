@@ -27,7 +27,7 @@ export const SidebarFooter = () => {
       onClick={handleSignOut}
       title={t('signOut')}
       aria-label={t('signOut')}
-      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors duration-150 hover:bg-[#fef2f2] hover:text-[#b91c1c]"
+      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-text-secondary transition-colors duration-150 hover:bg-danger-soft hover:text-danger-strong"
     >
       <LogOut size={16} />
     </button>
@@ -54,8 +54,8 @@ export const SidebarFooter = () => {
             to="/account"
             className={({ isActive }) =>
               cn(
-                'flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors duration-150 hover:bg-[#f5f5f5]',
-                isActive && 'bg-[#f0f0f0]',
+                'flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors duration-150 hover:bg-surface-muted',
+                isActive && 'bg-surface-hover',
               )
             }
           >

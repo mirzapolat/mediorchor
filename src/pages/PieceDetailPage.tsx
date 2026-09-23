@@ -38,7 +38,7 @@ const blockTypeOptions: Array<{ type: PieceBlockType; icon: typeof FileText; lab
 // Subtle bordered action button used inside the "target" column.
 const targetButtonClasses =
   'inline-flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border bg-white ' +
-  'px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text hover:bg-[#f5f5f5] ' +
+  'px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text hover:bg-surface-muted ' +
   'transition-colors duration-150';
 
 // Renders the "target" cell of a block — the block's primary action:
@@ -205,7 +205,7 @@ export const PieceDetailPage = () => {
                         setAddMenuOpen(false);
                         setBlockForm({ type, block: null });
                       }}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[#f5f5f5] transition-colors duration-150"
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-surface-muted transition-colors duration-150"
                     >
                       <Icon size={16} className="text-text-secondary" />
                       {t(labelKey)}

@@ -246,7 +246,7 @@ export const MyParticipationPage = () => {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <p className="font-medium leading-snug break-words">{e.name}</p>
                       {i === 0 && (
-                        <span className="rounded-md bg-[#dcfce7] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
+                        <span className="rounded-md bg-success-soft-strong px-2 py-0.5 text-xs font-semibold text-success-strong">
                           {e.date === today ? t('todayRehearsal') : t('nextRehearsal')}
                         </span>
                       )}
@@ -265,7 +265,7 @@ export const MyParticipationPage = () => {
             <h2 className="text-base font-medium">{t('myAttendance')}</h2>
             {past.length > 0 && (
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <Stat value={stats.attended} label={t('attended')} className="text-[#16a34a]" />
+                <Stat value={stats.attended} label={t('attended')} className="text-success" />
                 <Stat value={stats.excused} label={t('excused')} className="text-accent" />
                 <Stat value={stats.absent} label={t('notAttended')} className="text-text-secondary" />
               </div>

@@ -120,7 +120,7 @@ const qrSvgToPng = (svg: SVGSVGElement) =>
         return;
       }
 
-      context.fillStyle = '#ffffff';
+      context.fillStyle = '#ffffff'; // theme-ok: downloaded QR image, always on white
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 88, 88, 1024, 1024);
       URL.revokeObjectURL(objectUrl);
@@ -351,11 +351,11 @@ export const EventCheckinPage = () => {
         </div>
         <div
           className={`mt-5 inline-flex items-center gap-2 text-sm font-medium ${
-            checkin.is_active ? 'text-[#16803b]' : 'text-text-secondary'
+            checkin.is_active ? 'text-success-strong' : 'text-text-secondary'
           }`}
         >
           <span
-            className={`h-2 w-2 rounded-full ${checkin.is_active ? 'bg-[#16a34a]' : 'bg-text-tertiary'}`}
+            className={`h-2 w-2 rounded-full ${checkin.is_active ? 'bg-success' : 'bg-text-tertiary'}`}
           />
           {checkin.is_active ? t('checkInActive') : t('checkInStopped')}
         </div>
@@ -384,7 +384,7 @@ export const EventCheckinPage = () => {
         </div>
         {copyFeedback ? (
           <p
-            className={`mt-3 text-sm ${copyFeedback === 'error' ? 'text-red-700' : 'text-text-secondary'}`}
+            className={`mt-3 text-sm ${copyFeedback === 'error' ? 'text-danger-strong' : 'text-text-secondary'}`}
             role="status"
           >
             {copyFeedback === 'link'
@@ -402,7 +402,7 @@ export const EventCheckinPage = () => {
             <div className="mb-4 flex items-center gap-2">
               <UserX size={18} className="text-text-secondary" />
               <h2 className="text-lg font-semibold">{t('unrecognizedCheckIns')}</h2>
-              <span className="inline-flex items-center gap-1 rounded-md bg-[#fef2f2] px-1.5 py-0.5 text-xs font-semibold text-[#b91c1c]">
+              <span className="inline-flex items-center gap-1 rounded-md bg-danger-soft px-1.5 py-0.5 text-xs font-semibold text-danger-strong">
                 <AlertTriangle size={12} />
                 {t('unrecognizedWarning').replace('{n}', String(unrecognized.length))}
               </span>
@@ -432,7 +432,7 @@ export const EventCheckinPage = () => {
 
         <section>
           <div className="mb-4 flex items-center gap-2">
-            <CheckCircle2 size={18} className="text-[#16803b]" />
+            <CheckCircle2 size={18} className="text-success-strong" />
             <h2 className="text-lg font-semibold">{t('successfulCheckIns')}</h2>
             <span className="text-sm text-text-tertiary">{recognized.length}</span>
           </div>
@@ -581,7 +581,7 @@ const CreateMemberFromCheckinModal = ({
         </div>
         <Input label={t('group')} value={groupName} onChange={(e) => setGroupName(e.target.value)} />
         {error ? (
-          <p className="text-sm text-red-700" role="alert">
+          <p className="text-sm text-danger-strong" role="alert">
             {error}
           </p>
         ) : null}
@@ -674,7 +674,7 @@ const AssignCheckinModal = ({
           <p className="text-sm text-text-secondary">
             {t('assignCheckInHint')}
           </p>
-          <div className="rounded-md border border-border bg-[#fafafa] px-3 py-2 text-sm">
+          <div className="rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm">
             <span className="font-medium">
               {submission.first_name} {submission.last_name}
             </span>
@@ -687,7 +687,7 @@ const AssignCheckinModal = ({
             autoFocus
           />
           {error ? (
-            <p className="text-sm text-red-700" role="alert">
+            <p className="text-sm text-danger-strong" role="alert">
               {error}
             </p>
           ) : null}
@@ -709,7 +709,7 @@ const AssignCheckinModal = ({
                     type="button"
                     disabled={assigningId !== null}
                     onClick={() => assign(member)}
-                    className="flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-[#f5f5f5] disabled:cursor-wait disabled:opacity-60"
+                    className="flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-muted disabled:cursor-wait disabled:opacity-60"
                   >
                     <Avatar
                       name={`${member.first_name} ${member.last_name}`}
@@ -784,7 +784,7 @@ const FullscreenQrCode = ({
         onClick={onClose}
         autoFocus
         aria-label={t('close')}
-        className="absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-[#f5f5f5] hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
+        className="absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-surface-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
       >
         <X size={24} />
       </button>
@@ -809,10 +809,10 @@ const FullscreenQrCode = ({
       </div>
       <div
         className={`mt-7 inline-flex items-center gap-2 text-lg font-semibold ${
-          active ? 'text-[#16803b]' : 'text-text-secondary'
+          active ? 'text-success-strong' : 'text-text-secondary'
         }`}
       >
-        <span className={`h-2.5 w-2.5 rounded-full ${active ? 'bg-[#16a34a]' : 'bg-text-tertiary'}`} />
+        <span className={`h-2.5 w-2.5 rounded-full ${active ? 'bg-success' : 'bg-text-tertiary'}`} />
         {active ? t('checkInActive') : t('checkInStopped')}
       </div>
     </div>,
@@ -870,7 +870,7 @@ const CheckinConfigModal = ({
           {(['attended', 'excused'] as const).map((option) => (
             <label
               key={option}
-              className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-4 py-3 hover:bg-[#fafafa]"
+              className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-4 py-3 hover:bg-surface-subtle"
             >
               <input
                 type="radio"
@@ -889,7 +889,7 @@ const CheckinConfigModal = ({
       </fieldset>
 
       {hasLogo ? (
-        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-4 py-3 hover:bg-[#fafafa]">
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-4 py-3 hover:bg-surface-subtle">
           <input
             type="checkbox"
             checked={logo}

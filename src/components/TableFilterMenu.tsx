@@ -127,7 +127,7 @@ export const TableFilterMenu = ({
         className={cn(
           'relative flex h-9 w-9 items-center justify-center rounded-md border transition-colors duration-150',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-1',
-          open ? 'border-black bg-[#f5f5f5] text-text' : 'border-border bg-white text-text-secondary hover:bg-[#f5f5f5] hover:text-text',
+          open ? 'border-black bg-surface-muted text-text' : 'border-border bg-white text-text-secondary hover:bg-surface-muted hover:text-text',
         )}
       >
         <Search size={16} />

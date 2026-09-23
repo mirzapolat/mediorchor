@@ -128,7 +128,7 @@ export const GroupForm = ({
             ))}
             <label
               className={cn(
-                'relative flex h-8 cursor-pointer items-center gap-2 rounded-full border border-border pl-1 pr-3 text-sm text-text-secondary hover:bg-[#f5f5f5]',
+                'relative flex h-8 cursor-pointer items-center gap-2 rounded-full border border-border pl-1 pr-3 text-sm text-text-secondary hover:bg-surface-muted',
                 isCustom && 'ring-2 ring-black ring-offset-2',
               )}
             >
@@ -151,7 +151,7 @@ export const GroupForm = ({
           </div>
         </div>
 
-        <div className="rounded-md border border-border bg-[#fafafa] px-4 py-3">
+        <div className="rounded-md border border-border bg-surface-subtle px-4 py-3">
           <GroupPill name={trimmed || t('groupName')} color={color} />
         </div>
 

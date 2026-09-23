@@ -186,6 +186,14 @@ const dict: Dict = {
   disable2fa: { de: '2FA deaktivieren', en: 'Disable 2FA' },
   newPassword: { de: 'Neues Passwort', en: 'New password' },
   language: { de: 'Sprache', en: 'Language' },
+  appearance: { de: 'Darstellung', en: 'Appearance' },
+  appearanceHint: {
+    de: 'Gilt für dieses Gerät. „System“ folgt der Einstellung deines Betriebssystems.',
+    en: 'Applies to this device. “System” follows your operating system setting.',
+  },
+  themeLight: { de: 'Hell', en: 'Light' },
+  themeDark: { de: 'Dunkel', en: 'Dark' },
+  themeSystem: { de: 'System', en: 'System' },
 
   // Admin config
   allowSelfSignup: { de: 'Selbstregistrierung erlauben', en: 'Allow self-signup' },

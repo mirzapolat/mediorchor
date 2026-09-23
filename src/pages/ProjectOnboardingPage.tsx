@@ -67,7 +67,7 @@ const Stepper = ({ step, onSelect }: { step: Step; onSelect: (step: Step) => voi
                 className={cn(
                   'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-colors duration-150',
                   done && 'bg-black text-white',
-                  current && 'bg-black text-white ring-4 ring-[rgba(0,0,0,0.08)]',
+                  current && 'bg-black text-white ring-4 ring-black/10',
                   !done && !current && 'border border-border bg-white text-text-tertiary',
                 )}
               >
@@ -111,7 +111,7 @@ const TipCard = ({
     onClick={onClick}
     className="group flex items-start gap-4 rounded-md border border-border bg-surface p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-black/30 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.15)]"
   >
-    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-[#f5f5f5] text-text">
+    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-surface-muted text-text">
       <Icon size={19} />
     </span>
     <span className="min-w-0 flex-1">
@@ -363,7 +363,7 @@ const Onboarding = () => {
             type="button"
             onClick={close}
             aria-label={t('close')}
-            className="absolute right-4 rounded-md p-2 text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-text sm:right-6"
+            className="absolute right-4 rounded-md p-2 text-text-secondary transition-colors duration-150 hover:bg-surface-muted hover:text-text sm:right-6"
           >
             <X size={18} />
           </button>
@@ -385,7 +385,7 @@ const Onboarding = () => {
                       {...logoDrop.props}
                       className={cn(
                         'relative flex h-24 w-24 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-text-tertiary transition-colors duration-150 hover:border-black/40 hover:text-text',
-                        logoDrop.over ? 'border-black bg-[#f5f5f5]' : 'border-border',
+                        logoDrop.over ? 'border-black bg-surface-muted' : 'border-border',
                         logoPreview && 'border-solid',
                       )}
                     >
@@ -407,7 +407,7 @@ const Onboarding = () => {
                       </p>
                       <p className="mt-0.5 text-sm text-text-secondary">{t('onboardingLogoHint')}</p>
                       <div className="mt-3 flex items-center justify-center gap-3">
-                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5]">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-surface-muted">
                           <ImagePlus size={15} />
                           {t('onboardingLogoUpload')}
                           <input
@@ -457,7 +457,7 @@ const Onboarding = () => {
             <>
               <StepHeading step={1} title={t('onboardingMembersTitle')} hint={t('onboardingMembersHint')} />
               {members.length > 0 && (
-                <p className="mb-4 flex items-center gap-2 rounded-md bg-[#f0fdf4] px-4 py-3 text-sm text-[#16803b]">
+                <p className="mb-4 flex items-center gap-2 rounded-md bg-success-soft px-4 py-3 text-sm text-success-strong">
                   <Check size={16} />
                   {t('onboardingImported').replace('{n}', String(members.length))}
                 </p>
@@ -474,7 +474,7 @@ const Onboarding = () => {
                   {...csvDrop.props}
                   className={cn(
                     'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-surface px-6 py-16 text-center transition-colors duration-150 hover:border-black/40',
-                    csvDrop.over ? 'border-black bg-[#f5f5f5]' : 'border-border',
+                    csvDrop.over ? 'border-black bg-surface-muted' : 'border-border',
                   )}
                 >
                   <span
@@ -545,7 +545,7 @@ const Onboarding = () => {
                               setEditingGroup(g);
                               setGroupFormOpen(true);
                             }}
-                            className="rounded-md p-1.5 text-text-secondary hover:bg-[#f5f5f5] hover:text-text"
+                            className="rounded-md p-1.5 text-text-secondary hover:bg-surface-muted hover:text-text"
                           >
                             <Pencil size={15} />
                           </button>
@@ -553,7 +553,7 @@ const Onboarding = () => {
                             type="button"
                             aria-label={t('delete')}
                             onClick={() => setGroupToDelete(g)}
-                            className="rounded-md p-1.5 text-text-secondary hover:bg-[#f5f5f5] hover:text-text"
+                            className="rounded-md p-1.5 text-text-secondary hover:bg-surface-muted hover:text-text"
                           >
                             <Trash2 size={15} />
                           </button>

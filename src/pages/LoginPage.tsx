@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
 import { api } from '@/lib/api';
 import { safeRedirectPath } from '@/lib/safePath';
+import { AppLogo } from '@/components/AppLogo';
 
 export const LoginPage = () => {
   const { t } = useI18n();
@@ -94,14 +95,14 @@ export const LoginPage = () => {
     <div className="flex h-full items-center justify-center bg-bg p-6">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2.5 mb-8">
-          <img src="/favicon.svg" alt="" className="h-6 w-6" />
+          <AppLogo className="h-6 w-6" />
           <span className="text-lg font-semibold">{config.appName}</span>
         </div>
 
         <div className="bg-surface border border-border rounded-md p-6">
           {signedUp ? (
             <div className="py-4 text-center" role="status">
-              <MailCheck size={38} className="mx-auto text-[#16a34a]" />
+              <MailCheck size={38} className="mx-auto text-success" />
               <h1 className="mt-4 text-lg font-semibold">{t('confirmEmailTitle')}</h1>
               <p className="text-text-secondary text-sm mt-2">{t('confirmEmailHint')}</p>
               <button

@@ -116,7 +116,7 @@ export const ProjectAccessModal = ({
               <label
                 key={u.id}
                 className={`flex items-center gap-3 px-2 py-1.5 rounded-md ${
-                  via ? 'cursor-default' : 'cursor-pointer hover:bg-[#f5f5f5]'
+                  via ? 'cursor-default' : 'cursor-pointer hover:bg-surface-muted'
                 }`}
               >
                 <input

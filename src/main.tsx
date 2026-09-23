@@ -6,17 +6,20 @@ import { App } from './App';
 import { I18nProvider } from '@/lib/i18n';
 import { AuthProvider } from '@/hooks/useAuth';
 import { applyBranding } from '@/lib/branding';
+import { ThemeProvider } from '@/lib/theme';
 
 applyBranding();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <I18nProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
+      </I18nProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

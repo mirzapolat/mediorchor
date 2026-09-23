@@ -182,7 +182,7 @@ const LabelSettingsModal = ({
                   type="button"
                   aria-label={t('delete')}
                   onClick={() => remove(label)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-[#f0f0f0] hover:text-text"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text"
                 >
                   <Trash2 size={15} />
                 </button>
@@ -284,7 +284,7 @@ export const AbsencesPage = () => {
         id: 'attended',
         header: t('attended'),
         accessor: (row) => row.counts.attended,
-        render: (row) => <span className="font-medium text-[#16803b]">{row.counts.attended}</span>,
+        render: (row) => <span className="font-medium text-success-strong">{row.counts.attended}</span>,
         className: 'w-px text-center whitespace-nowrap',
       },
       {
@@ -433,7 +433,7 @@ export const AbsencesPage = () => {
               'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors duration-150',
               activeLabelId === label.id
                 ? 'border-text bg-text text-white'
-                : 'border-border text-text-secondary hover:text-text hover:bg-[#f5f5f5]',
+                : 'border-border text-text-secondary hover:text-text hover:bg-surface-muted',
             )}
           >
             <Bookmark size={13} />
@@ -445,7 +445,7 @@ export const AbsencesPage = () => {
           aria-label={t('manageLabels')}
           title={t('manageLabels')}
           onClick={() => setLabelSettingsOpen(true)}
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-text"
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary transition-colors duration-150 hover:bg-surface-muted hover:text-text"
         >
           <Settings2 size={15} />
         </button>
@@ -524,7 +524,7 @@ export const AbsencesPage = () => {
                   setActiveLabelId(null);
                   setConditions((current) => current.filter((item) => item.id !== condition.id));
                 }}
-                className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-[#f0f0f0] hover:text-text"
+                className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text"
               >
                 <Trash2 size={16} />
               </button>

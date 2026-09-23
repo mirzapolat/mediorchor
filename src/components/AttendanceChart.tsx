@@ -23,7 +23,8 @@ export interface ChartColumn {
 
 const PLOT_HEIGHT = 260;
 const HATCH = 'repeating-linear-gradient(45deg, #cfcfcf 0 2px, #ececec 2px 5px)';
-const TRACK = '#f2f2f2';
+// Theme token (see index.css), so the empty bar part follows dark mode.
+const TRACK = 'var(--color-surface-muted)';
 
 // Picks a round step so the y-axis gets 3–5 gridlines.
 const niceScale = (max: number) => {
@@ -43,7 +44,7 @@ const Swatch = ({ style, className }: { style?: CSSProperties; className?: strin
 );
 
 const ExcusedSwatch = () => (
-  <Swatch className="border-[1.5px] border-dashed border-[#a3a3a3] bg-white" />
+  <Swatch className="border-[1.5px] border-dashed border-border-strong bg-white" />
 );
 
 // Stacked column chart: one column per rehearsal, present members stacked by
@@ -140,7 +141,7 @@ export const AttendanceChart = ({
               {ticks.map((v) => (
                 <div
                   key={v}
-                  className={cn('absolute inset-x-0 border-t', v === 0 ? 'border-[#d4d4d4]' : 'border-[#f0f0f0]')}
+                  className={cn('absolute inset-x-0 border-t', v === 0 ? 'border-border-strong' : 'border-border')}
                   style={{ bottom: pct(v) }}
                 />
               ))}
@@ -167,7 +168,7 @@ export const AttendanceChart = ({
                     key: '__excused',
                     value: c.excused,
                     style: {},
-                    className: 'border-[1.5px] border-dashed border-[#a3a3a3] bg-white',
+                    className: 'border-[1.5px] border-dashed border-border-strong bg-white',
                   },
                 ].filter((seg) => seg.value > 0);
 
@@ -183,7 +184,7 @@ export const AttendanceChart = ({
                       <div
                         className={cn(
                           'absolute inset-x-0 bottom-0 rounded-t-[4px] transition-colors duration-150',
-                          isHover && 'ring-1 ring-[#d4d4d4]',
+                          isHover && 'ring-1 ring-border-strong',
                         )}
                         style={{ height: pct(totals[i].height), backgroundColor: TRACK }}
                       />

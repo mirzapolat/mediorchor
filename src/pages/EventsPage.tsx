@@ -128,12 +128,12 @@ export const EventsPage = () => {
           <div className="flex items-center gap-2">
             <span className="truncate">{ev.name}</span>
             {highlightRowId === ev.id ? (
-              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#dcfce7] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-success-soft-strong px-2 py-0.5 text-xs font-semibold text-success-strong">
                 {ev.date === today() ? t('todayRehearsal') : t('nextRehearsal')}
               </span>
             ) : null}
             {(warningCounts[ev.id] ?? 0) > 0 ? (
-              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#fef2f2] px-2 py-1 text-xs font-semibold text-[#b91c1c]">
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-danger-soft px-2 py-1 text-xs font-semibold text-danger-strong">
                 <AlertTriangle size={13} />
                 {warningCounts[ev.id]} {t('unrecognizedCheckIns').toLowerCase()}
               </span>

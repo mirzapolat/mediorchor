@@ -63,16 +63,16 @@ export const FileDropzone = ({
           'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-7 text-center transition-colors duration-150',
           'focus-within:border-black',
           dragging
-            ? 'border-black bg-[#f5f5f5]'
+            ? 'border-black bg-surface-muted'
             : fileName
-              ? 'border-border bg-surface hover:bg-[#fafafa]'
-              : 'border-border bg-[#fcfcfc] hover:border-text-tertiary hover:bg-[#f7f7f7]',
+              ? 'border-border bg-surface hover:bg-surface-subtle'
+              : 'border-border bg-surface-subtle hover:border-text-tertiary hover:bg-surface-subtle',
         )}
       >
         <span
           className={cn(
             'flex h-10 w-10 items-center justify-center rounded-full',
-            fileName ? 'bg-[#f0fdf4] text-[#16803b]' : 'bg-[#f0f0f0] text-text-secondary',
+            fileName ? 'bg-success-soft text-success-strong' : 'bg-surface-hover text-text-secondary',
           )}
         >
           {fileName ? <FileText size={18} /> : <Upload size={18} />}

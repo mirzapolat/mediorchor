@@ -9,6 +9,7 @@ import { Markdown } from '@/lib/markdown';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { AppLogo } from '@/components/AppLogo';
 
 type RegistrationInfo =
   | { state: 'invalid' }
@@ -179,7 +180,7 @@ export const PublicRegistrationPage = () => {
     <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
       <div className="mx-auto w-full max-w-2xl">
         <header className="mb-8 text-center">
-          <img src="/favicon.svg" alt="" className="mx-auto mb-5 h-12 w-12 sm:h-14 sm:w-14" />
+          <AppLogo className="mx-auto mb-5 h-12 w-12 sm:h-14 sm:w-14" />
           <h1 className="text-2xl font-bold sm:text-3xl">{active.title}</h1>
           <p className="mt-1 text-sm text-text-tertiary">{active.project_name}</p>
         </header>
@@ -252,7 +253,7 @@ export const PublicRegistrationPage = () => {
             >
               <h2 className="text-base font-semibold">{t('enterYourData')}</h2>
               {accountMode ? (
-                <p className="rounded-md bg-[#fafafa] px-3 py-2.5 text-sm text-text-secondary">
+                <p className="rounded-md bg-surface-subtle px-3 py-2.5 text-sm text-text-secondary">
                   {t('dataFromAccountHint')}
                 </p>
               ) : null}
@@ -357,7 +358,7 @@ export const PublicRegistrationPage = () => {
                   </div>
                 ) : null}
               </dl>
-              <p className="rounded-md bg-[#fafafa] px-3 py-2.5 text-xs leading-relaxed text-text-secondary">
+              <p className="rounded-md bg-surface-subtle px-3 py-2.5 text-xs leading-relaxed text-text-secondary">
                 {t('privacyNotice')}
               </p>
               <label className="flex cursor-pointer items-start gap-2.5 text-sm">
@@ -370,7 +371,7 @@ export const PublicRegistrationPage = () => {
                 <span>{t('acceptPrivacy')}</span>
               </label>
               {error ? (
-                <p className="text-sm text-red-700" role="alert">
+                <p className="text-sm text-danger-strong" role="alert">
                   {error}
                 </p>
               ) : null}
@@ -392,7 +393,7 @@ export const PublicRegistrationPage = () => {
 
           {step === 4 ? (
             <div className="py-7 text-center" role="status">
-              <CheckCircle2 size={42} className="mx-auto text-[#16a34a]" />
+              <CheckCircle2 size={42} className="mx-auto text-success" />
               <h2 className="mt-4 text-lg font-semibold">{t('registrationSuccess')}</h2>
             </div>
           ) : null}

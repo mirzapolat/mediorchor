@@ -22,7 +22,7 @@ const formatTime = (seconds: number): string => {
 
 const iconButtonClasses =
   'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary ' +
-  'hover:bg-[#f0f0f0] hover:text-text transition-colors duration-150';
+  'hover:bg-surface-hover hover:text-text transition-colors duration-150';
 
 // In-app audio player styled after the design system: play/pause, seekable
 // progress with times, volume with mute toggle, and an optional download.

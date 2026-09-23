@@ -105,8 +105,8 @@ export const GroupDonut = ({
         >
           <defs>
             <pattern id="donut-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="6" height="6" fill="#ececec" />
-              <line x1="0" y1="0" x2="0" y2="6" stroke="#d4d4d4" strokeWidth="2" />
+              <rect width="6" height="6" fill="var(--color-surface-hover)" />
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-border-strong)" strokeWidth="2" />
             </pattern>
           </defs>
 
@@ -116,7 +116,7 @@ export const GroupDonut = ({
             cy={CENTER}
             r={(OUTER + INNER) / 2}
             fill="none"
-            stroke="#f0f0f0"
+            stroke="var(--color-surface-hover)"
             strokeWidth={OUTER - INNER}
           />
 
@@ -211,7 +211,7 @@ export const GroupDonut = ({
                 className={cn(
                   'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors duration-150',
                   !clickable && 'cursor-default',
-                  isActive && 'bg-[#f5f5f5]',
+                  isActive && 'bg-surface-muted',
                   slice.id === selectedId && 'font-medium',
                   slice.value === 0 && 'opacity-50',
                 )}

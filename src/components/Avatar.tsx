@@ -23,7 +23,7 @@ export const Avatar = ({ name, photoUrl, size = 36, square = false }: AvatarProp
       className={cn(
         'overflow-hidden flex items-center justify-center flex-shrink-0',
         square ? 'rounded-lg' : 'rounded-full',
-        'bg-[#f0f0f0] border border-border text-text-secondary font-medium',
+        'bg-surface-hover border border-border text-text-secondary font-medium',
       )}
       style={{ width: size, height: size, fontSize: size * 0.38 }}
     >

@@ -73,8 +73,8 @@ export const ClubMembersPage = () => {
       className: 'w-px whitespace-nowrap',
       render: (m) =>
         m.status === 'active' ? (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#16803b]">
-            <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success-strong">
+            <span className="h-2 w-2 rounded-full bg-success" />
             {t('active')}
           </span>
         ) : (

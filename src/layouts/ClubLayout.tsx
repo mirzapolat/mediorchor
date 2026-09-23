@@ -29,7 +29,7 @@ const MobileTab = ({ to, label, icon: Icon }: { to: string; label: string; icon:
     className={({ isActive }) =>
       cn(
         'inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150',
-        isActive ? 'bg-[#f0f0f0] text-text' : 'text-text-secondary hover:bg-[#f5f5f5]',
+        isActive ? 'bg-surface-hover text-text' : 'text-text-secondary hover:bg-surface-muted',
       )
     }
   >

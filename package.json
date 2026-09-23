@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "start": "node server/index.ts",
     "preview": "vite preview --host --port 4173",
-    "lint": "tsc -b --noEmit"
+    "lint": "tsc -b --noEmit && node scripts/check-theme.mjs",
+    "check:theme": "node scripts/check-theme.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

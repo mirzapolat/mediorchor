@@ -165,7 +165,7 @@ export const MemberForm = ({
                   type="button"
                   aria-label={t('remove')}
                   onClick={() => setLinkedAccount(null)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-[#f0f0f0] hover:text-text"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text"
                 >
                   <X size={15} />
                 </button>
@@ -190,7 +190,7 @@ export const MemberForm = ({
                         key={account.id}
                         type="button"
                         onClick={() => selectAccount(account)}
-                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-[#f5f5f5] transition-colors duration-150"
+                        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-muted transition-colors duration-150"
                       >
                         <Avatar name={account.name || account.email} photoUrl={account.photo_url} size={24} />
                         <span className="min-w-0">

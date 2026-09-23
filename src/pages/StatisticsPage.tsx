@@ -257,7 +257,7 @@ export const StatisticsPage = () => {
                         />
                         <span className="truncate text-text-secondary group-hover:text-text">{s.label}</span>
                       </span>
-                      <span className="h-2 overflow-hidden rounded-full bg-[#f2f2f2]">
+                      <span className="h-2 overflow-hidden rounded-full bg-surface-muted">
                         <span
                           className="block h-full origin-left animate-[growx_600ms_cubic-bezier(0.2,0.8,0.2,1)_both] rounded-full"
                           style={{
