@@ -3,7 +3,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { Input } from './Input';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { Piece } from '@/types';
 
 interface PieceFormProps {
@@ -33,12 +33,12 @@ export const PieceForm = ({ open, projectId, piece, nextPosition, onClose, onSav
     if (!trimmedName) return;
     setBusy(true);
     if (piece) {
-      await supabase
+      await api
         .from('pieces')
         .update({ name: trimmedName, composer: composer.trim() })
         .eq('id', piece.id);
     } else {
-      await supabase.from('pieces').insert({
+      await api.from('pieces').insert({
         project_id: projectId,
         name: trimmedName,
         composer: composer.trim(),

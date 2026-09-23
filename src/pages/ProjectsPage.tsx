@@ -11,7 +11,7 @@ import { Avatar } from '@/components/Avatar';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import type { Project } from '@/types';
 
@@ -31,7 +31,7 @@ export const ProjectsPage = () => {
   const [toDelete, setToDelete] = useState<Project | null>(null);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('projects')
       .select('*')
       .order('created_at', { ascending: false });
@@ -54,9 +54,9 @@ export const ProjectsPage = () => {
     setSaving(true);
     const payload = { name: form.name.trim(), description: form.description.trim() || null };
     if (editing) {
-      await supabase.from('projects').update(payload).eq('id', editing.id);
+      await api.from('projects').update(payload).eq('id', editing.id);
     } else {
-      await supabase.from('projects').insert({ ...payload, created_by: user?.id ?? null });
+      await api.from('projects').insert({ ...payload, created_by: user?.id ?? null });
     }
     setSaving(false);
     setFormOpen(false);
@@ -64,7 +64,7 @@ export const ProjectsPage = () => {
   };
 
   const toggleArchive = async (p: Project) => {
-    await supabase
+    await api
       .from('projects')
       .update({ status: p.status === 'archived' ? 'active' : 'archived' })
       .eq('id', p.id);
@@ -73,7 +73,7 @@ export const ProjectsPage = () => {
 
   const remove = async () => {
     if (!toDelete) return;
-    await supabase.from('projects').delete().eq('id', toDelete.id);
+    await api.from('projects').delete().eq('id', toDelete.id);
     setToDelete(null);
     await load();
   };

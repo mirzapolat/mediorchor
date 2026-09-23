@@ -8,7 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { Markdown } from '@/lib/markdown';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 type RegistrationInfo =
   | { state: 'invalid' }
@@ -65,7 +65,7 @@ export const PublicRegistrationPage = () => {
 
   useEffect(() => {
     let cancelled = false;
-    supabase.rpc('get_public_registration', { p_token: token }).then(({ data, error: rpcError }) => {
+    api.rpc('get_public_registration', { p_token: token }).then(({ data, error: rpcError }) => {
       if (cancelled) return;
       const next = rpcError ? ({ state: 'invalid' } as RegistrationInfo) : (data as RegistrationInfo);
       setInfo(next);
@@ -102,7 +102,7 @@ export const PublicRegistrationPage = () => {
   const submit = async () => {
     setSubmitting(true);
     setError('');
-    const { data, error: rpcError } = await supabase.rpc('submit_public_registration', {
+    const { data, error: rpcError } = await api.rpc('submit_public_registration', {
       p_token: token,
       p_first_name: firstName,
       p_last_name: lastName,

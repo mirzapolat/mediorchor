@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { isSupabaseConfigured } from '@/lib/supabase';
 import { safeRedirectPath } from '@/lib/safePath';
 import { PageSpinner } from '@/components/Spinner';
 import { LoginPage } from '@/pages/LoginPage';
@@ -41,13 +40,11 @@ import { PiecePracticePage } from '@/pages/PiecePracticePage';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
 import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
-import { NotConfiguredPage } from '@/pages/NotConfiguredPage';
 
 export const App = () => {
   const { session, loading } = useAuth();
   const location = useLocation();
 
-  if (!isSupabaseConfigured) return <NotConfiguredPage />;
   if (
     location.pathname.startsWith('/check-in/') ||
     location.pathname.startsWith('/register/')

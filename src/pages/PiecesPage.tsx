@@ -9,7 +9,7 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { PieceForm } from '@/components/PieceForm';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { removePieceFiles } from '@/lib/pieceFiles';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Piece } from '@/types';
@@ -25,7 +25,7 @@ export const PiecesPage = () => {
   const [toDelete, setToDelete] = useState<Piece | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('pieces')
       .select('*')
       .eq('project_id', project.id)
@@ -45,7 +45,7 @@ export const PiecesPage = () => {
       next.map((piece, index) =>
         piece.position === index
           ? null
-          : supabase.from('pieces').update({ position: index }).eq('id', piece.id),
+          : api.from('pieces').update({ position: index }).eq('id', piece.id),
       ),
     );
     await load();
@@ -54,14 +54,14 @@ export const PiecesPage = () => {
   const remove = async () => {
     if (!toDelete) return;
     // Blocks cascade in the database; storage attachments need manual cleanup.
-    const { data } = await supabase
+    const { data } = await api
       .from('piece_blocks')
       .select('file_path, score_path')
       .eq('piece_id', toDelete.id);
     const paths = (
       (data as Array<{ file_path: string | null; score_path: string | null }> | null) ?? []
     ).flatMap((b) => [b.file_path, b.score_path].filter((p): p is string => !!p));
-    await supabase.from('pieces').delete().eq('id', toDelete.id);
+    await api.from('pieces').delete().eq('id', toDelete.id);
     void removePieceFiles(paths);
     setToDelete(null);
     await load();

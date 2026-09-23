@@ -8,7 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { ClubMember } from '@/types';
 
 export const ClubMembersPage = () => {
@@ -19,7 +19,7 @@ export const ClubMembersPage = () => {
   const [toDelete, setToDelete] = useState<ClubMember | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('club_members')
       .select('*')
       .order('last_name')
@@ -34,7 +34,7 @@ export const ClubMembersPage = () => {
 
   const remove = async () => {
     if (!toDelete) return;
-    await supabase.from('club_members').delete().eq('id', toDelete.id);
+    await api.from('club_members').delete().eq('id', toDelete.id);
     setToDelete(null);
     await load();
   };

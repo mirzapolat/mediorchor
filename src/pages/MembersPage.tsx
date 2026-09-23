@@ -12,7 +12,7 @@ import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member } from '@/types';
 
@@ -32,13 +32,13 @@ export const MembersPage = () => {
 
   const load = useCallback(async () => {
     const [membersResult, namesResult] = await Promise.all([
-      supabase
+      api
         .from('members')
         .select('*')
         .eq('project_id', project.id)
         .in('status', ['active', 'archived'])
         .order('last_name'),
-      supabase.rpc('linked_account_names', { p_project_id: project.id }),
+      api.rpc('linked_account_names', { p_project_id: project.id }),
     ]);
     setMembers((membersResult.data as Member[] | null) ?? []);
     setAccountNames(
@@ -56,7 +56,7 @@ export const MembersPage = () => {
   }, [load]);
 
   const toggleArchive = async (m: Member) => {
-    await supabase
+    await api
       .from('members')
       .update({ status: m.status === 'archived' ? 'active' : 'archived' })
       .eq('id', m.id);
@@ -65,7 +65,7 @@ export const MembersPage = () => {
 
   const remove = async () => {
     if (!toDelete) return;
-    await supabase.from('members').delete().eq('id', toDelete.id);
+    await api.from('members').delete().eq('id', toDelete.id);
     setToDelete(null);
     await load();
   };

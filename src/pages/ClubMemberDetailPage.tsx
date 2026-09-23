@@ -8,7 +8,7 @@ import { Input, Select } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { ClubMember, ClubMemberStatus } from '@/types';
 
 const SALUTATIONS = ['Herr', 'Frau', 'Divers'];
@@ -74,7 +74,7 @@ export const ClubMemberDetailPage = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('club_members').select('*').eq('id', memberId).maybeSingle();
+    const { data } = await api.from('club_members').select('*').eq('id', memberId).maybeSingle();
     const member = (data as ClubMember | null) ?? null;
     if (member) setForm(toForm(member));
     setLoading(false);
@@ -114,18 +114,18 @@ export const ClubMemberDetailPage = () => {
     event.preventDefault();
     setSaving(true);
     if (isNew) {
-      const { data } = await supabase.from('club_members').insert(payload()).select().single();
+      const { data } = await api.from('club_members').insert(payload()).select().single();
       setSaving(false);
       if (data) navigate(`/club/members/${(data as ClubMember).id}`, { replace: true });
     } else {
-      await supabase.from('club_members').update(payload()).eq('id', memberId);
+      await api.from('club_members').update(payload()).eq('id', memberId);
       setSaving(false);
       setSaved(true);
     }
   };
 
   const remove = async () => {
-    await supabase.from('club_members').delete().eq('id', memberId);
+    await api.from('club_members').delete().eq('id', memberId);
     setDeleteOpen(false);
     navigate('/club/members');
   };

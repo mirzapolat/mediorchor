@@ -1,6 +1,12 @@
 #!/bin/sh
+# The data directory is usually a bind mount created by Docker as root. Hand it
+# to the unprivileged `node` user, then drop privileges and start the server.
 set -e
 
-# Inject runtime configuration, then hand off to nginx.
-/docker-entrypoint.d/env.sh
-exec nginx -g 'daemon off;'
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p "$DATA_DIR"
+  chown -R node:node "$DATA_DIR"
+  exec su-exec node "$@"
+fi
+
+exec "$@"

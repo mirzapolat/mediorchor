@@ -9,7 +9,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppUser } from '@/types';
 
@@ -26,7 +26,7 @@ export const UsersPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase.from('app_users').select('*').order('created_at');
+    const { data } = await api.from('app_users').select('*').order('created_at');
     setUsers((data as AppUser[]) ?? []);
     setLoading(false);
   };
@@ -41,9 +41,8 @@ export const UsersPage = () => {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    // User creation requires the service role, so it goes through the
-    // admin-create-user edge function (see supabase/functions).
-    const { error } = await supabase.functions.invoke('admin-create-user', {
+    // Accounts are created server-side behind an admin check (server/admin.ts).
+    const { error } = await api.functions.invoke('admin-create-user', {
       body: { name: form.name.trim(), email: form.email.trim(), password: form.password },
     });
     setSaving(false);

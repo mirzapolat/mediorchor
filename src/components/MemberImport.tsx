@@ -4,7 +4,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { Select } from './Input';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { parseCsv } from '@/lib/csv';
 
 interface MemberImportProps {
@@ -159,7 +159,7 @@ export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImport
         photo_url: null,
       };
     });
-    const { error: insertError } = await supabase.from('members').insert(payloads);
+    const { error: insertError } = await api.from('members').insert(payloads);
     setImporting(false);
     if (insertError) {
       setError(insertError.message);

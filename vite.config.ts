@@ -2,8 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
-// All runtime config is injected via env vars (VITE_*) so the same build
-// can be self-hosted with different Supabase / SMTP / branding settings.
+// In development the API server runs separately (`npm run dev:server`, port
+// 3000); vite proxies API and file requests to it so everything stays on one
+// origin, exactly like in production.
+const apiServer = process.env.API_SERVER ?? 'http://localhost:3000';
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -14,5 +17,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    proxy: {
+      '/api': apiServer,
+      '/files': apiServer,
+    },
   },
 });

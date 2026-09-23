@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Avatar } from './Avatar';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import type { Member } from '@/types';
 
@@ -78,7 +78,7 @@ export const MemberForm = ({
       return;
     }
     const timer = window.setTimeout(async () => {
-      const { data } = await supabase.rpc('search_accounts', { p_query: query });
+      const { data } = await api.rpc('search_accounts', { p_query: query });
       setAccountResults((data as AccountResult[]) ?? []);
     }, 250);
     return () => window.clearTimeout(timer);
@@ -120,26 +120,26 @@ export const MemberForm = ({
       photo_url: photoUrl,
     };
     if (member) {
-      await supabase.from('members').update(payload).eq('id', member.id);
+      await api.from('members').update(payload).eq('id', member.id);
     } else if (linkedAccount) {
       // The account may already have a (possibly archived) member row in this
       // project — one link per project, so re-activate it instead.
-      const { data: existing } = await supabase
+      const { data: existing } = await api
         .from('members')
         .select('id')
         .eq('project_id', projectId)
         .eq('user_id', linkedAccount.id)
         .maybeSingle();
       if (existing) {
-        await supabase
+        await api
           .from('members')
           .update({ ...payload, status: 'active' })
           .eq('id', (existing as { id: string }).id);
       } else {
-        await supabase.from('members').insert({ ...payload, user_id: linkedAccount.id });
+        await api.from('members').insert({ ...payload, user_id: linkedAccount.id });
       }
     } else {
-      await supabase.from('members').insert(payload);
+      await api.from('members').insert(payload);
     }
     setSaving(false);
     onSaved();

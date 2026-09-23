@@ -1,4 +1,4 @@
-// Shared domain types mirroring the Supabase schema (see supabase/schema.sql).
+// Shared domain types mirroring the database schema (see server/migrations).
 
 // Every account is the same kind of account; capability flags grant extra
 // rights. An account without any flag is a participant: it only sees projects

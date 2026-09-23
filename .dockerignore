@@ -1,9 +1,10 @@
 node_modules
 dist
+data
 .git
 .env
 .env.*
 !.env.example
 *.log
 .DS_Store
-setup-app.md
+*.tsbuildinfo

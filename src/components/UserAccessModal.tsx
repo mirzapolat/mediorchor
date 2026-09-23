@@ -3,7 +3,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { Avatar } from './Avatar';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { AppUser, Project } from '@/types';
 
 // Lets the owner choose whether a user can access all projects or only a
@@ -29,8 +29,8 @@ export const UserAccessModal = ({
     setLoading(true);
     setAllProjects(user.all_projects);
     Promise.all([
-      supabase.from('projects').select('*').order('name'),
-      supabase.from('user_projects').select('project_id').eq('user_id', user.id),
+      api.from('projects').select('*').order('name'),
+      api.from('user_projects').select('project_id').eq('user_id', user.id),
     ]).then(([proj, access]) => {
       setProjects((proj.data as Project[]) ?? []);
       setSelected(
@@ -52,11 +52,11 @@ export const UserAccessModal = ({
 
   const save = async () => {
     setSaving(true);
-    await supabase.from('app_users').update({ all_projects: allProjects }).eq('id', user.id);
+    await api.from('app_users').update({ all_projects: allProjects }).eq('id', user.id);
     // Replace the explicit project list with the current selection.
-    await supabase.from('user_projects').delete().eq('user_id', user.id);
+    await api.from('user_projects').delete().eq('user_id', user.id);
     if (!allProjects && selected.size > 0) {
-      await supabase
+      await api
         .from('user_projects')
         .insert([...selected].map((project_id) => ({ user_id: user.id, project_id })));
     }

@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AttendanceStatus } from '@/types';
 
@@ -33,17 +33,17 @@ export const StatisticsPage = () => {
 
   const load = useCallback(async () => {
     const [eventsResult, attendanceResult, membersResult] = await Promise.all([
-      supabase
+      api
         .from('events')
         .select('id, name, date')
         .eq('project_id', project.id)
         .not('date', 'is', null)
         .order('date', { ascending: true }),
-      supabase
+      api
         .from('attendance')
         .select('event_id, status, events!inner(project_id)')
         .eq('events.project_id', project.id),
-      supabase
+      api
         .from('members')
         .select('id', { count: 'exact', head: true })
         .eq('project_id', project.id)

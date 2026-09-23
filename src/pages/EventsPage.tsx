@@ -10,7 +10,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Event } from '@/types';
 
@@ -36,13 +36,13 @@ export const EventsPage = () => {
 
   const load = useCallback(async () => {
     const [eventsResult, warningsResult] = await Promise.all([
-      supabase
+      api
         .from('events')
         .select('*')
         .eq('project_id', project.id)
         .order('date', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false }),
-      supabase
+      api
         .from('checkin_submissions')
         .select('event_id, events!inner(project_id)')
         .eq('recognized', false)
@@ -82,9 +82,9 @@ export const EventsPage = () => {
       time: form.time || null,
     };
     if (editing) {
-      await supabase.from('events').update(payload).eq('id', editing.id);
+      await api.from('events').update(payload).eq('id', editing.id);
     } else {
-      await supabase.from('events').insert(payload);
+      await api.from('events').insert(payload);
     }
     setSaving(false);
     setFormOpen(false);
@@ -93,7 +93,7 @@ export const EventsPage = () => {
 
   const remove = async () => {
     if (!toDelete) return;
-    await supabase.from('events').delete().eq('id', toDelete.id);
+    await api.from('events').delete().eq('id', toDelete.id);
     setToDelete(null);
     await load();
   };

@@ -82,10 +82,6 @@ const dict: Dict = {
   },
   haveAccount: { de: 'Du hast bereits ein Konto?', en: 'Already have an account?' },
   noAccount: { de: 'Noch kein Konto?', en: "Don't have an account?" },
-  notConfigured: {
-    de: 'Supabase ist nicht konfiguriert. Setze VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY.',
-    en: 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
-  },
 
   // Projects
   newProject: { de: 'Neues Projekt', en: 'New project' },
@@ -153,6 +149,15 @@ const dict: Dict = {
   // Account
   twoFactor: { de: 'Zwei-Faktor-Authentifizierung', en: 'Two-factor authentication' },
   enable2fa: { de: '2FA aktivieren', en: 'Enable 2FA' },
+  twoFactorCode: { de: 'Bestätigungscode', en: 'Verification code' },
+  emailChangePending: {
+    de: 'Gespeichert. Bitte bestätige die neue E-Mail-Adresse über den Link, den wir dir geschickt haben.',
+    en: 'Saved. Please confirm the new email address using the link we sent you.',
+  },
+  twoFactorPrompt: {
+    de: 'Gib den 6-stelligen Code aus deiner Authenticator-App ein.',
+    en: 'Enter the 6-digit code from your authenticator app.',
+  },
   disable2fa: { de: '2FA deaktivieren', en: 'Disable 2FA' },
   changePassword: { de: 'Passwort ändern', en: 'Change password' },
   newPassword: { de: 'Neues Passwort', en: 'New password' },

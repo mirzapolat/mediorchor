@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ShieldCheck, ShieldOff } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import type { Language } from '@/lib/config';
 
@@ -25,21 +26,23 @@ export const AccountPage = () => {
     e.preventDefault();
     setBusy(true);
     setProfileMsg(null);
-    await supabase.from('app_users').update({ name: name.trim() }).eq('id', user.id);
+    await api.from('app_users').update({ name: name.trim() }).eq('id', user.id);
     const authUpdate: { email?: string; password?: string } = {};
     if (email && email !== session?.user.email) authUpdate.email = email;
     if (password) authUpdate.password = password;
+    let emailChangePending = false;
     if (Object.keys(authUpdate).length > 0) {
-      const { error } = await supabase.auth.updateUser(authUpdate);
+      const { data, error } = await api.auth.updateUser(authUpdate);
       if (error) {
         setProfileMsg(error.message);
         setBusy(false);
         return;
       }
+      emailChangePending = data.emailChangePending;
     }
     await refreshUser();
     setPassword('');
-    setProfileMsg('✓');
+    setProfileMsg(emailChangePending ? t('emailChangePending') : '✓');
     setBusy(false);
   };
 
@@ -90,18 +93,19 @@ export const AccountPage = () => {
   );
 };
 
-// 2FA enrolment via Supabase TOTP MFA.
+// 2FA enrolment (TOTP). Once verified, sign-in asks for a code.
 const TwoFactorCard = () => {
   const { t } = useI18n();
   const [factorId, setFactorId] = useState<string | null>(null);
   const [enrolled, setEnrolled] = useState(false);
+  // otpauth:// URI for the authenticator app, shown as a QR code.
   const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
-    const { data } = await supabase.auth.mfa.listFactors();
+    const { data } = await api.auth.mfa.listFactors();
     const totp = data?.totp?.[0];
     setEnrolled(Boolean(totp && totp.status === 'verified'));
     setLoading(false);
@@ -113,28 +117,19 @@ const TwoFactorCard = () => {
 
   const startEnroll = async () => {
     setError(null);
-    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
-    if (error) {
-      setError(error.message);
+    const { data, error } = await api.auth.mfa.enroll({ factorType: 'totp' });
+    if (error || !data) {
+      setError(error?.message ?? null);
       return;
     }
     setFactorId(data.id);
-    setQr(data.totp.qr_code);
+    setQr(data.totp.uri);
   };
 
   const verify = async () => {
     if (!factorId) return;
     setError(null);
-    const challenge = await supabase.auth.mfa.challenge({ factorId });
-    if (challenge.error) {
-      setError(challenge.error.message);
-      return;
-    }
-    const { error } = await supabase.auth.mfa.verify({
-      factorId,
-      challengeId: challenge.data.id,
-      code,
-    });
+    const { error } = await api.auth.mfa.verify({ factorId, code });
     if (error) {
       setError(error.message);
       return;
@@ -145,9 +140,9 @@ const TwoFactorCard = () => {
   };
 
   const disable = async () => {
-    const { data } = await supabase.auth.mfa.listFactors();
+    const { data } = await api.auth.mfa.listFactors();
     const totp = data?.totp?.[0];
-    if (totp) await supabase.auth.mfa.unenroll({ factorId: totp.id });
+    if (totp) await api.auth.mfa.unenroll({ factorId: totp.id });
     await refresh();
   };
 
@@ -170,7 +165,13 @@ const TwoFactorCard = () => {
         </Button>
       ) : qr ? (
         <div className="space-y-4">
-          <img src={qr} alt="TOTP QR" className="h-44 w-44 border border-border rounded-md" />
+          <QRCodeSVG
+            value={qr}
+            size={176}
+            marginSize={2}
+            title="TOTP QR"
+            className="border border-border rounded-md bg-white"
+          />
           <Input
             label="123456"
             inputMode="numeric"

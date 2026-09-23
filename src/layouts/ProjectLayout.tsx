@@ -8,7 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Project } from '@/types';
 
@@ -79,10 +79,10 @@ export const ProjectLayout = () => {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      supabase.from('projects').select('*').eq('id', projectId).maybeSingle(),
+      api.from('projects').select('*').eq('id', projectId).maybeSingle(),
       // Management rights for this specific project (admin, or manager whose
       // scope includes it) — evaluated by the same function RLS uses.
-      supabase.rpc('can_access_project', { pid: projectId }),
+      api.rpc('can_access_project', { pid: projectId }),
     ]).then(([proj, manage]) => {
       if (cancelled) return;
       setProject((proj.data as Project) ?? null);
@@ -96,7 +96,7 @@ export const ProjectLayout = () => {
 
   const loadCheckinWarnings = useCallback(async () => {
     if (!projectId) return;
-    const { count } = await supabase
+    const { count } = await api
       .from('checkin_submissions')
       .select('id, events!inner(project_id)', { count: 'exact', head: true })
       .eq('events.project_id', projectId)

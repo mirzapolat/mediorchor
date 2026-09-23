@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Input, Field } from './Input';
 import { MarkdownEditor } from './MarkdownEditor';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { removePieceFiles, uploadPieceFile } from '@/lib/pieceFiles';
 import type { PieceBlock, PieceBlockType } from '@/types';
 
@@ -157,8 +157,8 @@ export const PieceBlockForm = ({
     };
 
     const { error: dbError } = block
-      ? await supabase.from('piece_blocks').update(row).eq('id', block.id)
-      : await supabase
+      ? await api.from('piece_blocks').update(row).eq('id', block.id)
+      : await api
           .from('piece_blocks')
           .insert({ ...row, piece_id: pieceId, type, position: nextPosition });
 

@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 // Instance-wide configuration (app_settings singleton).
@@ -15,7 +15,7 @@ export const AdminConfigPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
+    api
       .from('app_settings')
       .select('allow_self_signup')
       .eq('id', 1)
@@ -32,7 +32,7 @@ export const AdminConfigPage = () => {
   const toggleSelfSignup = async () => {
     const next = !allowSelfSignup;
     setAllowSelfSignup(next);
-    await supabase.from('app_settings').update({ allow_self_signup: next }).eq('id', 1);
+    await api.from('app_settings').update({ allow_self_signup: next }).eq('id', 1);
   };
 
   return (

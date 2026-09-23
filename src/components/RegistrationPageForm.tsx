@@ -4,7 +4,7 @@ import { Input } from './Input';
 import { MarkdownEditor } from './MarkdownEditor';
 import { Modal } from './Modal';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { RegistrationPage } from '@/types';
 
 interface FormState {
@@ -92,9 +92,9 @@ export const RegistrationPageForm = ({
       auto_transfer: form.auto_transfer,
     };
     if (page) {
-      await supabase.from('registration_pages').update(payload).eq('id', page.id);
+      await api.from('registration_pages').update(payload).eq('id', page.id);
     } else {
-      await supabase.from('registration_pages').insert(payload);
+      await api.from('registration_pages').insert(payload);
     }
     setSaving(false);
     onSaved();

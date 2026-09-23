@@ -11,7 +11,7 @@ import { Input, Textarea } from '@/components/Input';
 import { Avatar } from '@/components/Avatar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import { useProjectContext } from '@/layouts/projectContext';
 
@@ -151,7 +151,7 @@ export const ProjectSettingsPage = () => {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
-    await supabase
+    await api
       .from('projects')
       .update({
         name: form.name.trim(),
@@ -167,7 +167,7 @@ export const ProjectSettingsPage = () => {
   };
 
   const remove = async () => {
-    await supabase.from('projects').delete().eq('id', project.id);
+    await api.from('projects').delete().eq('id', project.id);
     navigate('/');
   };
 

@@ -1,10 +1,10 @@
-import { supabase } from './supabase';
+import { api } from './api';
 
 const BUCKET = 'piece-files';
 
 // Uploads an attachment to the public "piece-files" bucket. Like uploadImage,
-// the object key is a fresh UUID + sanitised extension because raw file names
-// (spaces, umlauts, …) make Supabase storage uploads fail silently.
+// the object key is a fresh UUID + sanitised extension; raw file names (spaces,
+// umlauts, …) are never used as storage keys.
 export const uploadPieceFile = async (
   pieceId: string,
   file: File,
@@ -13,7 +13,7 @@ export const uploadPieceFile = async (
   const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
   const path = `${pieceId}/${crypto.randomUUID()}.${ext}`;
 
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+  const { error } = await api.storage.from(BUCKET).upload(path, file, {
     cacheControl: '3600',
     contentType: file.type || undefined,
   });
@@ -22,13 +22,13 @@ export const uploadPieceFile = async (
 };
 
 export const pieceFileUrl = (path: string): string =>
-  supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  api.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 
 // Public URL that forces a download under the original file name.
 export const pieceFileDownloadUrl = (path: string, fileName: string): string =>
-  supabase.storage.from(BUCKET).getPublicUrl(path, { download: fileName }).data.publicUrl;
+  api.storage.from(BUCKET).getPublicUrl(path, { download: fileName }).data.publicUrl;
 
 export const removePieceFiles = async (paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
-  await supabase.storage.from(BUCKET).remove(paths);
+  await api.storage.from(BUCKET).remove(paths);
 };

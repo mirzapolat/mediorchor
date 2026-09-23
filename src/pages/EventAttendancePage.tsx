@@ -10,7 +10,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useEventContext } from '@/layouts/eventContext';
 import type { AttendanceStatus, Member } from '@/types';
 
@@ -33,8 +33,8 @@ export const EventAttendancePage = () => {
 
   const load = async () => {
     const [{ data: members }, { data: attendance }] = await Promise.all([
-      supabase.from('members').select('*').eq('project_id', project.id).eq('status', 'active'),
-      supabase
+      api.from('members').select('*').eq('project_id', project.id).eq('status', 'active'),
+      api
         .from('attendance')
         .select('status, is_guest, members(*)')
         .eq('event_id', eventId),
@@ -77,7 +77,7 @@ export const EventAttendancePage = () => {
   const setStatus = async (row: Row, status: AttendanceStatus) => {
     // Optimistic update.
     setRows((rs) => rs.map((r) => (r.member.id === row.member.id ? { ...r, status } : r)));
-    await supabase.from('attendance').upsert(
+    await api.from('attendance').upsert(
       {
         event_id: eventId,
         member_id: row.member.id,
@@ -244,7 +244,7 @@ const AddPersonModal = ({
 
   const add = async (asGuest: boolean) => {
     setSaving(true);
-    const { data: member } = await supabase
+    const { data: member } = await api
       .from('members')
       .insert({
         project_id: projectId,
@@ -256,7 +256,7 @@ const AddPersonModal = ({
       .single();
 
     if (member) {
-      await supabase.from('attendance').insert({
+      await api.from('attendance').insert({
         event_id: eventId,
         member_id: (member as Member).id,
         status: 'attended',

@@ -9,7 +9,7 @@ import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationPageForm } from '@/components/RegistrationPageForm';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { RegistrationPage } from '@/types';
 
@@ -27,12 +27,12 @@ export const RegistrationsPage = () => {
 
   const load = useCallback(async () => {
     const [pagesResult, regsResult] = await Promise.all([
-      supabase
+      api
         .from('registration_pages')
         .select('*')
         .eq('project_id', project.id)
         .order('created_at', { ascending: false }),
-      supabase
+      api
         .from('registrations')
         .select('registration_page_id, registration_pages!inner(project_id)')
         .eq('registration_pages.project_id', project.id),
@@ -53,7 +53,7 @@ export const RegistrationsPage = () => {
 
   const remove = async () => {
     if (!toDelete) return;
-    await supabase.from('registration_pages').delete().eq('id', toDelete.id);
+    await api.from('registration_pages').delete().eq('id', toDelete.id);
     setToDelete(null);
     await load();
   };

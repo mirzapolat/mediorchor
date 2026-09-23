@@ -23,7 +23,7 @@ import { PieceForm } from '@/components/PieceForm';
 import { PieceBlockForm } from '@/components/PieceBlockForm';
 import { Markdown } from '@/lib/markdown';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { pieceFileDownloadUrl, pieceFileUrl, removePieceFiles } from '@/lib/pieceFiles';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Piece, PieceBlock, PieceBlockType } from '@/types';
@@ -94,8 +94,8 @@ export const PieceDetailPage = () => {
 
   const load = useCallback(async () => {
     const [pieceResult, blocksResult] = await Promise.all([
-      supabase.from('pieces').select('*').eq('id', pieceId).maybeSingle(),
-      supabase
+      api.from('pieces').select('*').eq('id', pieceId).maybeSingle(),
+      api
         .from('piece_blocks')
         .select('*')
         .eq('piece_id', pieceId)
@@ -132,7 +132,7 @@ export const PieceDetailPage = () => {
       next.map((block, index) =>
         block.position === index
           ? null
-          : supabase.from('piece_blocks').update({ position: index }).eq('id', block.id),
+          : api.from('piece_blocks').update({ position: index }).eq('id', block.id),
       ),
     );
     await load();
@@ -163,7 +163,7 @@ export const PieceDetailPage = () => {
 
   const removeBlock = async () => {
     if (!toDelete) return;
-    await supabase.from('piece_blocks').delete().eq('id', toDelete.id);
+    await api.from('piece_blocks').delete().eq('id', toDelete.id);
     const paths = [toDelete.file_path, toDelete.score_path].filter((p): p is string => !!p);
     if (paths.length) void removePieceFiles(paths);
     setToDelete(null);

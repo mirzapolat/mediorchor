@@ -6,7 +6,7 @@ import { Input } from '@/components/Input';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { safeRedirectPath } from '@/lib/safePath';
 
 export const LoginPage = () => {
@@ -24,11 +24,14 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signedUp, setSignedUp] = useState(false);
+  // Second step for accounts with two-factor authentication.
+  const [mfaStep, setMfaStep] = useState(false);
+  const [code, setCode] = useState('');
 
   useEffect(() => {
     // Whether the sign-up option is offered is an instance setting readable
     // without a session.
-    supabase.rpc('get_public_config').then(({ data }) => {
+    api.rpc('get_public_config').then(({ data }) => {
       setAllowSelfSignup(
         Boolean((data as { allow_self_signup?: boolean } | null)?.allow_self_signup),
       );
@@ -41,12 +44,11 @@ export const LoginPage = () => {
     setSubmitting(true);
 
     if (mode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await api.auth.signUp({
         email,
         password,
         options: {
           data: { name: name.trim() },
-          emailRedirectTo: `${window.location.origin}/login`,
         },
       });
       setSubmitting(false);
@@ -64,12 +66,16 @@ export const LoginPage = () => {
       return;
     }
 
-    const { error } = await signIn(email, password);
+    const { error, mfaRequired } = await signIn(email, password, mfaStep ? code : undefined);
     setSubmitting(false);
     if (error) {
-      // Surface the real Supabase message (e.g. "Email not confirmed") rather
+      // Surface the real server message (e.g. "Email not confirmed") rather
       // than masking every failure as bad credentials.
-      setError(/invalid/i.test(error) ? t('invalidCredentials') : error);
+      setError(/invalid login/i.test(error) ? t('invalidCredentials') : error);
+      return;
+    }
+    if (mfaRequired) {
+      setMfaStep(true);
       return;
     }
     navigate(from ?? '/', { replace: true });
@@ -79,6 +85,8 @@ export const LoginPage = () => {
     setMode(next);
     setError(null);
     setSignedUp(false);
+    setMfaStep(false);
+    setCode('');
   };
 
   return (
@@ -109,46 +117,74 @@ export const LoginPage = () => {
                 {mode === 'signup' ? t('signUpTitle') : t('loginTitle')}
               </h1>
               <p className="text-text-secondary text-sm mt-1 mb-6">
-                {mode === 'signup' ? t('signUpSubtitle') : t('loginSubtitle')}
+                {mfaStep ? t('twoFactorPrompt') : mode === 'signup' ? t('signUpSubtitle') : t('loginSubtitle')}
               </p>
 
-              <form onSubmit={onSubmit} className="space-y-4">
-                {mode === 'signup' && (
+              {mfaStep ? (
+                <form onSubmit={onSubmit} className="space-y-4">
                   <Input
-                    id="name"
-                    label={t('name')}
-                    autoComplete="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    id="code"
+                    label={t('twoFactorCode')}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9 ]*"
+                    maxLength={7}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    autoFocus
                     required
                   />
-                )}
-                <Input
-                  id="email"
-                  type="email"
-                  label={t('email')}
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                <Input
-                  id="password"
-                  type="password"
-                  label={t('password')}
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={mode === 'signup' ? 8 : undefined}
-                  required
-                />
-                {error && <p className="text-sm text-accent">{error}</p>}
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? t('loading') : mode === 'signup' ? t('signUp') : t('signIn')}
-                </Button>
-              </form>
+                  {error && <p className="text-sm text-accent">{error}</p>}
+                  <Button type="submit" className="w-full" disabled={submitting || code.trim().length < 6}>
+                    {submitting ? t('loading') : t('signIn')}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('signin')}
+                    className="w-full text-sm font-medium text-text-secondary hover:text-text underline"
+                  >
+                    {t('back')}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={onSubmit} className="space-y-4">
+                  {mode === 'signup' && (
+                    <Input
+                      id="name"
+                      label={t('name')}
+                      autoComplete="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  )}
+                  <Input
+                    id="email"
+                    type="email"
+                    label={t('email')}
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <Input
+                    id="password"
+                    type="password"
+                    label={t('password')}
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={mode === 'signup' ? 8 : undefined}
+                    required
+                  />
+                  {error && <p className="text-sm text-accent">{error}</p>}
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? t('loading') : mode === 'signup' ? t('signUp') : t('signIn')}
+                  </Button>
+                </form>
+              )}
 
-              {allowSelfSignup && (
+              {allowSelfSignup && !mfaStep && (
                 <p className="text-sm text-text-secondary mt-5 text-center">
                   {mode === 'signup' ? (
                     <>

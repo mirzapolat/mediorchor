@@ -1,11 +1,17 @@
-# mediorchor — single self-hosted container serving the app.
+# mediorchor — one self-hosted container: app + API + SQLite + file storage.
 # Fronted by an external Traefik instance (TLS + routing managed outside this project).
-# Runtime config (VITE_*) is injected into the browser at container start via
-# docker/env.sh, so the same image can be reconfigured without a rebuild.
-# Compose reads the local .env file automatically.
 #
 #   cp .env.example .env   # fill in your values
 #   docker compose up --build -d
+#
+# Everything the app stores lives in ./data on the host:
+#   ./data/app.db        SQLite database (plus -wal/-shm files while running)
+#   ./data/storage/      uploaded files (photos/, piece-files/)
+# Back up that directory. For a consistent database copy while running:
+#   docker compose exec web node -e "require('better-sqlite3')('/data/app.db').backup('/data/backup.db')"
+#
+# Admin tasks (reset a password, promote an admin, …):
+#   docker compose exec web node server/cli.ts
 
 services:
   web:
@@ -14,14 +20,30 @@ services:
     container_name: mediorchor
     restart: unless-stopped
     environment:
-      # Runtime configuration — injected into the browser at container start.
-      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
-      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+      # Absolute URL of the app, used in confirmation emails.
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      # First administrator, created at start-up if it doesn't exist yet.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      # Optional SMTP: enables email confirmation for sign-ups and email changes.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      # Branding, served to the browser at runtime.
       VITE_DEFAULT_LANGUAGE: ${VITE_DEFAULT_LANGUAGE:-en}
       VITE_APP_NAME: ${VITE_APP_NAME:-Anwesenheit}
       VITE_ACCENT_COLOR: ${VITE_ACCENT_COLOR:-#efa100}
-    expose:
-      - "80"
+    volumes:
+      - ./data:/data
+    # Reachable on the host for local use; bound to localhost so it never
+    # bypasses Traefik on the server.
+    ports:
+      - "127.0.0.1:${PORT:-8080}:3000"
     networks:
       - proxy
     labels:
@@ -30,9 +52,10 @@ services:
       traefik.http.routers.mediorchor.entrypoints: websecure
       traefik.http.routers.mediorchor.tls.certresolver: letsencrypt
       traefik.http.routers.mediorchor.middlewares: secure-headers@file,compress@file
-      traefik.http.services.mediorchor.loadbalancer.server.port: "80"
+      traefik.http.services.mediorchor.loadbalancer.server.port: "3000"
 
 # Joins the existing Traefik network (created/managed outside this project).
+# Locally, create it once with: docker network create proxy
 networks:
   proxy:
     external: true

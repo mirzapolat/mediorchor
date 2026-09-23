@@ -6,7 +6,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useEventContext } from '@/layouts/eventContext';
 
 export const EventSettingsPage = () => {
@@ -31,7 +31,7 @@ export const EventSettingsPage = () => {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
-    await supabase
+    await api
       .from('events')
       .update({ name: form.name.trim(), date: form.date || null, time: form.time || null })
       .eq('id', event.id);
@@ -41,7 +41,7 @@ export const EventSettingsPage = () => {
   };
 
   const remove = async () => {
-    await supabase.from('events').delete().eq('id', event.id);
+    await api.from('events').delete().eq('id', event.id);
     navigate(`/projects/${project.id}/events`);
   };
 

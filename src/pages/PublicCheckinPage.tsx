@@ -7,7 +7,7 @@ import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 
 type PublicCheckinInfo =
   | { state: 'invalid' }
@@ -51,7 +51,7 @@ export const PublicCheckinPage = () => {
 
   useEffect(() => {
     let cancelled = false;
-    supabase.rpc('get_public_checkin', { p_token: token }).then(({ data, error: rpcError }) => {
+    api.rpc('get_public_checkin', { p_token: token }).then(({ data, error: rpcError }) => {
       if (cancelled) return;
       setInfo(rpcError ? { state: 'invalid' } : (data as PublicCheckinInfo));
     });
@@ -70,7 +70,7 @@ export const PublicCheckinPage = () => {
     event.preventDefault();
     setSubmitting(true);
     setError('');
-    const { data, error: rpcError } = await supabase.rpc('submit_public_checkin', {
+    const { data, error: rpcError } = await api.rpc('submit_public_checkin', {
       p_token: token,
       p_first_name: accountMode && active?.me ? active.me.first_name : firstName,
       p_last_name: accountMode && active?.me ? active.me.last_name : lastName,

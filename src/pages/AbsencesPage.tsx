@@ -41,7 +41,7 @@ import {
   loadProjectMemberAttendance,
   type AttendanceCounts,
 } from '@/lib/memberAttendance';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { AbsenceLabel, Member } from '@/types';
 
 // Editor rows carry a client-side id on top of the stored shape.
@@ -103,7 +103,7 @@ const LabelSettingsModal = ({
     onChanged(next.map((label, index) => ({ ...label, position: index })));
     await Promise.all(
       next.map((label, index) =>
-        supabase.from('absence_labels').update({ position: index }).eq('id', label.id),
+        api.from('absence_labels').update({ position: index }).eq('id', label.id),
       ),
     );
   };
@@ -113,12 +113,12 @@ const LabelSettingsModal = ({
   const togglePublic = async (label: AbsenceLabel) => {
     const next = !label.is_public;
     onChanged(labels.map((l) => (l.id === label.id ? { ...l, is_public: next } : l)));
-    await supabase.from('absence_labels').update({ is_public: next }).eq('id', label.id);
+    await api.from('absence_labels').update({ is_public: next }).eq('id', label.id);
   };
 
   const remove = async (label: AbsenceLabel) => {
     onChanged(labels.filter((l) => l.id !== label.id));
-    await supabase.from('absence_labels').delete().eq('id', label.id);
+    await api.from('absence_labels').delete().eq('id', label.id);
   };
 
   return (
@@ -214,7 +214,7 @@ export const AbsencesPage = () => {
     setLoading(true);
     Promise.all([
       loadProjectMemberAttendance(project.id),
-      supabase
+      api
         .from('absence_labels')
         .select('*')
         .eq('project_id', project.id)
@@ -365,7 +365,7 @@ export const AbsencesPage = () => {
   const saveLabel = async (e: FormEvent) => {
     e.preventDefault();
     setSavingLabel(true);
-    const { data } = await supabase
+    const { data } = await api
       .from('absence_labels')
       .insert({
         project_id: project.id,

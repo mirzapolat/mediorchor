@@ -8,7 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UserAccessModal } from '@/components/UserAccessModal';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppUser } from '@/types';
 
@@ -24,7 +24,7 @@ export const UserDetailPage = () => {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from('app_users').select('*').eq('id', userId).maybeSingle();
+    const { data } = await api.from('app_users').select('*').eq('id', userId).maybeSingle();
     setUser((data as AppUser) ?? null);
     setLoading(false);
   };
@@ -47,15 +47,14 @@ export const UserDetailPage = () => {
     if (!user) return;
     const next = !user[flag];
     setUser({ ...user, [flag]: next });
-    await supabase.from('app_users').update({ [flag]: next }).eq('id', user.id);
+    await api.from('app_users').update({ [flag]: next }).eq('id', user.id);
     if (isSelf) await refreshUser();
   };
 
   const deleteUser = async () => {
     setError(null);
-    // Deleting the auth user requires the service role, so it goes through the
-    // admin-delete-user edge function (admin-only).
-    const { error } = await supabase.functions.invoke('admin-delete-user', {
+    // Accounts are deleted server-side behind an admin check (server/admin.ts).
+    const { error } = await api.functions.invoke('admin-delete-user', {
       body: { userId: user.id },
     });
     setConfirmDelete(false);

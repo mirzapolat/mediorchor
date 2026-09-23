@@ -7,7 +7,7 @@ import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { PageSpinner } from '@/components/Spinner';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { Event, Project } from '@/types';
 
 const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) => {
@@ -68,13 +68,13 @@ export const EventLayout = () => {
   const [loading, setLoading] = useState(true);
 
   const loadEvent = useCallback(async () => {
-    const { data } = await supabase.from('events').select('*').eq('id', eventId).maybeSingle();
+    const { data } = await api.from('events').select('*').eq('id', eventId).maybeSingle();
     setEvent((data as Event) ?? null);
   }, [eventId]);
 
   const loadCheckinWarnings = useCallback(async () => {
     if (!eventId) return;
-    const { count } = await supabase
+    const { count } = await api
       .from('checkin_submissions')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
@@ -86,11 +86,11 @@ export const EventLayout = () => {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      supabase.from('projects').select('*').eq('id', projectId).maybeSingle(),
-      supabase.from('events').select('*').eq('id', eventId).maybeSingle(),
+      api.from('projects').select('*').eq('id', projectId).maybeSingle(),
+      api.from('events').select('*').eq('id', eventId).maybeSingle(),
       // Event administration is management-only; participants see events on
       // their participation page instead.
-      supabase.rpc('can_access_project', { pid: projectId }),
+      api.rpc('can_access_project', { pid: projectId }),
     ]).then(([proj, ev, manage]) => {
       if (cancelled) return;
       setProject(manage.data ? ((proj.data as Project) ?? null) : null);

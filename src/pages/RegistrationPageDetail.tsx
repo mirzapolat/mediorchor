@@ -23,7 +23,7 @@ import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationPageForm } from '@/components/RegistrationPageForm';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Registration, RegistrationPage } from '@/types';
 
@@ -54,8 +54,8 @@ export const RegistrationPageDetail = () => {
 
   const load = useCallback(async () => {
     const [pageResult, regsResult] = await Promise.all([
-      supabase.from('registration_pages').select('*').eq('id', pageId).maybeSingle(),
-      supabase
+      api.from('registration_pages').select('*').eq('id', pageId).maybeSingle(),
+      api
         .from('registrations')
         .select('*')
         .eq('registration_page_id', pageId)
@@ -86,7 +86,7 @@ export const RegistrationPageDetail = () => {
 
   const toggleActive = async () => {
     setBusy(true);
-    const { data } = await supabase
+    const { data } = await api
       .from('registration_pages')
       .update({ is_active: !page.is_active })
       .eq('id', page.id)
@@ -98,7 +98,7 @@ export const RegistrationPageDetail = () => {
 
   const toggleAutoTransfer = async () => {
     setBusy(true);
-    const { data } = await supabase
+    const { data } = await api
       .from('registration_pages')
       .update({ auto_transfer: !page.auto_transfer })
       .eq('id', page.id)
@@ -120,14 +120,14 @@ export const RegistrationPageDetail = () => {
 
   const transferOne = async (registration: Registration) => {
     setBusy(true);
-    await supabase.rpc('transfer_registration', { p_registration_id: registration.id });
+    await api.rpc('transfer_registration', { p_registration_id: registration.id });
     await load();
     setBusy(false);
   };
 
   const transferAll = async () => {
     setBusy(true);
-    await supabase.rpc('transfer_all_registrations', { p_page_id: page.id });
+    await api.rpc('transfer_all_registrations', { p_page_id: page.id });
     await load();
     setBusy(false);
   };
@@ -135,7 +135,7 @@ export const RegistrationPageDetail = () => {
   const bulkTransfer = async () => {
     setBusy(true);
     await Promise.all(
-      selectedIds.map((id) => supabase.rpc('transfer_registration', { p_registration_id: id })),
+      selectedIds.map((id) => api.rpc('transfer_registration', { p_registration_id: id })),
     );
     setSelectedIds([]);
     await load();
@@ -144,7 +144,7 @@ export const RegistrationPageDetail = () => {
 
   const bulkDelete = async () => {
     setBusy(true);
-    await supabase.from('registrations').delete().in('id', selectedIds);
+    await api.from('registrations').delete().in('id', selectedIds);
     setSelectedIds([]);
     setBulkDeleteOpen(false);
     await load();
@@ -164,7 +164,7 @@ export const RegistrationPageDetail = () => {
   const saveEdit = async () => {
     if (!editingId) return;
     setBusy(true);
-    await supabase
+    await api
       .from('registrations')
       .update({
         first_name: draft.first_name.trim(),
@@ -180,7 +180,7 @@ export const RegistrationPageDetail = () => {
 
   const remove = async () => {
     if (!toDelete) return;
-    await supabase.from('registrations').delete().eq('id', toDelete.id);
+    await api.from('registrations').delete().eq('id', toDelete.id);
     setToDelete(null);
     await load();
   };

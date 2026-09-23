@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-ssr
+data
 *.local
 .env
 .env.*
@@ -8,3 +9,4 @@ dist-ssr
 .DS_Store
 *.log
 .vite
+*.tsbuildinfo

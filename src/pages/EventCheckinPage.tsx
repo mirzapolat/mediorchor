@@ -29,7 +29,7 @@ import { RowActionButton } from '@/components/RowActionButton';
 import { PageSpinner } from '@/components/Spinner';
 import { useEventContext } from '@/layouts/eventContext';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import type { AttendanceStatus, CheckinSubmission, EventCheckin, Member } from '@/types';
 
 type CheckinStatus = Extract<AttendanceStatus, 'attended' | 'excused'>;
@@ -151,7 +151,7 @@ export const EventCheckinPage = () => {
   const feedbackTimerRef = useRef<number | null>(null);
 
   const loadSubmissions = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('checkin_submissions')
       .select('*')
       .eq('event_id', event.id)
@@ -162,8 +162,8 @@ export const EventCheckinPage = () => {
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: existing }, submissionsResult] = await Promise.all([
-      supabase.from('event_checkins').select('*').eq('event_id', event.id).maybeSingle(),
-      supabase
+      api.from('event_checkins').select('*').eq('event_id', event.id).maybeSingle(),
+      api
         .from('checkin_submissions')
         .select('*')
         .eq('event_id', event.id)
@@ -172,7 +172,7 @@ export const EventCheckinPage = () => {
 
     let session = existing as EventCheckin | null;
     if (!session) {
-      const { data: created } = await supabase
+      const { data: created } = await api
         .from('event_checkins')
         .upsert({ event_id: event.id }, { onConflict: 'event_id' })
         .select()
@@ -206,7 +206,7 @@ export const EventCheckinPage = () => {
   const updateCheckin = async (patch: Partial<EventCheckin>) => {
     if (!checkin) return;
     setBusy(true);
-    const { data } = await supabase
+    const { data } = await api
       .from('event_checkins')
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('event_id', event.id)
@@ -222,7 +222,7 @@ export const EventCheckinPage = () => {
 
   const removeSubmission = async (submissionId: string) => {
     setSubmissions((current) => current.filter((row) => row.id !== submissionId));
-    const { error } = await supabase.from('checkin_submissions').delete().eq('id', submissionId);
+    const { error } = await api.from('checkin_submissions').delete().eq('id', submissionId);
     if (error) {
       void loadSubmissions();
     } else {
@@ -526,7 +526,7 @@ const CreateMemberFromCheckinModal = ({
     if (!submission || !valid) return;
     setSaving(true);
     setError('');
-    const { data: member, error: insertError } = await supabase
+    const { data: member, error: insertError } = await api
       .from('members')
       .insert({
         project_id: projectId,
@@ -544,7 +544,7 @@ const CreateMemberFromCheckinModal = ({
       return;
     }
 
-    const { error: rpcError } = await supabase.rpc('assign_checkin_submission', {
+    const { error: rpcError } = await api.rpc('assign_checkin_submission', {
       p_submission_id: submission.id,
       p_member_id: (member as Member).id,
     });
@@ -613,7 +613,7 @@ const AssignCheckinModal = ({
     setLoading(true);
     setQuery('');
     setError('');
-    supabase
+    api
       .from('members')
       .select('*')
       .eq('project_id', projectId)
@@ -654,7 +654,7 @@ const AssignCheckinModal = ({
     if (!submission) return;
     setAssigningId(member.id);
     setError('');
-    const { error: rpcError } = await supabase.rpc('assign_checkin_submission', {
+    const { error: rpcError } = await api.rpc('assign_checkin_submission', {
       p_submission_id: submission.id,
       p_member_id: member.id,
     });

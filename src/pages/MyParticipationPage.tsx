@@ -9,7 +9,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { matchesConditions } from '@/lib/absenceConditions';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AbsenceLabel, Attendance, Event, Member } from '@/types';
@@ -44,7 +44,7 @@ export const MyParticipationPage = () => {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const { data: memberData } = await supabase
+    const { data: memberData } = await api
       .from('members')
       .select('*')
       .eq('project_id', project.id)
@@ -55,9 +55,9 @@ export const MyParticipationPage = () => {
 
     if (m && m.status === 'active') {
       const [ev, att, lab] = await Promise.all([
-        supabase.from('events').select('*').eq('project_id', project.id).order('date'),
-        supabase.from('attendance').select('*').eq('member_id', m.id),
-        supabase
+        api.from('events').select('*').eq('project_id', project.id).order('date'),
+        api.from('attendance').select('*').eq('member_id', m.id),
+        api
           .from('absence_labels')
           .select('*')
           .eq('project_id', project.id)
@@ -120,7 +120,7 @@ export const MyParticipationPage = () => {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { data, error: rpcError } = await supabase.rpc('join_project', {
+    const { data, error: rpcError } = await api.rpc('join_project', {
       p_project_id: project.id,
       p_first_name: member?.first_name ?? joinForm.first_name,
       p_last_name: member?.last_name ?? joinForm.last_name,
@@ -138,7 +138,7 @@ export const MyParticipationPage = () => {
     setConfirmLeave(false);
     setBusy(true);
     setError(null);
-    const { error: rpcError } = await supabase.rpc('leave_project', {
+    const { error: rpcError } = await api.rpc('leave_project', {
       p_project_id: project.id,
     });
     setBusy(false);
@@ -153,7 +153,7 @@ export const MyParticipationPage = () => {
     if (!member) return;
     setGroupSaved(false);
     setMember({ ...member, group_name: group || null });
-    const { data, error: rpcError } = await supabase.rpc('set_my_group', {
+    const { data, error: rpcError } = await api.rpc('set_my_group', {
       p_project_id: project.id,
       p_group_name: group,
     });

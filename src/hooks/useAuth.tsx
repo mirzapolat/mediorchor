@@ -6,8 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { api, type Session } from '@/lib/api';
 import type { AppUser } from '@/types';
 
 interface AuthContextValue {
@@ -17,7 +16,13 @@ interface AuthContextValue {
   isAdmin: boolean;
   canManageProjects: boolean;
   canAccessClub: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  // With two-factor enabled, the first call reports mfaRequired; call again
+  // with the 6-digit code.
+  signIn: (
+    email: string,
+    password: string,
+    code?: string,
+  ) => Promise<{ error: string | null; mfaRequired: boolean }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -32,24 +37,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loadProfile = async (uid: string) => {
     // Attach any member rows whose (verified) email matches this account so
     // past guest check-ins/sign-ups connect to the account. Idempotent.
-    await supabase.rpc('claim_my_memberships');
-    const { data } = await supabase.from('app_users').select('*').eq('id', uid).maybeSingle();
+    await api.rpc('claim_my_memberships');
+    const { data } = await api.from('app_users').select('*').eq('id', uid).maybeSingle();
     setUser((data as AppUser) ?? null);
   };
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-
-    supabase.auth.getSession().then(async ({ data }) => {
+    api.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session) await loadProfile(data.session.user.id);
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: sub } = api.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       if (newSession) {
         await loadProfile(newSession.user.id);
@@ -69,12 +69,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isAdmin: Boolean(user?.is_admin),
       canManageProjects: Boolean(user?.is_admin || user?.can_manage_projects),
       canAccessClub: Boolean(user?.is_admin || user?.can_access_club),
-      signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error?.message ?? null };
+      signIn: async (email, password, code) => {
+        const { data, error } = await api.auth.signInWithPassword({ email, password, code });
+        return { error: error?.message ?? null, mfaRequired: data.mfaRequired };
       },
       signOut: async () => {
-        await supabase.auth.signOut();
+        await api.auth.signOut();
         setUser(null);
         setSession(null);
       },

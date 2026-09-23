@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { api } from './api';
 import type { AttendanceStatus, Member } from '@/types';
 
 export interface AttendanceCounts {
@@ -17,14 +17,14 @@ export const loadProjectMemberAttendance = async (
   projectId: string,
 ): Promise<ProjectMemberAttendance> => {
   const [membersResult, eventsResult, attendanceResult] = await Promise.all([
-    supabase
+    api
       .from('members')
       .select('*')
       .eq('project_id', projectId)
       .in('status', ['active', 'archived'])
       .order('last_name'),
-    supabase.from('events').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
-    supabase
+    api.from('events').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
+    api
       .from('attendance')
       .select('member_id, status, events!inner(project_id)')
       .eq('events.project_id', projectId),

@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { pieceFileDownloadUrl, pieceFileUrl, removePieceFiles, uploadPieceFile } from '@/lib/pieceFiles';
 import { useProjectContext } from '@/layouts/projectContext';
 import { cn } from '@/lib/cn';
@@ -69,8 +69,8 @@ export const PiecePracticePage = () => {
 
   const load = useCallback(async () => {
     const [pieceResult, blockResult] = await Promise.all([
-      supabase.from('pieces').select('*').eq('id', pieceId).maybeSingle(),
-      supabase.from('piece_blocks').select('*').eq('id', blockId).maybeSingle(),
+      api.from('pieces').select('*').eq('id', pieceId).maybeSingle(),
+      api.from('piece_blocks').select('*').eq('id', blockId).maybeSingle(),
     ]);
     const loadedBlock = (blockResult.data as PieceBlock | null) ?? null;
     setPiece((pieceResult.data as Piece | null) ?? null);
@@ -180,7 +180,7 @@ export const PiecePracticePage = () => {
   const persistAnchors = (next: Record<string, BarAnchor>) => {
     anchorsRef.current = next;
     setAnchors(next);
-    void supabase
+    void api
       .from('piece_blocks')
       .update({ bar_anchors: next })
       .eq('id', block.id)
@@ -240,7 +240,7 @@ export const PiecePracticePage = () => {
     const result = await uploadPieceFile(block.piece_id, file);
     if (result.path) {
       if (block.score_path) void removePieceFiles([block.score_path]);
-      await supabase
+      await api
         .from('piece_blocks')
         .update({ score_path: result.path, score_name: file.name })
         .eq('id', block.id);
@@ -251,7 +251,7 @@ export const PiecePracticePage = () => {
 
   const removeScore = async () => {
     if (block.score_path) void removePieceFiles([block.score_path]);
-    await supabase
+    await api
       .from('piece_blocks')
       .update({ score_path: null, score_name: null, bar_anchors: {} })
       .eq('id', block.id);

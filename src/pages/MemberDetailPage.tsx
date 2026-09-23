@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { DataTable } from '@/components/DataTable';
 import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AttendanceStatus, Event, Member } from '@/types';
 
@@ -33,11 +33,11 @@ export const MemberDetailPage = () => {
   const [accountName, setAccountName] = useState<string | undefined>(undefined);
 
   const load = async () => {
-    const { data: m } = await supabase.from('members').select('*').eq('id', memberId).maybeSingle();
+    const { data: m } = await api.from('members').select('*').eq('id', memberId).maybeSingle();
     setMember((m as Member) ?? null);
 
     // Name of the linked account (if any), to flag a deviating member name.
-    const { data: names } = await supabase.rpc('linked_account_names', {
+    const { data: names } = await api.rpc('linked_account_names', {
       p_project_id: project.id,
     });
     setAccountName(
@@ -47,7 +47,7 @@ export const MemberDetailPage = () => {
     );
 
     // Existing group names in this project, for the edit form's suggestions.
-    const { data: g } = await supabase
+    const { data: g } = await api
       .from('members')
       .select('group_name')
       .eq('project_id', project.id)
@@ -58,7 +58,7 @@ export const MemberDetailPage = () => {
         .filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b)),
     );
 
-    const { data: att } = await supabase
+    const { data: att } = await api
       .from('attendance')
       .select('status, is_guest, events(*)')
       .eq('member_id', memberId);
