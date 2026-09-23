@@ -78,8 +78,19 @@ const guessAssignment = (headers: string[]): Assignment => {
   };
 };
 
-export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: MemberImportProps) => {
-  const { t } = useI18n();
+// State and logic of a CSV member import; `active` resets it (e.g. when the
+// dialog opens). Shared by the import dialog and the project onboarding.
+export const useMemberImport = ({
+  active,
+  projectId,
+  groups,
+}: {
+  active: boolean;
+  // Null for a project that doesn't exist yet (nothing to match against).
+  projectId: string | null;
+  // The project's current groups (single source of truth).
+  groups: string[];
+}) => {
   const [fileName, setFileName] = useState<string | null>(null);
   const [firstRowHeader, setFirstRowHeader] = useState(true);
   const [rawText, setRawText] = useState<string>('');
@@ -90,17 +101,19 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
   const [members, setMembers] = useState<Member[]>([]);
   const [duplicateAction, setDuplicateAction] = useState<DuplicateAction>('skip');
 
-  // Reset everything whenever the dialog is (re)opened.
+  // Reset everything whenever the import is (re)activated.
   useEffect(() => {
-    if (open) {
+    if (active) {
       setMembers([]);
       setDuplicateAction('skip');
-      void api
-        .from('members')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true })
-        .then(({ data }) => setMembers((data as Member[] | null) ?? []));
+      if (projectId) {
+        void api
+          .from('members')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: true })
+          .then(({ data }) => setMembers((data as Member[] | null) ?? []));
+      }
       setFileName(null);
       setFirstRowHeader(true);
       setRawText('');
@@ -109,7 +122,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
       setImporting(false);
       setError(null);
     }
-  }, [open, projectId]);
+  }, [active, projectId]);
 
   const parsed = useMemo(
     () => (rawText ? parseCsv(rawText, firstRowHeader) : { headers: [], rows: [] }),
@@ -228,11 +241,26 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     return action;
   };
 
-  const runImport = async () => {
-    if (!toCreate.length && !toUpdate.length) return;
+  // Groups to create and members to add, without writing anything.
+  const drafts = () => ({
+    groups: unknownGroups.filter((g) => (groupActions[g] ?? CREATE_GROUP) === CREATE_GROUP),
+    members: toCreate.map((r) => {
+      const { first, last } = namesOf(r);
+      return {
+        first_name: first,
+        last_name: last,
+        group_name: resolveGroup(value(r, 'group_name')),
+        email: value(r, 'email') || null,
+      };
+    }),
+  });
+
+  // Runs the import; resolves to whether it succeeded.
+  const runImport = async (): Promise<boolean> => {
+    if (!projectId || (!toCreate.length && !toUpdate.length)) return false;
     setImporting(true);
     setError(null);
-    const created = unknownGroups.filter((g) => (groupActions[g] ?? CREATE_GROUP) === CREATE_GROUP);
+    const { groups: created, members: newMembers } = drafts();
     if (created.length) {
       const { error: groupsError } = await api.from('project_groups').insert(
         created.map((name, i) => ({
@@ -245,20 +273,10 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
       if (groupsError) {
         setImporting(false);
         setError(groupsError.message);
-        return;
+        return false;
       }
     }
-    const payloads = toCreate.map((r) => {
-      const { first, last } = namesOf(r);
-      return {
-        project_id: projectId,
-        first_name: first,
-        last_name: last,
-        group_name: resolveGroup(value(r, 'group_name')),
-        email: value(r, 'email') || null,
-        photo_url: null,
-      };
-    });
+    const payloads = newMembers.map((m) => ({ ...m, project_id: projectId, photo_url: null }));
     const { error: insertError } = payloads.length
       ? await api.from('members').insert(payloads)
       : { error: null };
@@ -282,39 +300,87 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     const failure = insertError ?? updateErrors.find(Boolean);
     if (failure) {
       setError(failure.message);
-      return;
+      return false;
     }
-    onSaved();
-    onClose();
+    return true;
   };
 
+  return {
+    fileName,
+    rawText,
+    firstRowHeader,
+    setFirstRowHeader,
+    handleFile,
+    parsed,
+    assignment,
+    assign,
+    value,
+    namesOf,
+    requiredMapped,
+    plan,
+    toCreate,
+    toUpdate,
+    unknownGroups,
+    groupActions,
+    setGroupActions,
+    duplicateAction,
+    setDuplicateAction,
+    resolveGroup,
+    groups,
+    canImport: requiredMapped && toCreate.length + toUpdate.length > 0,
+    importing,
+    error,
+    drafts,
+    runImport,
+  };
+};
+
+export type MemberImportState = ReturnType<typeof useMemberImport>;
+
+// What an import will do ("12 of 14 rows ready · 2 to update").
+export const MemberImportSummary = ({ imp }: { imp: MemberImportState }) => {
+  const { t } = useI18n();
+  if (!imp.requiredMapped || imp.parsed.rows.length === 0) return null;
+  return (
+    <span className="text-sm text-text-secondary">
+      {t('rowsReadyToImport')
+        .replace('{n}', String(imp.toCreate.length))
+        .replace('{total}', String(imp.parsed.rows.length))}
+      {imp.toUpdate.length > 0 && ` · ${t('rowsToUpdate').replace('{n}', String(imp.toUpdate.length))}`}
+    </span>
+  );
+};
+
+// File picker, column mapping, group handling, duplicates and preview.
+export const MemberImportFields = ({ imp }: { imp: MemberImportState }) => {
+  const { t } = useI18n();
+  const {
+    fileName,
+    rawText,
+    firstRowHeader,
+    setFirstRowHeader,
+    handleFile,
+    parsed,
+    assignment,
+    assign,
+    value,
+    namesOf,
+    requiredMapped,
+    plan,
+    toCreate,
+    unknownGroups,
+    groupActions,
+    setGroupActions,
+    duplicateAction,
+    setDuplicateAction,
+    resolveGroup,
+    groups,
+    error,
+  } = imp;
   const resultRows = toCreate.slice(0, 3);
 
   return (
-    <Modal
-      open={open}
-      size="3xl"
-      title={t('importMembers')}
-      onClose={onClose}
-      footer={
-        <>
-          {requiredMapped && parsed.rows.length > 0 && (
-            <span className="mr-auto text-sm text-text-secondary">
-              {t('rowsReadyToImport')
-                .replace('{n}', String(toCreate.length))
-                .replace('{total}', String(parsed.rows.length))}
-              {toUpdate.length > 0 && ` · ${t('rowsToUpdate').replace('{n}', String(toUpdate.length))}`}
-            </span>
-          )}
-          <Button variant="secondary" onClick={onClose}>
-            {t('cancel')}
-          </Button>
-          <Button onClick={runImport} disabled={importing || !requiredMapped || toCreate.length + toUpdate.length === 0}>
-            {importing ? t('importing') : t('import')}
-          </Button>
-        </>
-      }
-    >
+    <>
       <div className="flex flex-wrap items-center gap-4">
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5]">
           {fileName ? <FileText size={15} /> : <Upload size={15} />}
@@ -479,6 +545,41 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
         ))}
 
       {error && <p className="text-sm text-accent">{error}</p>}
+    </>
+  );
+};
+
+export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: MemberImportProps) => {
+  const { t } = useI18n();
+  const imp = useMemberImport({ active: open, projectId, groups });
+
+  const runImport = async () => {
+    if (!(await imp.runImport())) return;
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      size="3xl"
+      title={t('importMembers')}
+      onClose={onClose}
+      footer={
+        <>
+          <span className="mr-auto">
+            <MemberImportSummary imp={imp} />
+          </span>
+          <Button variant="secondary" onClick={onClose}>
+            {t('cancel')}
+          </Button>
+          <Button onClick={runImport} disabled={imp.importing || !imp.canImport}>
+            {imp.importing ? t('importing') : t('import')}
+          </Button>
+        </>
+      }
+    >
+      <MemberImportFields imp={imp} />
     </Modal>
   );
 };

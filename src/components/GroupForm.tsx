@@ -17,6 +17,7 @@ export const GroupForm = ({
   groups,
   onClose,
   onSaved,
+  onSubmit,
 }: {
   open: boolean;
   projectId: string;
@@ -25,6 +26,9 @@ export const GroupForm = ({
   groups: ProjectGroup[];
   onClose: () => void;
   onSaved: () => void;
+  // Replaces saving to the database (e.g. for groups of a project that
+  // doesn't exist yet).
+  onSubmit?: (values: { name: string; color: string }) => void;
 }) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
@@ -49,6 +53,11 @@ export const GroupForm = ({
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!trimmed || duplicate) return;
+    if (onSubmit) {
+      onSubmit({ name: trimmed, color });
+      onClose();
+      return;
+    }
     setSaving(true);
     setError(null);
     const { error: saveError } = group

@@ -15,6 +15,7 @@ import {
 import { EventLayout } from '@/layouts/EventLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ProjectsPage } from '@/pages/ProjectsPage';
+import { ProjectOnboardingPage } from '@/pages/ProjectOnboardingPage';
 import { ClubMembersPage } from '@/pages/ClubMembersPage';
 import { ClubMemberDetailPage } from '@/pages/ClubMemberDetailPage';
 import { ClubApplicationsPage } from '@/pages/ClubApplicationsPage';
@@ -109,6 +110,9 @@ export const App = () => {
         <Route path="users/:userId" element={<UserDetailPage />} />
         <Route path="config" element={<AdminConfigPage />} />
       </Route>
+
+      {/* Full-screen wizard for creating a project. */}
+      <Route path="projects/new" element={<ProjectOnboardingPage />} />
 
       {/* Inside a project. Access (manager vs. participant) is resolved in the
           layout; management pages are additionally wrapped in a guard. */}

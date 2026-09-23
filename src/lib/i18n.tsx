@@ -872,6 +872,85 @@ const dict: Dict = {
     en: 'Name and email are taken from your account. Only the group is chosen per project.',
   },
 
+  // Project onboarding
+  onboardingStepProject: { de: 'Projekt', en: 'Project' },
+  onboardingStepMembers: { de: 'Mitglieder', en: 'Members' },
+  onboardingStepGroups: { de: 'Gruppen', en: 'Groups' },
+  onboardingStepDone: { de: 'Fertig', en: 'Done' },
+  onboardingSkip: { de: 'Einrichtung überspringen', en: 'Skip setup' },
+  onboardingContinue: { de: 'Weiter', en: 'Continue' },
+  onboardingProjectTitle: { de: 'Neues Projekt anlegen', en: 'Create a new project' },
+  onboardingProjectHint: {
+    de: 'Gib deinem Projekt einen Namen und ein Logo. Beides kannst du später jederzeit ändern.',
+    en: 'Give your project a name and a logo. You can change both at any time later.',
+  },
+  onboardingLogo: { de: 'Logo', en: 'Logo' },
+  onboardingLogoHint: { de: 'Quadratisches Bild, z. B. PNG oder JPG', en: 'Square image, e.g. PNG or JPG' },
+  onboardingLogoUpload: { de: 'Logo hochladen', en: 'Upload logo' },
+  onboardingPreview: { de: 'Vorschau', en: 'Preview' },
+  onboardingNamePlaceholder: { de: 'z. B. Sommerkonzert 2026', en: 'e.g. Summer concert 2026' },
+  onboardingMembersTitle: { de: 'Mitgliederliste importieren', en: 'Import your member list' },
+  onboardingMembersHint: {
+    de: 'Lade eine CSV-Datei hoch, z. B. einen Export aus Excel oder Google Sheets. Gruppen aus der Datei werden automatisch angelegt.',
+    en: 'Upload a CSV file, e.g. an export from Excel or Google Sheets. Groups found in the file are created automatically.',
+  },
+  onboardingDropCsv: { de: 'CSV-Datei hierher ziehen', en: 'Drop a CSV file here' },
+  onboardingDropCsvHint: { de: 'oder klicken, um eine Datei auszuwählen', en: 'or click to choose a file' },
+  onboardingImportAndContinue: { de: 'Importieren & weiter', en: 'Import & continue' },
+  onboardingContinueWithoutImport: { de: 'Ohne Import weiter', en: 'Continue without import' },
+  onboardingImported: {
+    de: '{n} Mitglieder werden mit dem Projekt angelegt. Ein erneuter Import ersetzt sie.',
+    en: '{n} members will be created with the project. Importing again replaces them.',
+  },
+  onboardingDiscardTitle: { de: 'Einrichtung verwerfen?', en: 'Discard setup?' },
+  onboardingDiscardMessage: {
+    de: 'Das Projekt wurde noch nicht angelegt. Alle Eingaben gehen verloren.',
+    en: 'The project has not been created yet. Everything you entered will be lost.',
+  },
+  onboardingDiscard: { de: 'Verwerfen', en: 'Discard' },
+  onboardingGroupsTitle: { de: 'Gruppen prüfen', en: 'Review your groups' },
+  onboardingGroupsHint: {
+    de: 'Lege Gruppen an, benenne sie um, wähle Farben und bring sie per Drag & Drop in die richtige Reihenfolge. Diese Reihenfolge gilt überall im Projekt.',
+    en: 'Create groups, rename them, pick colors and drag them into the right order. This order is used everywhere in the project.',
+  },
+  onboardingNoGroups: {
+    de: 'Noch keine Gruppen. Lege z. B. Stimmen oder Register an.',
+    en: 'No groups yet. Add e.g. voices or sections.',
+  },
+  onboardingMembersCount: { de: '{n} Mitglieder', en: '{n} members' },
+  onboardingSetUpProject: { de: 'Projekt einrichten', en: 'Set up project' },
+  onboardingDoneTitle: { de: '{name} ist startklar', en: '{name} is ready' },
+  onboardingDoneHint: {
+    de: 'Dein Projekt ist eingerichtet. Hier sind ein paar Ideen, wie es weitergeht.',
+    en: 'Your project is set up. Here are a few ideas for what to do next.',
+  },
+  onboardingOpenProject: { de: 'Zum Projekt', en: 'Open project' },
+  onboardingTipEvent: { de: 'Neue Probe hinzufügen', en: 'Add a rehearsal' },
+  onboardingTipEventHint: {
+    de: 'Plane Proben und erfasse die Anwesenheit per Check-in.',
+    en: 'Schedule rehearsals and track attendance with check-in.',
+  },
+  onboardingTipPieces: { de: 'Stücke und MIDIs hochladen', en: 'Upload pieces and MIDIs' },
+  onboardingTipPiecesHint: {
+    de: 'Stelle Noten und Übe-Dateien für alle Stimmen bereit.',
+    en: 'Share scores and practice files for every section.',
+  },
+  onboardingTipRegistration: { de: 'Anmeldeformular erstellen', en: 'Create a sign-up form' },
+  onboardingTipRegistrationHint: {
+    de: 'Oder verknüpfe Google Forms bzw. einen Webhook, um Anmeldungen zu sammeln.',
+    en: 'Or connect Google Forms or a webhook to collect sign-ups.',
+  },
+  onboardingTipPermissions: { de: 'Berechtigungen bearbeiten', en: 'Edit permissions' },
+  onboardingTipPermissionsHint: {
+    de: 'Lege fest, was Teilnehmende und Gäste sehen und tun dürfen.',
+    en: 'Decide what participants and guests can see and do.',
+  },
+  onboardingTipAbsences: { de: 'Regel für Fehlzeiten hinzufügen', en: 'Add an absence rule' },
+  onboardingTipAbsencesHint: {
+    de: 'Finde automatisch, wer zu oft gefehlt hat.',
+    en: 'Automatically find who has missed too many rehearsals.',
+  },
+
   // Confirmations
   confirmDelete: {
     de: 'Wirklich endgültig löschen? Dies kann nicht rückgängig gemacht werden.',

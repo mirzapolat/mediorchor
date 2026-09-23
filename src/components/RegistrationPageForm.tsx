@@ -27,7 +27,7 @@ const blank: FormState = {
   auto_transfer: false,
 };
 
-const Checkbox = ({
+export const Checkbox = ({
   checked,
   onChange,
   label,

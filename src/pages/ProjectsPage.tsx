@@ -1,10 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderKanban, Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
-import { Input, Textarea } from '@/components/Input';
-import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
@@ -15,19 +13,12 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import type { Project } from '@/types';
 
-const empty = { name: '', description: '' };
-
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { user, canManageProjects } = useAuth();
+  const { canManageProjects } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Project | null>(null);
-  const [form, setForm] = useState(empty);
-  const [saving, setSaving] = useState(false);
   const [toDelete, setToDelete] = useState<Project | null>(null);
 
   const load = async () => {
@@ -42,26 +33,6 @@ export const ProjectsPage = () => {
   useEffect(() => {
     void load();
   }, []);
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm(empty);
-    setFormOpen(true);
-  };
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    const payload = { name: form.name.trim(), description: form.description.trim() || null };
-    if (editing) {
-      await api.from('projects').update(payload).eq('id', editing.id);
-    } else {
-      await api.from('projects').insert({ ...payload, created_by: user?.id ?? null });
-    }
-    setSaving(false);
-    setFormOpen(false);
-    await load();
-  };
 
   const toggleArchive = async (p: Project) => {
     await api
@@ -129,7 +100,7 @@ export const ProjectsPage = () => {
         title={t('projects')}
         actions={
           canManageProjects ? (
-            <Button onClick={openCreate}>
+            <Button onClick={() => navigate('/projects/new')}>
               <Plus size={16} />
               {t('newProject')}
             </Button>
@@ -167,37 +138,6 @@ export const ProjectsPage = () => {
             : undefined
         }
       />
-
-      <Modal
-        open={formOpen}
-        title={editing ? t('editProject') : t('newProject')}
-        onClose={() => setFormOpen(false)}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setFormOpen(false)}>
-              {t('cancel')}
-            </Button>
-            <Button type="submit" form="project-form" disabled={saving || !form.name.trim()}>
-              {saving ? t('loading') : editing ? t('save') : t('create')}
-            </Button>
-          </>
-        }
-      >
-        <form id="project-form" onSubmit={save} className="space-y-4">
-          <Input
-            label={t('projectName')}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-            autoFocus
-          />
-          <Textarea
-            label={`${t('description')} (${t('optional')})`}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </form>
-      </Modal>
 
       <ConfirmDialog
         open={!!toDelete}
