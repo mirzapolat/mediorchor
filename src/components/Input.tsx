@@ -48,7 +48,7 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = ({ label, id, className, children, ...props }: SelectProps) => (
   <Field label={label} htmlFor={id}>
-    <select id={id} className={cn(fieldClasses, className)} {...props}>
+    <select id={id} className={cn(fieldClasses, 'pr-9', className)} {...props}>
       {children}
     </select>
   </Field>

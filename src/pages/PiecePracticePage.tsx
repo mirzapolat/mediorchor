@@ -401,7 +401,7 @@ export const PiecePracticePage = () => {
                 onChange={(e) => setRate(Number(e.target.value))}
                 aria-label={t('playbackSpeed')}
                 title={t('playbackSpeed')}
-                className="h-8 flex-shrink-0 rounded-md border border-border bg-white px-1.5 text-sm text-text-secondary focus:outline-none focus:border-black transition-colors duration-150"
+                className="h-8 flex-shrink-0 rounded-md border border-border bg-white bg-[length:14px_14px] bg-[position:right_0.375rem_center] pl-2 pr-6 text-sm text-text-secondary focus:outline-none focus:border-black transition-colors duration-150"
               >
                 {PLAYBACK_RATES.map((r) => (
                   <option key={r} value={r}>
