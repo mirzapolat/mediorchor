@@ -57,6 +57,8 @@ export default {
         'soft-strong': token('info-soft-strong'),
       },
       scrim: token('scrim'),
+      // Stays white in dark mode (QR codes); see index.css.
+      paper: token('paper'),
     },
     extend: {
       // Preflight's default border color would fall back to the (removed)

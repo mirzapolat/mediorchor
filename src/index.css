@@ -25,6 +25,8 @@
      accent            branding color (set at runtime by applyBranding)
      success / danger / info (+ -strong text, -soft backgrounds)
      scrim             backdrop behind dialogs; black in both themes
+     paper             white in both themes, for things that must stay light
+                       (QR codes to scan, print-like previews)
 
    The active theme is html[data-theme="light" | "dark"], set before first
    paint by the script in index.html and kept in sync by ThemeProvider.
@@ -59,6 +61,7 @@
   --c-info-soft: 239 246 255;
   --c-info-soft-strong: 227 238 255;
   --c-scrim: 0 0 0;
+  --c-paper: 255 255 255;
 }
 
 :root[data-theme='dark'] {

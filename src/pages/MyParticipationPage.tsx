@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bookmark, CalendarDays, Clock, LogIn, LogOut } from 'lucide-react';
+import { Bookmark, CalendarDays, ChevronDown, Clock, LogIn, LogOut } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -15,6 +15,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AbsenceLabel, Attendance, Event, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
+
+// Entries per list before "show more".
+const LIST_PREVIEW = 4;
 
 // "Meine Teilnahme": every account (participant, manager or admin) manages its
 // own participation in the project here — group, attendance so far, upcoming
@@ -42,6 +45,9 @@ export const MyParticipationPage = () => {
   });
   const [busy, setBusy] = useState(false);
   const [groupSaved, setGroupSaved] = useState(false);
+  // Both lists start with the first few entries and expand on demand.
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+  const [showAllPast, setShowAllPast] = useState(false);
 
   const participating = member?.status === 'active';
 
@@ -240,24 +246,52 @@ export const MyParticipationPage = () => {
             {upcoming.length === 0 ? (
               <p className="text-sm text-text-tertiary mt-2">{t('noUpcomingEvents')}</p>
             ) : (
-              <ul className="divide-y divide-border">
-                {upcoming.map((e, i) => (
-                  <li key={e.id} className="py-3">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <p className="font-medium leading-snug break-words">{e.name}</p>
-                      {i === 0 && (
-                        <span className="rounded-md bg-success-soft-strong px-2 py-0.5 text-xs font-semibold text-success-strong">
-                          {e.date === today ? t('todayRehearsal') : t('nextRehearsal')}
-                        </span>
-                      )}
-                    </div>
-                    <EventWhen date={e.date} time={e.time} lang={lang} />
-                    {e.description && (
-                      <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="divide-y divide-border">
+                  {(showAllUpcoming ? upcoming : upcoming.slice(0, LIST_PREVIEW)).map((e, i) => {
+                    // Already recorded ahead of time: excused, or marked present
+                    // ("expected"; today: checked in). "Absent" isn't shown, as
+                    // nothing has happened yet.
+                    const status = statusByEvent.get(e.id);
+                    const recorded =
+                      status === 'excused'
+                        ? 'excused'
+                        : status === 'attended'
+                          ? e.date === today
+                            ? 'attended'
+                            : 'expected'
+                          : null;
+                    return (
+                      <li key={e.id} className="flex items-start justify-between gap-3 py-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p className="font-medium leading-snug break-words">{e.name}</p>
+                            {i === 0 && (
+                              <span className="rounded-md bg-success-soft-strong px-2 py-0.5 text-xs font-semibold text-success-strong">
+                                {e.date === today ? t('todayRehearsal') : t('nextRehearsal')}
+                              </span>
+                            )}
+                          </div>
+                          <EventWhen date={e.date} time={e.time} lang={lang} />
+                          {e.description && (
+                            <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
+                          )}
+                        </div>
+                        {recorded && (
+                          <span className="shrink-0">
+                            <StatusBadge status={recorded} />
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <ShowMoreButton
+                  total={upcoming.length}
+                  expanded={showAllUpcoming}
+                  onToggle={() => setShowAllUpcoming((v) => !v)}
+                />
+              </>
             )}
           </Card>
 
@@ -286,22 +320,29 @@ export const MyParticipationPage = () => {
             {past.length === 0 ? (
               <p className="text-sm text-text-tertiary mt-2">{t('noAttendanceYet')}</p>
             ) : (
-              <ul className="mt-1 divide-y divide-border">
-                {past.map((e) => (
-                  <li key={e.id} className="flex items-start justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="font-medium leading-snug break-words">{e.name}</p>
-                      <EventWhen date={e.date} time={e.time} lang={lang} />
-                      {e.description && (
-                        <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
-                      )}
-                    </div>
-                    <span className="shrink-0">
-                      <StatusBadge status={statusByEvent.get(e.id) ?? 'not_attended'} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-1 divide-y divide-border">
+                  {(showAllPast ? past : past.slice(0, LIST_PREVIEW)).map((e) => (
+                    <li key={e.id} className="flex items-start justify-between gap-3 py-3">
+                      <div className="min-w-0">
+                        <p className="font-medium leading-snug break-words">{e.name}</p>
+                        <EventWhen date={e.date} time={e.time} lang={lang} />
+                        {e.description && (
+                          <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
+                        )}
+                      </div>
+                      <span className="shrink-0">
+                        <StatusBadge status={statusByEvent.get(e.id) ?? 'not_attended'} />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <ShowMoreButton
+                  total={past.length}
+                  expanded={showAllPast}
+                  onToggle={() => setShowAllPast((v) => !v)}
+                />
+              </>
             )}
           </Card>
 
@@ -404,3 +445,31 @@ const Stat = ({ value, label, className }: { value: number; label: string; class
     <p className="mt-1 truncate text-xs text-text-secondary">{label}</p>
   </div>
 );
+
+// Expands a list shortened to LIST_PREVIEW entries; hidden when nothing is cut.
+const ShowMoreButton = ({
+  total,
+  expanded,
+  onToggle,
+}: {
+  total: number;
+  expanded: boolean;
+  onToggle: () => void;
+}) => {
+  const { t } = useI18n();
+  if (total <= LIST_PREVIEW) return null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className="mt-1 flex w-full items-center justify-center gap-1.5 border-t border-border pt-3 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
+    >
+      {expanded ? t('showLess') : `${t('showMore')} (${total - LIST_PREVIEW})`}
+      <ChevronDown
+        size={16}
+        className={cn('transition-transform duration-150', expanded && 'rotate-180')}
+      />
+    </button>
+  );
+};

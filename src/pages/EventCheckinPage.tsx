@@ -332,7 +332,11 @@ export const EventCheckinPage = () => {
       </div>
 
       <section className="flex flex-col items-center text-center py-4 mb-12">
-        <div ref={qrContainerRef} className="relative rounded-xl border border-border bg-white p-5 shadow-sm">
+        {/* An active code sits on paper (light in dark mode too) so it scans well. */}
+        <div
+          ref={qrContainerRef}
+          className={`relative rounded-xl border border-border p-5 shadow-sm ${checkin.is_active ? 'bg-paper' : 'bg-white'}`}
+        >
           <QRCodeSVG
             value={publicUrl}
             size={264}
@@ -790,7 +794,9 @@ const FullscreenQrCode = ({
       </button>
 
       <h2 className="mb-8 max-w-3xl text-3xl font-bold sm:text-4xl">{eventName}</h2>
-      <div className="relative rounded-2xl border border-border bg-white p-6 shadow-sm sm:p-8">
+      <div
+        className={`relative rounded-2xl border border-border p-6 shadow-sm sm:p-8 ${active ? 'bg-paper' : 'bg-white'}`}
+      >
         <QRCodeSVG
           value={publicUrl}
           size={640}

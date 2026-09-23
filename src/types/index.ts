@@ -94,6 +94,11 @@ export interface Event {
 
 export type AttendanceStatus = 'not_attended' | 'attended' | 'excused';
 
+// What a member's row shows for one Probe. Past Proben use the stored status
+// (no record = not_attended); upcoming ones show 'expected' (marked present in
+// advance), 'excused' or 'upcoming' (nothing recorded yet).
+export type AttendanceDisplayStatus = AttendanceStatus | 'expected' | 'upcoming';
+
 export interface Attendance {
   id: string;
   event_id: string;

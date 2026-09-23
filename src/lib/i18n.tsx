@@ -36,6 +36,8 @@ const dict: Dict = {
   actions: { de: 'Aktionen', en: 'Actions' },
   clearFilters: { de: 'Zurücksetzen', en: 'Reset' },
   searchAndFilter: { de: 'Suchen & filtern', en: 'Search & filter' },
+  showMore: { de: 'Mehr anzeigen', en: 'Show more' },
+  showLess: { de: 'Weniger anzeigen', en: 'Show less' },
   collapse: { de: 'Einklappen', en: 'Collapse' },
   deleteAccount: { de: 'Konto löschen', en: 'Delete account' },
   deleteAccountHint: {
@@ -362,6 +364,8 @@ const dict: Dict = {
   attended: { de: 'Anwesend', en: 'Present' },
   excused: { de: 'Entschuldigt', en: 'Excused' },
   notAttended: { de: 'Abwesend', en: 'Absent' },
+  expectedStatus: { de: 'Erwartet', en: 'Expected' },
+  upcomingStatus: { de: 'In Zukunft', en: 'Upcoming' },
   total: { de: 'insgesamt', en: 'total' },
   addMemberToEvent: { de: 'Mitglied hinzufügen', en: 'Add member' },
   addAsGuest: { de: 'Als Gast hinzufügen', en: 'Add as guest' },

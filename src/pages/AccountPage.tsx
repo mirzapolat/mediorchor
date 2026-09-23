@@ -222,7 +222,7 @@ const TwoFactorCard = () => {
             size={176}
             marginSize={2}
             title="TOTP QR"
-            className="border border-border rounded-md bg-white"
+            className="border border-border rounded-md bg-paper"
           />
           <Input
             label="123456"

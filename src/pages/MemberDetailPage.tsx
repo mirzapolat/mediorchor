@@ -13,15 +13,30 @@ import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
-import type { AttendanceStatus, Event, Member } from '@/types';
+import type { AttendanceDisplayStatus, AttendanceStatus, Event, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { GroupPill } from '@/components/GroupPill';
 
+// One row per Probe of the project, whether or not anything is recorded.
 interface HistoryRow {
   event: Event;
-  status: AttendanceStatus;
+  status: AttendanceDisplayStatus;
+  upcoming: boolean;
   is_guest: boolean;
 }
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// Past (and undated) Proben: stored status, no record = absent. Today and
+// later: excused, marked present ("expected"; today: checked in = present) or
+// nothing yet ("upcoming").
+const displayStatus = (event: Event, status: AttendanceStatus | undefined): AttendanceDisplayStatus => {
+  const today = todayIso();
+  if (!event.date || event.date < today) return status ?? 'not_attended';
+  if (status === 'excused') return 'excused';
+  if (status === 'attended') return event.date === today ? 'attended' : 'expected';
+  return 'upcoming';
+};
 
 export const MemberDetailPage = () => {
   const { t } = useI18n();
@@ -50,19 +65,31 @@ export const MemberDetailPage = () => {
       )?.account_name,
     );
 
-    const { data: att } = await api
-      .from('attendance')
-      .select('status, is_guest, events(*)')
-      .eq('member_id', memberId);
-
-    const rows: HistoryRow[] = ((att as unknown as Array<{
-      status: AttendanceStatus;
-      is_guest: boolean;
-      events: Event;
-    }>) ?? [])
-      .filter((r) => r.events)
-      .map((r) => ({ event: r.events, status: r.status, is_guest: r.is_guest }))
-      .sort((a, b) => (a.event.date ?? '').localeCompare(b.event.date ?? ''));
+    const [{ data: events }, { data: att }] = await Promise.all([
+      api.from('events').select('*').eq('project_id', project.id),
+      api.from('attendance').select('event_id, status, is_guest').eq('member_id', memberId),
+    ]);
+    const records = new Map(
+      ((att as { event_id: string; status: AttendanceStatus; is_guest: boolean }[] | null) ?? []).map(
+        (r) => [r.event_id, r],
+      ),
+    );
+    const today = todayIso();
+    const rows: HistoryRow[] = ((events as Event[] | null) ?? [])
+      .map((event) => {
+        const record = records.get(event.id);
+        return {
+          event,
+          status: displayStatus(event, record?.status),
+          upcoming: Boolean(event.date && event.date >= today),
+          is_guest: record?.is_guest ?? false,
+        };
+      })
+      .sort((a, b) =>
+        a.event.date === b.event.date
+          ? (a.event.time ?? '').localeCompare(b.event.time ?? '')
+          : (a.event.date ?? '').localeCompare(b.event.date ?? ''),
+      );
     setHistory(rows);
     setLoading(false);
   };
@@ -86,12 +113,26 @@ export const MemberDetailPage = () => {
         { value: 'attended', label: t('attended') },
         { value: 'excused', label: t('excused') },
         { value: 'not_attended', label: t('notAttended') },
+        { value: 'expected', label: t('expectedStatus') },
+        { value: 'upcoming', label: t('upcomingStatus') },
       ],
       predicate: (h, v) => h.status === v,
     },
+    {
+      id: 'timeframe',
+      label: t('timeframe'),
+      options: [
+        { value: 'past', label: t('past') },
+        { value: 'upcoming', label: t('upcoming') },
+      ],
+      predicate: (h, v) => (v === 'upcoming' ? h.upcoming : !h.upcoming),
+    },
   ]);
 
-  const attendedCount = history.filter((h) => h.status === 'attended').length;
+  // The counters cover Proben that have taken place; upcoming ones are listed
+  // below but only count once they're held.
+  const held = history.filter((h) => !h.upcoming);
+  const attendedCount = held.filter((h) => h.status === 'attended').length;
 
   return (
     <>
@@ -134,12 +175,12 @@ export const MemberDetailPage = () => {
         <Card>
           <p className="text-sm text-text-secondary">{t('excused')}</p>
           <p className="text-2xl font-bold mt-1">
-            {history.filter((h) => h.status === 'excused').length}
+            {held.filter((h) => h.status === 'excused').length}
           </p>
         </Card>
         <Card>
           <p className="text-sm text-text-secondary">{t('events')}</p>
-          <p className="text-2xl font-bold mt-1">{history.length}</p>
+          <p className="text-2xl font-bold mt-1">{held.length}</p>
         </Card>
       </div>
 
