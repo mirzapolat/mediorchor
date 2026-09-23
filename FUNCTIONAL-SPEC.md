@@ -300,7 +300,8 @@ A guided dialog:
 3. **Column mapping (graphical)** — the first 5 rows are shown as a preview table ("… and *n* more" below). Above every column sits a chip-styled dropdown to assign what the column contains: *First name*, *Last name*, *Full name*, *Email*, *Group* or *Not used*. Each attribute has its own color and icon; assigned columns are tinted in that color with a colored top edge, unused columns are greyed out. Assigning an attribute moves it from any other column (one column per attribute, one attribute per column). Columns are **pre-assigned** from the headers by substring matching in both languages (`vorname/first/given`, `nachname/last/surname/familien`, `mail`, `gruppe/group/team/klasse/stimme/instrument/register`); a "name" header without a first/last qualifier becomes the full name when first and last name aren't both found.
    - Names: first and last name come from their own columns; a *Full name* column fills whatever is missing, split at the last space. Required is either first + last name, or a full name (then single-token names are allowed). Until then an accent note asks for it.
 4. **New groups** — shown only when the group column contains groups the project doesn't have (values matching an existing group apart from case are mapped to it silently). For each new group the manager chooses: **create it as a new group** (default; appended to the project's groups with the next palette color), **assign its rows to an existing group**, or **remove** it (those rows get no group).
-5. **Result preview** — "How members will be created": the first 3 resulting members (first name, last name, email, group pill). The footer states "*n* of *total* rows will be imported"; rows without a usable name are skipped.
+5. **Already there** — shown when rows match existing members of the project (§16 *Duplicate detection*, archived members included) or repeat within the file. Rows repeating an earlier row of the file are always skipped (counted in a note). For rows matching existing members the manager picks: **Skip** (default), **Update existing** (re-activate, take the file's group if it has one, fill in a missing email; names stay), or **Create anyway**. Up to 5 matches are listed as "CSV name → member name · email (Archived)".
+6. **Result preview** — "How members will be created": the first 3 members to be created (first name, last name, email, group pill). The footer states "*n* of *total* rows will be imported" (plus "· *m* will be updated" when updating); rows without a usable name are skipped.
 
 Import is a single batch operation; errors are surfaced inline.
 
@@ -430,6 +431,7 @@ Both types feed the same registrations list, table, transfer and auto-transfer. 
 - Back link, title, "*n* registrations", an edit button, and an Activate/Deactivate button (accent when active).
 - A status card: colored dot with "Registration is active/inactive", for form pages the public URL as a link with a copy-link button that flips to "Link copied.", and the auto-transfer checkbox toggled inline.
 - Webhook pages additionally show the webhook panel (§11.4).
+- **Distribution** (only when the page asks for a group and has registrations) — a collapsible card above the table, collapsed by default; the open/closed choice is remembered in the browser. Collapsed it is one line: chevron, "Distribution" and a thin proportional bar of the groups in their colors. Expanded it shows the group donut (§8.5) with registrations per group; on desktop the legend sits beside the donut in two or three columns. Clicking a segment or legend row filters the table by that group (click again to clear); while a group filter is active, a "Show all groups" button in the card header clears it.
 - **Registrations table** — columns first name, last name, (email if asked), (group if asked), transfer status (green "Transferred" / grey "Pending"), and registered-at timestamp. Search across all name/email/group fields; filter by transfer status.
   - A pending registration whose group isn't one of the project's groups (possible for webhook entries) shows an accent note "Not in the project – adjust before transferring".
   - **Inline editing:** the edit row action turns the name/email/group cells into inputs, with save (✓) and cancel (✕) actions.
@@ -443,7 +445,8 @@ Both types feed the same registrations list, table, transfer and auto-transfer. 
     - The number is set with a −/+ stepper or typed, limited to 1…pending ("of *N* pending registrations"). The submit button reads "Transfer *n*" / "Draw and transfer *n*".
     - Afterwards the dialog lists exactly who was transferred (numbered, with check marks) until closed with "Done"; the table refreshes behind it. Transfers follow the usual transfer semantics.
 
-**Transfer semantics:** transferring creates an active project member from the registration and marks it transferred. If the registration was submitted by a signed-in account that *already* has a member row in that project, that row is re-activated (and its group updated) rather than duplicated, and the new member is linked to the account. Transferring an already-transferred registration is a no-op.
+**Transfer semantics:** transferring creates an active project member from the registration and marks it transferred — unless the project already has that person (§16 *Duplicate detection*). Then the existing row is re-activated, takes the registration's group (if any), gets a missing email filled in and, for a registration submitted with an account, is linked to that account; no second row is created. This applies to manual, bulk, selection, and automatic transfers (form and webhook) alike. Transferring an already-transferred registration is a no-op.
+  - In the table, a pending registration that matches an existing member shows "Already a member" (or "Archived member") under its status; hovering names the member it will be merged into.
 
 ### 11.3 Visitor side (`/register/:token`)
 
@@ -618,6 +621,8 @@ This directory is completely separate from project members — no linking, no sh
 
 **Name splitting** — wherever a single display name must become first/last, the split happens at the **last space**; single-token names get an empty last name. This heuristic is used identically for account names, CSV imports and registration prefills.
 
+**Duplicate detection** — whether an incoming person (a registration being transferred, a CSV row) is someone the project already has, archived members included. Names and emails are compared ignoring case, accents and surrounding/repeated whitespace. In order of precedence: the member linked to the same account; a member with the same email; a member with the same first **and** last name whose email doesn't contradict (only one side has an email, or neither). Active rows win over archived ones, then the oldest. A member linked to a *different* account never matches someone who came with an account. The same rule runs on the server (transfers) and in the browser (hints, import preview).
+
 **Storage** — member/project images and piece attachments live in public buckets. Object keys are always generated (never the raw file name); downloads still present the original file name. Deleting a piece or block cleans up its stored files.
 
 **Server-side privileged operations** — creating and deleting accounts require elevated privileges and therefore run server-side behind an admin check, never in the browser. Deleting oneself or another administrator is rejected.
@@ -687,7 +692,7 @@ These are the non-obvious rules that make the app coherent. They are easy to mis
 
 1. **Registration ≠ membership.** Even an account-authenticated sign-up produces only a registration. Membership happens at transfer time. Check-in, by contrast, *does* create membership implicitly.
 2. **Leaving a project archives, never deletes.** History must survive, and rejoining must restore participation without any data loss.
-3. **One member row per account per project**, enforced everywhere: joining, check-in, registration transfer, and the manager's member form all re-activate rather than duplicate.
+3. **One member row per account per project**, enforced everywhere: joining, check-in, registration transfer, and the manager's member form all re-activate rather than duplicate. Registration transfers and CSV imports additionally recognise people without an account by email or name (§16 *Duplicate detection*).
 4. **Groups are per project and centrally defined.** The project's groups table is the only source of groups anywhere; member groups always stay in sync with it (renames and deletions cascade, unknown groups are created).
 5. **Absent is derived, not stored.** It is total events minus present minus excused. Undated events still count as held.
 6. **The account's email and name are authoritative** in account-mode flows; typed values are ignored.

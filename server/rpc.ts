@@ -76,8 +76,52 @@ const upsertAttendance = (eventId: string, memberId: string, status: string) =>
     )
     .run(eventId, memberId, status);
 
-// A registration becomes a member; an account that already has a member row in
-// the project gets that row re-activated instead (one link per project).
+// Case-, accent- and whitespace-insensitive ("  Jürgen " → "jurgen").
+const norm = (value: unknown) =>
+  text(value)
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+// The project member an incoming person already is (same rule as
+// src/lib/memberMatching.ts): the member linked to the same account, else an
+// email match, else a first + last name match whose emails don't contradict
+// each other; active rows before archived ones, then the oldest. A member
+// linked to a different account never matches a person with an account.
+const findMatchingMember = (
+  projectId: string,
+  firstName: string,
+  lastName: string,
+  email: string | null,
+  userId: string | null,
+) => {
+  const members = db
+    .prepare(
+      `select id, first_name, last_name, email, status, user_id
+       from members where project_id = ? order by created_at, rowid`,
+    )
+    .all(projectId) as { id: string; first_name: string; last_name: string; email: string | null; status: string; user_id: string | null }[];
+  if (userId) {
+    const linked = members.find((m) => m.user_id === userId);
+    if (linked) return linked;
+  }
+  const mail = norm(email);
+  const candidates = members.filter((m) => {
+    if (userId && m.user_id && m.user_id !== userId) return false;
+    const memberMail = norm(m.email);
+    if (mail && memberMail) return mail === memberMail;
+    return norm(m.first_name) === norm(firstName) && norm(m.last_name) === norm(lastName);
+  });
+  const rank = (m: (typeof members)[number]) =>
+    (mail && norm(m.email) === mail ? 0 : 2) + (m.status === 'active' ? 0 : 1);
+  return candidates.sort((a, b) => rank(a) - rank(b))[0] ?? null;
+};
+
+// A registration becomes a member. Someone the project already has (same
+// account, email or name — see findMatchingMember) gets that row re-activated
+// and updated instead of a duplicate; an unlinked row is linked to the account.
 export const registrationToMember = (
   projectId: string,
   firstName: string,
@@ -86,16 +130,14 @@ export const registrationToMember = (
   email: string | null,
   userId: string | null,
 ) => {
-  if (userId) {
-    const existing = db
-      .prepare('select id from members where project_id = ? and user_id = ?')
-      .get(projectId, userId) as { id: string } | undefined;
-    if (existing) {
-      db.prepare(
-        `update members set status = 'active', group_name = coalesce(?, group_name) where id = ?`,
-      ).run(groupName, existing.id);
-      return existing.id;
-    }
+  const existing = findMatchingMember(projectId, firstName, lastName, email, userId);
+  if (existing) {
+    db.prepare(
+      `update members set status = 'active', group_name = coalesce(?, group_name),
+         email = coalesce(email, ?), user_id = coalesce(user_id, ?)
+       where id = ?`,
+    ).run(groupName, email, userId, existing.id);
+    return existing.id;
   }
   return insertMember({
     project_id: projectId,

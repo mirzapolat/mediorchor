@@ -10,6 +10,8 @@ import { api } from '@/lib/api';
 import { parseCsv } from '@/lib/csv';
 import { splitName } from '@/lib/accountName';
 import { paletteColor } from '@/lib/groupColors';
+import { findMatchingMember, samePerson, type PersonLike } from '@/lib/memberMatching';
+import type { Member } from '@/types';
 
 interface MemberImportProps {
   open: boolean;
@@ -30,6 +32,10 @@ const CREATE_GROUP = '__create__';
 const DROP_GROUP = '__none__';
 
 const PREVIEW_ROWS = 5;
+const DUPLICATE_PREVIEW = 5;
+
+// What happens to rows matching someone the project already has.
+type DuplicateAction = 'skip' | 'update' | 'create';
 
 // Best-effort match of a CSV header to an attribute by common substrings.
 const guessColumn = (headers: string[], needles: string[], taken: Set<number>): number | null => {
@@ -81,10 +87,20 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
   const [groupActions, setGroupActions] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [duplicateAction, setDuplicateAction] = useState<DuplicateAction>('skip');
 
   // Reset everything whenever the dialog is (re)opened.
   useEffect(() => {
     if (open) {
+      setMembers([]);
+      setDuplicateAction('skip');
+      void api
+        .from('members')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: true })
+        .then(({ data }) => setMembers((data as Member[] | null) ?? []));
       setFileName(null);
       setFirstRowHeader(true);
       setRawText('');
@@ -93,7 +109,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
       setImporting(false);
       setError(null);
     }
-  }, [open]);
+  }, [open, projectId]);
 
   const parsed = useMemo(
     () => (rawText ? parseCsv(rawText, firstRowHeader) : { headers: [], rows: [] }),
@@ -154,6 +170,37 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     [parsed.rows, assignment],
   );
 
+  const personOf = (row: string[]): PersonLike => {
+    const { first, last } = namesOf(row);
+    return { first_name: first, last_name: last, email: value(row, 'email') || null };
+  };
+
+  // Splits the valid rows into new people, people the project already has, and
+  // repeats within the file (only the first occurrence of a person counts).
+  const plan = useMemo(() => {
+    const seen: PersonLike[] = [];
+    const fresh: string[][] = [];
+    const matched: { row: string[]; member: Member }[] = [];
+    let repeated = 0;
+    for (const row of validRows) {
+      const person = personOf(row);
+      if (seen.some((p) => samePerson(p, person))) {
+        repeated += 1;
+        continue;
+      }
+      seen.push(person);
+      const member = findMatchingMember(person, members);
+      if (member) matched.push({ row, member });
+      else fresh.push(row);
+    }
+    return { fresh, matched, repeated };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [validRows, members]);
+
+  const toCreate =
+    duplicateAction === 'create' ? [...plan.fresh, ...plan.matched.map((m) => m.row)] : plan.fresh;
+  const toUpdate = duplicateAction === 'update' ? plan.matched : [];
+
   // Existing group matching a CSV value, ignoring case ("sopran" → "Sopran").
   const existingGroup = (group: string): string | undefined =>
     groups.find((g) => g.toLowerCase() === group.toLowerCase());
@@ -182,7 +229,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
   };
 
   const runImport = async () => {
-    if (!validRows.length) return;
+    if (!toCreate.length && !toUpdate.length) return;
     setImporting(true);
     setError(null);
     const created = unknownGroups.filter((g) => (groupActions[g] ?? CREATE_GROUP) === CREATE_GROUP);
@@ -201,7 +248,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
         return;
       }
     }
-    const payloads = validRows.map((r) => {
+    const payloads = toCreate.map((r) => {
       const { first, last } = namesOf(r);
       return {
         project_id: projectId,
@@ -212,17 +259,36 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
         photo_url: null,
       };
     });
-    const { error: insertError } = await api.from('members').insert(payloads);
+    const { error: insertError } = payloads.length
+      ? await api.from('members').insert(payloads)
+      : { error: null };
+    // Updating re-activates the member, takes the file's group when it has one
+    // and fills in a missing email; names stay as they are.
+    const updateErrors = await Promise.all(
+      toUpdate.map(({ row, member }) => {
+        const group = resolveGroup(value(row, 'group_name'));
+        return api
+          .from('members')
+          .update({
+            status: 'active',
+            group_name: group ?? member.group_name,
+            email: member.email || value(row, 'email') || null,
+          })
+          .eq('id', member.id)
+          .then(({ error: e }) => e);
+      }),
+    );
     setImporting(false);
-    if (insertError) {
-      setError(insertError.message);
+    const failure = insertError ?? updateErrors.find(Boolean);
+    if (failure) {
+      setError(failure.message);
       return;
     }
     onSaved();
     onClose();
   };
 
-  const resultRows = validRows.slice(0, 3);
+  const resultRows = toCreate.slice(0, 3);
 
   return (
     <Modal
@@ -235,14 +301,15 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
           {requiredMapped && parsed.rows.length > 0 && (
             <span className="mr-auto text-sm text-text-secondary">
               {t('rowsReadyToImport')
-                .replace('{n}', String(validRows.length))
+                .replace('{n}', String(toCreate.length))
                 .replace('{total}', String(parsed.rows.length))}
+              {toUpdate.length > 0 && ` · ${t('rowsToUpdate').replace('{n}', String(toUpdate.length))}`}
             </span>
           )}
           <Button variant="secondary" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button onClick={runImport} disabled={importing || !requiredMapped || validRows.length === 0}>
+          <Button onClick={runImport} disabled={importing || !requiredMapped || toCreate.length + toUpdate.length === 0}>
             {importing ? t('importing') : t('import')}
           </Button>
         </>
@@ -317,6 +384,56 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
                     </Select>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {requiredMapped && (plan.matched.length > 0 || plan.repeated > 0) && (
+              <div>
+                <h3 className="mb-1 text-sm font-semibold">{t('importDuplicates')}</h3>
+                <p className="mb-3 text-xs text-text-tertiary">{t('importDuplicatesHint')}</p>
+                {plan.matched.length > 0 && (
+                  <>
+                    <Select
+                      label={t('importExistingMembers').replace('{n}', String(plan.matched.length))}
+                      value={duplicateAction}
+                      onChange={(e) => setDuplicateAction(e.target.value as DuplicateAction)}
+                    >
+                      <option value="skip">{t('duplicateSkip')}</option>
+                      <option value="update">{t('duplicateUpdate')}</option>
+                      <option value="create">{t('duplicateCreate')}</option>
+                    </Select>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {plan.matched.slice(0, DUPLICATE_PREVIEW).map(({ row, member }, i) => {
+                        const { first, last } = namesOf(row);
+                        return (
+                          <li key={i} className="flex flex-wrap items-center gap-x-2 text-text-secondary">
+                            <span className="text-text">
+                              {first} {last}
+                            </span>
+                            <span aria-hidden>→</span>
+                            <span>
+                              {member.first_name} {member.last_name}
+                              {member.email ? ` · ${member.email}` : ''}
+                            </span>
+                            {member.status !== 'active' && (
+                              <span className="text-xs text-text-tertiary">({t('archived')})</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {plan.matched.length > DUPLICATE_PREVIEW && (
+                      <p className="mt-1 text-xs text-text-tertiary">
+                        {t('andMore').replace('{n}', String(plan.matched.length - DUPLICATE_PREVIEW))}
+                      </p>
+                    )}
+                  </>
+                )}
+                {plan.repeated > 0 && (
+                  <p className="mt-2 text-sm text-text-secondary">
+                    {t('importRepeatedRows').replace('{n}', String(plan.repeated))}
+                  </p>
+                )}
               </div>
             )}
 

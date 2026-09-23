@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
+  ChevronDown,
   ClipboardList,
   FileText,
   Pencil,
@@ -12,6 +13,7 @@ import {
   Shuffle,
   Square,
   Trash2,
+  UserCheck,
   UserPlus,
   Users,
   Webhook,
@@ -27,14 +29,38 @@ import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
-import { FALLBACK_GROUP_COLOR, paletteColor } from '@/lib/groupColors';
+import { FALLBACK_GROUP_COLOR, isHexColor, paletteColor } from '@/lib/groupColors';
 import { GroupDonut, type DonutSlice } from '@/components/GroupDonut';
 import { cn } from '@/lib/cn';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
-import type { Registration, RegistrationPage } from '@/types';
+import type { Member, Registration, RegistrationPage } from '@/types';
+import { findMatchingMember } from '@/lib/memberMatching';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { GroupPill } from '@/components/GroupPill';
+
+const DISTRIBUTION_OPEN_KEY = 'registrations.distributionOpen';
+
+// Thin proportional bar of the groups, the collapsed distribution's summary.
+const DistributionBar = ({ slices }: { slices: DonutSlice[] }) => {
+  const visible = slices.filter((s) => s.value > 0);
+  return (
+    <span className="flex h-2 min-w-0 max-w-sm flex-1 gap-0.5 overflow-hidden rounded-full" aria-hidden>
+      {visible.map((s) => (
+        <span
+          key={s.id}
+          className="h-full"
+          style={{
+            flexGrow: s.value,
+            ...(s.muted
+              ? { background: 'repeating-linear-gradient(45deg, #d4d4d4 0 2px, #ececec 2px 4px)' }
+              : { backgroundColor: isHexColor(s.color) ? s.color : FALLBACK_GROUP_COLOR }),
+          }}
+        />
+      ))}
+    </span>
+  );
+};
 
 interface Draft {
   first_name: string;
@@ -52,6 +78,8 @@ export const RegistrationPageDetail = () => {
 
   const [page, setPage] = useState<RegistrationPage | null>(null);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  // The project's members, to flag registrations of people it already has.
+  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -62,20 +90,30 @@ export const RegistrationPageDetail = () => {
   const [selectionOpen, setSelectionOpen] = useState(false);
   // Group filter, shared by the table's dropdown and the distribution chart.
   const [groupFilter, setGroupFilter] = useState('');
+  const [distributionOpen, setDistributionOpen] = useState(
+    () => localStorage.getItem(DISTRIBUTION_OPEN_KEY) === '1',
+  );
+  const toggleDistribution = () =>
+    setDistributionOpen((open) => {
+      localStorage.setItem(DISTRIBUTION_OPEN_KEY, open ? '0' : '1');
+      return !open;
+    });
 
   const load = useCallback(async () => {
-    const [pageResult, regsResult] = await Promise.all([
+    const [pageResult, regsResult, membersResult] = await Promise.all([
       api.from('registration_pages').select('*').eq('id', pageId).maybeSingle(),
       api
         .from('registrations')
         .select('*')
         .eq('registration_page_id', pageId)
         .order('created_at', { ascending: false }),
+      api.from('members').select('*').eq('project_id', project.id).order('created_at', { ascending: true }),
     ]);
     setPage((pageResult.data as RegistrationPage | null) ?? null);
     setRegistrations((regsResult.data as Registration[] | null) ?? []);
+    setMembers((membersResult.data as Member[] | null) ?? []);
     setLoading(false);
-  }, [pageId]);
+  }, [pageId, project.id]);
 
   useEffect(() => {
     void load();
@@ -280,17 +318,30 @@ export const RegistrationPageDetail = () => {
       id: 'status',
       header: t('status'),
       accessor: (r) => (r.transferred ? 1 : 0),
-      render: (r) =>
-        r.transferred ? (
+      render: (r) => {
+        const existing = r.transferred ? null : findMatchingMember(r, members);
+        return r.transferred ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-[#f0fdf4] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
             <Check size={12} />
             {t('transferred')}
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-md bg-[#f5f5f5] px-2 py-0.5 text-xs font-semibold text-text-secondary">
-            {t('notTransferred')}
+          <span className="inline-flex flex-col items-start gap-1">
+            <span className="inline-flex items-center gap-1 rounded-md bg-[#f5f5f5] px-2 py-0.5 text-xs font-semibold text-text-secondary">
+              {t('notTransferred')}
+            </span>
+            {existing && (
+              <span
+                title={t('alreadyMemberHint').replace('{name}', `${existing.first_name} ${existing.last_name}`)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-text-secondary"
+              >
+                <UserCheck size={12} />
+                {existing.status === 'active' ? t('alreadyMember') : t('alreadyMemberArchived')}
+              </span>
+            )}
           </span>
-        ),
+        );
+      },
       className: 'w-px whitespace-nowrap',
     },
     {
@@ -413,117 +464,131 @@ export const RegistrationPageDetail = () => {
         </div>
       )}
 
-      <div
-        className={cn(
-          'grid gap-6 lg:items-start',
-          showDistribution && 'lg:grid-cols-[minmax(0,1fr)_320px]',
-        )}
-      >
-        <div className="min-w-0">
-          <DataTable
-            rows={registrations}
-            columns={columns}
-            getRowId={(r) => r.id}
-            search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''}`}
-            filters={filters}
-            toolbar={
-              selectedIds.length > 0 ? (
-                <>
-                  <span className="text-sm text-text-secondary">
-                    {t('selectedCount').replace('{n}', String(selectedIds.length))}
-                  </span>
-                  <Button variant="secondary" disabled={busy} onClick={bulkTransfer}>
-                    <UserPlus size={16} />
-                    {t('transferToMembers')}
-                  </Button>
-                  <Button variant="secondary" disabled={busy} onClick={() => setBulkDeleteOpen(true)}>
-                    <Trash2 size={16} />
-                    {t('delete')}
-                  </Button>
-                </>
+      {showDistribution && (
+        <Card className="mb-6 p-0">
+          <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
+            <button
+              type="button"
+              aria-expanded={distributionOpen}
+              onClick={toggleDistribution}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <ChevronDown
+                size={16}
+                className={cn(
+                  'flex-shrink-0 text-text-secondary transition-transform duration-150',
+                  !distributionOpen && '-rotate-90',
+                )}
+              />
+              <span className="flex-shrink-0 text-base font-medium">{t('groupDistribution')}</span>
+              {distributionOpen ? (
+                <span className="hidden truncate text-sm text-text-secondary sm:inline">
+                  {t('registrationGroupDistributionHint')}
+                </span>
               ) : (
-                <>
-                  <Button
-                    variant="secondary"
-                    disabled={busy || transferable.length === 0}
-                    onClick={() => setSelectionOpen(true)}
-                  >
-                    <Shuffle size={16} />
-                    {t('transferSelection')}
-                  </Button>
-                  <Button disabled={busy || transferable.length === 0} onClick={transferAll}>
-                    <Users size={16} />
-                    {t('transferAllToMembers')}
-                    {transferable.length > 0 ? ` (${transferable.length})` : ''}
-                  </Button>
-                </>
-              )
-            }
-            selectedIds={selectedIds}
-            onSelectedIdsChange={setSelectedIds}
-            emptyMessage={t('noRegistrations')}
-            emptyIcon={ClipboardList}
-            actions={(r) =>
-              editingId === r.id ? (
-                <>
-                  <RowActionButton label={t('save')} onClick={saveEdit}>
-                    <Check size={15} />
-                  </RowActionButton>
-                  <RowActionButton label={t('cancel')} onClick={() => setEditingId(null)}>
-                    <X size={15} />
-                  </RowActionButton>
-                </>
-              ) : (
-                <>
-                  {!r.transferred ? (
-                    <RowActionButton
-                      label={isBlocked(r) ? t('unknownGroupBlocksTransfer') : t('transferToMembers')}
-                      disabled={busy || isBlocked(r)}
-                      onClick={() => transferOne(r)}
-                    >
-                      <UserPlus size={15} />
-                    </RowActionButton>
-                  ) : null}
-                  <RowActionButton label={t('edit')} onClick={() => startEdit(r)}>
-                    <Pencil size={15} />
-                  </RowActionButton>
-                  <RowActionButton label={t('delete')} onClick={() => setToDelete(r)}>
-                    <Trash2 size={15} />
-                  </RowActionButton>
-                </>
-              )
-            }
-          />
-        </div>
-
-        {showDistribution && (
-          <Card className="p-6 lg:sticky lg:top-6">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-medium">{t('groupDistribution')}</h2>
-                <p className="mt-0.5 text-sm text-text-secondary">{t('registrationGroupDistributionHint')}</p>
-              </div>
-            </div>
-            <GroupDonut
-              slices={slices}
-              selectedId={groupFilter || null}
-              totalLabel={t('registrations')}
-              mutedSelectable
-              onSelect={(slice) => setGroupFilter((current) => (current === slice.id ? '' : slice.id))}
-            />
+                <DistributionBar slices={slices} />
+              )}
+            </button>
             {groupFilter && (
               <button
                 type="button"
                 onClick={() => setGroupFilter('')}
-                className="mt-3 inline-flex items-center gap-1.5 px-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
               >
                 <X size={15} />
-                {t('showAllGroups')}
+                <span className="hidden sm:inline">{t('showAllGroups')}</span>
               </button>
             )}
-          </Card>
-        )}
-      </div>
+          </div>
+          {distributionOpen && (
+            <div className="border-t border-border px-4 py-5 sm:px-6">
+              <GroupDonut
+                slices={slices}
+                layout="wide"
+                selectedId={groupFilter || null}
+                totalLabel={t('registrations')}
+                mutedSelectable
+                onSelect={(slice) => setGroupFilter((current) => (current === slice.id ? '' : slice.id))}
+              />
+            </div>
+          )}
+        </Card>
+      )}
+
+      <DataTable
+        rows={registrations}
+        columns={columns}
+        getRowId={(r) => r.id}
+        search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''}`}
+        filters={filters}
+        toolbar={
+          selectedIds.length > 0 ? (
+            <>
+              <span className="text-sm text-text-secondary">
+                {t('selectedCount').replace('{n}', String(selectedIds.length))}
+              </span>
+              <Button variant="secondary" disabled={busy} onClick={bulkTransfer}>
+                <UserPlus size={16} />
+                {t('transferToMembers')}
+              </Button>
+              <Button variant="secondary" disabled={busy} onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 size={16} />
+                {t('delete')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="secondary"
+                disabled={busy || transferable.length === 0}
+                onClick={() => setSelectionOpen(true)}
+              >
+                <Shuffle size={16} />
+                {t('transferSelection')}
+              </Button>
+              <Button disabled={busy || transferable.length === 0} onClick={transferAll}>
+                <Users size={16} />
+                {t('transferAllToMembers')}
+                {transferable.length > 0 ? ` (${transferable.length})` : ''}
+              </Button>
+            </>
+          )
+        }
+        selectedIds={selectedIds}
+        onSelectedIdsChange={setSelectedIds}
+        emptyMessage={t('noRegistrations')}
+        emptyIcon={ClipboardList}
+        actions={(r) =>
+          editingId === r.id ? (
+            <>
+              <RowActionButton label={t('save')} onClick={saveEdit}>
+                <Check size={15} />
+              </RowActionButton>
+              <RowActionButton label={t('cancel')} onClick={() => setEditingId(null)}>
+                <X size={15} />
+              </RowActionButton>
+            </>
+          ) : (
+            <>
+              {!r.transferred ? (
+                <RowActionButton
+                  label={isBlocked(r) ? t('unknownGroupBlocksTransfer') : t('transferToMembers')}
+                  disabled={busy || isBlocked(r)}
+                  onClick={() => transferOne(r)}
+                >
+                  <UserPlus size={15} />
+                </RowActionButton>
+              ) : null}
+              <RowActionButton label={t('edit')} onClick={() => startEdit(r)}>
+                <Pencil size={15} />
+              </RowActionButton>
+              <RowActionButton label={t('delete')} onClick={() => setToDelete(r)}>
+                <Trash2 size={15} />
+              </RowActionButton>
+            </>
+          )
+        }
+      />
 
       <ConfirmDialog
         open={!!toDelete}

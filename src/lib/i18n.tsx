@@ -240,6 +240,26 @@ const dict: Dict = {
     de: 'Zeilen ohne Vor- und Nachname werden übersprungen.',
     en: 'Rows without a first and last name are skipped.',
   },
+  rowsToUpdate: { de: '{n} werden aktualisiert', en: '{n} will be updated' },
+  importDuplicates: { de: 'Bereits vorhanden', en: 'Already there' },
+  importDuplicatesHint: {
+    de: 'Gleiche E-Mail oder gleicher Vor- und Nachname (ohne abweichende E-Mail) gilt als dieselbe Person.',
+    en: 'The same email, or the same first and last name without a different email, counts as the same person.',
+  },
+  importExistingMembers: {
+    de: '{n} Zeilen passen zu bestehenden Mitgliedern',
+    en: '{n} rows match existing members',
+  },
+  duplicateSkip: { de: 'Überspringen', en: 'Skip' },
+  duplicateUpdate: {
+    de: 'Bestehende aktualisieren (Gruppe, fehlende E-Mail, reaktivieren)',
+    en: 'Update existing (group, missing email, re-activate)',
+  },
+  duplicateCreate: { de: 'Trotzdem neu anlegen', en: 'Create anyway' },
+  importRepeatedRows: {
+    de: '{n} Zeilen kommen in der Datei doppelt vor und werden übersprungen.',
+    en: '{n} rows appear twice in the file and are skipped.',
+  },
   newGroupsInImport: { de: 'Neue Gruppen', en: 'New groups' },
   newGroupsInImportHint: {
     de: 'Diese Gruppen gibt es im Projekt noch nicht. Wähle, wie sie übernommen werden sollen.',
@@ -716,6 +736,12 @@ const dict: Dict = {
   registrationGroupDistributionHint: {
     de: 'Anmeldungen je Gruppe – klicke auf eine Gruppe, um die Liste zu filtern.',
     en: 'Registrations per group – click a group to filter the list.',
+  },
+  alreadyMember: { de: 'Bereits Mitglied', en: 'Already a member' },
+  alreadyMemberArchived: { de: 'Archiviertes Mitglied', en: 'Archived member' },
+  alreadyMemberHint: {
+    de: 'Passt zu {name} – beim Übernehmen wird dieses Mitglied aktualisiert statt neu angelegt.',
+    en: 'Matches {name} – transferring updates this member instead of creating a new one.',
   },
   unknownGroupsSlice: { de: 'Nicht im Projekt', en: 'Not in the project' },
   showAllGroups: { de: 'Alle Gruppen anzeigen', en: 'Show all groups' },

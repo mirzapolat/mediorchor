@@ -47,6 +47,7 @@ export const GroupDonut = ({
   selectedId = null,
   totalLabel,
   mutedSelectable = false,
+  layout = 'stacked',
 }: {
   slices: DonutSlice[];
   onSelect?: (slice: DonutSlice) => void;
@@ -56,6 +57,8 @@ export const GroupDonut = ({
   totalLabel?: string;
   // Lets muted slices (e.g. "No group") be selected too.
   mutedSelectable?: boolean;
+  // 'wide' puts the legend next to the donut on desktop, in several columns.
+  layout?: 'stacked' | 'wide';
 }) => {
   const { t, lang } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -84,10 +87,14 @@ export const GroupDonut = ({
   const colorOf = (s: DonutSlice) => (isHexColor(s.color) ? s.color : FALLBACK_GROUP_COLOR);
 
   const summary = visible.map((s) => `${s.label}: ${s.value}`).join(', ');
+  const wide = layout === 'wide';
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative animate-[popin_420ms_cubic-bezier(0.2,0.8,0.2,1)]" style={{ width: SIZE, height: SIZE }}>
+    <div className={cn('flex flex-col items-center', wide && 'lg:flex-row lg:items-center lg:gap-10')}>
+      <div
+        className="relative flex-shrink-0 animate-[popin_420ms_cubic-bezier(0.2,0.8,0.2,1)]"
+        style={{ width: SIZE, height: SIZE }}
+      >
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}
           width={SIZE}
@@ -180,7 +187,12 @@ export const GroupDonut = ({
       </div>
 
       {/* Legend doubles as the table view: every slice with count and share. */}
-      <ul className="mt-6 w-full divide-y divide-border">
+      <ul
+        className={cn(
+          'mt-6 w-full',
+          wide ? 'grid gap-x-6 sm:grid-cols-2 lg:mt-0 lg:min-w-0 lg:flex-1 xl:grid-cols-3' : 'divide-y divide-border',
+        )}
+      >
         {slices.map((slice) => {
           const isActive = slice.id === focusId;
           const clickable = canSelect(slice);
