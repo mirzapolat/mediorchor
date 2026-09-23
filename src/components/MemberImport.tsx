@@ -10,6 +10,8 @@ import { parseCsv } from '@/lib/csv';
 interface MemberImportProps {
   open: boolean;
   projectId: string;
+  // The project's current groups (single source of truth).
+  groups: string[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -28,6 +30,11 @@ const LABEL_KEYS: Record<TargetField, 'firstName' | 'lastName' | 'group' | 'emai
 };
 
 type NameMode = 'split' | 'combined';
+
+// How a group that isn't in the project yet is handled: create it, drop it, or
+// (any other value) assign the rows to that existing group.
+const CREATE_GROUP = '__create__';
+const DROP_GROUP = '__none__';
 
 // Fields mapped column-by-column regardless of the chosen name mode.
 const OTHER_FIELDS: TargetField[] = ['group_name', 'email'];
@@ -69,7 +76,7 @@ const splitFullName = (full: string): { first: string; last: string } => {
   return { first: trimmed.slice(0, at).trim(), last: trimmed.slice(at + 1).trim() };
 };
 
-export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImportProps) => {
+export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: MemberImportProps) => {
   const { t } = useI18n();
   const [fileName, setFileName] = useState<string | null>(null);
   const [firstRowHeader, setFirstRowHeader] = useState(true);
@@ -77,6 +84,7 @@ export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImport
   const [nameMode, setNameMode] = useState<NameMode>('split');
   const [mapping, setMapping] = useState<Record<TargetField, string>>(guessMapping([]));
   const [fullNameCol, setFullNameCol] = useState<string>(NONE);
+  const [groupActions, setGroupActions] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,6 +97,7 @@ export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImport
       setNameMode('split');
       setMapping(guessMapping([]));
       setFullNameCol(NONE);
+      setGroupActions({});
       setImporting(false);
       setError(null);
     }
@@ -144,17 +153,59 @@ export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImport
     [parsed.rows, mapping, fullNameCol, nameMode],
   );
 
+  // Existing group matching a CSV value, ignoring case ("sopran" → "Sopran").
+  const existingGroup = (value: string): string | undefined =>
+    groups.find((g) => g.toLowerCase() === value.toLowerCase());
+
+  // CSV groups the project doesn't have yet, in order of first appearance
+  // (case variants collapse onto the first spelling seen).
+  const unknownGroups = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of validRows) {
+      const g = cellValue(r, 'group_name');
+      if (g && !existingGroup(g) && !seen.has(g.toLowerCase())) seen.set(g.toLowerCase(), g);
+    }
+    return [...seen.values()];
+  },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [validRows, groups],
+  );
+
+  const resolveGroup = (value: string): string | null => {
+    if (!value) return null;
+    const existing = existingGroup(value);
+    if (existing) return existing;
+    const spelling =
+      unknownGroups.find((g) => g.toLowerCase() === value.toLowerCase()) ?? value;
+    const action = groupActions[spelling] ?? CREATE_GROUP;
+    if (action === CREATE_GROUP) return spelling;
+    if (action === DROP_GROUP) return null;
+    return action;
+  };
+
   const runImport = async () => {
     if (!validRows.length) return;
     setImporting(true);
     setError(null);
+    const created = unknownGroups.filter((g) => (groupActions[g] ?? CREATE_GROUP) === CREATE_GROUP);
+    if (created.length) {
+      const { error: groupsError } = await api
+        .from('projects')
+        .update({ groups: [...groups, ...created] })
+        .eq('id', projectId);
+      if (groupsError) {
+        setImporting(false);
+        setError(groupsError.message);
+        return;
+      }
+    }
     const payloads = validRows.map((r) => {
       const { first, last } = namesOf(r);
       return {
         project_id: projectId,
         first_name: first,
         last_name: last,
-        group_name: cellValue(r, 'group_name') || null,
+        group_name: resolveGroup(cellValue(r, 'group_name')),
         email: cellValue(r, 'email') || null,
         photo_url: null,
       };
@@ -291,6 +342,31 @@ export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImport
                 </div>
               </div>
 
+              {requiredMapped && unknownGroups.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-1">{t('newGroupsInImport')}</h3>
+                  <p className="text-xs text-text-tertiary mb-3">{t('newGroupsInImportHint')}</p>
+                  <div className="space-y-3">
+                    {unknownGroups.map((g) => (
+                      <Select
+                        key={g}
+                        label={g}
+                        value={groupActions[g] ?? CREATE_GROUP}
+                        onChange={(e) => setGroupActions({ ...groupActions, [g]: e.target.value })}
+                      >
+                        <option value={CREATE_GROUP}>{t('createNewGroup')}</option>
+                        {groups.map((existing) => (
+                          <option key={existing} value={existing}>
+                            {t('assignToGroup').replace('{group}', existing)}
+                          </option>
+                        ))}
+                        <option value={DROP_GROUP}>{t('removeGroupFromImport')}</option>
+                      </Select>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {requiredMapped && (
                 <div>
                   <h3 className="text-sm font-semibold mb-1">{t('preview')}</h3>
@@ -317,7 +393,7 @@ export const MemberImport = ({ open, projectId, onClose, onSaved }: MemberImport
                             const preview: Record<TargetField, string> = {
                               first_name: first,
                               last_name: last,
-                              group_name: cellValue(r, 'group_name'),
+                              group_name: resolveGroup(cellValue(r, 'group_name')) ?? '',
                               email: cellValue(r, 'email'),
                             };
                             return (

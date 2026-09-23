@@ -247,6 +247,14 @@ const dict: Dict = {
     de: 'Zeilen ohne Vor- und Nachname werden übersprungen.',
     en: 'Rows without a first and last name are skipped.',
   },
+  newGroupsInImport: { de: 'Neue Gruppen', en: 'New groups' },
+  newGroupsInImportHint: {
+    de: 'Diese Gruppen gibt es im Projekt noch nicht. Wähle, wie sie übernommen werden sollen.',
+    en: "These groups don't exist in the project yet. Choose how to handle them.",
+  },
+  createNewGroup: { de: 'Als neue Gruppe anlegen', en: 'Create as new group' },
+  assignToGroup: { de: 'Zuordnen zu: {group}', en: 'Assign to: {group}' },
+  removeGroupFromImport: { de: 'Entfernen (keine Gruppe)', en: 'Remove (no group)' },
   import: { de: 'Importieren', en: 'Import' },
   importing: { de: 'Importiere…', en: 'Importing…' },
   noRowsToImport: {
@@ -461,6 +469,10 @@ const dict: Dict = {
   projectGroupsHint: {
     de: 'Diese Gruppen gelten für das gesamte Projekt und sind beim Check-in, bei Anmeldungen und in der Teilnahme auswählbar.',
     en: 'These groups apply to the whole project and are selectable on check-in, sign-up and participation.',
+  },
+  projectGroupsSyncHint: {
+    de: 'Umbenennungen werden bei allen Mitgliedern übernommen; Mitglieder einer entfernten Gruppe verlieren ihre Gruppe.',
+    en: 'Renames apply to all members; members of a removed group lose their group.',
   },
   accessSettings: { de: 'Zugriff & Formulare', en: 'Access & forms' },
   accessSettingsHint: {

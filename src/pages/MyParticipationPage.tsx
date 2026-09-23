@@ -44,6 +44,8 @@ export const MyParticipationPage = () => {
 
   const load = useCallback(async () => {
     if (!user) return;
+    // Pick up member rows a manager added with this account's email.
+    await api.rpc('claim_my_memberships');
     const { data: memberData } = await api
       .from('members')
       .select('*')
@@ -150,7 +152,8 @@ export const MyParticipationPage = () => {
   };
 
   const changeGroup = async (group: string) => {
-    if (!member) return;
+    // A participant always keeps a group once the project has any.
+    if (!member || !group) return;
     setGroupSaved(false);
     setMember({ ...member, group_name: group || null });
     const { data, error: rpcError } = await api.rpc('set_my_group', {
@@ -203,8 +206,11 @@ export const MyParticipationPage = () => {
                     label={t('group')}
                     value={joinForm.group_name}
                     onChange={(e) => setJoinForm({ ...joinForm, group_name: e.target.value })}
+                    required
                   >
-                    <option value="">{t('selectGroup')}</option>
+                    <option value="" disabled>
+                      {t('selectGroup')}
+                    </option>
                     {project.groups.map((g) => (
                       <option key={g} value={g}>
                         {g}
@@ -233,7 +239,11 @@ export const MyParticipationPage = () => {
                   value={member?.group_name ?? ''}
                   onChange={(e) => changeGroup(e.target.value)}
                 >
-                  <option value="">{t('selectGroup')}</option>
+                  {!member?.group_name && (
+                    <option value="" disabled>
+                      {t('selectGroup')}
+                    </option>
+                  )}
                   {project.groups.map((g) => (
                     <option key={g} value={g}>
                       {g}

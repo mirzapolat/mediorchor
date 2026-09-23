@@ -26,7 +26,6 @@ export const MemberDetailPage = () => {
   const { memberId } = useParams();
   const navigate = useNavigate();
   const [member, setMember] = useState<Member | null>(null);
-  const [groups, setGroups] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
@@ -44,18 +43,6 @@ export const MemberDetailPage = () => {
       ((names as { member_id: string; account_name: string }[] | null) ?? []).find(
         (row) => row.member_id === memberId,
       )?.account_name,
-    );
-
-    // Existing group names in this project, for the edit form's suggestions.
-    const { data: g } = await api
-      .from('members')
-      .select('group_name')
-      .eq('project_id', project.id)
-      .not('group_name', 'is', null);
-    setGroups(
-      [...new Set(((g as { group_name: string | null }[]) ?? [])
-        .map((r) => r.group_name)
-        .filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b)),
     );
 
     const { data: att } = await api
@@ -193,7 +180,7 @@ export const MemberDetailPage = () => {
         open={editOpen}
         projectId={project.id}
         member={member}
-        groups={project.groups.length > 0 ? project.groups : groups}
+        groups={project.groups}
         onClose={() => setEditOpen(false)}
         onSaved={load}
       />

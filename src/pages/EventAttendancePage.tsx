@@ -97,13 +97,7 @@ export const EventAttendancePage = () => {
     [rows],
   );
 
-  const groups = useMemo(
-    () =>
-      [
-        ...new Set(rows.map((r) => r.member.group_name).filter((g): g is string => Boolean(g))),
-      ].sort((a, b) => a.localeCompare(b)),
-    [rows],
-  );
+  const groups = project.groups;
 
   if (loading) return <PageSpinner />;
 

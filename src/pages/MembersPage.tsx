@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Users, Archive, ArchiveRestore, Pencil, Trash2, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -18,7 +18,7 @@ import type { Member } from '@/types';
 
 export const MembersPage = () => {
   const { t } = useI18n();
-  const { project } = useProjectContext();
+  const { project, reloadProject } = useProjectContext();
   const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
   // Account display names behind linked members, to flag deviating names.
@@ -69,15 +69,6 @@ export const MembersPage = () => {
     setToDelete(null);
     await load();
   };
-
-  // Distinct groups present in the data, for the group filter dropdown.
-  const groups = useMemo(
-    () =>
-      [...new Set(members.map((m) => m.group_name).filter((g): g is string => Boolean(g)))].sort(
-        (a, b) => a.localeCompare(b),
-      ),
-    [members],
-  );
 
   if (loading) return <PageSpinner />;
 
@@ -136,7 +127,7 @@ export const MembersPage = () => {
     {
       id: 'group',
       label: t('group'),
-      options: groups.map((g) => ({ value: g, label: g })),
+      options: project.groups.map((g) => ({ value: g, label: g })),
       predicate: (m, v) => m.group_name === v,
     },
   ];
@@ -195,7 +186,7 @@ export const MembersPage = () => {
         open={formOpen}
         projectId={project.id}
         member={editing}
-        groups={project.groups.length > 0 ? project.groups : groups}
+        groups={project.groups}
         onClose={() => setFormOpen(false)}
         onSaved={load}
       />
@@ -203,8 +194,12 @@ export const MembersPage = () => {
       <MemberImport
         open={importOpen}
         projectId={project.id}
+        groups={project.groups}
         onClose={() => setImportOpen(false)}
-        onSaved={load}
+        onSaved={() => {
+          reloadProject();
+          void load();
+        }}
       />
 
       <ConfirmDialog

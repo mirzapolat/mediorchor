@@ -240,13 +240,7 @@ export const AbsencesPage = () => {
     () => rows.filter((row) => matchesConditions(row.counts, conditions)),
     [conditions, rows],
   );
-  const groups = useMemo(
-    () =>
-      [...new Set(rows.map((row) => row.member.group_name).filter((group): group is string => Boolean(group)))].sort(
-        (left, right) => left.localeCompare(right),
-      ),
-    [rows],
-  );
+  const groups = project.groups;
   const columns = useMemo<Column<ResultRow>[]>(
     () => [
       {

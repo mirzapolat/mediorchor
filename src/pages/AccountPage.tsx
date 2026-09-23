@@ -50,7 +50,7 @@ export const AccountPage = () => {
     <>
       <PageHeader title={t('account')} subtitle={user.email} />
 
-      <div className="space-y-6 max-w-xl">
+      <div className="grid gap-6 max-w-5xl lg:grid-cols-2 lg:items-start">
         <form onSubmit={saveProfile}>
           <Card className="space-y-4">
             <h2 className="text-base font-medium">{t('account')}</h2>
@@ -79,15 +79,17 @@ export const AccountPage = () => {
           </Card>
         </form>
 
-        <Card className="space-y-4">
-          <h2 className="text-base font-medium">{t('language')}</h2>
-          <Select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="max-w-[200px]">
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-          </Select>
-        </Card>
+        <div className="space-y-6">
+          <Card className="space-y-4">
+            <h2 className="text-base font-medium">{t('language')}</h2>
+            <Select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="max-w-[200px]">
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+            </Select>
+          </Card>
 
-        <TwoFactorCard />
+          <TwoFactorCard />
+        </div>
       </div>
     </>
   );

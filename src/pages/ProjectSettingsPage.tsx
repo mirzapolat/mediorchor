@@ -18,6 +18,8 @@ import { useProjectContext } from '@/layouts/projectContext';
 interface GroupRow {
   id: string;
   value: string;
+  // Saved name this row started from; null for rows added since loading.
+  original: string | null;
 }
 
 // Editable, drag-sortable list of the project's groups. The order set here is
@@ -33,10 +35,11 @@ const GroupsCard = ({
   const dnd = useDragReorder(groups, (g) => g.id, onChange, 8);
 
   return (
-    <Card className="mt-6 space-y-3">
+    <Card className="space-y-3">
       <div>
         <h2 className="text-base font-medium">{t('groupsList')}</h2>
         <p className="text-sm text-text-secondary mt-1">{t('projectGroupsHint')}</p>
+        <p className="text-sm text-text-tertiary mt-1">{t('projectGroupsSyncHint')}</p>
       </div>
       <div className="space-y-2">
         {groups.map((group, index) => {
@@ -86,7 +89,9 @@ const GroupsCard = ({
                 label={t('remove')}
                 onClick={() => {
                   const next = groups.filter((g) => g.id !== group.id);
-                  onChange(next.length > 0 ? next : [{ id: crypto.randomUUID(), value: '' }]);
+                  onChange(
+                    next.length > 0 ? next : [{ id: crypto.randomUUID(), value: '', original: null }],
+                  );
                 }}
               >
                 <Trash2 size={15} />
@@ -98,7 +103,9 @@ const GroupsCard = ({
       <Button
         type="button"
         variant="secondary"
-        onClick={() => onChange([...groups, { id: crypto.randomUUID(), value: '' }])}
+        onClick={() =>
+          onChange([...groups, { id: crypto.randomUUID(), value: '', original: null }])
+        }
       >
         <Plus size={15} />
         {t('addGroup')}
@@ -116,12 +123,11 @@ export const ProjectSettingsPage = () => {
     description: project.description ?? '',
   });
   // Rows carry a stable id so drag & drop reordering works while editing.
-  const [groups, setGroups] = useState<{ id: string; value: string }[]>(() =>
-    (project.groups.length > 0 ? project.groups : ['']).map((value) => ({
-      id: crypto.randomUUID(),
-      value,
-    })),
-  );
+  const toRows = (list: string[]): GroupRow[] =>
+    list.length > 0
+      ? list.map((value) => ({ id: crypto.randomUUID(), value, original: value }))
+      : [{ id: crypto.randomUUID(), value: '', original: null }];
+  const [groups, setGroups] = useState<GroupRow[]>(() => toRows(project.groups));
   const [access, setAccess] = useState({
     allow_account_access: project.allow_account_access,
     allow_account_checkin: project.allow_account_checkin,
@@ -157,10 +163,22 @@ export const ProjectSettingsPage = () => {
         name: form.name.trim(),
         description: form.description.trim() || null,
         image_url: imageUrl,
-        groups: groups.map((g) => g.value.trim()).filter((g) => g !== ''),
         ...access,
       })
       .eq('id', project.id);
+    // Groups go through their own RPC so members follow renames and removals.
+    const nextGroups = groups.map((g) => g.value.trim()).filter((g) => g !== '');
+    const renames: Record<string, string | null> = {};
+    for (const name of project.groups) renames[name] = null;
+    for (const row of groups) {
+      if (row.original !== null) renames[row.original] = row.value.trim() || null;
+    }
+    await api.rpc('set_project_groups', {
+      p_project_id: project.id,
+      p_groups: nextGroups,
+      p_renames: renames,
+    });
+    setGroups(toRows(nextGroups));
     setSaving(false);
     setSaved(true);
     reloadProject();
@@ -173,118 +191,129 @@ export const ProjectSettingsPage = () => {
 
   return (
     <>
-      <PageHeader title={t('settings')} />
+      <PageHeader
+        title={t('settings')}
+        actions={
+          <>
+            {saved && <span className="text-sm text-text-secondary">✓</span>}
+            <Button type="submit" form="project-settings" disabled={saving || !form.name.trim()}>
+              {saving ? t('loading') : t('save')}
+            </Button>
+          </>
+        }
+      />
 
-      <form onSubmit={save} className="max-w-xl">
-        <Card className="space-y-4">
-          <div>
-            <p className="text-sm font-medium text-text-secondary mb-2">{t('projectImage')}</p>
-            <div className="flex items-center gap-4">
-              <Avatar name={form.name || project.name} photoUrl={imageUrl} size={56} square />
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
-                <Upload size={15} />
-                {uploading ? t('loading') : `${t('projectImage')} (${t('optional')})`}
+      <form
+        id="project-settings"
+        onSubmit={save}
+        className="grid gap-6 max-w-5xl lg:grid-cols-2 lg:items-start"
+      >
+        <div className="space-y-6">
+          <Card className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-text-secondary mb-2">{t('projectImage')}</p>
+              <div className="flex items-center gap-4">
+                <Avatar name={form.name || project.name} photoUrl={imageUrl} size={56} square />
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
+                  <Upload size={15} />
+                  {uploading ? t('loading') : `${t('projectImage')} (${t('optional')})`}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+                  />
+                </label>
+                {imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageUrl(null);
+                      setSaved(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150"
+                  >
+                    <X size={15} />
+                    {t('remove')}
+                  </button>
+                )}
+              </div>
+              {uploadError && <p className="text-sm text-accent mt-2">{uploadError}</p>}
+            </div>
+            <Input
+              label={t('projectName')}
+              value={form.name}
+              onChange={(e) => {
+                setForm({ ...form, name: e.target.value });
+                setSaved(false);
+              }}
+              required
+            />
+            <Textarea
+              label={`${t('description')} (${t('optional')})`}
+              value={form.description}
+              onChange={(e) => {
+                setForm({ ...form, description: e.target.value });
+                setSaved(false);
+              }}
+            />
+          </Card>
+
+          <GroupsCard
+            groups={groups}
+            onChange={(next) => {
+              setGroups(next);
+              setSaved(false);
+            }}
+          />
+        </div>
+
+        <div className="space-y-6">
+          <Card className="space-y-4">
+            <div>
+              <h2 className="text-base font-medium">{t('accessSettings')}</h2>
+              <p className="text-sm text-text-secondary mt-1">{t('accessSettingsHint')}</p>
+            </div>
+            {(
+              [
+                ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
+                ['allow_account_checkin', 'allowAccountCheckin', 'allowAccountCheckinHint'],
+                ['allow_account_signup', 'allowAccountSignup', 'allowAccountSignupHint'],
+                ['allow_guest_checkin', 'allowGuestCheckin', 'allowGuestCheckinHint'],
+                ['allow_guest_signup', 'allowGuestSignup', 'allowGuestSignupHint'],
+                ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
+              ] as const
+            ).map(([key, label, hint]) => (
+              <label
+                key={key}
+                className="flex items-center justify-between gap-4 border-t border-border pt-4 first:border-t-0 first:pt-0 cursor-pointer"
+              >
+                <span>
+                  <span className="block font-medium">{t(label)}</span>
+                  <span className="block text-sm text-text-secondary mt-0.5">{t(hint)}</span>
+                </span>
                 <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
-                />
-              </label>
-              {imageUrl && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImageUrl(null);
+                  type="checkbox"
+                  className="h-4 w-4 accent-black"
+                  checked={access[key]}
+                  onChange={(e) => {
+                    setAccess({ ...access, [key]: e.target.checked });
                     setSaved(false);
                   }}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150"
-                >
-                  <X size={15} />
-                  {t('remove')}
-                </button>
-              )}
-            </div>
-            {uploadError && <p className="text-sm text-accent mt-2">{uploadError}</p>}
-          </div>
-          <Input
-            label={t('projectName')}
-            value={form.name}
-            onChange={(e) => {
-              setForm({ ...form, name: e.target.value });
-              setSaved(false);
-            }}
-            required
-          />
-          <Textarea
-            label={`${t('description')} (${t('optional')})`}
-            value={form.description}
-            onChange={(e) => {
-              setForm({ ...form, description: e.target.value });
-              setSaved(false);
-            }}
-          />
-        </Card>
+                />
+              </label>
+            ))}
+          </Card>
 
-        <GroupsCard
-          groups={groups}
-          onChange={(next) => {
-            setGroups(next);
-            setSaved(false);
-          }}
-        />
-
-        <Card className="mt-6 space-y-4">
-          <div>
-            <h2 className="text-base font-medium">{t('accessSettings')}</h2>
-            <p className="text-sm text-text-secondary mt-1">{t('accessSettingsHint')}</p>
-          </div>
-          {(
-            [
-              ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
-              ['allow_account_checkin', 'allowAccountCheckin', 'allowAccountCheckinHint'],
-              ['allow_account_signup', 'allowAccountSignup', 'allowAccountSignupHint'],
-              ['allow_guest_checkin', 'allowGuestCheckin', 'allowGuestCheckinHint'],
-              ['allow_guest_signup', 'allowGuestSignup', 'allowGuestSignupHint'],
-              ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
-            ] as const
-          ).map(([key, label, hint]) => (
-            <label
-              key={key}
-              className="flex items-center justify-between gap-4 border-t border-border pt-4 first:border-t-0 first:pt-0 cursor-pointer"
-            >
-              <span>
-                <span className="block font-medium">{t(label)}</span>
-                <span className="block text-sm text-text-secondary mt-0.5">{t(hint)}</span>
-              </span>
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-black"
-                checked={access[key]}
-                onChange={(e) => {
-                  setAccess({ ...access, [key]: e.target.checked });
-                  setSaved(false);
-                }}
-              />
-            </label>
-          ))}
-        </Card>
-
-        <div className="flex items-center gap-3 mt-6">
-          <Button type="submit" disabled={saving || !form.name.trim()}>
-            {saving ? t('loading') : t('save')}
-          </Button>
-          {saved && <span className="text-sm text-text-secondary">✓</span>}
+          <Card className="space-y-3">
+            <h2 className="text-base font-medium">{t('delete')}</h2>
+            <p className="text-sm text-text-secondary">{t('confirmDelete')}</p>
+            <Button type="button" variant="accent" onClick={() => setConfirmDel(true)}>
+              {t('delete')}
+            </Button>
+          </Card>
         </div>
       </form>
-
-      <Card className="max-w-xl mt-6 space-y-3">
-        <h2 className="text-base font-medium">{t('delete')}</h2>
-        <p className="text-sm text-text-secondary">{t('confirmDelete')}</p>
-        <Button variant="accent" onClick={() => setConfirmDel(true)}>
-          {t('delete')}
-        </Button>
-      </Card>
 
       <ConfirmDialog
         open={confirmDel}

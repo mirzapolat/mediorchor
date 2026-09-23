@@ -126,19 +126,7 @@ const get_public_checkin = (args: Args) => {
     return { state: 'stopped', event_name: checkin.event_name, project_name: checkin.project_name };
   }
 
-  // Central project groups; fall back to the groups members already use.
-  let groups = parseGroups(checkin.project_groups);
-  if (groups.length === 0) {
-    groups = (
-      db
-        .prepare(
-          `select distinct group_name from members
-           where project_id = ? and status = 'active' and group_name is not null and trim(group_name) <> ''
-           order by group_name`,
-        )
-        .all(checkin.project_id) as { group_name: string }[]
-    ).map((r) => r.group_name);
-  }
+  const groups = parseGroups(checkin.project_groups);
 
   // Logged-in visitors get their linked member for a one-tap check-in.
   const uid = authUid();
@@ -276,7 +264,7 @@ const get_public_registration = (args: Args) => {
   const page = db
     .prepare(
       `select rp.id, rp.is_active, rp.title, rp.description, rp.ask_email, rp.ask_group,
-              rp.groups, rp.project_id, p.name as project_name, p.groups as project_groups,
+              rp.project_id, p.name as project_name, p.groups as project_groups,
               p.allow_guest_signup, p.allow_account_signup
        from registration_pages rp
        join projects p on p.id = rp.project_id
@@ -287,9 +275,7 @@ const get_public_registration = (args: Args) => {
   if (!page) return { state: 'invalid' };
   if (!page.is_active) return { state: 'inactive', title: page.title, project_name: page.project_name };
 
-  // Groups come from the project; legacy per-page lists act as fallback.
-  const projectGroups = parseGroups(page.project_groups);
-  const groups = projectGroups.length ? projectGroups : parseGroups(page.groups);
+  const groups = parseGroups(page.project_groups);
 
   const uid = authUid();
   let me: Row | null = null;
@@ -562,7 +548,8 @@ const set_my_group = (args: Args) => {
 
   const groupName = optional(args.p_group_name);
   const groups = parseGroups(project.groups);
-  if (groupName && groups.length && !groups.includes(groupName)) return { state: 'invalid_group' };
+  // Participants pick one of the project's groups; clearing it isn't allowed.
+  if (groups.length && (!groupName || !groups.includes(groupName))) return { state: 'invalid_group' };
 
   const { changes } = db
     .prepare(
@@ -571,6 +558,38 @@ const set_my_group = (args: Args) => {
     )
     .run(groupName, text(args.p_project_id), uid);
   return { state: changes ? 'success' : 'not_participating' };
+};
+
+// Replace a project's group list. `p_renames` maps previous names to their new
+// name (or null when removed); members follow along, and members left in a
+// group that no longer exists lose their group.
+const set_project_groups = (args: Args) => {
+  requireUser();
+  const projectId = text(args.p_project_id);
+  if (!userCanAccessProject(projectId)) throw forbidden('Project access denied');
+  const raw = Array.isArray(args.p_groups) ? args.p_groups : [];
+  const groups = [...new Set(raw.map((g) => (typeof g === 'string' ? g.trim() : '')).filter(Boolean))];
+  if (groups.some((g) => tooLong(g, 120))) return { state: 'invalid_input' };
+  const renames =
+    args.p_renames && typeof args.p_renames === 'object' && !Array.isArray(args.p_renames)
+      ? (args.p_renames as Record<string, unknown>)
+      : {};
+
+  const members = db
+    .prepare('select id, group_name from members where project_id = ? and group_name is not null')
+    .all(projectId) as { id: string; group_name: string }[];
+  const setGroup = db.prepare('update members set group_name = ? where id = ?');
+  for (const m of members) {
+    let next: string | null = m.group_name;
+    if (Object.hasOwn(renames, m.group_name)) {
+      const target = renames[m.group_name];
+      next = typeof target === 'string' ? target.trim() || null : null;
+    }
+    if (next !== null && !groups.includes(next)) next = null;
+    if (next !== m.group_name) setGroup.run(next, m.id);
+  }
+  db.prepare('update projects set groups = ? where id = ?').run(JSON.stringify(groups), projectId);
+  return { state: 'success' };
 };
 
 // Managers look up accounts by name/email to add them as project members.
@@ -616,6 +635,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   join_project,
   leave_project,
   set_my_group,
+  set_project_groups,
   search_accounts,
   linked_account_names,
 };
