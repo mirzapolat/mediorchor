@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Upload, X } from 'lucide-react';
+import { Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -11,6 +11,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import { useProjectContext } from '@/layouts/projectContext';
+import type { TranslationKey } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 
 export const ProjectSettingsPage = () => {
@@ -36,6 +37,10 @@ export const ProjectSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const toggle = (key: AccessKey, value: boolean) => {
+    setAccess((current) => ({ ...current, [key]: value }));
+    setSaved(false);
+  };
   const { canManageProjects } = useAuth();
 
   const handleUpload = async (file: File) => {
@@ -78,6 +83,7 @@ export const ProjectSettingsPage = () => {
     <>
       <PageHeader
         title={t('settings')}
+        inlineActions
         actions={
           <>
             {saved && <span className="text-sm text-text-secondary">✓</span>}
@@ -93,8 +99,11 @@ export const ProjectSettingsPage = () => {
         onSubmit={save}
         className="grid gap-6 max-w-5xl lg:grid-cols-2 lg:items-start"
       >
+        {/* Two balanced columns on wide screens; on phones the cards stack in
+            reading order: general, participants, check-in, sign-up, delete. */}
         <div className="space-y-6">
           <Card className="space-y-4">
+            <h2 className="text-base font-medium">{t('generalSettings')}</h2>
             <div>
               <p className="text-sm font-medium text-text-secondary mb-2">{t('projectImage')}</p>
               <div className="flex items-center gap-4">
@@ -143,53 +152,51 @@ export const ProjectSettingsPage = () => {
               }}
             />
           </Card>
+          <ToggleCard
+            title={t('participantsSettings')}
+            hint={t('participantsSettingsHint')}
+            toggles={[
+              ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
+              ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
+            ]}
+            values={access}
+            onToggle={toggle}
+          />
         </div>
 
         <div className="space-y-6">
-          <Card className="space-y-4">
-            <div>
-              <h2 className="text-base font-medium">{t('accessSettings')}</h2>
-              <p className="text-sm text-text-secondary mt-1">{t('accessSettingsHint')}</p>
-            </div>
-            {(
-              [
-                ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
-                ['allow_account_checkin', 'allowAccountCheckin', 'allowAccountCheckinHint'],
-                ['allow_account_signup', 'allowAccountSignup', 'allowAccountSignupHint'],
-                ['allow_guest_checkin', 'allowGuestCheckin', 'allowGuestCheckinHint'],
-                ['allow_guest_signup', 'allowGuestSignup', 'allowGuestSignupHint'],
-                ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
-              ] as const
-            ).map(([key, label, hint]) => (
-              <label
-                key={key}
-                className="flex items-center justify-between gap-4 border-t border-border pt-4 first:border-t-0 first:pt-0 cursor-pointer"
-              >
-                <span>
-                  <span className="block font-medium">{t(label)}</span>
-                  <span className="block text-sm text-text-secondary mt-0.5">{t(hint)}</span>
-                </span>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-black"
-                  checked={access[key]}
-                  onChange={(e) => {
-                    setAccess({ ...access, [key]: e.target.checked });
-                    setSaved(false);
-                  }}
-                />
-              </label>
-            ))}
-          </Card>
-
-          <Card className="space-y-3">
-            <h2 className="text-base font-medium">{t('delete')}</h2>
-            <p className="text-sm text-text-secondary">{t('confirmDelete')}</p>
-            <Button type="button" variant="accent" onClick={() => setConfirmDel(true)}>
-              {t('delete')}
-            </Button>
-          </Card>
+          <ToggleCard
+            title={t('checkinSettings')}
+            hint={t('checkinSettingsHint')}
+            toggles={[
+              ['allow_account_checkin', 'allowAccountCheckin', 'allowAccountCheckinHint'],
+              ['allow_guest_checkin', 'allowGuestCheckin', 'allowGuestCheckinHint'],
+            ]}
+            values={access}
+            onToggle={toggle}
+          />
+          <ToggleCard
+            title={t('signupSettings')}
+            hint={t('signupSettingsHint')}
+            toggles={[
+              ['allow_account_signup', 'allowAccountSignup', 'allowAccountSignupHint'],
+              ['allow_guest_signup', 'allowGuestSignup', 'allowGuestSignupHint'],
+            ]}
+            values={access}
+            onToggle={toggle}
+          />
         </div>
+
+        <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+          <div>
+            <h2 className="text-base font-medium">{t('deleteProject')}</h2>
+            <p className="text-sm text-text-secondary mt-1">{t('confirmDelete')}</p>
+          </div>
+          <Button type="button" variant="accent" className="sm:flex-shrink-0" onClick={() => setConfirmDel(true)}>
+            <Trash2 size={15} />
+            {t('delete')}
+          </Button>
+        </Card>
       </form>
 
       <ConfirmDialog
@@ -202,5 +209,55 @@ export const ProjectSettingsPage = () => {
         onCancel={() => setConfirmDel(false)}
       />
     </>
+  );
+};
+
+type AccessKey =
+  | 'allow_account_access'
+  | 'allow_account_checkin'
+  | 'allow_account_signup'
+  | 'allow_guest_checkin'
+  | 'allow_guest_signup'
+  | 'allow_participant_pieces';
+
+// One topic of the access settings: a titled card of related switches.
+const ToggleCard = ({
+  title,
+  hint,
+  toggles,
+  values,
+  onToggle,
+}: {
+  title: string;
+  hint: string;
+  toggles: [AccessKey, TranslationKey, TranslationKey][];
+  values: Record<AccessKey, boolean>;
+  onToggle: (key: AccessKey, value: boolean) => void;
+}) => {
+  const { t } = useI18n();
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium">{title}</h2>
+        <p className="text-sm text-text-secondary mt-1">{hint}</p>
+      </div>
+      {toggles.map(([key, label, toggleHint]) => (
+        <label
+          key={key}
+          className="flex items-center justify-between gap-4 border-t border-border pt-4 cursor-pointer"
+        >
+          <span>
+            <span className="block font-medium">{t(label)}</span>
+            <span className="block text-sm text-text-secondary mt-0.5">{t(toggleHint)}</span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-4 w-4 flex-shrink-0 accent-black"
+            checked={values[key]}
+            onChange={(e) => onToggle(key, e.target.checked)}
+          />
+        </label>
+      ))}
+    </Card>
   );
 };

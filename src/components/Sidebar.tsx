@@ -169,6 +169,11 @@ export const Sidebar = ({
           'fixed inset-y-0 left-0 z-50 transform transition-transform duration-200',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           'md:relative md:z-auto md:w-auto md:max-w-none md:translate-x-0 md:flex-shrink-0 md:transition-none',
+          // Desktop: a floating panel inset from the top, left and bottom edges
+          // (stretched by the flex row, hence h-auto). Nested sidebars sit next
+          // to each other with the same gap.
+          'md:my-3 md:ml-3 md:h-auto md:overflow-hidden md:rounded-2xl md:border',
+          'md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]',
         ].join(' ')}
       >
         {/* Mobile-only close button. */}

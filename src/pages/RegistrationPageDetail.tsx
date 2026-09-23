@@ -25,7 +25,9 @@ import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
@@ -90,6 +92,7 @@ export const RegistrationPageDetail = () => {
   const [selectionOpen, setSelectionOpen] = useState(false);
   // Group filter, shared by the table's dropdown and the distribution chart.
   const [groupFilter, setGroupFilter] = useState('');
+  const tf = useTableFilters();
   const [distributionOpen, setDistributionOpen] = useState(
     () => localStorage.getItem(DISTRIBUTION_OPEN_KEY) === '1',
   );
@@ -375,7 +378,7 @@ export const RegistrationPageDetail = () => {
   ];
   const showDistribution = page.ask_group && registrations.length > 0;
 
-  const filters: FilterDef<Registration>[] = [
+  const filters = tf.bind<Registration>([
     ...(page.ask_group
       ? [
           {
@@ -397,7 +400,7 @@ export const RegistrationPageDetail = () => {
       ],
       predicate: (r, v) => (v === 'done' ? r.transferred : !r.transferred),
     },
-  ];
+  ]);
 
   return (
     <>
@@ -437,13 +440,12 @@ export const RegistrationPageDetail = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
-          <Button
+          <HeaderAction
+            icon={Settings}
+            label={t('settings')}
             variant="secondary"
             onClick={() => navigate(`/projects/${project.id}/registrations/${page.id}/settings`)}
-          >
-            <Settings size={16} />
-            {t('settings')}
-          </Button>
+          />
           <Button variant={page.is_active ? 'accent' : 'primary'} disabled={busy} onClick={toggleActive}>
             {page.is_active ? <Square size={15} /> : <Play size={16} />}
             {page.is_active ? t('deactivate') : t('activate')}
@@ -521,38 +523,48 @@ export const RegistrationPageDetail = () => {
         getRowId={(r) => r.id}
         search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''}`}
         filters={filters}
+        query={tf.query}
+        hideToolbar
         toolbar={
-          selectedIds.length > 0 ? (
-            <>
-              <span className="text-sm text-text-secondary">
-                {t('selectedCount').replace('{n}', String(selectedIds.length))}
-              </span>
-              <Button variant="secondary" disabled={busy} onClick={bulkTransfer}>
-                <UserPlus size={16} />
-                {t('transferToMembers')}
-              </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => setBulkDeleteOpen(true)}>
-                <Trash2 size={16} />
-                {t('delete')}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="secondary"
-                disabled={busy || transferable.length === 0}
-                onClick={() => setSelectionOpen(true)}
-              >
-                <Shuffle size={16} />
-                {t('transferSelection')}
-              </Button>
-              <Button disabled={busy || transferable.length === 0} onClick={transferAll}>
-                <Users size={16} />
-                {t('transferAllToMembers')}
-                {transferable.length > 0 ? ` (${transferable.length})` : ''}
-              </Button>
-            </>
-          )
+          <>
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            {selectedIds.length > 0 ? (
+              <>
+                <span className="text-sm text-text-secondary">
+                  {t('selectedCount').replace('{n}', String(selectedIds.length))}
+                </span>
+                <HeaderAction
+                  icon={UserPlus}
+                  label={t('transferToMembers')}
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={bulkTransfer}
+                />
+                <HeaderAction
+                  icon={Trash2}
+                  label={t('delete')}
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => setBulkDeleteOpen(true)}
+                />
+              </>
+            ) : (
+              <>
+                <HeaderAction
+                  icon={Shuffle}
+                  label={t('transferSelection')}
+                  variant="secondary"
+                  disabled={busy || transferable.length === 0}
+                  onClick={() => setSelectionOpen(true)}
+                />
+                <Button className="h-9" disabled={busy || transferable.length === 0} onClick={transferAll}>
+                  <Users size={16} />
+                  {t('transferAllToMembers')}
+                  {transferable.length > 0 ? ` (${transferable.length})` : ''}
+                </Button>
+              </>
+            )}
+          </>
         }
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}

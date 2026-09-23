@@ -20,7 +20,9 @@ export interface FilterMenuFilter {
 //   <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
 //   <DataTable filters={filters} query={tf.query} hideToolbar ... />
 // bind is stable while the values are unchanged, so pages that memoize their
-// filters (e.g. with onVisibleRowsChange) can memoize the bound ones too.
+// filters (e.g. with onVisibleRowsChange) can memoize the bound ones too. A
+// definition that brings its own value/onChange (shared with a chart, say)
+// keeps them.
 export const useTableFilters = (initial: Record<string, string> = {}) => {
   const [defaults] = useState(initial);
   const [query, setQuery] = useState('');
@@ -30,8 +32,8 @@ export const useTableFilters = (initial: Record<string, string> = {}) => {
       defs.map((f) => ({
         ...f,
         defaultValue: defaults[f.id] ?? '',
-        value: values[f.id] ?? '',
-        onChange: (value: string) => setValues((s) => ({ ...s, [f.id]: value })),
+        value: f.value ?? values[f.id] ?? '',
+        onChange: f.onChange ?? ((value: string) => setValues((s) => ({ ...s, [f.id]: value }))),
       })),
     [defaults, values],
   );

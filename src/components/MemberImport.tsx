@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Upload, FileText } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Select } from './Input';
 import { GroupPill } from './GroupPill';
+import { FileDropzone } from './FileDropzone';
 import { ColumnMapper, MAP_TARGETS, type MapTarget } from './FieldMapper';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -381,17 +381,13 @@ export const MemberImportFields = ({ imp }: { imp: MemberImportState }) => {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5]">
-          {fileName ? <FileText size={15} /> : <Upload size={15} />}
-          {fileName ?? t('selectCsvFile')}
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-          />
-        </label>
+      <div className="space-y-3">
+        <FileDropzone
+          accept=".csv,text/csv"
+          fileName={fileName}
+          onFile={handleFile}
+          hint={t('dropzoneCsvHint')}
+        />
         {rawText && (
           <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-text-secondary">
             <input

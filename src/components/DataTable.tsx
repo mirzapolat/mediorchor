@@ -54,7 +54,8 @@ interface DataTableProps<T> {
   // Extra controls at the right end of the search/filter row.
   toolbar?: ReactNode;
   // Controlled search text, for pages that render search elsewhere (e.g. a
-  // TableFilterMenu in the page header) together with hideToolbar.
+  // TableFilterMenu in the page header) together with hideToolbar, which hides
+  // the built-in search and filter controls (a custom `toolbar` still shows).
   query?: string;
   hideToolbar?: boolean;
 }
@@ -159,7 +160,8 @@ export function DataTable<T>({
     }
   };
 
-  const hasToolbar = !hideToolbar && (Boolean(search) || filters.length > 0 || Boolean(toolbar));
+  const showControls = !hideToolbar && (Boolean(search) || filters.length > 0);
+  const hasToolbar = showControls || Boolean(toolbar);
   const hasActiveFilters =
     query.trim() !== '' ||
     filters.some((f) => (filterValues[f.id] ?? '') !== '') ||
@@ -200,7 +202,7 @@ export function DataTable<T>({
     <>
       {hasToolbar && (
         <div className="mb-4 flex flex-wrap items-end gap-3">
-          {search && (
+          {showControls && search && (
             <div className="w-full sm:w-64">
               <Input
                 placeholder={searchPlaceholder ?? t('search')}
@@ -209,7 +211,7 @@ export function DataTable<T>({
               />
             </div>
           )}
-          {filters.map((f) => (
+          {showControls && filters.map((f) => (
             <div key={f.id} className="min-w-[150px]">
               <Select
                 label={f.label}
@@ -225,7 +227,7 @@ export function DataTable<T>({
               </Select>
             </div>
           ))}
-          {hasActiveFilters && (
+          {showControls && hasActiveFilters && (
             <button
               type="button"
               onClick={clearAll}

@@ -142,6 +142,9 @@ const dict: Dict = {
   accessNone: { de: 'Nein', en: 'No' },
   memberManagement: { de: 'Mitgliederverwaltung', en: 'Member management' },
   clubShort: { de: 'Verein', en: 'Club' },
+  accountCreated: { de: 'Erstellt', en: 'Created' },
+  lastSeen: { de: 'Zuletzt aktiv', en: 'Last seen' },
+  never: { de: 'Nie', en: 'Never' },
   yes: { de: 'Ja', en: 'Yes' },
   no: { de: 'Nein', en: 'No' },
   manageAccess: { de: 'Zugriff verwalten', en: 'Manage access' },
@@ -248,6 +251,12 @@ const dict: Dict = {
   importCsv: { de: 'CSV importieren', en: 'Import CSV' },
   importMembers: { de: 'Mitglieder importieren', en: 'Import members' },
   selectCsvFile: { de: 'CSV-Datei auswählen', en: 'Select CSV file' },
+  dropzoneTitle: { de: 'Datei hierher ziehen oder klicken', en: 'Drop a file here or click to browse' },
+  dropzoneRelease: { de: 'Loslassen zum Hochladen', en: 'Release to upload' },
+  dropzoneHint: { de: 'Eine Datei auswählen', en: 'Choose one file' },
+  dropzoneCsvHint: { de: 'CSV-Datei, z. B. ein Export aus Excel', en: 'CSV file, e.g. exported from Excel' },
+  dropzoneReplace: { de: 'Klicken oder neue Datei ablegen, um sie zu ersetzen', en: 'Click or drop another file to replace it' },
+  dropzoneWrongType: { de: 'Dieser Dateityp wird hier nicht unterstützt.', en: 'This file type is not supported here.' },
   firstRowHeader: {
     de: 'Erste Zeile enthält Spaltennamen',
     en: 'First row contains column names',
@@ -321,6 +330,7 @@ const dict: Dict = {
   },
   date: { de: 'Datum', en: 'Date' },
   time: { de: 'Uhrzeit', en: 'Time' },
+  dateAndTime: { de: 'Datum & Uhrzeit', en: 'Date & time' },
   noEvents: { de: 'Noch keine Proben', en: 'No events yet' },
   nextRehearsal: { de: 'Nächste Probe', en: 'Next rehearsal' },
   todayRehearsal: { de: 'Heute', en: 'Today' },
@@ -519,6 +529,23 @@ const dict: Dict = {
 
   // Project access settings
   accessSettings: { de: 'Zugriff & Formulare', en: 'Access & forms' },
+  generalSettings: { de: 'Allgemein', en: 'General' },
+  participantsSettings: { de: 'Teilnehmende', en: 'Participants' },
+  participantsSettingsHint: {
+    de: 'Was Mitglieder mit Konto in diesem Projekt sehen.',
+    en: 'What members with an account see in this project.',
+  },
+  checkinSettings: { de: 'Check-in', en: 'Check-in' },
+  checkinSettingsHint: {
+    de: 'Wie sich Teilnehmende bei Proben einchecken können.',
+    en: 'How people can check in to rehearsals.',
+  },
+  signupSettings: { de: 'Anmeldung', en: 'Sign-up' },
+  signupSettingsHint: {
+    de: 'Wie sich Personen über Anmeldeformulare registrieren können.',
+    en: 'How people can register through sign-up forms.',
+  },
+  deleteProject: { de: 'Projekt löschen', en: 'Delete project' },
   accessSettingsHint: {
     de: 'Lege fest, wie Konten und Gäste mit diesem Projekt interagieren dürfen.',
     en: 'Control how accounts and guests may interact with this project.',
@@ -990,10 +1017,12 @@ const dict: Dict = {
   },
 };
 
+
+export type TranslationKey = keyof typeof dict;
 interface I18nContextValue {
   lang: Language;
   setLang: (l: Language) => void;
-  t: (key: keyof typeof dict) => string;
+  t: (key: TranslationKey) => string;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);

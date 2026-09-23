@@ -7,7 +7,9 @@ import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -33,6 +35,7 @@ export const EventAttendancePage = () => {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const tf = useTableFilters();
 
   const load = async () => {
     const [{ data: members }, { data: attendance }] = await Promise.all([
@@ -165,7 +168,7 @@ export const EventAttendancePage = () => {
     },
   ];
 
-  const filters: FilterDef<Row>[] = [
+  const filters = tf.bind<Row>([
     {
       id: 'status',
       label: t('attendance'),
@@ -182,18 +185,19 @@ export const EventAttendancePage = () => {
       options: groups.map((g) => ({ value: g, label: g })),
       predicate: (r, v) => r.member.group_name === v,
     },
-  ];
+  ]);
 
   return (
     <>
       <PageHeader
         title={t('attendance')}
         subtitle={`${counts.attended} ${t('attended').toLowerCase()} · ${counts.excused} ${t('excused').toLowerCase()} · ${counts.total} ${t('total')}`}
+        inlineActions
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <UserPlus size={16} />
-            {t('addMemberToEvent')}
-          </Button>
+          <>
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <HeaderAction icon={UserPlus} label={t('addMemberToEvent')} onClick={() => setAddOpen(true)} />
+          </>
         }
       />
 
@@ -204,6 +208,8 @@ export const EventAttendancePage = () => {
         onRowClick={(r) => navigate(`/projects/${project.id}/members/${r.member.id}`)}
         search={(r) => `${r.member.first_name} ${r.member.last_name}`}
         filters={filters}
+        query={tf.query}
+        hideToolbar
         emptyMessage={t('noMembers')}
       />
 

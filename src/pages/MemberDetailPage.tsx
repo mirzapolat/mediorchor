@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil } from 'lucide-react';
-import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { MemberForm } from '@/components/MemberForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import { DataTable } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
 import { api } from '@/lib/api';
@@ -33,6 +34,7 @@ export const MemberDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | undefined>(undefined);
+  const tf = useTableFilters();
 
   const load = async () => {
     const { data: m } = await api.from('members').select('*').eq('id', memberId).maybeSingle();
@@ -76,6 +78,19 @@ export const MemberDetailPage = () => {
     return null;
   }
 
+  const filters = tf.bind<HistoryRow>([
+    {
+      id: 'status',
+      label: t('attendance'),
+      options: [
+        { value: 'attended', label: t('attended') },
+        { value: 'excused', label: t('excused') },
+        { value: 'not_attended', label: t('notAttended') },
+      ],
+      predicate: (h, v) => h.status === v,
+    },
+  ]);
+
   const attendedCount = history.filter((h) => h.status === 'attended').length;
 
   return (
@@ -88,7 +103,7 @@ export const MemberDetailPage = () => {
         {t('members')}
       </button>
 
-      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="flex items-start justify-between gap-3 mb-6 sm:gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <Avatar name={`${member.first_name} ${member.last_name}`} photoUrl={member.photo_url} size={64} />
           <div className="min-w-0">
@@ -106,10 +121,9 @@ export const MemberDetailPage = () => {
             </p>
           </div>
         </div>
-        <Button variant="secondary" onClick={() => setEditOpen(true)} className="sm:flex-shrink-0">
-          <Pencil size={15} />
-          {t('edit')}
-        </Button>
+        <div className="flex-shrink-0">
+          <HeaderAction icon={Pencil} label={t('edit')} variant="secondary" onClick={() => setEditOpen(true)} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -129,25 +143,19 @@ export const MemberDetailPage = () => {
         </Card>
       </div>
 
-      <h2 className="text-lg font-semibold mb-3">{t('attendance')}</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">{t('attendance')}</h2>
+        <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+      </div>
       <DataTable
         rows={history}
         getRowId={(h) => h.event.id}
         onRowClick={(h) => navigate(`/projects/${project.id}/events/${h.event.id}`)}
         search={(h) => h.event.name}
+        query={tf.query}
+        hideToolbar
         emptyMessage={t('noResults')}
-        filters={[
-          {
-            id: 'status',
-            label: t('attendance'),
-            options: [
-              { value: 'attended', label: t('attended') },
-              { value: 'excused', label: t('excused') },
-              { value: 'not_attended', label: t('notAttended') },
-            ],
-            predicate: (h, v) => h.status === v,
-          },
-        ]}
+        filters={filters}
         columns={[
           {
             id: 'event',

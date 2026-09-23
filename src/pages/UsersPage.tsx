@@ -17,12 +17,13 @@ import { useAuth } from '@/hooks/useAuth';
 import type { AppUser } from '@/types';
 
 export const UsersPage = () => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [grantedUsers, setGrantedUsers] = useState<Set<string>>(new Set());
   const [twoFactorUsers, setTwoFactorUsers] = useState<Set<string>>(new Set());
+  const [lastSeen, setLastSeen] = useState<Map<string, string>>(new Map());
   const tf = useTableFilters();
   const [loading, setLoading] = useState(true);
 
@@ -33,11 +34,20 @@ export const UsersPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const [usr, access, mfa] = await Promise.all([
+    const [usr, access, mfa, seen] = await Promise.all([
       api.from('app_users').select('*').order('created_at'),
       api.from('user_projects').select('user_id'),
       api.rpc('two_factor_users'),
+      api.rpc('last_seen'),
     ]);
+    setLastSeen(
+      new Map(
+        ((seen.data as { user_id: string; last_seen_at: string }[] | null) ?? []).map((r) => [
+          r.user_id,
+          r.last_seen_at,
+        ]),
+      ),
+    );
     setTwoFactorUsers(new Set((mfa.data as string[] | null) ?? []));
     setUsers((usr.data as AppUser[]) ?? []);
     setGrantedUsers(new Set(((access.data as { user_id: string }[]) ?? []).map((r) => r.user_id)));
@@ -94,6 +104,19 @@ export const UsersPage = () => {
       </span>
     );
   const narrow = 'w-px whitespace-nowrap';
+  // Date over time keeps the timestamp columns narrow.
+  const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+  const dateTime = (iso: string) => {
+    const d = new Date(iso);
+    return (
+      <span className="block text-sm leading-tight text-text-secondary">
+        {d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: '2-digit' })}
+        <span className="block text-xs text-text-tertiary">
+          {d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </span>
+    );
+  };
 
   const columns: Column<AppUser>[] = [
     {
@@ -154,6 +177,27 @@ export const UsersPage = () => {
       accessor: (u) => (hasTwoFactor(u) ? 0 : 1),
       className: narrow,
       render: (u) => flag(hasTwoFactor(u)),
+    },
+    {
+      id: 'created_at',
+      header: t('accountCreated'),
+      accessor: (u) => u.created_at,
+      className: narrow,
+      render: (u) => dateTime(u.created_at),
+    },
+    {
+      id: 'last_seen',
+      header: t('lastSeen'),
+      accessor: (u) => lastSeen.get(u.id) ?? null,
+      className: narrow,
+      render: (u) => {
+        const at = lastSeen.get(u.id);
+        return at ? (
+          dateTime(at)
+        ) : (
+          <span className="text-sm text-text-tertiary">{t('never')}</span>
+        );
+      },
     },
   ];
 

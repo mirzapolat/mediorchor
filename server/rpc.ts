@@ -779,6 +779,15 @@ const two_factor_users = () => {
   ).map((r) => r.user_id);
 };
 
+// Admins see when each account was last active (auth tables stay private).
+const last_seen = () => {
+  requireUser();
+  if (!check(isAdmin())) throw forbidden('Access denied');
+  return db
+    .prepare('select id as user_id, last_seen_at from auth_users where last_seen_at is not null')
+    .all();
+};
+
 const functions: Record<string, (args: Args) => unknown> = {
   get_public_config,
   get_public_checkin,
@@ -798,6 +807,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   search_accounts,
   linked_account_names,
   two_factor_users,
+  last_seen,
 };
 
 // Public functions are rate limited by the HTTP layer.

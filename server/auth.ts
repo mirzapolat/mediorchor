@@ -120,6 +120,7 @@ const startSession = (c: Context, userId: string) => {
     userId,
     expires.toISOString(),
   );
+  db.prepare('update auth_users set last_seen_at = ? where id = ?').run(nowIso(), userId);
   setCookie(c, COOKIE, token, {
     httpOnly: true,
     sameSite: 'Lax',
@@ -129,6 +130,10 @@ const startSession = (c: Context, userId: string) => {
   });
 };
 
+// How stale auth_users.last_seen_at may get before a request refreshes it;
+// keeps "last seen" accurate enough without a write on every request.
+const LAST_SEEN_INTERVAL = 5 * 60 * 1000;
+
 // Resolves the session cookie to a user. Sessions slide: they are extended
 // once less than half of their lifetime is left.
 export const sessionUser = (c: Context): SessionUser | null => {
@@ -137,11 +142,13 @@ export const sessionUser = (c: Context): SessionUser | null => {
   const hash = sha256(token);
   const row = db
     .prepare(
-      `select s.expires_at, u.id, u.email from auth_sessions s
+      `select s.expires_at, u.id, u.email, u.last_seen_at from auth_sessions s
        join auth_users u on u.id = s.user_id
        where s.token_hash = ?`,
     )
-    .get(hash) as { expires_at: string; id: string; email: string } | undefined;
+    .get(hash) as
+    | { expires_at: string; id: string; email: string; last_seen_at: string | null }
+    | undefined;
   if (!row) return null;
   const expiresAt = Date.parse(row.expires_at);
   if (expiresAt <= Date.now()) {
@@ -158,6 +165,9 @@ export const sessionUser = (c: Context): SessionUser | null => {
       path: '/',
       maxAge: env.sessionDays * 24 * 60 * 60,
     });
+  }
+  if (!row.last_seen_at || Date.now() - Date.parse(row.last_seen_at) > LAST_SEEN_INTERVAL) {
+    db.prepare('update auth_users set last_seen_at = ? where id = ?').run(nowIso(), row.id);
   }
   return { id: row.id, email: row.email };
 };

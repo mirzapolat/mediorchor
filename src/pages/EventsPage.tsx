@@ -146,28 +146,26 @@ export const EventsPage = () => {
       ),
     },
     {
-      id: 'date',
-      header: t('date'),
-      accessor: (ev) => ev.date,
+      id: 'when',
+      header: t('dateAndTime'),
+      // Sorts by date, then time; undated Proben sort last.
+      accessor: (ev) => (ev.date ? `${ev.date} ${ev.time ?? ''}` : null),
+      className: 'w-px whitespace-nowrap',
       render: (ev) =>
-        ev.date ? (
-          <span className="inline-flex items-center gap-1.5 text-text-secondary">
-            <CalendarDays size={14} />
-            {ev.date}
-          </span>
-        ) : (
-          <span className="text-text-secondary">—</span>
-        ),
-    },
-    {
-      id: 'time',
-      header: t('time'),
-      accessor: (ev) => ev.time,
-      render: (ev) =>
-        ev.time ? (
-          <span className="inline-flex items-center gap-1.5 text-text-secondary">
-            <Clock size={14} />
-            {ev.time}
+        ev.date || ev.time ? (
+          <span className="inline-flex items-center gap-3 text-text-secondary">
+            {ev.date && (
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarDays size={14} />
+                {ev.date}
+              </span>
+            )}
+            {ev.time && (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock size={14} />
+                {ev.time}
+              </span>
+            )}
           </span>
         ) : (
           <span className="text-text-secondary">—</span>
