@@ -11,8 +11,8 @@ import { PageSpinner } from '@/components/Spinner';
 import { Modal } from '@/components/Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
-import { uploadImage } from '@/lib/uploadImage';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
 
 export const AccountPage = () => {
@@ -23,33 +23,11 @@ export const AccountPage = () => {
   const [password, setPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photo = useProfilePhoto();
+  const photoBusy = photo.busy;
+  const photoError = photo.error;
 
   if (!user) return <PageSpinner />;
-
-  // The photo is saved right away and mirrored onto every linked member row.
-  const setPhoto = async (url: string | null) => {
-    const { error } = await api.from('app_users').update({ photo_url: url }).eq('id', user.id);
-    if (error) setPhotoError(error.message);
-    await refreshUser();
-  };
-
-  const uploadPhoto = async (file: File) => {
-    setPhotoBusy(true);
-    setPhotoError(null);
-    const { url, error } = await uploadImage(`users/${user.id}`, file);
-    if (error) setPhotoError(error);
-    else await setPhoto(url);
-    setPhotoBusy(false);
-  };
-
-  const removePhoto = async () => {
-    setPhotoBusy(true);
-    setPhotoError(null);
-    await setPhoto(null);
-    setPhotoBusy(false);
-  };
 
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -99,7 +77,7 @@ export const AccountPage = () => {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         e.target.value = '';
-                        if (file) void uploadPhoto(file);
+                        if (file) photo.choose(file);
                       }}
                     />
                   </label>
@@ -107,7 +85,7 @@ export const AccountPage = () => {
                     <button
                       type="button"
                       disabled={photoBusy}
-                      onClick={removePhoto}
+                      onClick={() => void photo.remove()}
                       className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150"
                     >
                       <X size={15} />
@@ -158,6 +136,7 @@ export const AccountPage = () => {
           <DeleteAccountCard />
         </div>
       </div>
+      {photo.cropper}
     </>
   );
 };

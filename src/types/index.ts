@@ -12,6 +12,7 @@ export interface AppUser {
   all_projects: boolean; // false → management limited to user_projects rows
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
   photo_url: string | null; // set by the account holder, mirrored onto linked members
+  photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
   created_at: string;
 }
 

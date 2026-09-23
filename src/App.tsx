@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { safeRedirectPath } from '@/lib/safePath';
 import { PageSpinner } from '@/components/Spinner';
+import { WelcomePhotoPrompt } from '@/components/WelcomePhotoPrompt';
 import { LoginPage } from '@/pages/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { PaddedPage } from '@/layouts/PaddedPage';
@@ -83,70 +84,73 @@ export const App = () => {
   const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
 
   return (
-    <Routes>
-      <Route path="/login" element={<Navigate to={from ?? homePath} replace />} />
+    <>
+      <WelcomePhotoPrompt />
+      <Routes>
+        <Route path="/login" element={<Navigate to={from ?? homePath} replace />} />
 
-      {/* Top-level workspace */}
-      <Route element={<AppLayout />}>
-        <Route element={<PaddedPage />}>
-          <Route index element={<ProjectsPage />} />
-          <Route path="account" element={<AccountPage />} />
+        {/* Top-level workspace */}
+        <Route element={<AppLayout />}>
+          <Route element={<PaddedPage />}>
+            <Route index element={<ProjectsPage />} />
+            <Route path="account" element={<AccountPage />} />
+          </Route>
+
+          {/* Club members section — owns a second (nested) sidebar. */}
+          <Route path="club" element={<ClubLayout />}>
+            <Route index element={<Navigate to="members" replace />} />
+            <Route path="members" element={<ClubMembersPage />} />
+            <Route path="members/:memberId" element={<ClubMemberDetailPage />} />
+            <Route path="applications" element={<ClubApplicationsPage />} />
+            <Route path="rules" element={<ClubRulesPage />} />
+          </Route>
         </Route>
 
-        {/* Club members section — owns a second (nested) sidebar. */}
-        <Route path="club" element={<ClubLayout />}>
-          <Route index element={<Navigate to="members" replace />} />
-          <Route path="members" element={<ClubMembersPage />} />
-          <Route path="members/:memberId" element={<ClubMemberDetailPage />} />
-          <Route path="applications" element={<ClubApplicationsPage />} />
-          <Route path="rules" element={<ClubRulesPage />} />
+        {/* Admin-only administration — isolated in its own sidebar layout. */}
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="users" replace />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="users/:userId" element={<UserDetailPage />} />
+          <Route path="config" element={<AdminConfigPage />} />
         </Route>
-      </Route>
 
-      {/* Admin-only administration — isolated in its own sidebar layout. */}
-      <Route path="admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="users" replace />} />
-        <Route path="users" element={<UsersPage />} />
-        <Route path="users/:userId" element={<UserDetailPage />} />
-        <Route path="config" element={<AdminConfigPage />} />
-      </Route>
+        {/* Full-screen wizard for creating a project. */}
+        <Route path="projects/new" element={<ProjectOnboardingPage />} />
 
-      {/* Full-screen wizard for creating a project. */}
-      <Route path="projects/new" element={<ProjectOnboardingPage />} />
-
-      {/* Inside a project. Access (manager vs. participant) is resolved in the
-          layout; management pages are additionally wrapped in a guard. */}
-      <Route path="projects/:projectId" element={<ProjectLayout />}>
-        <Route index element={<ProjectIndexRedirect />} />
-        <Route path="participation" element={<MyParticipationPage />} />
-        <Route element={<RequirePiecesAccess />}>
-          <Route path="pieces" element={<PiecesPage />} />
-          <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
-          <Route path="pieces/:pieceId/practice/:blockId" element={<PiecePracticePage />} />
+        {/* Inside a project. Access (manager vs. participant) is resolved in the
+            layout; management pages are additionally wrapped in a guard. */}
+        <Route path="projects/:projectId" element={<ProjectLayout />}>
+          <Route index element={<ProjectIndexRedirect />} />
+          <Route path="participation" element={<MyParticipationPage />} />
+          <Route element={<RequirePiecesAccess />}>
+            <Route path="pieces" element={<PiecesPage />} />
+            <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
+            <Route path="pieces/:pieceId/practice/:blockId" element={<PiecePracticePage />} />
+          </Route>
+          <Route element={<RequireProjectManage />}>
+            <Route path="events" element={<EventsPage />} />
+            <Route path="members" element={<MembersPage />} />
+            <Route path="absences" element={<AbsencesPage />} />
+            <Route path="statistics" element={<StatisticsPage />} />
+            <Route path="registrations" element={<RegistrationsPage />} />
+            <Route path="registrations/:pageId" element={<RegistrationPageDetail />} />
+            <Route path="registrations/:pageId/settings" element={<RegistrationPageSettings />} />
+            <Route path="members/:memberId" element={<MemberDetailPage />} />
+            <Route path="groups" element={<GroupsPage />} />
+            <Route path="groups/:groupId" element={<GroupDetailPage />} />
+            <Route path="settings" element={<ProjectSettingsPage />} />
+          </Route>
         </Route>
-        <Route element={<RequireProjectManage />}>
-          <Route path="events" element={<EventsPage />} />
-          <Route path="members" element={<MembersPage />} />
-          <Route path="absences" element={<AbsencesPage />} />
-          <Route path="statistics" element={<StatisticsPage />} />
-          <Route path="registrations" element={<RegistrationsPage />} />
-          <Route path="registrations/:pageId" element={<RegistrationPageDetail />} />
-          <Route path="registrations/:pageId/settings" element={<RegistrationPageSettings />} />
-          <Route path="members/:memberId" element={<MemberDetailPage />} />
-          <Route path="groups" element={<GroupsPage />} />
-          <Route path="groups/:groupId" element={<GroupDetailPage />} />
-          <Route path="settings" element={<ProjectSettingsPage />} />
+
+        {/* Inside a single event — its own sidebar layout (management only) */}
+        <Route path="projects/:projectId/events/:eventId" element={<EventLayout />}>
+          <Route index element={<EventAttendancePage />} />
+          <Route path="check-in" element={<EventCheckinPage />} />
+          <Route path="settings" element={<EventSettingsPage />} />
         </Route>
-      </Route>
 
-      {/* Inside a single event — its own sidebar layout (management only) */}
-      <Route path="projects/:projectId/events/:eventId" element={<EventLayout />}>
-        <Route index element={<EventAttendancePage />} />
-        <Route path="check-in" element={<EventCheckinPage />} />
-        <Route path="settings" element={<EventSettingsPage />} />
-      </Route>
-
-      <Route path="*" element={<Navigate to={homePath} replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to={homePath} replace />} />
+      </Routes>
+    </>
   );
 };
