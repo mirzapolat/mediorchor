@@ -269,6 +269,13 @@ const dict: Dict = {
   totalAttendances: { de: 'Anwesenheiten gesamt', en: 'Total attendances' },
   totalExcuses: { de: 'Entschuldigungen gesamt', en: 'Total excuses' },
   attendanceRate: { de: 'Anwesenheitsquote', en: 'Attendance rate' },
+  allGroups: { de: 'Alle Gruppen', en: 'All groups' },
+  attendanceRateByGroup: { de: 'Anwesenheitsquote nach Gruppe', en: 'Attendance rate by group' },
+  presentOfMembers: { de: '{n} von {total} anwesend', en: '{n} of {total} present' },
+  attendanceChartHint: {
+    de: 'Jede Säule ist eine Probe. Farbige Blöcke zeigen die Anwesenden je Gruppe, die Höhe der hellen Fläche die aktiven Mitglieder.',
+    en: 'Each column is a rehearsal. Coloured blocks show who was present per group; the light track shows the active members.',
+  },
   noStatistics: {
     de: 'Noch keine Daten. Lege Proben mit Datum an und erfasse die Anwesenheit.',
     en: 'No data yet. Add rehearsals with a date and record attendance.',

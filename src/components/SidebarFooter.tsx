@@ -1,18 +1,17 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, ShieldCheck } from 'lucide-react';
-import { SidebarNavItem } from './SidebarNav';
+import { LogOut } from 'lucide-react';
 import { useSidebar } from './Sidebar';
 import { Avatar } from './Avatar';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 
-// Shared bottom section for every sidebar: admin link, then an account card
+// Shared bottom section for every sidebar: an account card
 // (avatar, name, email → account settings) with sign-out as an icon button.
-export const SidebarFooter = ({ showAdminConfig = true }: { showAdminConfig?: boolean }) => {
+export const SidebarFooter = () => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -35,11 +34,7 @@ export const SidebarFooter = ({ showAdminConfig = true }: { showAdminConfig?: bo
   );
 
   return (
-    <div className="space-y-2 border-t border-border p-3">
-      {showAdminConfig && isAdmin ? (
-        <SidebarNavItem to="/admin" label={t('adminConfig')} icon={ShieldCheck} />
-      ) : null}
-
+    <div className="p-3">
       {collapsed ? (
         <div className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-surface py-1.5">
           <NavLink

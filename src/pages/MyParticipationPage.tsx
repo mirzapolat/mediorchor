@@ -230,35 +230,6 @@ export const MyParticipationPage = () => {
         </Card>
       ) : (
         <div className="space-y-6 max-w-3xl">
-          <Card className="space-y-4">
-            <div>
-              <h2 className="text-base font-medium">{t('myGroup')}</h2>
-              <p className="text-sm text-text-secondary mt-1">{t('myGroupHint')}</p>
-            </div>
-            {groups.length > 0 ? (
-              <div className="flex items-center gap-3 max-w-xs">
-                <Select
-                  value={member?.group_name ?? ''}
-                  onChange={(e) => changeGroup(e.target.value)}
-                >
-                  {!member?.group_name && (
-                    <option value="" disabled>
-                      {t('selectGroup')}
-                    </option>
-                  )}
-                  {groups.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </Select>
-                {groupSaved && <span className="text-sm text-text-secondary">✓</span>}
-              </div>
-            ) : (
-              <p className="text-sm text-text-tertiary">{t('noGroupsAvailable')}</p>
-            )}
-          </Card>
-
           <Card className="space-y-3">
             <h2 className="text-base font-medium">{t('upcomingEvents')}</h2>
             {upcoming.length === 0 ? (
@@ -328,14 +299,45 @@ export const MyParticipationPage = () => {
             )}
           </Card>
 
-          <Card className="space-y-3">
-            <h2 className="text-base font-medium">{t('leaveProject')}</h2>
-            <p className="text-sm text-text-secondary">{t('leaveProjectHint')}</p>
-            <Button variant="accent" onClick={() => setConfirmLeave(true)} disabled={busy}>
-              <LogOut size={15} />
-              {t('leaveProject')}
-            </Button>
-          </Card>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <Card className="flex flex-col space-y-4">
+              <div>
+                <h2 className="text-base font-medium">{t('myGroup')}</h2>
+                <p className="text-sm text-text-secondary mt-1">{t('myGroupHint')}</p>
+              </div>
+              {groups.length > 0 ? (
+                <div className="flex items-center gap-3 max-w-xs">
+                  <Select
+                    value={member?.group_name ?? ''}
+                    onChange={(e) => changeGroup(e.target.value)}
+                  >
+                    {!member?.group_name && (
+                      <option value="" disabled>
+                        {t('selectGroup')}
+                      </option>
+                    )}
+                    {groups.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </Select>
+                  {groupSaved && <span className="text-sm text-text-secondary">✓</span>}
+                </div>
+              ) : (
+                <p className="text-sm text-text-tertiary">{t('noGroupsAvailable')}</p>
+              )}
+            </Card>
+
+            <Card className="flex flex-col items-start space-y-3">
+              <h2 className="text-base font-medium">{t('leaveProject')}</h2>
+              <p className="text-sm text-text-secondary">{t('leaveProjectHint')}</p>
+              <Button variant="accent" onClick={() => setConfirmLeave(true)} disabled={busy}>
+                <LogOut size={15} />
+                {t('leaveProject')}
+              </Button>
+            </Card>
+          </div>
         </div>
       )}
 

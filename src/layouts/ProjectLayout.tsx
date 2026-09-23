@@ -134,22 +134,20 @@ export const ProjectLayout = () => {
             icon={UserRound}
           />
           {canManage && (
-            <>
-              <SidebarNavItem
-                to={`${base}/events`}
-                label={t('events')}
-                icon={CalendarDays}
-                warningCount={unrecognizedCount}
-              />
-              <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
-              <SidebarNavItem to={`${base}/groups`} label={t('groupsList')} icon={Tags} />
-            </>
+            <SidebarNavItem
+              to={`${base}/events`}
+              label={t('events')}
+              icon={CalendarDays}
+              warningCount={unrecognizedCount}
+            />
           )}
           {(canManage || project.allow_participant_pieces) && (
             <SidebarNavItem to={`${base}/pieces`} label={t('pieces')} icon={Music} />
           )}
           {canManage && (
             <>
+              <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
+              <SidebarNavItem to={`${base}/groups`} label={t('groupsList')} icon={Tags} />
               <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
               <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
               <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />

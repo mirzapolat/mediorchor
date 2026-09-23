@@ -4,9 +4,9 @@ import {
   ArrowLeft,
   Check,
   ClipboardList,
-  Copy,
   Pencil,
   Play,
+  Settings,
   Shuffle,
   Square,
   Trash2,
@@ -16,14 +16,11 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
-import { RegistrationPageForm } from '@/components/RegistrationPageForm';
-import { WebhookSetup } from '@/components/WebhookSetup';
 import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -50,8 +47,6 @@ export const RegistrationPageDetail = () => {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ first_name: '', last_name: '', email: '', group_name: '' });
   const [toDelete, setToDelete] = useState<Registration | null>(null);
@@ -88,7 +83,6 @@ export const RegistrationPageDetail = () => {
     return null;
   }
 
-  const publicUrl = `${window.location.origin}/register/${page.token}`;
   const pendingCount = registrations.filter((r) => !r.transferred).length;
 
   const toggleActive = async () => {
@@ -101,28 +95,6 @@ export const RegistrationPageDetail = () => {
       .single();
     if (data) setPage(data as RegistrationPage);
     setBusy(false);
-  };
-
-  const toggleAutoTransfer = async () => {
-    setBusy(true);
-    const { data } = await api
-      .from('registration_pages')
-      .update({ auto_transfer: !page.auto_transfer })
-      .eq('id', page.id)
-      .select()
-      .single();
-    if (data) setPage(data as RegistrationPage);
-    setBusy(false);
-  };
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2500);
-    } catch {
-      /* clipboard unavailable */
-    }
   };
 
   const transferOne = async (registration: Registration) => {
@@ -309,12 +281,17 @@ export const RegistrationPageDetail = () => {
 
       <PageHeader
         title={page.title}
-        subtitle={`${registrations.length} ${t('registrations').toLowerCase()}`}
+        subtitle={`${registrations.length} ${t('registrations').toLowerCase()} · ${
+          page.is_active ? t('active') : t('registrationInactiveStatus')
+        }`}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setFormOpen(true)}>
-              <Pencil size={16} />
-              {t('edit')}
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/projects/${project.id}/registrations/${page.id}/settings`)}
+            >
+              <Settings size={16} />
+              {t('settings')}
             </Button>
             <Button
               variant={page.is_active ? 'accent' : 'primary'}
@@ -327,61 +304,6 @@ export const RegistrationPageDetail = () => {
           </>
         }
       />
-
-      <Card className="mb-6 p-5 space-y-4">
-        <div>
-          <div
-            className={`inline-flex items-center gap-2 text-sm font-medium ${
-              page.is_active ? 'text-[#16803b]' : 'text-text-secondary'
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${page.is_active ? 'bg-[#16a34a]' : 'bg-text-tertiary'}`}
-            />
-            {page.is_active ? t('registrationActive') : t('registrationInactiveStatus')}
-          </div>
-          {page.source === 'form' && (
-            <>
-              <p className="mt-2 text-sm text-text-secondary">{t('registrationLinkHint')}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <a
-                  href={publicUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="max-w-full truncate text-sm text-text-tertiary underline underline-offset-2 hover:text-text"
-                >
-                  {publicUrl}
-                </a>
-                <Button variant="secondary" onClick={copyLink}>
-                  <Copy size={15} />
-                  {copied ? t('linkCopied') : t('copyCheckInLink')}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-
-        <label className="flex cursor-pointer items-start gap-3 border-t border-border pt-4">
-          <input
-            type="checkbox"
-            checked={page.auto_transfer}
-            disabled={busy}
-            onChange={toggleAutoTransfer}
-            className="mt-0.5 accent-black"
-          />
-          <span>
-            <span className="block text-sm font-medium">{t('autoTransfer')}</span>
-            <span className="mt-0.5 block text-sm text-text-secondary">
-              {t('autoTransferHint')}
-              {page.source === 'webhook' && ` ${t('webhookAutoTransferNote')}`}
-            </span>
-          </span>
-        </label>
-      </Card>
-
-      {page.source === 'webhook' && (
-        <WebhookSetup page={page} onChange={setPage} onRefresh={() => void load()} />
-      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{t('registrations')}</h2>
@@ -454,14 +376,6 @@ export const RegistrationPageDetail = () => {
             </>
           )
         }
-      />
-
-      <RegistrationPageForm
-        open={formOpen}
-        projectId={project.id}
-        page={page}
-        onClose={() => setFormOpen(false)}
-        onSaved={load}
       />
 
       <ConfirmDialog
