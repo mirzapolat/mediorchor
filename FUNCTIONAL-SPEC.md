@@ -24,7 +24,7 @@ Everything is multilingual (German and English) and re-brandable (app name, acce
 |---|---|
 | **Account** | A login (email + password). Every account is the same kind of object; capabilities are granted through flags. |
 | **Project** | A workspace: a named ensemble/season/production. Owns its members, events, groups, pieces, registration pages and settings. |
-| **Group** | A subdivision inside a project (e.g. "Sopran", "1. Geige"). Each project maintains one central, ordered list of groups; that list is the only source of selectable groups anywhere in the project. |
+| **Group** | A subdivision inside a project (e.g. "Sopran", "1. Geige") with a name and a color. Each project maintains one central, ordered set of groups (the Groups page); it is the only source of selectable groups anywhere in the project. |
 | **Member** | A person inside one project. Has a name, optional group, optional email, optional photo, and a status. A member row may be **linked** to an account. |
 | **Participation** | An account is a participant in a project when it has an *active linked member row* there. |
 | **Event / rehearsal** | A dated (optionally timed) occasion inside a project, with an attendance list. |
@@ -158,6 +158,8 @@ The sidebar is a shared shell reused by every section:
 /projects/:id/events                 Events                    (managers only)
 /projects/:id/members                Members                   (managers only)
 /projects/:id/members/:mid           Member detail             (managers only)
+/projects/:id/groups                 Groups                    (managers only)
+/projects/:id/groups/:gid            Group detail              (managers only)
 /projects/:id/registrations          Registration pages        (managers only)
 /projects/:id/registrations/:rid     Registration page detail  (managers only)
 /projects/:id/absences               Absences                  (managers only)
@@ -220,16 +222,12 @@ Users with project management get: a "New project" button (name + optional descr
 
 ### 6.2 Project settings
 
-A single form, saved as a whole. The save button (with its "✓" acknowledgement) sits in the page header so it is always within reach. On wide screens the cards are laid out in two columns — identity and groups on the left, access settings and "delete project" on the right.
+A single form, saved as a whole. The save button (with its "✓" acknowledgement) sits in the page header so it is always within reach. On wide screens the cards are laid out in two columns — identity on the left, access settings and "delete project" on the right. Groups are managed on their own page (§8.5).
 
 **Identity**
 - Project image (round/square logo): upload, preview, remove. Shown next to the project name everywhere and, optionally, in the centre of check-in QR codes.
 - Project name (required) and optional description.
 
-**Groups** — an ordered, editable list. Each row has a drag handle, a text input and a remove button; a button appends a new empty row. Removing the last row leaves one empty row. The order set here is the order shown everywhere: check-in forms, registration forms, the participation group picker, member forms and group filters. Blank entries are dropped on save. This list is the **single source of truth** for the project's groups:
-- Renaming a group renames it for every member in it.
-- Removing a group clears the group of every member in it.
-- Any group that reaches a member by another path (e.g. a CSV import that creates groups) is appended to the list automatically, so no member is ever in a group the list doesn't contain.
 
 **Access & forms** — six independent toggles:
 
@@ -246,7 +244,7 @@ A single form, saved as a whole. The save button (with its "✓" acknowledgement
 
 - **My participation** — always visible.
 - **Events** — managers only; carries a red badge with the number of unrecognized check-ins across the whole project, refreshed every 5 seconds while the tab is visible.
-- **Members** — managers only.
+- **Members**, **Groups** — managers only.
 - **Pieces** — managers, plus participants when the project allows it.
 - **Registration**, **Absences**, **Statistics**, **Settings** — managers only.
 
@@ -279,7 +277,7 @@ Four cards:
 
 ### 8.1 Member list (managers)
 
-Table columns: first name (with avatar), last name (with an "Archived" tag and an accent "Name differs from account: …" note when the linked account's display name diverges), group, email. Searchable across name/group/email; filters for status (Active preselected / Archived) and group (the project's group list). Row click opens the member. Row actions: edit, archive/restore, delete.
+Table columns: first name (with avatar), last name (with an "Archived" tag and an accent "Name differs from account: …" note when the linked account's display name diverges), group (as a group pill, §8.5), email. Searchable across name/group/email; filters for status (Active preselected / Archived) and group (the project's group list). Row click opens the member. Row actions: edit, archive/restore, delete.
 
 Guest members never appear here.
 
@@ -289,7 +287,7 @@ Guest members never appear here.
   - Saving with a linked account **re-activates** any existing member row for that account in this project instead of creating a duplicate — one link per account per project.
 - Photo upload with avatar preview.
 - First name, last name (both required).
-- Group — a free-text field with autocomplete suggestions from the project's groups ("Select or type a new group"). A newly typed group is added to the project's group list.
+- Group (optional) — a dropdown of the project's groups.
 - Email (optional).
 
 ### 8.3 CSV import
@@ -300,17 +298,36 @@ A guided dialog:
 2. **Header row** — a checkbox for "First row contains column names"; when off, generic "Column N" headers are generated and every record is data.
 3. **Name format** — radio choice between *first and last name in separate columns* and *full name in one column*. In combined mode the name is split at the last space, and single-token names are allowed (empty last name); in split mode both are required.
 4. **Column mapping** — dropdowns mapping CSV columns to first name / last name (or full name), plus optional group and email. Mapping is **pre-guessed** from the headers by substring matching in both languages (`vorname/first/given`, `nachname/last/surname/familien`, `gruppe/group/team/klasse`, `mail`), and the full-name guess looks for a header containing "name" without a first/last qualifier.
-5. **New groups** — shown only when the mapped group column contains groups the project doesn't have (values matching an existing group apart from case are mapped to it silently). For each new group the manager chooses: **create it as a new group** (default; appended to the project's group list), **assign its rows to an existing group**, or **remove** it (those rows get no group).
+5. **New groups** — shown only when the mapped group column contains groups the project doesn't have (values matching an existing group apart from case are mapped to it silently). For each new group the manager chooses: **create it as a new group** (default; appended to the project's groups with the next palette color), **assign its rows to an existing group**, or **remove** it (those rows get no group).
 6. **Preview** — "*n* of *total* rows will be imported", the first 5 valid rows in a mini table, "… and *n* more", and the note "Rows without a first and last name are skipped."
 
 Import is a single batch operation; errors are surfaced inline.
 
 ### 8.4 Member detail
 
-- Back link, avatar, full name, the account-name-deviation note if any, and "group · email".
+- Back link, avatar, full name, the account-name-deviation note if any, and the group pill followed by the email.
 - Three stat cards: number of times present, excused, and total events attended-or-recorded.
 - An attendance history table: event name (with a "Guest" tag where applicable), date, and status badge. Searchable by event name, filterable by status. Rows link to the event.
 - An edit button opening the member form.
+
+### 8.5 Groups
+
+A project page of its own (sidebar: **Groups**, managers only). Groups live in their own table with a name, a color and a position.
+
+**Group list** — a table of all groups in their configured order: the group pill and the number of active members in it. Rows are **drag-sortable**; that order is used everywhere (check-in and registration forms, the participation picker, member forms, group filters). Row click opens the group; row actions edit and delete. Hint in the header: "The order here is used everywhere … Drag to reorder."
+
+**Create / edit dialog** — group name (unique within the project regardless of case; a duplicate is flagged inline) and a color: ten preset swatches (rose, orange, amber, green, teal, sky, indigo, purple, pink, slate) or a **custom color** via the system color picker. A live pill preview shows the result. New groups preselect the next palette color. Editing a name notes that the rename applies to all members.
+
+**Delete** — confirmation stating how many members will lose their group.
+
+**Group detail** — back link, the group name with its active member count, edit and delete buttons, the pill, and a table of the group's members (first name with avatar, last name with an "Archived" tag, email), searchable, filtered to Active by default. Row click opens the member.
+
+**Group pills** — wherever a group is shown in a table or on a member (members, group detail, event attendance, check-in submissions and the assign picker, absences, registrations, member detail), it is rendered as a rounded pill tinted with the group's color and a colored dot. A group that isn't in the project (a pending webhook registration) renders grey.
+
+**Consistency rules (enforced by the database):**
+- Renaming a group renames it on every member and every pending registration with that group.
+- Deleting a group clears the group of every member in it.
+- A member saved with a group that doesn't exist (by any path) creates that group automatically with the next palette color, so no member is ever in a group the project doesn't list.
 
 ---
 
@@ -389,19 +406,27 @@ The public endpoints never expose member names or any other project data — onl
 
 ### 11.1 Registration pages (managers)
 
-A project can publish any number of registration pages. The list shows title, active/inactive state (colored dot) and the number of registrations received. Search by title, filter by state.
+A project can have any number of registration pages, each of one of two **types**, chosen when it is created:
+- **Form** — the public registration wizard (§11.3), shared by link or QR code.
+- **Webhook** — entries arrive from an external tool (Google Forms, Microsoft Forms, Zapier, IFTTT, Make, …) through a secret URL (§11.4).
+
+Both types feed the same registrations list, table, transfer and auto-transfer. The list shows title, type (icon + label), active/inactive state (colored dot) and the number of registrations received. Search by title, filter by type and state.
 
 **Page editor:**
+- Type (on creation only): two option cards, Form / Webhook.
 - Title (required).
-- Description written in a **Markdown editor**: a toolbar (heading, bold, italic, bullet list, insert link) over a textarea, plus a Write/Preview tab pair that renders the same Markdown the public page will show. Toolbar actions operate on the current selection and restore it afterwards.
-- "Ask for email" and "Ask for group" toggles. The group hint notes that the selectable groups come from the project settings.
+- *Form pages only:*
+  - Description written in a **Markdown editor**: a toolbar (heading, bold, italic, bullet list, insert link) over a textarea, plus a Write/Preview tab pair that renders the same Markdown the public page will show. Toolbar actions operate on the current selection and restore it afterwards.
+  - "Ask for email" and "Ask for group" toggles. The group hint notes that the selectable groups come from the project settings. (Webhook pages always show the email and group columns.)
 - "Auto-transfer" toggle: new registrations are added to the member list immediately.
 
 ### 11.2 Registration page detail
 
 - Back link, title, "*n* registrations", an edit button, and an Activate/Deactivate button (accent when active).
-- A status card: colored dot with "Registration is active/inactive", the public URL as a link, a copy-link button that flips to "Link copied.", and the auto-transfer checkbox toggled inline.
+- A status card: colored dot with "Registration is active/inactive", for form pages the public URL as a link with a copy-link button that flips to "Link copied.", and the auto-transfer checkbox toggled inline.
+- Webhook pages additionally show the webhook panel (§11.4).
 - **Registrations table** — columns first name, last name, (email if asked), (group if asked), transfer status (green "Transferred" / grey "Pending"), and registered-at timestamp. Search across all name/email/group fields; filter by transfer status.
+  - A pending registration whose group isn't one of the project's groups (possible for webhook entries) shows an accent note "Not in the project – adjust before transferring".
   - **Inline editing:** the edit row action turns the name/email/group cells into inputs, with save (✓) and cancel (✕) actions.
   - **Per-row transfer** action (hidden once transferred).
   - **Delete** with confirmation.
@@ -427,6 +452,26 @@ A four-step wizard with progress dots at the top, on a centered card under the a
 **Step 4 — Done.** Green check + "Your registration was submitted successfully."
 
 **Important rule:** submitting a registration — even with an account — does *not* create membership. Membership only happens through a transfer (manual or automatic). The account identity is remembered on the registration so the transfer can link it.
+
+A webhook page's token never opens the public form (it shows "no longer valid"), and a form page's token is never accepted by the webhook endpoint.
+
+### 11.4 Webhook registrations
+
+**Endpoint:** `POST /api/webhooks/registrations/:token`, one registration per request. The unguessable token in the URL is the only credential; "Generate new URL" (with a confirmation) rotates it and the old URL stops working immediately. A `GET` on the URL answers "reachable" without creating anything. Requests are rate-limited per URL and capped at 64 KB.
+
+**Accepted bodies:** JSON (flat or nested objects; arrays of `{title|label|question: …, answer|value: …}` pairs; arrays of plain values are joined with ", "), `application/x-www-form-urlencoded`, `multipart/form-data`, and JSON sent as `text/plain`. Query parameters are merged in.
+
+**Field detection:** each target — first name, last name, full name, email, group — is taken from the explicitly mapped field if the page has one, otherwise detected by name (case, spacing, punctuation and accents ignored; German and English synonyms such as "Vorname", "Surname", "E-Mail-Adresse", "Stimme", "Instrument"). A full name fills whatever of first/last name is missing, split at the last space. A first name is required; the last name may stay empty.
+
+**Groups:** matched against the project's groups ignoring case. An unknown group is kept on the registration, and such a registration is **never auto-transferred** — a manager adjusts the group first.
+
+**Responses:** `200 {"ok": true, "transferred": bool}`; `422` `missing_name` / `invalid_input` (values over 120 characters, email over 200); `409` `inactive`; `404` unknown URL.
+
+**Webhook panel** (on the page detail, two columns on wide screens):
+- **Webhook URL** with copy button and "Generate new URL", plus a hint to treat the URL like a password.
+- **Last delivery** — timestamp and outcome (Accepted / Rejected: no name found / values too long / registration inactive), a refresh button, and a table of the received fields and values (up to 50 fields, values truncated), with "→ First name" etc. next to the fields that were used. Stored for rejected deliveries too, so a failing setup can be diagnosed.
+- **Field mapping** — one dropdown per target: "Automatic (detected: <field>)" or any field seen in the last delivery. Saved immediately.
+- **Setup** — tabs with step-by-step guides for Google Forms (a copy-ready Apps Script with the URL filled in, installed as an "On form submit" trigger), Microsoft Forms (Power Automate), Zapier, IFTTT, Make and "Other" (formats, detected fields, responses and a curl example), each noting plan requirements where relevant.
 
 ---
 
@@ -577,10 +622,13 @@ account_project     (account, project)            ← explicit scope when all_pr
 instance_settings  app_name, accent_color, icon, language, allow_self_signup
 
 project            id, name, description, image_url,
-                   status (active|archived), groups[] (ordered),
+                   status (active|archived),
                    allow_account_access, allow_account_checkin, allow_account_signup,
                    allow_guest_checkin, allow_guest_signup, allow_participant_pieces,
                    created_at, created_by
+
+project_group      id, project, name (unique per project, case-insensitive),
+                   color (#rrggbb), position, created_at
 
 member             id, project, first_name, last_name, group_name, email, photo_url,
                    status (active|archived|guest), account (nullable), created_at
@@ -595,8 +643,11 @@ event_checkin      event, token, is_active, attendance_status (attended|excused)
 checkin_submission id, event, member?, first_name, last_name, group_name,
                    recognized, attendance_status?, submitted_at
 
-registration_page  id, project, token, title, description, ask_email, ask_group,
-                   is_active, auto_transfer, created_at
+registration_page  id, project, token, source (form|webhook), title, description,
+                   ask_email, ask_group, is_active, auto_transfer,
+                   webhook_mapping {target: field}, webhook_last_payload
+                   {fields, matched}, webhook_last_received_at,
+                   webhook_last_status, created_at
 registration       id, page, first_name, last_name, email?, group_name?,
                    member?, transferred, account?, created_at
 
@@ -624,7 +675,7 @@ These are the non-obvious rules that make the app coherent. They are easy to mis
 1. **Registration ≠ membership.** Even an account-authenticated sign-up produces only a registration. Membership happens at transfer time. Check-in, by contrast, *does* create membership implicitly.
 2. **Leaving a project archives, never deletes.** History must survive, and rejoining must restore participation without any data loss.
 3. **One member row per account per project**, enforced everywhere: joining, check-in, registration transfer, and the manager's member form all re-activate rather than duplicate.
-4. **Groups are per project and centrally defined.** The project's group list is the only source of groups anywhere; member groups always stay in sync with it.
+4. **Groups are per project and centrally defined.** The project's groups table is the only source of groups anywhere; member groups always stay in sync with it (renames and deletions cascade, unknown groups are created).
 5. **Absent is derived, not stored.** It is total events minus present minus excused. Undated events still count as held.
 6. **The account's email and name are authoritative** in account-mode flows; typed values are ignored.
 7. **Public endpoints leak nothing.** They return the event/project/page title and the group list, never member names or counts.

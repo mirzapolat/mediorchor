@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ClipboardList, FileText, Pencil, Plus, Trash2, Webhook } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -68,6 +68,18 @@ export const RegistrationsPage = () => {
       render: (p) => <span className="font-medium">{p.title}</span>,
     },
     {
+      id: 'source',
+      header: t('registrationSource'),
+      accessor: (p) => p.source,
+      render: (p) => (
+        <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
+          {p.source === 'webhook' ? <Webhook size={14} /> : <FileText size={14} />}
+          {p.source === 'webhook' ? t('sourceWebhook') : t('sourceForm')}
+        </span>
+      ),
+      className: 'w-px whitespace-nowrap',
+    },
+    {
       id: 'status',
       header: t('status'),
       accessor: (p) => (p.is_active ? 1 : 0),
@@ -94,6 +106,15 @@ export const RegistrationsPage = () => {
   ];
 
   const filters: FilterDef<RegistrationPage>[] = [
+    {
+      id: 'source',
+      label: t('registrationSource'),
+      options: [
+        { value: 'form', label: t('sourceForm') },
+        { value: 'webhook', label: t('sourceWebhook') },
+      ],
+      predicate: (p, v) => p.source === v,
+    },
     {
       id: 'status',
       label: t('status'),

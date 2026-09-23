@@ -43,6 +43,8 @@ import {
 } from '@/lib/memberAttendance';
 import { api } from '@/lib/api';
 import type { AbsenceLabel, Member } from '@/types';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { GroupPill } from '@/components/GroupPill';
 
 // Editor rows carry a client-side id on top of the stored shape.
 interface Condition extends StoredCondition {
@@ -194,6 +196,7 @@ const LabelSettingsModal = ({
 export const AbsencesPage = () => {
   const { t } = useI18n();
   const { project } = useProjectContext();
+  const { names: groups } = useProjectGroups();
   const navigate = useNavigate();
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [visibleRows, setVisibleRows] = useState<ResultRow[]>([]);
@@ -240,7 +243,6 @@ export const AbsencesPage = () => {
     () => rows.filter((row) => matchesConditions(row.counts, conditions)),
     [conditions, rows],
   );
-  const groups = project.groups;
   const columns = useMemo<Column<ResultRow>[]>(
     () => [
       {
@@ -267,7 +269,7 @@ export const AbsencesPage = () => {
         id: 'group',
         header: t('group'),
         accessor: (row) => row.member.group_name,
-        render: (row) => <span className="text-text-secondary">{row.member.group_name ?? '—'}</span>,
+        render: (row) => <GroupPill name={row.member.group_name} />,
       },
       {
         id: 'email',

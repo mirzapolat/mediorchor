@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Search, Upload, UserRound, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { Input } from './Input';
+import { Input, Select } from './Input';
 import { Avatar } from './Avatar';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -259,18 +259,22 @@ export const MemberForm = ({
             required
           />
         </div>
-        <Input
+        <Select
           label={`${t('group')} (${t('optional')})`}
-          list="member-group-options"
           value={form.group_name}
           onChange={(e) => setForm({ ...form, group_name: e.target.value })}
-          placeholder={t('selectOrCreateGroup')}
-        />
-        <datalist id="member-group-options">
+        >
+          <option value="">—</option>
+          {/* Keep a group that isn't in the list selectable instead of dropping it. */}
+          {form.group_name && !groups.includes(form.group_name) && (
+            <option value={form.group_name}>{form.group_name}</option>
+          )}
           {groups.map((g) => (
-            <option key={g} value={g} />
+            <option key={g} value={g}>
+              {g}
+            </option>
           ))}
-        </datalist>
+        </Select>
         <Input
           type="email"
           label={`${t('email')} (${t('optional')})`}

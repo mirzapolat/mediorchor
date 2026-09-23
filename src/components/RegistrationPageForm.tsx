@@ -1,13 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { FileText, Webhook } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { MarkdownEditor } from './MarkdownEditor';
 import { Modal } from './Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
-import type { RegistrationPage } from '@/types';
+import { cn } from '@/lib/cn';
+import type { RegistrationPage, RegistrationSource } from '@/types';
 
 interface FormState {
+  source: RegistrationSource;
   title: string;
   description: string;
   ask_email: boolean;
@@ -16,6 +19,7 @@ interface FormState {
 }
 
 const blank: FormState = {
+  source: 'form',
   title: '',
   description: '',
   ask_email: true,
@@ -69,6 +73,7 @@ export const RegistrationPageForm = ({
     if (!open) return;
     if (page) {
       setForm({
+        source: page.source,
         title: page.title,
         description: page.description,
         ask_email: page.ask_email,
@@ -83,18 +88,21 @@ export const RegistrationPageForm = ({
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
+    // Webhook entries bring whatever fields they have, so the list always
+    // shows the email and group columns for them.
+    const webhook = form.source === 'webhook';
     const payload = {
       project_id: projectId,
       title: form.title.trim(),
-      description: form.description,
-      ask_email: form.ask_email,
-      ask_group: form.ask_group,
+      description: webhook ? '' : form.description,
+      ask_email: webhook || form.ask_email,
+      ask_group: webhook || form.ask_group,
       auto_transfer: form.auto_transfer,
     };
     if (page) {
       await api.from('registration_pages').update(payload).eq('id', page.id);
     } else {
-      await api.from('registration_pages').insert(payload);
+      await api.from('registration_pages').insert({ ...payload, source: form.source });
     }
     setSaving(false);
     onSaved();
@@ -119,6 +127,37 @@ export const RegistrationPageForm = ({
       }
     >
       <form id="registration-page-form" onSubmit={save} className="space-y-4">
+        {!page && (
+          <div>
+            <p className="mb-2 text-sm font-medium text-text-secondary">{t('registrationSource')}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ['form', FileText, 'sourceForm', 'sourceFormHint'],
+                  ['webhook', Webhook, 'sourceWebhook', 'sourceWebhookHint'],
+                ] as const
+              ).map(([source, Icon, label, hint]) => (
+                <button
+                  key={source}
+                  type="button"
+                  onClick={() => setForm({ ...form, source })}
+                  className={cn(
+                    'flex items-start gap-3 rounded-md border px-4 py-3 text-left transition-colors duration-150',
+                    form.source === source
+                      ? 'border-black bg-[#fafafa]'
+                      : 'border-border hover:bg-[#fafafa]',
+                  )}
+                >
+                  <Icon size={18} className="mt-0.5 flex-shrink-0" />
+                  <span>
+                    <span className="block text-sm font-medium">{t(label)}</span>
+                    <span className="mt-0.5 block text-sm text-text-secondary">{t(hint)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <Input
           label={t('registrationTitle')}
           value={form.title}
@@ -126,32 +165,40 @@ export const RegistrationPageForm = ({
           required
           autoFocus
         />
-        <MarkdownEditor
-          label={t('registrationDescription')}
-          hint={t('registrationDescriptionHint')}
-          value={form.description}
-          onChange={(value) => setForm((f) => ({ ...f, description: value }))}
-        />
+        {form.source === 'form' && (
+          <>
+            <MarkdownEditor
+              label={t('registrationDescription')}
+              hint={t('registrationDescriptionHint')}
+              value={form.description}
+              onChange={(value) => setForm((f) => ({ ...f, description: value }))}
+            />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Checkbox
-            checked={form.ask_email}
-            onChange={(v) => setForm({ ...form, ask_email: v })}
-            label={t('askEmail')}
-          />
-          <Checkbox
-            checked={form.ask_group}
-            onChange={(v) => setForm({ ...form, ask_group: v })}
-            label={t('askGroup')}
-            hint={t('askGroupProjectHint')}
-          />
-        </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Checkbox
+                checked={form.ask_email}
+                onChange={(v) => setForm({ ...form, ask_email: v })}
+                label={t('askEmail')}
+              />
+              <Checkbox
+                checked={form.ask_group}
+                onChange={(v) => setForm({ ...form, ask_group: v })}
+                label={t('askGroup')}
+                hint={t('askGroupProjectHint')}
+              />
+            </div>
+          </>
+        )}
 
         <Checkbox
           checked={form.auto_transfer}
           onChange={(v) => setForm({ ...form, auto_transfer: v })}
           label={t('autoTransfer')}
-          hint={t('autoTransferHint')}
+          hint={
+            form.source === 'webhook'
+              ? `${t('autoTransferHint')} ${t('webhookAutoTransferNote')}`
+              : t('autoTransferHint')
+          }
         />
       </form>
     </Modal>

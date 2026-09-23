@@ -169,10 +169,6 @@ const dict: Dict = {
   photo: { de: 'Foto', en: 'Photo' },
   noMembers: { de: 'Noch keine Mitglieder', en: 'No members yet' },
   guest: { de: 'Gast', en: 'Guest' },
-  selectOrCreateGroup: {
-    de: 'Gruppe wählen oder neu eingeben',
-    en: 'Select or type a new group',
-  },
   searchAccount: { de: 'Konto suchen', en: 'Search account' },
   searchAccountPlaceholder: { de: 'Name oder E-Mail…', en: 'Name or email…' },
   searchAccountHint: {
@@ -438,14 +434,6 @@ const dict: Dict = {
   },
 
   // Project access settings
-  projectGroupsHint: {
-    de: 'Diese Gruppen gelten für das gesamte Projekt und sind beim Check-in, bei Anmeldungen und in der Teilnahme auswählbar.',
-    en: 'These groups apply to the whole project and are selectable on check-in, sign-up and participation.',
-  },
-  projectGroupsSyncHint: {
-    de: 'Umbenennungen werden bei allen Mitgliedern übernommen; Mitglieder einer entfernten Gruppe verlieren ihre Gruppe.',
-    en: 'Renames apply to all members; members of a removed group lose their group.',
-  },
   accessSettings: { de: 'Zugriff & Formulare', en: 'Access & forms' },
   accessSettingsHint: {
     de: 'Lege fest, wie Konten und Gäste mit diesem Projekt interagieren dürfen.',
@@ -600,6 +588,55 @@ const dict: Dict = {
   registration: { de: 'Anmeldung', en: 'Registration' },
   registrationPages: { de: 'Anmeldeseiten', en: 'Registration pages' },
   newRegistrationPage: { de: 'Neue Anmeldeseite', en: 'New registration page' },
+  registrationSource: { de: 'Art', en: 'Type' },
+  sourceForm: { de: 'Formular', en: 'Form' },
+  sourceFormHint: {
+    de: 'Öffentliches Anmeldeformular mit Link und QR-Code.',
+    en: 'Public registration form with a link and QR code.',
+  },
+  sourceWebhook: { de: 'Webhook', en: 'Webhook' },
+  sourceWebhookHint: {
+    de: 'Anmeldungen kommen aus einem anderen Dienst, z. B. Google Forms, Microsoft Forms, Zapier oder IFTTT.',
+    en: 'Registrations arrive from another service, e.g. Google Forms, Microsoft Forms, Zapier or IFTTT.',
+  },
+  webhookUrl: { de: 'Webhook-URL', en: 'Webhook URL' },
+  webhookUrlHint: {
+    de: 'Sende jede Anmeldung als POST-Anfrage an diese URL (JSON oder Formulardaten). Behandle die URL wie ein Passwort.',
+    en: 'Send each registration as a POST request to this URL (JSON or form data). Treat the URL like a password.',
+  },
+  regenerateUrl: { de: 'Neue URL erzeugen', en: 'Generate new URL' },
+  confirmRegenerateUrl: {
+    de: 'Die bisherige URL funktioniert danach nicht mehr. Alle Integrationen müssen die neue URL verwenden.',
+    en: 'The current URL stops working. All integrations must switch to the new URL.',
+  },
+  webhookLastDelivery: { de: 'Letzte Übermittlung', en: 'Last delivery' },
+  webhookNoDelivery: {
+    de: 'Noch nichts empfangen. Sende eine Testanmeldung, um die Felder zu sehen.',
+    en: 'Nothing received yet. Send a test registration to see its fields.',
+  },
+  webhookStatus_ok: { de: 'Angenommen', en: 'Accepted' },
+  webhookStatus_missing_name: { de: 'Abgelehnt: kein Name erkannt', en: 'Rejected: no name found' },
+  webhookStatus_invalid_input: { de: 'Abgelehnt: Werte zu lang', en: 'Rejected: values too long' },
+  webhookStatus_inactive: { de: 'Abgelehnt: Anmeldung inaktiv', en: 'Rejected: registration inactive' },
+  webhookField: { de: 'Feld', en: 'Field' },
+  webhookValue: { de: 'Wert', en: 'Value' },
+  webhookMapping: { de: 'Feldzuordnung', en: 'Field mapping' },
+  webhookMappingHint: {
+    de: 'Standardmäßig werden Felder wie „Vorname“, „Nachname“, „Name“, „E-Mail“ oder „Gruppe“ automatisch erkannt. Lege hier fest, welches Feld verwendet werden soll, wenn die Erkennung nicht passt.',
+    en: 'By default fields such as "First name", "Last name", "Name", "Email" or "Group" are detected automatically. Choose a field here when the detection gets it wrong.',
+  },
+  webhookAuto: { de: 'Automatisch', en: 'Automatic' },
+  webhookAutoDetected: { de: 'Automatisch (erkannt: {field})', en: 'Automatic (detected: {field})' },
+  fullNameField: { de: 'Vollständiger Name', en: 'Full name' },
+  webhookSetup: { de: 'Einrichtung', en: 'Setup' },
+  webhookAutoTransferNote: {
+    de: 'Anmeldungen mit einer Gruppe, die es im Projekt nicht gibt, werden nicht automatisch übertragen.',
+    en: "Registrations with a group the project doesn't have are never transferred automatically.",
+  },
+  unknownGroupHint: {
+    de: 'Nicht im Projekt – vor dem Übertragen anpassen',
+    en: 'Not in the project – adjust before transferring',
+  },
   editRegistrationPage: { de: 'Anmeldeseite bearbeiten', en: 'Edit registration page' },
   noRegistrationPages: { de: 'Noch keine Anmeldeseiten', en: 'No registration pages yet' },
   registrationTitle: { de: 'Titel', en: 'Title' },
@@ -615,8 +652,30 @@ const dict: Dict = {
     en: 'The selectable groups are defined in the project settings.',
   },
   groupsList: { de: 'Gruppen', en: 'Groups' },
-  addGroup: { de: 'Gruppe hinzufügen', en: 'Add group' },
-  groupPlaceholder: { de: 'Gruppenname', en: 'Group name' },
+  groupsHint: {
+    de: 'Die Reihenfolge hier gilt überall: Check-in, Anmeldung, Teilnahme und Auswahllisten. Zum Umsortieren ziehen.',
+    en: 'The order here is used everywhere: check-in, sign-up, participation and dropdowns. Drag to reorder.',
+  },
+  newGroup: { de: 'Neue Gruppe', en: 'New group' },
+  editGroup: { de: 'Gruppe bearbeiten', en: 'Edit group' },
+  groupName: { de: 'Gruppenname', en: 'Group name' },
+  groupColor: { de: 'Farbe', en: 'Color' },
+  customColor: { de: 'Eigene Farbe', en: 'Custom color' },
+  groupMemberCount: { de: 'Mitglieder', en: 'Members' },
+  noGroups: { de: 'Noch keine Gruppen', en: 'No groups yet' },
+  noMembersInGroup: { de: 'Keine Mitglieder in dieser Gruppe', en: 'No members in this group' },
+  groupNameTaken: {
+    de: 'Eine Gruppe mit diesem Namen gibt es bereits.',
+    en: 'A group with this name already exists.',
+  },
+  groupRenameHint: {
+    de: 'Umbenennen wird bei allen Mitgliedern übernommen.',
+    en: 'Renaming applies to all members.',
+  },
+  confirmDeleteGroup: {
+    de: 'Die Gruppe wird gelöscht. {n} Mitglieder haben danach keine Gruppe mehr.',
+    en: 'The group will be deleted. {n} members will no longer have a group.',
+  },
   activate: { de: 'Aktivieren', en: 'Activate' },
   deactivate: { de: 'Deaktivieren', en: 'Deactivate' },
   registrationActive: { de: 'Anmeldung ist aktiv', en: 'Registration is active' },

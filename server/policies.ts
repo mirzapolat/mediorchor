@@ -156,6 +156,12 @@ export const policies: Record<string, TablePolicy> = {
     delete: (a) => eventInManagedProject(`${a}.event_id`),
   },
 
+  // Participants read the groups to pick their own on "My participation".
+  project_groups: {
+    ...all((a) => canAccessProject(`${a}.project_id`)),
+    select: (a) => or(canAccessProject(`${a}.project_id`), isProjectParticipant(`${a}.project_id`)),
+  },
+
   registration_pages: all((a) => canAccessProject(`${a}.project_id`)),
 
   registrations: all((a) => pageInManagedProject(`${a}.registration_page_id`)),

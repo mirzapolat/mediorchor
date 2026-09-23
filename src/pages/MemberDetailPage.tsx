@@ -13,6 +13,8 @@ import { accountNameDeviation } from '@/lib/accountName';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AttendanceStatus, Event, Member } from '@/types';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { GroupPill } from '@/components/GroupPill';
 
 interface HistoryRow {
   event: Event;
@@ -23,6 +25,7 @@ interface HistoryRow {
 export const MemberDetailPage = () => {
   const { t } = useI18n();
   const { project } = useProjectContext();
+  const { names: groups } = useProjectGroups();
   const { memberId } = useParams();
   const navigate = useNavigate();
   const [member, setMember] = useState<Member | null>(null);
@@ -97,8 +100,8 @@ export const MemberDetailPage = () => {
                 {t('nameDiffersFromAccount')}: {accountNameDeviation(member, accountName)}
               </p>
             )}
-            <p className="text-text-secondary text-sm mt-1 break-words">
-              {member.group_name ? `${member.group_name} · ` : ''}
+            <p className="flex flex-wrap items-center gap-2 text-text-secondary text-sm mt-1 break-words">
+              {member.group_name && <GroupPill name={member.group_name} />}
               {member.email ?? '—'}
             </p>
           </div>
@@ -180,7 +183,7 @@ export const MemberDetailPage = () => {
         open={editOpen}
         projectId={project.id}
         member={member}
-        groups={project.groups}
+        groups={groups}
         onClose={() => setEditOpen(false)}
         onSaved={load}
       />

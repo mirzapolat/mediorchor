@@ -31,6 +31,7 @@ import { useEventContext } from '@/layouts/eventContext';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import type { AttendanceStatus, CheckinSubmission, EventCheckin, Member } from '@/types';
+import { GroupPill } from '@/components/GroupPill';
 
 type CheckinStatus = Extract<AttendanceStatus, 'attended' | 'excused'>;
 type CopyFeedback = 'link' | 'image' | 'error' | null;
@@ -259,7 +260,7 @@ export const EventCheckinPage = () => {
         id: 'group',
         header: t('group'),
         accessor: (row) => row.group_name,
-        render: (row) => <span className="text-text-secondary">{row.group_name}</span>,
+        render: (row) => <GroupPill name={row.group_name} />,
       },
       {
         id: 'submitted',
@@ -719,8 +720,8 @@ const AssignCheckinModal = ({
                       <span className="block truncate font-medium">
                         {member.first_name} {member.last_name}
                       </span>
-                      <span className="block truncate text-sm text-text-secondary">
-                        {member.group_name ?? '—'}
+                      <span className="mt-0.5 block truncate text-sm">
+                        <GroupPill name={member.group_name} />
                       </span>
                     </span>
                     <span className="flex-shrink-0 text-xs font-medium text-text-secondary">

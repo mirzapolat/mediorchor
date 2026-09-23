@@ -22,10 +22,13 @@ import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationPageForm } from '@/components/RegistrationPageForm';
+import { WebhookSetup } from '@/components/WebhookSetup';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Registration, RegistrationPage } from '@/types';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { GroupPill } from '@/components/GroupPill';
 
 interface Draft {
   first_name: string;
@@ -37,6 +40,7 @@ interface Draft {
 export const RegistrationPageDetail = () => {
   const { t, lang } = useI18n();
   const { project } = useProjectContext();
+  const { find: findGroup } = useProjectGroups();
   const { pageId } = useParams();
   const navigate = useNavigate();
 
@@ -229,7 +233,20 @@ export const RegistrationPageDetail = () => {
             id: 'group',
             header: t('group'),
             accessor: (r: Registration) => r.group_name,
-            render: (r: Registration) => editableCell(r, 'group_name', r.group_name),
+            render: (r: Registration) =>
+              editingId !== r.id &&
+              !r.transferred &&
+              r.group_name &&
+              !findGroup(r.group_name) ? (
+                <span>
+                  <GroupPill name={r.group_name} />
+                  <span className="block text-xs text-accent">{t('unknownGroupHint')}</span>
+                </span>
+              ) : editingId === r.id ? (
+                editableCell(r, 'group_name', r.group_name)
+              ) : (
+                <GroupPill name={r.group_name} />
+              ),
           },
         ]
       : []),
@@ -318,21 +335,25 @@ export const RegistrationPageDetail = () => {
             />
             {page.is_active ? t('registrationActive') : t('registrationInactiveStatus')}
           </div>
-          <p className="mt-2 text-sm text-text-secondary">{t('registrationLinkHint')}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <a
-              href={publicUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="max-w-full truncate text-sm text-text-tertiary underline underline-offset-2 hover:text-text"
-            >
-              {publicUrl}
-            </a>
-            <Button variant="secondary" onClick={copyLink}>
-              <Copy size={15} />
-              {copied ? t('linkCopied') : t('copyCheckInLink')}
-            </Button>
-          </div>
+          {page.source === 'form' && (
+            <>
+              <p className="mt-2 text-sm text-text-secondary">{t('registrationLinkHint')}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="max-w-full truncate text-sm text-text-tertiary underline underline-offset-2 hover:text-text"
+                >
+                  {publicUrl}
+                </a>
+                <Button variant="secondary" onClick={copyLink}>
+                  <Copy size={15} />
+                  {copied ? t('linkCopied') : t('copyCheckInLink')}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         <label className="flex cursor-pointer items-start gap-3 border-t border-border pt-4">
@@ -345,10 +366,17 @@ export const RegistrationPageDetail = () => {
           />
           <span>
             <span className="block text-sm font-medium">{t('autoTransfer')}</span>
-            <span className="mt-0.5 block text-sm text-text-secondary">{t('autoTransferHint')}</span>
+            <span className="mt-0.5 block text-sm text-text-secondary">
+              {t('autoTransferHint')}
+              {page.source === 'webhook' && ` ${t('webhookAutoTransferNote')}`}
+            </span>
           </span>
         </label>
       </Card>
+
+      {page.source === 'webhook' && (
+        <WebhookSetup page={page} onChange={setPage} onRefresh={() => void load()} />
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{t('registrations')}</h2>

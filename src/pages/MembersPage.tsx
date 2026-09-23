@@ -15,10 +15,13 @@ import { accountNameDeviation } from '@/lib/accountName';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member } from '@/types';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { GroupPill } from '@/components/GroupPill';
 
 export const MembersPage = () => {
   const { t } = useI18n();
-  const { project, reloadProject } = useProjectContext();
+  const { project } = useProjectContext();
+  const { names: groups, reload: reloadGroups } = useProjectGroups();
   const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
   // Account display names behind linked members, to flag deviating names.
@@ -113,7 +116,7 @@ export const MembersPage = () => {
       id: 'group',
       header: t('group'),
       accessor: (m) => m.group_name,
-      render: (m) => <span className="text-text-secondary">{m.group_name ?? '—'}</span>,
+      render: (m) => <GroupPill name={m.group_name} />,
     },
     {
       id: 'email',
@@ -137,7 +140,7 @@ export const MembersPage = () => {
     {
       id: 'group',
       label: t('group'),
-      options: project.groups.map((g) => ({ value: g, label: g })),
+      options: groups.map((g) => ({ value: g, label: g })),
       predicate: (m, v) => m.group_name === v,
     },
   ];
@@ -196,7 +199,7 @@ export const MembersPage = () => {
         open={formOpen}
         projectId={project.id}
         member={editing}
-        groups={project.groups}
+        groups={groups}
         onClose={() => setFormOpen(false)}
         onSaved={load}
       />
@@ -204,10 +207,10 @@ export const MembersPage = () => {
       <MemberImport
         open={importOpen}
         projectId={project.id}
-        groups={project.groups}
+        groups={groups}
         onClose={() => setImportOpen(false)}
         onSaved={() => {
-          reloadProject();
+          void reloadGroups();
           void load();
         }}
       />

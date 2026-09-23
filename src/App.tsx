@@ -38,6 +38,8 @@ import { PiecesPage } from '@/pages/PiecesPage';
 import { PieceDetailPage } from '@/pages/PieceDetailPage';
 import { PiecePracticePage } from '@/pages/PiecePracticePage';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
+import { GroupsPage } from '@/pages/GroupsPage';
+import { GroupDetailPage } from '@/pages/GroupDetailPage';
 import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 
@@ -125,6 +127,8 @@ export const App = () => {
           <Route path="registrations" element={<RegistrationsPage />} />
           <Route path="registrations/:pageId" element={<RegistrationPageDetail />} />
           <Route path="members/:memberId" element={<MemberDetailPage />} />
+          <Route path="groups" element={<GroupsPage />} />
+          <Route path="groups/:groupId" element={<GroupDetailPage />} />
           <Route path="settings" element={<ProjectSettingsPage />} />
         </Route>
       </Route>

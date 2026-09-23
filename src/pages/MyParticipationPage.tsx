@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AbsenceLabel, Attendance, Event, Member } from '@/types';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
 
 // "Meine Teilnahme": every account (participant, manager or admin) manages its
 // own participation in the project here — group, attendance so far, upcoming
@@ -20,6 +21,7 @@ import type { AbsenceLabel, Attendance, Event, Member } from '@/types';
 export const MyParticipationPage = () => {
   const { t, lang } = useI18n();
   const { project } = useProjectContext();
+  const { names: groups } = useProjectGroups();
   const { user } = useAuth();
   const [member, setMember] = useState<Member | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -201,7 +203,7 @@ export const MyParticipationPage = () => {
                     required
                   />
                 </div>
-                {project.groups.length > 0 && (
+                {groups.length > 0 && (
                   <Select
                     label={t('group')}
                     value={joinForm.group_name}
@@ -211,7 +213,7 @@ export const MyParticipationPage = () => {
                     <option value="" disabled>
                       {t('selectGroup')}
                     </option>
-                    {project.groups.map((g) => (
+                    {groups.map((g) => (
                       <option key={g} value={g}>
                         {g}
                       </option>
@@ -233,7 +235,7 @@ export const MyParticipationPage = () => {
               <h2 className="text-base font-medium">{t('myGroup')}</h2>
               <p className="text-sm text-text-secondary mt-1">{t('myGroupHint')}</p>
             </div>
-            {project.groups.length > 0 ? (
+            {groups.length > 0 ? (
               <div className="flex items-center gap-3 max-w-xs">
                 <Select
                   value={member?.group_name ?? ''}
@@ -244,7 +246,7 @@ export const MyParticipationPage = () => {
                       {t('selectGroup')}
                     </option>
                   )}
-                  {project.groups.map((g) => (
+                  {groups.map((g) => (
                     <option key={g} value={g}>
                       {g}
                     </option>

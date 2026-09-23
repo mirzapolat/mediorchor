@@ -22,7 +22,6 @@ export interface Project {
   description: string | null;
   image_url: string | null; // round logo shown next to the name
   status: ProjectStatus;
-  groups: string[]; // central group list; the only groups selectable anywhere
   allow_account_access: boolean; // participants may open the project
   allow_account_checkin: boolean; // check-in forms offer signing in
   allow_account_signup: boolean; // registration forms offer signing in
@@ -36,6 +35,17 @@ export interface Project {
 // 'guest' members were added on the fly for a single event and are kept out of
 // the regular project members list.
 export type MemberStatus = 'active' | 'archived' | 'guest';
+
+// A project's group. Members reference it by name (members.group_name); the
+// database keeps renames and deletions in sync.
+export interface ProjectGroup {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string; // #rrggbb
+  position: number;
+  created_at: string;
+}
 
 export interface Member {
   id: string;
@@ -121,7 +131,26 @@ export interface RegistrationPage {
   ask_group: boolean;
   is_active: boolean;
   auto_transfer: boolean;
+  source: RegistrationSource;
+  webhook_mapping: WebhookMapping;
+  webhook_last_payload: WebhookDelivery | null;
+  webhook_last_received_at: string | null;
+  webhook_last_status: string | null; // 'ok' or an error code
   created_at: string;
+}
+
+// 'form': the public registration form. 'webhook': entries arrive by POST
+// from external tools (Google Forms, Power Automate, Zapier, IFTTT, …).
+export type RegistrationSource = 'form' | 'webhook';
+
+export type WebhookTarget = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name';
+
+// Incoming field name per target; unset targets are detected automatically.
+export type WebhookMapping = Partial<Record<WebhookTarget, string>>;
+
+export interface WebhookDelivery {
+  fields: Record<string, string>;
+  matched: Record<WebhookTarget, string | null>;
 }
 
 export interface Registration {

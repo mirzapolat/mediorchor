@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { parseCsv } from '@/lib/csv';
 import { splitName } from '@/lib/accountName';
+import { paletteColor } from '@/lib/groupColors';
 
 interface MemberImportProps {
   open: boolean;
@@ -181,10 +182,14 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     setError(null);
     const created = unknownGroups.filter((g) => (groupActions[g] ?? CREATE_GROUP) === CREATE_GROUP);
     if (created.length) {
-      const { error: groupsError } = await api
-        .from('projects')
-        .update({ groups: [...groups, ...created] })
-        .eq('id', projectId);
+      const { error: groupsError } = await api.from('project_groups').insert(
+        created.map((name, i) => ({
+          project_id: projectId,
+          name,
+          color: paletteColor(groups.length + i),
+          position: groups.length + i,
+        })),
+      );
       if (groupsError) {
         setImporting(false);
         setError(groupsError.message);

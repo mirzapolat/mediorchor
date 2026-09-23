@@ -12,6 +12,7 @@ import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
 import { adminRoutes } from './admin.ts';
+import { webhookRoutes } from './webhooks.ts';
 import { rateLimit } from './ratelimit.ts';
 
 migrate();
@@ -26,8 +27,9 @@ app.onError((err, c) => {
 
 // Cookie sessions + SameSite=Lax already stop cross-site writes; rejecting a
 // foreign Origin on state-changing requests is a second, explicit guard.
+// Webhooks are called by other servers and authenticate by URL token instead.
 app.use('/api/*', async (c, next) => {
-  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD' && !c.req.path.startsWith('/api/webhooks/')) {
     const origin = c.req.header('origin');
     const host = c.req.header('x-forwarded-host') ?? c.req.header('host');
     if (origin && host && new URL(origin).host !== host) throw new ApiError('Cross-origin request blocked', 403);
@@ -72,6 +74,7 @@ app.post('/api/rpc/:name', async (c) => {
 
 app.route('/api/storage', storageRoutes);
 app.route('/api/functions', adminRoutes);
+app.route('/api/webhooks', webhookRoutes);
 app.all('/api/*', (c) => c.json({ error: { message: 'Not found' } }, 404));
 
 app.route('/files', fileRoutes);

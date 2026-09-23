@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
-import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, Tags, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
+import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import type { Project } from '@/types';
 
 const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => void }) => {
@@ -141,6 +142,7 @@ export const ProjectLayout = () => {
                 warningCount={unrecognizedCount}
               />
               <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
+              <SidebarNavItem to={`${base}/groups`} label={t('groupsList')} icon={Tags} />
             </>
           )}
           {(canManage || project.allow_participant_pieces) && (
@@ -161,7 +163,9 @@ export const ProjectLayout = () => {
 
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
         <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
-          <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
+          <ProjectGroupsProvider projectId={project.id}>
+            <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
+          </ProjectGroupsProvider>
         </div>
       </main>
     </div>

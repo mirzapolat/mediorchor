@@ -1,9 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GripVertical, Plus, Trash2, Upload, X } from 'lucide-react';
-import { RowActionButton } from '@/components/RowActionButton';
-import { useDragReorder } from '@/hooks/useDragReorder';
-import { cn } from '@/lib/cn';
+import { Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -15,105 +12,6 @@ import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import { useProjectContext } from '@/layouts/projectContext';
 
-interface GroupRow {
-  id: string;
-  value: string;
-  // Saved name this row started from; null for rows added since loading.
-  original: string | null;
-}
-
-// Editable, drag-sortable list of the project's groups. The order set here is
-// the order shown everywhere (check-in, sign-up, participation).
-const GroupsCard = ({
-  groups,
-  onChange,
-}: {
-  groups: GroupRow[];
-  onChange: (groups: GroupRow[]) => void;
-}) => {
-  const { t } = useI18n();
-  const dnd = useDragReorder(groups, (g) => g.id, onChange, 8);
-
-  return (
-    <Card className="space-y-3">
-      <div>
-        <h2 className="text-base font-medium">{t('groupsList')}</h2>
-        <p className="text-sm text-text-secondary mt-1">{t('projectGroupsHint')}</p>
-        <p className="text-sm text-text-tertiary mt-1">{t('projectGroupsSyncHint')}</p>
-      </div>
-      <div className="space-y-2">
-        {groups.map((group, index) => {
-          const dragging = dnd.isDragging(group.id);
-          return (
-            <div
-              key={group.id}
-              ref={(el) => dnd.setItemRef(group.id, el)}
-              style={
-                dnd.dragActive
-                  ? {
-                      transform: `translateY(${dnd.shiftFor(index)}px)`,
-                      transition: dragging ? 'none' : 'transform 150ms ease',
-                      position: dragging ? 'relative' : undefined,
-                      zIndex: dragging ? 10 : undefined,
-                    }
-                  : undefined
-              }
-              className={cn('flex items-center gap-2', dragging && 'bg-surface shadow-lg rounded-md')}
-            >
-              <button
-                type="button"
-                aria-label={t('reorder')}
-                onPointerDown={(e) => dnd.startDrag(e, group.id, index)}
-                onPointerMove={dnd.moveDrag}
-                onPointerUp={dnd.endDrag}
-                onPointerCancel={dnd.endDrag}
-                style={{ touchAction: 'none' }}
-                className={cn(
-                  'flex h-9 w-6 flex-shrink-0 items-center justify-center rounded text-text-tertiary hover:text-text-secondary',
-                  groups.length < 2 ? 'invisible' : 'cursor-grab active:cursor-grabbing',
-                )}
-              >
-                <GripVertical size={16} />
-              </button>
-              <Input
-                value={group.value}
-                placeholder={t('groupPlaceholder')}
-                onChange={(e) =>
-                  onChange(
-                    groups.map((g) => (g.id === group.id ? { ...g, value: e.target.value } : g)),
-                  )
-                }
-                className="flex-1"
-              />
-              <RowActionButton
-                label={t('remove')}
-                onClick={() => {
-                  const next = groups.filter((g) => g.id !== group.id);
-                  onChange(
-                    next.length > 0 ? next : [{ id: crypto.randomUUID(), value: '', original: null }],
-                  );
-                }}
-              >
-                <Trash2 size={15} />
-              </RowActionButton>
-            </div>
-          );
-        })}
-      </div>
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() =>
-          onChange([...groups, { id: crypto.randomUUID(), value: '', original: null }])
-        }
-      >
-        <Plus size={15} />
-        {t('addGroup')}
-      </Button>
-    </Card>
-  );
-};
-
 export const ProjectSettingsPage = () => {
   const { t } = useI18n();
   const { project, reloadProject } = useProjectContext();
@@ -123,11 +21,6 @@ export const ProjectSettingsPage = () => {
     description: project.description ?? '',
   });
   // Rows carry a stable id so drag & drop reordering works while editing.
-  const toRows = (list: string[]): GroupRow[] =>
-    list.length > 0
-      ? list.map((value) => ({ id: crypto.randomUUID(), value, original: value }))
-      : [{ id: crypto.randomUUID(), value: '', original: null }];
-  const [groups, setGroups] = useState<GroupRow[]>(() => toRows(project.groups));
   const [access, setAccess] = useState({
     allow_account_access: project.allow_account_access,
     allow_account_checkin: project.allow_account_checkin,
@@ -166,19 +59,6 @@ export const ProjectSettingsPage = () => {
         ...access,
       })
       .eq('id', project.id);
-    // Groups go through their own RPC so members follow renames and removals.
-    const nextGroups = groups.map((g) => g.value.trim()).filter((g) => g !== '');
-    const renames: Record<string, string | null> = {};
-    for (const name of project.groups) renames[name] = null;
-    for (const row of groups) {
-      if (row.original !== null) renames[row.original] = row.value.trim() || null;
-    }
-    await api.rpc('set_project_groups', {
-      p_project_id: project.id,
-      p_groups: nextGroups,
-      p_renames: renames,
-    });
-    setGroups(toRows(nextGroups));
     setSaving(false);
     setSaved(true);
     reloadProject();
@@ -258,14 +138,6 @@ export const ProjectSettingsPage = () => {
               }}
             />
           </Card>
-
-          <GroupsCard
-            groups={groups}
-            onChange={(next) => {
-              setGroups(next);
-              setSaved(false);
-            }}
-          />
         </div>
 
         <div className="space-y-6">

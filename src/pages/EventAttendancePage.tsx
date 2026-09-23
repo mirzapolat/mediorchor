@@ -13,6 +13,8 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useEventContext } from '@/layouts/eventContext';
 import type { AttendanceStatus, Member } from '@/types';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { GroupPill } from '@/components/GroupPill';
 
 interface Row {
   member: Member;
@@ -26,6 +28,7 @@ export const EventAttendancePage = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { project, event } = useEventContext();
+  const { names: groups } = useProjectGroups();
   const eventId = event.id;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +100,6 @@ export const EventAttendancePage = () => {
     [rows],
   );
 
-  const groups = project.groups;
 
   if (loading) return <PageSpinner />;
 
@@ -128,7 +130,7 @@ export const EventAttendancePage = () => {
       id: 'group',
       header: t('group'),
       accessor: (r) => r.member.group_name,
-      render: (r) => <span className="text-text-secondary">{r.member.group_name ?? '—'}</span>,
+      render: (r) => <GroupPill name={r.member.group_name} />,
     },
     {
       id: 'status',
