@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Plus, Crown } from 'lucide-react';
+import { Plus, Crown, Check } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -80,38 +80,41 @@ export const UsersPage = () => {
     if (u.is_admin || u.can_manage_projects) return 'all';
     return grantedUsers.has(u.id) ? 'partial' : 'none';
   };
-  const projectAccessLabel = { all: t('accessAll'), partial: t('accessPartial'), none: t('accessNone') };
+  const projectAccessLabel = { all: t('accessAllProjects'), partial: t('accessPartial'), none: t('accessNone') };
   const hasClubAccess = (u: AppUser) => u.is_admin || u.can_access_club;
   const hasTwoFactor = (u: AppUser) => twoFactorUsers.has(u.id);
 
+  // Yes/no cells as a check or a dash keep the narrow columns narrow.
+  const flag = (on: boolean) =>
+    on ? (
+      <Check size={16} className="mx-auto text-text-secondary" aria-label={t('yes')} />
+    ) : (
+      <span className="block text-center text-text-tertiary" aria-label={t('no')}>
+        —
+      </span>
+    );
+  const narrow = 'w-px whitespace-nowrap';
+
   const columns: Column<AppUser>[] = [
     {
-      id: 'first_name',
-      header: t('firstName'),
-      accessor: (u) => splitName(u.name).first,
+      id: 'name',
+      header: t('name'),
+      accessor: (u) => `${splitName(u.name).last} ${splitName(u.name).first}`.toLowerCase(),
       render: (u) => (
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <Avatar name={u.name} photoUrl={u.photo_url} size={28} />
-          <span>{splitName(u.name).first}</span>
+          <div className="min-w-0">
+            <p className="truncate leading-tight">{u.name}</p>
+            <p className="truncate text-sm leading-tight text-text-secondary">{u.email}</p>
+          </div>
         </div>
       ),
-    },
-    {
-      id: 'last_name',
-      header: t('lastName'),
-      accessor: (u) => splitName(u.name).last,
-      render: (u) => <span>{splitName(u.name).last || '—'}</span>,
-    },
-    {
-      id: 'email',
-      header: t('email'),
-      accessor: (u) => u.email,
-      render: (u) => <span className="text-text-secondary">{u.email}</span>,
     },
     {
       id: 'role',
       header: t('role'),
       accessor: (u) => (u.is_admin ? 0 : 1),
+      className: narrow,
       render: (u) =>
         u.is_admin ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium">
@@ -124,8 +127,9 @@ export const UsersPage = () => {
     },
     {
       id: 'access',
-      header: t('projectManagement'),
+      header: t('projects'),
       accessor: (u) => ({ all: 0, partial: 1, none: 2 })[projectAccessState(u)],
+      className: narrow,
       render: (u) => {
         const state = projectAccessState(u);
         return (
@@ -139,23 +143,17 @@ export const UsersPage = () => {
     },
     {
       id: 'club',
-      header: t('memberManagement'),
+      header: t('clubShort'),
       accessor: (u) => (hasClubAccess(u) ? 0 : 1),
-      render: (u) => (
-        <span className={`text-sm ${hasClubAccess(u) ? 'text-text-secondary' : 'text-text-tertiary'}`}>
-          {hasClubAccess(u) ? t('yes') : t('no')}
-        </span>
-      ),
+      className: narrow,
+      render: (u) => flag(hasClubAccess(u)),
     },
     {
       id: 'two_factor',
       header: t('twoFactorShort'),
       accessor: (u) => (hasTwoFactor(u) ? 0 : 1),
-      render: (u) => (
-        <span className={`text-sm ${hasTwoFactor(u) ? 'text-text-secondary' : 'text-text-tertiary'}`}>
-          {hasTwoFactor(u) ? t('yes') : t('no')}
-        </span>
-      ),
+      className: narrow,
+      render: (u) => flag(hasTwoFactor(u)),
     },
   ];
 
@@ -171,7 +169,7 @@ export const UsersPage = () => {
     },
     {
       id: 'access',
-      label: t('projectManagement'),
+      label: t('projects'),
       options: [
         // Not just "All": the menu already offers that as "no filter".
         { value: 'all', label: t('accessAllProjects') },
@@ -182,7 +180,7 @@ export const UsersPage = () => {
     },
     {
       id: 'club',
-      label: t('memberManagement'),
+      label: t('clubShort'),
       options: [
         { value: 'yes', label: t('yes') },
         { value: 'no', label: t('no') },

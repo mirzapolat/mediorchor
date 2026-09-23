@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bookmark, Clock, LogIn, LogOut } from 'lucide-react';
+import { Bookmark, CalendarDays, Clock, LogIn, LogOut } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -242,20 +242,19 @@ export const MyParticipationPage = () => {
             ) : (
               <ul className="divide-y divide-border">
                 {upcoming.map((e, i) => (
-                  <li key={e.id} className="flex items-start gap-3 py-3">
-                    <DateTile date={e.date} lang={lang} highlight={i === 0} />
-                    <div className="min-w-0 flex-1 pt-0.5">
+                  <li key={e.id} className="py-3">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <p className="font-medium leading-snug break-words">{e.name}</p>
-                      {e.time && (
-                        <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-text-secondary">
-                          <Clock size={13} className="shrink-0" />
-                          {e.time}
-                        </p>
-                      )}
-                      {e.description && (
-                        <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
+                      {i === 0 && (
+                        <span className="rounded-md bg-[#dcfce7] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
+                          {e.date === today ? t('todayRehearsal') : t('nextRehearsal')}
+                        </span>
                       )}
                     </div>
+                    <EventWhen date={e.date} time={e.time} lang={lang} />
+                    {e.description && (
+                      <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -289,19 +288,17 @@ export const MyParticipationPage = () => {
             ) : (
               <ul className="mt-1 divide-y divide-border">
                 {past.map((e) => (
-                  <li key={e.id} className="flex items-start gap-3 py-3">
-                    <DateTile date={e.date} lang={lang} />
-                    <div className="min-w-0 flex-1 pt-0.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="min-w-0 font-medium leading-snug break-words">{e.name}</p>
-                        <span className="shrink-0">
-                          <StatusBadge status={statusByEvent.get(e.id) ?? 'not_attended'} />
-                        </span>
-                      </div>
+                  <li key={e.id} className="flex items-start justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="font-medium leading-snug break-words">{e.name}</p>
+                      <EventWhen date={e.date} time={e.time} lang={lang} />
                       {e.description && (
                         <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                       )}
                     </div>
+                    <span className="shrink-0">
+                      <StatusBadge status={statusByEvent.get(e.id) ?? 'not_attended'} />
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -372,41 +369,32 @@ export const MyParticipationPage = () => {
   );
 };
 
-// Calendar-style date block: weekday, day and month stacked, so rows stay
-// narrow on phones. The next upcoming Probe is highlighted.
-const DateTile = ({
-  date,
-  lang,
-  highlight = false,
-}: {
-  date: string | null;
-  lang: string;
-  highlight?: boolean;
-}) => {
+// Date and time on one line, e.g. "Mi., 07.10. · 19:00"; the year only
+// appears when it is not the current one.
+const EventWhen = ({ date, time, lang }: { date: string | null; time: string | null; lang: string }) => {
+  if (!date && !time) return null;
   const d = date ? new Date(`${date}T00:00:00`) : null;
-  const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+  const label = d?.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    ...(d.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
+  });
   return (
-    <div
-      className={cn(
-        'flex w-12 shrink-0 flex-col items-center rounded-md border py-1 leading-none',
-        highlight ? 'border-black bg-black text-white' : 'border-border bg-bg',
+    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-text-secondary">
+      {label && (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <CalendarDays size={13} className="shrink-0" />
+          {label}
+        </span>
       )}
-    >
-      {d ? (
-        <>
-          <span className={cn('text-[11px] uppercase', highlight ? 'text-white/70' : 'text-text-secondary')}>
-            {d.toLocaleDateString(locale, { weekday: 'short' }).replace('.', '')}
-          </span>
-          <span className="my-0.5 text-lg font-semibold">{d.getDate()}</span>
-          <span className={cn('text-[11px] uppercase', highlight ? 'text-white/70' : 'text-text-secondary')}>
-            {d.toLocaleDateString(locale, { month: 'short' }).replace('.', '')}
-            {d.getFullYear() !== new Date().getFullYear() && ` ${String(d.getFullYear()).slice(2)}`}
-          </span>
-        </>
-      ) : (
-        <span className="py-3 text-text-tertiary">—</span>
+      {time && (
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <Clock size={13} className="shrink-0" />
+          {time}
+        </span>
       )}
-    </div>
+    </p>
   );
 };
 

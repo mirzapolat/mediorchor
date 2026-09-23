@@ -141,6 +141,7 @@ const dict: Dict = {
   accessPartial: { de: 'Teilweise', en: 'Partial' },
   accessNone: { de: 'Nein', en: 'No' },
   memberManagement: { de: 'Mitgliederverwaltung', en: 'Member management' },
+  clubShort: { de: 'Verein', en: 'Club' },
   yes: { de: 'Ja', en: 'Yes' },
   no: { de: 'Nein', en: 'No' },
   manageAccess: { de: 'Zugriff verwalten', en: 'Manage access' },
