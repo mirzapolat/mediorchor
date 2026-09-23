@@ -79,7 +79,7 @@ export const UserDetailPage = () => {
       </button>
 
       <div className="flex items-center gap-4 mb-6">
-        <Avatar name={user.name} size={64} />
+        <Avatar name={user.name} photoUrl={user.photo_url} size={64} />
         <div>
           <h1 className="text-2xl font-bold inline-flex items-center gap-2">
             {user.name}

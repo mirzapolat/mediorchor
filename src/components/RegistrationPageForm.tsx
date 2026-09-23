@@ -102,7 +102,8 @@ export const RegistrationPageForm = ({
     if (page) {
       await api.from('registration_pages').update(payload).eq('id', page.id);
     } else {
-      await api.from('registration_pages').insert({ ...payload, source: form.source });
+      // New sources start out active so they can take registrations right away.
+      await api.from('registration_pages').insert({ ...payload, source: form.source, is_active: true });
     }
     setSaving(false);
     onSaved();

@@ -44,9 +44,18 @@ const arcPath = (a0: number, a1: number) => {
 export const GroupDonut = ({
   slices,
   onSelect,
+  selectedId = null,
+  totalLabel,
+  mutedSelectable = false,
 }: {
   slices: DonutSlice[];
   onSelect?: (slice: DonutSlice) => void;
+  // Slice kept highlighted while nothing is hovered (e.g. an active filter).
+  selectedId?: string | null;
+  // Caption under the total in the hole (defaults to "Members").
+  totalLabel?: string;
+  // Lets muted slices (e.g. "No group") be selected too.
+  mutedSelectable?: boolean;
 }) => {
   const { t, lang } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -69,7 +78,9 @@ export const GroupDonut = ({
     return seg;
   });
 
-  const active = slices.find((s) => s.id === activeId) ?? null;
+  const focusId = activeId ?? selectedId;
+  const active = slices.find((s) => s.id === focusId) ?? null;
+  const canSelect = (s: DonutSlice) => Boolean(onSelect) && (!s.muted || mutedSelectable);
   const colorOf = (s: DonutSlice) => (isHexColor(s.color) ? s.color : FALLBACK_GROUP_COLOR);
 
   const summary = visible.map((s) => `${s.label}: ${s.value}`).join(', ');
@@ -112,13 +123,13 @@ export const GroupDonut = ({
               strokeWidth={OUTER - INNER}
               onMouseEnter={() => setActiveId(segments[0].slice.id)}
               onMouseLeave={() => setActiveId(null)}
-              onClick={() => !segments[0].slice.muted && onSelect?.(segments[0].slice)}
-              className={cn(onSelect && !segments[0].slice.muted && 'cursor-pointer')}
+              onClick={() => canSelect(segments[0].slice) && onSelect?.(segments[0].slice)}
+              className={cn(canSelect(segments[0].slice) && 'cursor-pointer')}
             />
           ) : (
             segments.map(({ slice, a0, a1, mid }) => {
-              const isActive = slice.id === activeId;
-              const dimmed = activeId !== null && !isActive;
+              const isActive = slice.id === focusId;
+              const dimmed = focusId !== null && !isActive;
               const dx = isActive ? Math.cos(mid) * HOVER_OFFSET : 0;
               const dy = isActive ? Math.sin(mid) * HOVER_OFFSET : 0;
               return (
@@ -137,8 +148,8 @@ export const GroupDonut = ({
                   }}
                   onMouseEnter={() => setActiveId(slice.id)}
                   onMouseLeave={() => setActiveId(null)}
-                  onClick={() => !slice.muted && onSelect?.(slice)}
-                  className={cn(onSelect && !slice.muted && 'cursor-pointer')}
+                  onClick={() => canSelect(slice) && onSelect?.(slice)}
+                  className={cn(canSelect(slice) && 'cursor-pointer')}
                 />
               );
             })
@@ -161,7 +172,7 @@ export const GroupDonut = ({
             <>
               <span className="text-[40px] font-semibold leading-none tabular-nums text-text">{total}</span>
               <span className="mt-1.5 text-xs font-medium uppercase tracking-wide text-text-tertiary">
-                {t('groupDonutTotal')}
+                {totalLabel ?? t('groupDonutTotal')}
               </span>
             </>
           )}
@@ -171,14 +182,15 @@ export const GroupDonut = ({
       {/* Legend doubles as the table view: every slice with count and share. */}
       <ul className="mt-6 w-full divide-y divide-border">
         {slices.map((slice) => {
-          const isActive = slice.id === activeId;
-          const clickable = Boolean(onSelect) && !slice.muted;
+          const isActive = slice.id === focusId;
+          const clickable = canSelect(slice);
           return (
             <li key={slice.id}>
               <button
                 type="button"
                 // aria-disabled (not disabled) so hover still highlights the slice.
                 aria-disabled={!clickable}
+                aria-pressed={clickable ? slice.id === selectedId : undefined}
                 onMouseEnter={() => setActiveId(slice.id)}
                 onMouseLeave={() => setActiveId(null)}
                 onFocus={() => setActiveId(slice.id)}
@@ -188,6 +200,7 @@ export const GroupDonut = ({
                   'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors duration-150',
                   !clickable && 'cursor-default',
                   isActive && 'bg-[#f5f5f5]',
+                  slice.id === selectedId && 'font-medium',
                   slice.value === 0 && 'opacity-50',
                 )}
               >

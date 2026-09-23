@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   ClipboardList,
+  FileText,
   Pencil,
   Play,
   Settings,
@@ -12,17 +14,22 @@ import {
   Trash2,
   UserPlus,
   Users,
+  Webhook,
   X,
+  Zap,
 } from 'lucide-react';
-import { PageHeader } from '@/components/PageHeader';
+import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
+import { Input, Select } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
+import { FALLBACK_GROUP_COLOR, paletteColor } from '@/lib/groupColors';
+import { GroupDonut, type DonutSlice } from '@/components/GroupDonut';
+import { cn } from '@/lib/cn';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Registration, RegistrationPage } from '@/types';
@@ -39,7 +46,7 @@ interface Draft {
 export const RegistrationPageDetail = () => {
   const { t, lang } = useI18n();
   const { project } = useProjectContext();
-  const { find: findGroup } = useProjectGroups();
+  const { groups, find: findGroup, reload: reloadGroups } = useProjectGroups();
   const { pageId } = useParams();
   const navigate = useNavigate();
 
@@ -53,6 +60,8 @@ export const RegistrationPageDetail = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectionOpen, setSelectionOpen] = useState(false);
+  // Group filter, shared by the table's dropdown and the distribution chart.
+  const [groupFilter, setGroupFilter] = useState('');
 
   const load = useCallback(async () => {
     const [pageResult, regsResult] = await Promise.all([
@@ -83,7 +92,24 @@ export const RegistrationPageDetail = () => {
     return null;
   }
 
+  // A group the project doesn't have blocks the transfer until it's corrected
+  // or created (enforced by the server as well).
+  const isBlocked = (r: Registration) => !r.transferred && Boolean(r.group_name) && !findGroup(r.group_name);
   const pendingCount = registrations.filter((r) => !r.transferred).length;
+  const transferable = registrations.filter((r) => !r.transferred && !isBlocked(r));
+  const blockedCount = pendingCount - transferable.length;
+
+  const createGroup = async (name: string) => {
+    setBusy(true);
+    await api.from('project_groups').insert({
+      project_id: project.id,
+      name: name.trim(),
+      color: paletteColor(groups.length),
+      position: groups.reduce((max, g) => Math.max(max, g.position + 1), 0),
+    });
+    await reloadGroups();
+    setBusy(false);
+  };
 
   const toggleActive = async () => {
     setBusy(true);
@@ -113,9 +139,8 @@ export const RegistrationPageDetail = () => {
 
   const bulkTransfer = async () => {
     setBusy(true);
-    await Promise.all(
-      selectedIds.map((id) => api.rpc('transfer_registration', { p_registration_id: id })),
-    );
+    const ids = transferable.filter((r) => selectedIds.includes(r.id)).map((r) => r.id);
+    await Promise.all(ids.map((id) => api.rpc('transfer_registration', { p_registration_id: id })));
     setSelectedIds([]);
     await load();
     setBusy(false);
@@ -211,16 +236,40 @@ export const RegistrationPageDetail = () => {
             header: t('group'),
             accessor: (r: Registration) => r.group_name,
             render: (r: Registration) =>
-              editingId !== r.id &&
-              !r.transferred &&
-              r.group_name &&
-              !findGroup(r.group_name) ? (
-                <span>
-                  <GroupPill name={r.group_name} />
-                  <span className="block text-xs text-accent">{t('unknownGroupHint')}</span>
+              editingId === r.id ? (
+                <Select
+                  value={draft.group_name}
+                  onChange={(e) => setDraft((d) => ({ ...d, group_name: e.target.value }))}
+                  className="py-1.5 text-sm"
+                >
+                  <option value="">—</option>
+                  {draft.group_name && !findGroup(draft.group_name) && (
+                    <option value={draft.group_name}>{draft.group_name}</option>
+                  )}
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.name}>
+                      {g.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : isBlocked(r) ? (
+                <span className="inline-flex flex-col items-start gap-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-accent px-2 py-0.5 text-xs font-medium text-accent">
+                    <AlertTriangle size={12} />
+                    {r.group_name}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    {t('unknownGroupHint')} ·{' '}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void createGroup(r.group_name!)}
+                      className="font-medium text-text underline underline-offset-2 hover:text-accent"
+                    >
+                      {t('createThisGroup')}
+                    </button>
+                  </span>
                 </span>
-              ) : editingId === r.id ? (
-                editableCell(r, 'group_name', r.group_name)
               ) : (
                 <GroupPill name={r.group_name} />
               ),
@@ -257,7 +306,37 @@ export const RegistrationPageDetail = () => {
     },
   ];
 
+  // Group key of a registration: a project group's id, "none" or "unknown".
+  const groupKey = (r: Registration) =>
+    !r.group_name ? 'none' : (findGroup(r.group_name)?.id ?? 'unknown');
+
+  const groupCounts = new Map<string, number>();
+  for (const r of registrations) groupCounts.set(groupKey(r), (groupCounts.get(groupKey(r)) ?? 0) + 1);
+
+  const slices: DonutSlice[] = [
+    ...groups.map((g) => ({ id: g.id, label: g.name, value: groupCounts.get(g.id) ?? 0, color: g.color })),
+    ...(groupCounts.get('unknown')
+      ? [{ id: 'unknown', label: t('unknownGroupsSlice'), value: groupCounts.get('unknown')!, color: FALLBACK_GROUP_COLOR }]
+      : []),
+    ...(groupCounts.get('none')
+      ? [{ id: 'none', label: t('noGroupAssigned'), value: groupCounts.get('none')!, color: '', muted: true }]
+      : []),
+  ];
+  const showDistribution = page.ask_group && registrations.length > 0;
+
   const filters: FilterDef<Registration>[] = [
+    ...(page.ask_group
+      ? [
+          {
+            id: 'group',
+            label: t('group'),
+            options: slices.map((sl) => ({ value: sl.id, label: sl.label })),
+            predicate: (r: Registration, v: string) => groupKey(r) === v,
+            value: groupFilter,
+            onChange: setGroupFilter,
+          },
+        ]
+      : []),
     {
       id: 'transferred',
       label: t('status'),
@@ -279,104 +358,172 @@ export const RegistrationPageDetail = () => {
         {t('registrationPages')}
       </button>
 
-      <PageHeader
-        title={page.title}
-        subtitle={`${registrations.length} ${t('registrations').toLowerCase()} · ${
-          page.is_active ? t('active') : t('registrationInactiveStatus')
-        }`}
-        actions={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => navigate(`/projects/${project.id}/registrations/${page.id}/settings`)}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold sm:text-2xl">{page.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-text-secondary">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium',
+                page.is_active ? 'bg-[#f0fdf4] text-[#16803b]' : 'bg-[#f5f5f5] text-text-secondary',
+              )}
             >
-              <Settings size={16} />
-              {t('settings')}
-            </Button>
-            <Button
-              variant={page.is_active ? 'accent' : 'primary'}
-              disabled={busy}
-              onClick={toggleActive}
-            >
-              {page.is_active ? <Square size={15} /> : <Play size={16} />}
-              {page.is_active ? t('deactivate') : t('activate')}
-            </Button>
-          </>
-        }
-      />
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{t('registrations')}</h2>
-        {selectedIds.length > 0 ? (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">
-              {t('selectedCount').replace('{n}', String(selectedIds.length))}
+              <span
+                className={cn('h-1.5 w-1.5 rounded-full', page.is_active ? 'bg-[#16a34a]' : 'bg-text-tertiary')}
+              />
+              {page.is_active ? t('active') : t('registrationInactiveStatus')}
             </span>
-            <Button variant="secondary" disabled={busy} onClick={bulkTransfer}>
-              <UserPlus size={16} />
-              {t('transferToMembers')}
-            </Button>
-            <Button variant="secondary" disabled={busy} onClick={() => setBulkDeleteOpen(true)}>
-              <Trash2 size={16} />
-              {t('delete')}
-            </Button>
+            <span className="inline-flex items-center gap-1.5">
+              {page.source === 'webhook' ? <Webhook size={14} /> : <FileText size={14} />}
+              {page.source === 'webhook' ? t('sourceWebhook') : t('sourceForm')}
+            </span>
+            {page.auto_transfer && (
+              <span className="inline-flex items-center gap-1.5">
+                <Zap size={14} />
+                {t('autoTransfer')}
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={busy || pendingCount === 0}
-              onClick={() => setSelectionOpen(true)}
-            >
-              <Shuffle size={16} />
-              {t('transferSelection')}
-            </Button>
-            <Button disabled={busy || pendingCount === 0} onClick={transferAll}>
-              <Users size={16} />
-              {t('transferAllToMembers')}
-              {pendingCount > 0 ? ` (${pendingCount})` : ''}
-            </Button>
-          </div>
-        )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/projects/${project.id}/registrations/${page.id}/settings`)}
+          >
+            <Settings size={16} />
+            {t('settings')}
+          </Button>
+          <Button variant={page.is_active ? 'accent' : 'primary'} disabled={busy} onClick={toggleActive}>
+            {page.is_active ? <Square size={15} /> : <Play size={16} />}
+            {page.is_active ? t('deactivate') : t('activate')}
+          </Button>
+        </div>
       </div>
 
-      <DataTable
-        rows={registrations}
-        columns={columns}
-        getRowId={(r) => r.id}
-        search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''}`}
-        filters={filters}
-        selectedIds={selectedIds}
-        onSelectedIdsChange={setSelectedIds}
-        emptyMessage={t('noRegistrations')}
-        emptyIcon={ClipboardList}
-        actions={(r) =>
-          editingId === r.id ? (
-            <>
-              <RowActionButton label={t('save')} onClick={saveEdit}>
-                <Check size={15} />
-              </RowActionButton>
-              <RowActionButton label={t('cancel')} onClick={() => setEditingId(null)}>
+      <div className="mb-6 grid grid-cols-3 gap-3 sm:gap-4">
+        <Stat label={t('registrations')} value={registrations.length} />
+        <Stat label={t('notTransferred')} value={pendingCount} highlight={pendingCount > 0} />
+        <Stat label={t('transferred')} value={registrations.length - pendingCount} />
+      </div>
+
+      {blockedCount > 0 && (
+        <div className="mb-6 flex items-start gap-2.5 rounded-md border border-accent bg-surface px-4 py-3 text-sm">
+          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-accent" />
+          <span>{t('unknownGroupsBlocked').replace('{n}', String(blockedCount))}</span>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'grid gap-6 lg:items-start',
+          showDistribution && 'lg:grid-cols-[minmax(0,1fr)_320px]',
+        )}
+      >
+        <div className="min-w-0">
+          <DataTable
+            rows={registrations}
+            columns={columns}
+            getRowId={(r) => r.id}
+            search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''}`}
+            filters={filters}
+            toolbar={
+              selectedIds.length > 0 ? (
+                <>
+                  <span className="text-sm text-text-secondary">
+                    {t('selectedCount').replace('{n}', String(selectedIds.length))}
+                  </span>
+                  <Button variant="secondary" disabled={busy} onClick={bulkTransfer}>
+                    <UserPlus size={16} />
+                    {t('transferToMembers')}
+                  </Button>
+                  <Button variant="secondary" disabled={busy} onClick={() => setBulkDeleteOpen(true)}>
+                    <Trash2 size={16} />
+                    {t('delete')}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={busy || transferable.length === 0}
+                    onClick={() => setSelectionOpen(true)}
+                  >
+                    <Shuffle size={16} />
+                    {t('transferSelection')}
+                  </Button>
+                  <Button disabled={busy || transferable.length === 0} onClick={transferAll}>
+                    <Users size={16} />
+                    {t('transferAllToMembers')}
+                    {transferable.length > 0 ? ` (${transferable.length})` : ''}
+                  </Button>
+                </>
+              )
+            }
+            selectedIds={selectedIds}
+            onSelectedIdsChange={setSelectedIds}
+            emptyMessage={t('noRegistrations')}
+            emptyIcon={ClipboardList}
+            actions={(r) =>
+              editingId === r.id ? (
+                <>
+                  <RowActionButton label={t('save')} onClick={saveEdit}>
+                    <Check size={15} />
+                  </RowActionButton>
+                  <RowActionButton label={t('cancel')} onClick={() => setEditingId(null)}>
+                    <X size={15} />
+                  </RowActionButton>
+                </>
+              ) : (
+                <>
+                  {!r.transferred ? (
+                    <RowActionButton
+                      label={isBlocked(r) ? t('unknownGroupBlocksTransfer') : t('transferToMembers')}
+                      disabled={busy || isBlocked(r)}
+                      onClick={() => transferOne(r)}
+                    >
+                      <UserPlus size={15} />
+                    </RowActionButton>
+                  ) : null}
+                  <RowActionButton label={t('edit')} onClick={() => startEdit(r)}>
+                    <Pencil size={15} />
+                  </RowActionButton>
+                  <RowActionButton label={t('delete')} onClick={() => setToDelete(r)}>
+                    <Trash2 size={15} />
+                  </RowActionButton>
+                </>
+              )
+            }
+          />
+        </div>
+
+        {showDistribution && (
+          <Card className="p-6 lg:sticky lg:top-6">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-medium">{t('groupDistribution')}</h2>
+                <p className="mt-0.5 text-sm text-text-secondary">{t('registrationGroupDistributionHint')}</p>
+              </div>
+            </div>
+            <GroupDonut
+              slices={slices}
+              selectedId={groupFilter || null}
+              totalLabel={t('registrations')}
+              mutedSelectable
+              onSelect={(slice) => setGroupFilter((current) => (current === slice.id ? '' : slice.id))}
+            />
+            {groupFilter && (
+              <button
+                type="button"
+                onClick={() => setGroupFilter('')}
+                className="mt-3 inline-flex items-center gap-1.5 px-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
+              >
                 <X size={15} />
-              </RowActionButton>
-            </>
-          ) : (
-            <>
-              {!r.transferred ? (
-                <RowActionButton label={t('transferToMembers')} onClick={() => transferOne(r)}>
-                  <UserPlus size={15} />
-                </RowActionButton>
-              ) : null}
-              <RowActionButton label={t('edit')} onClick={() => startEdit(r)}>
-                <Pencil size={15} />
-              </RowActionButton>
-              <RowActionButton label={t('delete')} onClick={() => setToDelete(r)}>
-                <Trash2 size={15} />
-              </RowActionButton>
-            </>
-          )
-        }
-      />
+                {t('showAllGroups')}
+              </button>
+            )}
+          </Card>
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!toDelete}
@@ -391,7 +538,7 @@ export const RegistrationPageDetail = () => {
       <RegistrationSelectionDialog
         open={selectionOpen}
         pageId={page.id}
-        pending={registrations.filter((r) => !r.transferred)}
+        pending={transferable}
         onClose={() => setSelectionOpen(false)}
         onTransferred={() => void load()}
       />
@@ -408,3 +555,10 @@ export const RegistrationPageDetail = () => {
     </>
   );
 };
+
+const Stat = ({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) => (
+  <Card className="px-4 py-3 sm:px-5 sm:py-4">
+    <p className="truncate text-xs text-text-secondary sm:text-sm">{label}</p>
+    <p className={cn('mt-0.5 text-xl font-bold tabular-nums sm:text-2xl', highlight && 'text-accent')}>{value}</p>
+  </Card>
+);

@@ -101,6 +101,10 @@ export const policies: Record<string, TablePolicy> = {
           throw new ApiError('You cannot remove your own administrator access', 403, '42501');
         }
       }
+      // Only the account holder sets their profile photo.
+      if ('photo_url' in patch && !self && normalize(patch.photo_url) !== normalize(oldRow.photo_url)) {
+        throw new ApiError('Only the account holder can change the profile photo', 403, '42501');
+      }
     },
   },
 
@@ -132,6 +136,12 @@ export const policies: Record<string, TablePolicy> = {
     ...all((a) => canAccessProject(`${a}.project_id`)),
     // Participants always see their own member row (also after leaving).
     select: (a) => or(canAccessProject(`${a}.project_id`), `${a}.user_id = auth_uid()`),
+    // The photo mirrors the linked account's (database triggers); nobody sets it here.
+    validateUpdate: (oldRow, patch) => {
+      if ('photo_url' in patch && normalize(patch.photo_url) !== normalize(oldRow.photo_url)) {
+        throw new ApiError('Member photos come from the linked account', 403, '42501');
+      }
+    },
   },
 
   events: {

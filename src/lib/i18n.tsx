@@ -80,7 +80,7 @@ const dict: Dict = {
   events: { de: 'Proben', en: 'Events' },
   members: { de: 'Mitglieder', en: 'Members' },
   absences: { de: 'Fehlzeiten', en: 'Absences' },
-  statistics: { de: 'Statistik', en: 'Statistics' },
+  statistics: { de: 'Anwesenheit', en: 'Attendance' },
   checkIn: { de: 'Check-in', en: 'Check-in' },
 
   // Auth
@@ -187,6 +187,13 @@ const dict: Dict = {
   lastName: { de: 'Nachname', en: 'Last name' },
   group: { de: 'Gruppe', en: 'Group' },
   photo: { de: 'Foto', en: 'Photo' },
+  profilePhoto: { de: 'Profilbild', en: 'Profile photo' },
+  profilePhotoHint: {
+    de: 'Wird überall angezeigt, wo du als Mitglied erscheinst.',
+    en: 'Shown wherever you appear as a member.',
+  },
+  uploadPhoto: { de: 'Bild hochladen', en: 'Upload photo' },
+  changePhoto: { de: 'Bild ändern', en: 'Change photo' },
   noMembers: { de: 'Noch keine Mitglieder', en: 'No members yet' },
   guest: { de: 'Gast', en: 'Guest' },
   searchAccount: { de: 'Konto suchen', en: 'Search account' },
@@ -667,8 +674,17 @@ const dict: Dict = {
     en: "Registrations with a group the project doesn't have are never transferred automatically.",
   },
   unknownGroupHint: {
-    de: 'Nicht im Projekt – vor dem Übertragen anpassen',
-    en: 'Not in the project – adjust before transferring',
+    de: 'Gibt es im Projekt nicht',
+    en: "Not in the project",
+  },
+  createThisGroup: { de: 'Gruppe anlegen', en: 'Create group' },
+  unknownGroupsBlocked: {
+    de: '{n} Anmeldungen haben eine Gruppe, die es im Projekt nicht gibt. Sie können erst übertragen werden, wenn du die Gruppe korrigierst oder anlegst.',
+    en: "{n} registrations have a group the project doesn't have. They can only be transferred once you correct or create the group.",
+  },
+  unknownGroupBlocksTransfer: {
+    de: 'Erst Gruppe korrigieren oder anlegen',
+    en: 'Correct or create the group first',
   },
   editRegistrationPage: { de: 'Quelle bearbeiten', en: 'Edit source' },
   noRegistrationPages: { de: 'Noch keine Quellen', en: 'No sources yet' },
@@ -697,6 +713,12 @@ const dict: Dict = {
   groupMemberCount: { de: 'Mitglieder', en: 'Members' },
   noGroups: { de: 'Noch keine Gruppen', en: 'No groups yet' },
   groupDistribution: { de: 'Verteilung', en: 'Distribution' },
+  registrationGroupDistributionHint: {
+    de: 'Anmeldungen je Gruppe – klicke auf eine Gruppe, um die Liste zu filtern.',
+    en: 'Registrations per group – click a group to filter the list.',
+  },
+  unknownGroupsSlice: { de: 'Nicht im Projekt', en: 'Not in the project' },
+  showAllGroups: { de: 'Alle Gruppen anzeigen', en: 'Show all groups' },
   groupDistributionHint: {
     de: 'Aktive Mitglieder je Gruppe',
     en: 'Active members per group',

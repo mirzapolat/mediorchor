@@ -36,6 +36,17 @@ export const projectGroupNames = (projectId: unknown): string[] =>
       .all(text(projectId)) as { name: string }[]
   ).map((r) => r.name);
 
+// The project's own spelling of a group (matched ignoring case). `known` is
+// false when a group was given that the project doesn't have; no group at all
+// counts as known.
+const resolveGroup = (projectId: unknown, name: string | null) => {
+  if (!name) return { name: null, known: true };
+  const row = db
+    .prepare('select name from project_groups where project_id = ? and name = ? collate nocase')
+    .get(text(projectId), name) as { name: string } | undefined;
+  return { name: row?.name ?? name, known: Boolean(row) };
+};
+
 const accountEmail = (uid: string) =>
   (db.prepare('select email from auth_users where id = ?').get(uid) as { email: string } | undefined)?.email ?? null;
 
@@ -350,10 +361,13 @@ const submit_public_registration = (args: Args) => {
   if (asAccount) email = accountEmail(uid!);
   else if (!page.ask_email) email = null;
   if (!page.ask_group) groupName = null;
+  const group = resolveGroup(page.project_id, groupName);
+  groupName = group.name;
 
   // Membership only happens through the transfer, never at submission time.
+  // Registrations with a group the project doesn't have wait for a manager.
   const accountId = asAccount ? uid : null;
-  const memberId = page.auto_transfer
+  const memberId = page.auto_transfer && group.known
     ? registrationToMember(page.project_id, firstName, lastName, groupName, email, accountId)
     : null;
 
@@ -416,12 +430,15 @@ const transfer_registration = (args: Args) => {
   if (!reg) throw new ApiError('Registration not found');
   if (!userCanAccessProject(reg.project_id)) throw forbidden('Project access denied');
   if (reg.transferred) return { success: true, transferred: 0 };
+  // A group the project doesn't have must be corrected or created first.
+  const group = resolveGroup(reg.project_id, reg.group_name as string | null);
+  if (!group.known) throw new ApiError('Unknown group', 409, 'unknown_group');
 
   const memberId = registrationToMember(
     text(reg.project_id),
     text(reg.first_name),
     text(reg.last_name),
-    reg.group_name as string | null,
+    group.name,
     reg.email as string | null,
     reg.user_id as string | null,
   );
@@ -429,21 +446,29 @@ const transfer_registration = (args: Args) => {
   return { success: true, transferred: 1 };
 };
 
-// Pending registrations of a page the caller manages, oldest first.
+// Pending registrations of a page the caller manages, oldest first. Rows with a
+// group the project doesn't have are left out (and counted as `blocked`).
 const pendingRegistrations = (pageId: string) => {
   const page = db.prepare('select project_id from registration_pages where id = ?').get(pageId) as
     | { project_id: string }
     | undefined;
   if (!page) throw new ApiError('Registration page not found');
   if (!userCanAccessProject(page.project_id)) throw forbidden('Project access denied');
-  const regs = db
+  const pending = db
     .prepare(
       `select id, first_name, last_name, email, group_name, user_id
        from registrations where registration_page_id = ? and not transferred
        order by created_at, rowid`,
     )
     .all(pageId) as Row[];
-  return { projectId: page.project_id, regs };
+  const regs: Row[] = [];
+  let blocked = 0;
+  for (const reg of pending) {
+    const group = resolveGroup(page.project_id, reg.group_name as string | null);
+    if (group.known) regs.push({ ...reg, group_name: group.name });
+    else blocked += 1;
+  }
+  return { projectId: page.project_id, regs, blocked };
 };
 
 const transferRegistrations = (projectId: string, regs: Row[]) => {
@@ -463,9 +488,9 @@ const transferRegistrations = (projectId: string, regs: Row[]) => {
 
 const transfer_all_registrations = (args: Args) => {
   requireUser();
-  const { projectId, regs } = pendingRegistrations(text(args.p_page_id));
+  const { projectId, regs, blocked } = pendingRegistrations(text(args.p_page_id));
   transferRegistrations(projectId, regs);
-  return { success: true, transferred: regs.length };
+  return { success: true, transferred: regs.length, blocked };
 };
 
 // Transfers `p_count` pending registrations: the earliest ones (`first`) or a
@@ -680,7 +705,7 @@ const search_accounts = (args: Args) => {
   if (!query) return [];
   return db
     .prepare(
-      `select id, name, email from app_users
+      `select id, name, email, photo_url from app_users
        where instr(ulower(name), ulower(@q)) > 0 or instr(ulower(email), ulower(@q)) > 0
        order by name collate nocase, email collate nocase
        limit 10`,

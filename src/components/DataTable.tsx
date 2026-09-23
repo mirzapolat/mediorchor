@@ -22,6 +22,9 @@ export interface FilterDef<T> {
   options: { value: string; label: string }[];
   predicate: (row: T, value: string) => boolean;
   defaultValue?: string;
+  // Controlled mode: the caller owns the value (e.g. a chart selects it too).
+  value?: string;
+  onChange?: (value: string) => void;
 }
 
 interface DataTableProps<T> {
@@ -48,6 +51,8 @@ interface DataTableProps<T> {
   // Enables drag & drop row reordering via a leading grip column. Column
   // sorting is disabled in this mode (the manual order is the order).
   onReorder?: (rows: T[]) => void;
+  // Extra controls at the right end of the search/filter row.
+  toolbar?: ReactNode;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -83,15 +88,22 @@ export function DataTable<T>({
   selectedIds,
   onSelectedIdsChange,
   onReorder,
+  toolbar,
 }: DataTableProps<T>) {
   const { t } = useI18n();
   const reorderable = Boolean(onReorder);
   const [query, setQuery] = useState('');
   const [sortId, setSortId] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [filterValues, setFilterValues] = useState<Record<string, string>>(() =>
+  const [ownFilterValues, setOwnFilterValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(filters.map((f) => [f.id, f.defaultValue ?? ''])),
   );
+  const filterValues: Record<string, string> = { ...ownFilterValues };
+  for (const f of filters) if (f.value !== undefined) filterValues[f.id] = f.value;
+  const setFilterValue = (f: FilterDef<T>, value: string) => {
+    if (f.onChange) f.onChange(value);
+    else setOwnFilterValues((s) => ({ ...s, [f.id]: value }));
+  };
 
   const processed = useMemo(() => {
     let out = rows;
@@ -119,7 +131,8 @@ export function DataTable<T>({
       }
     }
     return out;
-  }, [rows, columns, filters, filterValues, query, search, sortId, sortDir, highlightRowId, getRowId, reorderable]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, columns, filters, JSON.stringify(filterValues), query, search, sortId, sortDir, highlightRowId, getRowId, reorderable]);
 
   useEffect(() => {
     onVisibleRowsChange?.(processed);
@@ -139,7 +152,7 @@ export function DataTable<T>({
     }
   };
 
-  const hasToolbar = Boolean(search) || filters.length > 0;
+  const hasToolbar = Boolean(search) || filters.length > 0 || Boolean(toolbar);
   const hasActiveFilters =
     query.trim() !== '' ||
     filters.some((f) => (filterValues[f.id] ?? '') !== '') ||
@@ -147,7 +160,7 @@ export function DataTable<T>({
 
   const clearAll = () => {
     setQuery('');
-    setFilterValues(Object.fromEntries(filters.map((f) => [f.id, ''])));
+    for (const f of filters) setFilterValue(f, '');
     onClearFilters?.();
   };
 
@@ -194,7 +207,7 @@ export function DataTable<T>({
               <Select
                 label={f.label}
                 value={filterValues[f.id] ?? ''}
-                onChange={(e) => setFilterValues((s) => ({ ...s, [f.id]: e.target.value }))}
+                onChange={(e) => setFilterValue(f, e.target.value)}
               >
                 <option value="">{t('all')}</option>
                 {f.options.map((o) => (
@@ -216,6 +229,7 @@ export function DataTable<T>({
               {t('clearFilters')}
             </button>
           )}
+          {toolbar && <div className="ml-auto flex flex-wrap items-center gap-2">{toolbar}</div>}
         </div>
       )}
 

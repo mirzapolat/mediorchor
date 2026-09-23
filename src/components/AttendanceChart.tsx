@@ -67,7 +67,7 @@ export const AttendanceChart = ({
     [locale],
   );
   const longDate = useMemo(
-    () => new Intl.DateTimeFormat(locale, { weekday: 'short', dateStyle: 'medium' } as Intl.DateTimeFormatOptions),
+    () => new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
     [locale],
   );
   const percent = useMemo(

@@ -75,7 +75,7 @@ export const UsersPage = () => {
       accessor: (u) => splitName(u.name).first,
       render: (u) => (
         <div className="flex items-center gap-2.5">
-          <Avatar name={u.name} size={28} />
+          <Avatar name={u.name} photoUrl={u.photo_url} size={28} />
           <span>{splitName(u.name).first}</span>
         </div>
       ),

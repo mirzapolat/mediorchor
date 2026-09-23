@@ -1,18 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Search, Upload, UserRound, X } from 'lucide-react';
+import { Search, UserRound, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Input, Select } from './Input';
 import { Avatar } from './Avatar';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
-import { uploadImage } from '@/lib/uploadImage';
 import type { Member } from '@/types';
 
 interface AccountResult {
   id: string;
   name: string;
   email: string;
+  photo_url: string | null;
 }
 
 interface MemberFormProps {
@@ -46,10 +46,7 @@ export const MemberForm = ({
 }: MemberFormProps) => {
   const { t } = useI18n();
   const [form, setForm] = useState(() => formFromMember(member));
-  const [photoUrl, setPhotoUrl] = useState<string | null>(member?.photo_url ?? null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   // Optional link to an existing account (only when creating a new member).
   const [accountQuery, setAccountQuery] = useState('');
   const [accountResults, setAccountResults] = useState<AccountResult[]>([]);
@@ -60,9 +57,7 @@ export const MemberForm = ({
   useEffect(() => {
     if (open) {
       setForm(formFromMember(member));
-      setPhotoUrl(member?.photo_url ?? null);
       setSaving(false);
-      setUploadError(null);
       setAccountQuery('');
       setAccountResults([]);
       setLinkedAccount(null);
@@ -99,15 +94,6 @@ export const MemberForm = ({
     }));
   };
 
-  const uploadPhoto = async (file: File) => {
-    setUploading(true);
-    setUploadError(null);
-    const { url, error } = await uploadImage(projectId, file);
-    if (error) setUploadError(error);
-    else setPhotoUrl(url);
-    setUploading(false);
-  };
-
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -117,7 +103,6 @@ export const MemberForm = ({
       last_name: form.last_name.trim(),
       group_name: form.group_name.trim() || null,
       email: form.email.trim() || null,
-      photo_url: photoUrl,
     };
     if (member) {
       await api.from('members').update(payload).eq('id', member.id);
@@ -145,8 +130,6 @@ export const MemberForm = ({
     onSaved();
     onClose();
   };
-
-  const fullName = `${form.first_name} ${form.last_name}`.trim();
 
   return (
     <Modal
@@ -209,7 +192,7 @@ export const MemberForm = ({
                         onClick={() => selectAccount(account)}
                         className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-[#f5f5f5] transition-colors duration-150"
                       >
-                        <Avatar name={account.name || account.email} size={24} />
+                        <Avatar name={account.name || account.email} photoUrl={account.photo_url} size={24} />
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-medium">
                             {account.name || account.email}
@@ -230,20 +213,6 @@ export const MemberForm = ({
             )}
           </div>
         )}
-        <div className="flex items-center gap-4">
-          <Avatar name={fullName || '?'} photoUrl={photoUrl} size={56} />
-          <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
-            <Upload size={15} />
-            {uploading ? t('loading') : `${t('photo')} (${t('optional')})`}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && uploadPhoto(e.target.files[0])}
-            />
-          </label>
-        </div>
-        {uploadError && <p className="text-sm text-accent">{uploadError}</p>}
         <div className="grid grid-cols-2 gap-3">
           <Input
             label={t('firstName')}

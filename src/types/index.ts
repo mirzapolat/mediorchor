@@ -11,6 +11,7 @@ export interface AppUser {
   can_manage_projects: boolean; // project management (scoped via all_projects/user_projects)
   all_projects: boolean; // false → management limited to user_projects rows
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
+  photo_url: string | null; // set by the account holder, mirrored onto linked members
   created_at: string;
 }
 
@@ -54,7 +55,7 @@ export interface Member {
   last_name: string;
   group_name: string | null;
   email: string | null;
-  photo_url: string | null;
+  photo_url: string | null; // mirrors the linked account's photo (read-only)
   status: MemberStatus;
   user_id: string | null; // linked account; an active linked row = participation
   created_at: string;

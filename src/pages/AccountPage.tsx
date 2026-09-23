@@ -1,15 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { ShieldCheck, ShieldOff, Trash2, Upload, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
+import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { Modal } from '@/components/Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { uploadImage } from '@/lib/uploadImage';
 import { useAuth } from '@/hooks/useAuth';
 import type { Language } from '@/lib/config';
 
@@ -21,8 +23,33 @@ export const AccountPage = () => {
   const [password, setPassword] = useState('');
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   if (!user) return <PageSpinner />;
+
+  // The photo is saved right away and mirrored onto every linked member row.
+  const setPhoto = async (url: string | null) => {
+    const { error } = await api.from('app_users').update({ photo_url: url }).eq('id', user.id);
+    if (error) setPhotoError(error.message);
+    await refreshUser();
+  };
+
+  const uploadPhoto = async (file: File) => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    const { url, error } = await uploadImage(`users/${user.id}`, file);
+    if (error) setPhotoError(error);
+    else await setPhoto(url);
+    setPhotoBusy(false);
+  };
+
+  const removePhoto = async () => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    await setPhoto(null);
+    setPhotoBusy(false);
+  };
 
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -56,6 +83,42 @@ export const AccountPage = () => {
         <form onSubmit={saveProfile}>
           <Card className="space-y-4">
             <h2 className="text-base font-medium">{t('account')}</h2>
+            <div>
+              <p className="text-sm font-medium text-text mb-1.5">{t('profilePhoto')}</p>
+              <div className="flex items-center gap-4">
+                <Avatar name={user.name || user.email} photoUrl={user.photo_url} size={56} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
+                    <Upload size={15} />
+                    {photoBusy ? t('loading') : user.photo_url ? t('changePhoto') : t('uploadPhoto')}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={photoBusy}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) void uploadPhoto(file);
+                      }}
+                    />
+                  </label>
+                  {user.photo_url && (
+                    <button
+                      type="button"
+                      disabled={photoBusy}
+                      onClick={removePhoto}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150"
+                    >
+                      <X size={15} />
+                      {t('remove')}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="mt-1.5 text-sm text-text-secondary">{t('profilePhotoHint')}</p>
+              {photoError && <p className="mt-1 text-sm text-accent">{photoError}</p>}
+            </div>
             <Input label={t('name')} value={name} onChange={(e) => setName(e.target.value)} required />
             <Input
               type="email"

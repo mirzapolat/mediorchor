@@ -44,7 +44,7 @@ export const SidebarFooter = () => {
               cn('rounded-full ring-offset-2 ring-offset-surface', isActive && 'ring-2 ring-black')
             }
           >
-            <Avatar name={name} size={30} />
+            <Avatar name={name} photoUrl={user?.photo_url} size={30} />
           </NavLink>
           {signOutButton}
         </div>
@@ -59,7 +59,7 @@ export const SidebarFooter = () => {
               )
             }
           >
-            <Avatar name={name} size={32} />
+            <Avatar name={name} photoUrl={user?.photo_url} size={32} />
             <span className="min-w-0 leading-tight">
               <span className="block truncate text-sm font-medium text-text">{name}</span>
               {user?.email && (
