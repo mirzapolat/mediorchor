@@ -21,11 +21,19 @@ export const UserDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [grantedCount, setGrantedCount] = useState(0);
+  const [twoFactor, setTwoFactor] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = async () => {
-    const { data } = await api.from('app_users').select('*').eq('id', userId).maybeSingle();
+    const [{ data }, { count }, mfa] = await Promise.all([
+      api.from('app_users').select('*').eq('id', userId).maybeSingle(),
+      api.from('user_projects').select('project_id', { count: 'exact', head: true }).eq('user_id', userId),
+      api.rpc('two_factor_users'),
+    ]);
+    setTwoFactor(((mfa.data as string[] | null) ?? []).includes(userId ?? ''));
     setUser((data as AppUser) ?? null);
+    setGrantedCount(count ?? 0);
     setLoading(false);
   };
 
@@ -65,8 +73,12 @@ export const UserDetailPage = () => {
     navigate('/admin/users');
   };
 
-  const accessLabel =
-    user.is_admin || user.all_projects ? t('allProjectsAccess') : t('selectedProjects');
+  const hasAllProjects = user.is_admin || user.can_manage_projects;
+  const accessLabel = hasAllProjects
+    ? t('coveredByAllProjects')
+    : grantedCount > 0
+      ? `${grantedCount} ${t(grantedCount === 1 ? 'projectSingular' : 'projectPlural')}`
+      : t('noProjectsGranted');
 
   return (
     <>
@@ -85,7 +97,9 @@ export const UserDetailPage = () => {
             {user.name}
             {user.is_admin && <Crown size={20} className="text-accent" />}
           </h1>
-          <p className="text-text-secondary text-sm mt-1">{user.email}</p>
+          <p className="text-text-secondary text-sm mt-1">
+            {user.email} · {t('twoFactorShort')}: {twoFactor ? t('twoFactorOn') : t('twoFactorOff')}
+          </p>
         </div>
       </div>
 
@@ -112,8 +126,8 @@ export const UserDetailPage = () => {
 
         <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
           <div>
-            <p className="font-medium">{t('projectManagement')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{t('projectManagementHint')}</p>
+            <p className="font-medium">{t('allProjectsAccess')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">{t('allProjectsHint')}</p>
           </div>
           <label className="inline-flex cursor-pointer items-center">
             <input
@@ -128,13 +142,13 @@ export const UserDetailPage = () => {
 
         <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
           <div>
-            <p className="font-medium">{t('projectAccess')}</p>
+            <p className="font-medium">{t('selectedProjects')}</p>
             <p className="text-sm text-text-secondary mt-0.5">{accessLabel}</p>
           </div>
           <Button
             variant="secondary"
             onClick={() => setAccessOpen(true)}
-            disabled={user.is_admin || !user.can_manage_projects}
+            disabled={hasAllProjects}
           >
             <FolderKanban size={15} />
             {t('manageAccess')}

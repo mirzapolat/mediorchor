@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
@@ -11,6 +11,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import { useProjectContext } from '@/layouts/projectContext';
+import { useAuth } from '@/hooks/useAuth';
 
 export const ProjectSettingsPage = () => {
   const { t } = useI18n();
@@ -35,6 +36,7 @@ export const ProjectSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const { canManageProjects } = useAuth();
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -68,6 +70,9 @@ export const ProjectSettingsPage = () => {
     await api.from('projects').delete().eq('id', project.id);
     navigate('/');
   };
+
+  // Individually granted users manage the content, not the project itself.
+  if (!canManageProjects) return <Navigate to={`/projects/${project.id}`} replace />;
 
   return (
     <>

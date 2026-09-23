@@ -18,7 +18,8 @@ export const LoginPage = () => {
   const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [allowSelfSignup, setAllowSelfSignup] = useState(false);
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export const LoginPage = () => {
         email,
         password,
         options: {
-          data: { name: name.trim() },
+          data: { name: `${firstName.trim()} ${lastName.trim()}` },
         },
       });
       setSubmitting(false);
@@ -149,14 +150,24 @@ export const LoginPage = () => {
               ) : (
                 <form onSubmit={onSubmit} className="space-y-4">
                   {mode === 'signup' && (
-                    <Input
-                      id="name"
-                      label={t('name')}
-                      autoComplete="name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        id="first-name"
+                        label={t('firstName')}
+                        autoComplete="given-name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
+                      />
+                      <Input
+                        id="last-name"
+                        label={t('lastName')}
+                        autoComplete="family-name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required
+                      />
+                    </div>
                   )}
                   <Input
                     id="email"

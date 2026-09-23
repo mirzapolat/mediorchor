@@ -6,8 +6,8 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import type { AppUser, Project } from '@/types';
 
-// Lets the owner choose whether a user can access all projects or only a
-// selected subset (persisted to app_users.all_projects + user_projects).
+// Picks the projects a user is explicitly granted (user_projects rows). The
+// same rows are edited per project from the projects page (ProjectAccessModal).
 export const UserAccessModal = ({
   user,
   onClose,
@@ -19,7 +19,7 @@ export const UserAccessModal = ({
 }) => {
   const { t } = useI18n();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allProjects, setAllProjects] = useState(true);
+  const [initial, setInitial] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,15 +27,14 @@ export const UserAccessModal = ({
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    setAllProjects(user.all_projects);
     Promise.all([
       api.from('projects').select('*').order('name'),
       api.from('user_projects').select('project_id').eq('user_id', user.id),
     ]).then(([proj, access]) => {
+      const granted = new Set(((access.data as { project_id: string }[]) ?? []).map((r) => r.project_id));
       setProjects((proj.data as Project[]) ?? []);
-      setSelected(
-        new Set(((access.data as { project_id: string }[]) ?? []).map((r) => r.project_id)),
-      );
+      setInitial(granted);
+      setSelected(new Set(granted));
       setLoading(false);
     });
   }, [user]);
@@ -52,13 +51,15 @@ export const UserAccessModal = ({
 
   const save = async () => {
     setSaving(true);
-    await api.from('app_users').update({ all_projects: allProjects }).eq('id', user.id);
-    // Replace the explicit project list with the current selection.
-    await api.from('user_projects').delete().eq('user_id', user.id);
-    if (!allProjects && selected.size > 0) {
+    const added = [...selected].filter((id) => !initial.has(id));
+    const removed = [...initial].filter((id) => !selected.has(id));
+    if (removed.length > 0) {
+      await api.from('user_projects').delete().eq('user_id', user.id).in('project_id', removed);
+    }
+    if (added.length > 0) {
       await api
         .from('user_projects')
-        .insert([...selected].map((project_id) => ({ user_id: user.id, project_id })));
+        .insert(added.map((project_id) => ({ user_id: user.id, project_id })));
     }
     setSaving(false);
     onSaved();
@@ -81,49 +82,30 @@ export const UserAccessModal = ({
         </>
       }
     >
-      <div className="space-y-4">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={allProjects}
-            onChange={(e) => setAllProjects(e.target.checked)}
-            className="mt-1 h-4 w-4 accent-accent"
-          />
-          <span>
-            <span className="font-medium">{t('allProjectsAccess')}</span>
-            <span className="block text-sm text-text-secondary">{t('allProjectsHint')}</span>
-          </span>
-        </label>
-
-        {!allProjects && (
-          <div className="border-t border-border pt-4">
-            <p className="text-sm font-medium text-text-secondary mb-2">{t('selectedProjects')}</p>
-            {loading ? (
-              <p className="text-sm text-text-secondary">{t('loading')}</p>
-            ) : projects.length === 0 ? (
-              <p className="text-sm text-text-secondary">{t('noProjects')}</p>
-            ) : (
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {projects.map((p) => (
-                  <label
-                    key={p.id}
-                    className="flex items-center gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-[#f5f5f5]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(p.id)}
-                      onChange={() => toggle(p.id)}
-                      className="h-4 w-4 accent-accent"
-                    />
-                    <Avatar name={p.name} photoUrl={p.image_url} size={24} square />
-                    <span className="truncate">{p.name}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <p className="text-sm text-text-secondary mb-3">{t('selectedProjectsHint')}</p>
+      {loading ? (
+        <p className="text-sm text-text-secondary">{t('loading')}</p>
+      ) : projects.length === 0 ? (
+        <p className="text-sm text-text-secondary">{t('noProjects')}</p>
+      ) : (
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {projects.map((p) => (
+            <label
+              key={p.id}
+              className="flex items-center gap-3 px-2 py-1.5 rounded-md cursor-pointer hover:bg-[#f5f5f5]"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(p.id)}
+                onChange={() => toggle(p.id)}
+                className="h-4 w-4 accent-accent"
+              />
+              <Avatar name={p.name} photoUrl={p.image_url} size={24} square />
+              <span className="truncate">{p.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </Modal>
   );
 };

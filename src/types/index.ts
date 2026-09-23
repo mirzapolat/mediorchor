@@ -8,8 +8,7 @@ export interface AppUser {
   email: string;
   name: string;
   is_admin: boolean; // full access; several accounts may hold this
-  can_manage_projects: boolean; // project management (scoped via all_projects/user_projects)
-  all_projects: boolean; // false → management limited to user_projects rows
+  can_manage_projects: boolean; // manages every project; single projects are granted via user_projects
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
   photo_url: string | null; // set by the account holder, mirrored onto linked members
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)

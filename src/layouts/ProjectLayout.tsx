@@ -11,6 +11,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
+import { useAuth } from '@/hooks/useAuth';
 import type { Project } from '@/types';
 
 const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => void }) => {
@@ -71,6 +72,8 @@ export const ProjectLayout = () => {
   const { t } = useI18n();
   const { projectId } = useParams();
   const navigate = useNavigate();
+  // Project settings need access to all projects, not just this one.
+  const { canManageProjects } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [unrecognizedCount, setUnrecognizedCount] = useState(0);
@@ -151,7 +154,9 @@ export const ProjectLayout = () => {
               <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
               <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
               <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />
-              <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
+              {canManageProjects && (
+                <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
+              )}
             </>
           )}
         </div>

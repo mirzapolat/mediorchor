@@ -19,16 +19,25 @@ export const UsersPage = () => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [grantedUsers, setGrantedUsers] = useState<Set<string>>(new Set());
+  const [twoFactorUsers, setTwoFactorUsers] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const emptyForm = { firstName: '', lastName: '', email: '', password: '' };
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await api.from('app_users').select('*').order('created_at');
-    setUsers((data as AppUser[]) ?? []);
+    const [usr, access, mfa] = await Promise.all([
+      api.from('app_users').select('*').order('created_at'),
+      api.from('user_projects').select('user_id'),
+      api.rpc('two_factor_users'),
+    ]);
+    setTwoFactorUsers(new Set((mfa.data as string[] | null) ?? []));
+    setUsers((usr.data as AppUser[]) ?? []);
+    setGrantedUsers(new Set(((access.data as { user_id: string }[]) ?? []).map((r) => r.user_id)));
     setLoading(false);
   };
 
@@ -44,7 +53,11 @@ export const UsersPage = () => {
     setError(null);
     // Accounts are created server-side behind an admin check (server/admin.ts).
     const { error } = await api.functions.invoke('admin-create-user', {
-      body: { name: form.name.trim(), email: form.email.trim(), password: form.password },
+      body: {
+        name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        email: form.email.trim(),
+        password: form.password,
+      },
     });
     setSaving(false);
     if (error) {
@@ -52,21 +65,21 @@ export const UsersPage = () => {
       return;
     }
     setFormOpen(false);
-    setForm({ name: '', email: '', password: '' });
+    setForm(emptyForm);
     await load();
   };
 
   if (loading) return <PageSpinner />;
 
-  // 'all' = manages every project, 'partial' = selected projects, 'none' = a
-  // plain participant account without management rights.
+  // 'all' = manages every project, 'partial' = individually granted projects,
+  // 'none' = a plain participant account without management rights.
   const projectAccessState = (u: AppUser): 'all' | 'partial' | 'none' => {
-    if (u.is_admin) return 'all';
-    if (!u.can_manage_projects) return 'none';
-    return u.all_projects ? 'all' : 'partial';
+    if (u.is_admin || u.can_manage_projects) return 'all';
+    return grantedUsers.has(u.id) ? 'partial' : 'none';
   };
   const projectAccessLabel = { all: t('accessAll'), partial: t('accessPartial'), none: t('accessNone') };
   const hasClubAccess = (u: AppUser) => u.is_admin || u.can_access_club;
+  const hasTwoFactor = (u: AppUser) => twoFactorUsers.has(u.id);
 
   const columns: Column<AppUser>[] = [
     {
@@ -131,6 +144,16 @@ export const UsersPage = () => {
         </span>
       ),
     },
+    {
+      id: 'two_factor',
+      header: t('twoFactorShort'),
+      accessor: (u) => (hasTwoFactor(u) ? 0 : 1),
+      render: (u) => (
+        <span className={`text-sm ${hasTwoFactor(u) ? 'text-text-secondary' : 'text-text-tertiary'}`}>
+          {hasTwoFactor(u) ? t('yes') : t('no')}
+        </span>
+      ),
+    },
   ];
 
   const filters: FilterDef<AppUser>[] = [
@@ -161,6 +184,15 @@ export const UsersPage = () => {
         { value: 'no', label: t('no') },
       ],
       predicate: (u, v) => (v === 'yes' ? hasClubAccess(u) : !hasClubAccess(u)),
+    },
+    {
+      id: 'two_factor',
+      label: t('twoFactorShort'),
+      options: [
+        { value: 'yes', label: t('yes') },
+        { value: 'no', label: t('no') },
+      ],
+      predicate: (u, v) => (v === 'yes' ? hasTwoFactor(u) : !hasTwoFactor(u)),
     },
   ];
 
@@ -204,13 +236,21 @@ export const UsersPage = () => {
         }
       >
         <form id="user-form" onSubmit={createUser} className="space-y-4">
-          <Input
-            label={t('name')}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-            autoFocus
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label={t('firstName')}
+              value={form.firstName}
+              onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              required
+              autoFocus
+            />
+            <Input
+              label={t('lastName')}
+              value={form.lastName}
+              onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              required
+            />
+          </div>
           <Input
             type="email"
             label={t('email')}

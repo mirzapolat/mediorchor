@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FolderKanban, Archive, ArchiveRestore, Pencil, Trash2, UserCog } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -8,6 +8,8 @@ import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
+import { ProjectAccessModal } from '@/components/ProjectAccessModal';
+import { TableFilterMenu } from '@/components/TableFilterMenu';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,11 +17,15 @@ import type { Project } from '@/types';
 
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { canManageProjects } = useAuth();
+  const { isAdmin, canManageProjects } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [toDelete, setToDelete] = useState<Project | null>(null);
+  const [accessFor, setAccessFor] = useState<Project | null>(null);
+  // Search and filter live in the header menu; the table only applies them.
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('active');
 
   const load = async () => {
     const { data } = await api
@@ -81,15 +87,17 @@ export const ProjectsPage = () => {
     },
   ];
 
+  const statusOptions = [
+    { value: 'active', label: t('active') },
+    { value: 'archived', label: t('archived') },
+  ];
   const filters: FilterDef<Project>[] = [
     {
       id: 'status',
       label: t('status'),
-      defaultValue: 'active',
-      options: [
-        { value: 'active', label: t('active') },
-        { value: 'archived', label: t('archived') },
-      ],
+      options: statusOptions,
+      value: status,
+      onChange: setStatus,
       predicate: (p, v) => p.status === v,
     },
   ];
@@ -98,13 +106,36 @@ export const ProjectsPage = () => {
     <>
       <PageHeader
         title={t('projects')}
+        inlineActions
         actions={
-          canManageProjects ? (
-            <Button onClick={() => navigate('/projects/new')}>
-              <Plus size={16} />
-              {t('newProject')}
-            </Button>
-          ) : undefined
+          <>
+            <TableFilterMenu
+              query={query}
+              onQueryChange={setQuery}
+              filters={[
+                {
+                  id: 'status',
+                  label: t('status'),
+                  options: statusOptions,
+                  value: status,
+                  defaultValue: 'active',
+                  onChange: setStatus,
+                },
+              ]}
+            />
+            {canManageProjects && (
+              // Icon-only on phones to keep the header on one row.
+              <Button
+                onClick={() => navigate('/projects/new')}
+                aria-label={t('newProject')}
+                title={t('newProject')}
+                className="h-9 max-sm:w-9 max-sm:px-0"
+              >
+                <Plus size={16} />
+                <span className="hidden sm:inline">{t('newProject')}</span>
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -115,12 +146,21 @@ export const ProjectsPage = () => {
         onRowClick={(p) => navigate(`/projects/${p.id}`)}
         search={(p) => `${p.name} ${p.description ?? ''}`}
         filters={filters}
+        query={query}
+        hideToolbar
         emptyMessage={t('noProjects')}
         emptyIcon={FolderKanban}
+        // Settings, archiving and deletion need access to all projects; an
+        // individual project grant only covers the project's content.
         actions={
           canManageProjects
             ? (p) => (
                 <>
+                  {isAdmin && (
+                    <RowActionButton label={t('manageAccess')} onClick={() => setAccessFor(p)}>
+                      <UserCog size={15} />
+                    </RowActionButton>
+                  )}
                   <RowActionButton
                     label={t('edit')}
                     onClick={() => navigate(`/projects/${p.id}/settings`)}
@@ -138,6 +178,8 @@ export const ProjectsPage = () => {
             : undefined
         }
       />
+
+      <ProjectAccessModal project={accessFor} onClose={() => setAccessFor(null)} />
 
       <ConfirmDialog
         open={!!toDelete}

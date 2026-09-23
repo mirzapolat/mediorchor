@@ -26,22 +26,25 @@ export interface TablePolicy {
 
 // --- helpers (formerly security-definer SQL functions) ----------------------
 
+const or = (...parts: string[]) => parts.map((p) => `(${p})`).join(' or ');
+
 export const isAdmin = () =>
   `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.is_admin)`;
 
+// Access to every project (current and future); also required to create one.
 export const canManageProjects = () =>
   `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_manage_projects))`;
 
-// Management access to a project: admin, or project manager whose scope
-// covers the project.
-export const canAccessProject = (pid: string) => `exists (
-  select 1 from app_users _u
-  where _u.id = auth_uid()
-    and (_u.is_admin or (_u.can_manage_projects and (
-      _u.all_projects
-      or exists (select 1 from user_projects _up where _up.user_id = _u.id and _up.project_id = ${pid})
-    )))
-)`;
+// Management access to a project: admin, access to all projects, or an
+// explicit user_projects grant for this one.
+export const canAccessProject = (pid: string) => or(
+  canManageProjects(),
+  `exists (select 1 from user_projects _up where _up.user_id = auth_uid() and _up.project_id = ${pid})`,
+);
+
+// Management access to at least one project.
+export const canManageAnyProject = () =>
+  or(canManageProjects(), `exists (select 1 from user_projects _up where _up.user_id = auth_uid())`);
 
 // Participant access: an active linked member row in a project that allows
 // account access.
@@ -64,8 +67,6 @@ const eventInManagedProject = (eventId: string) =>
 const pageInManagedProject = (pageId: string) =>
   `exists (select 1 from registration_pages _rp where _rp.id = ${pageId} and ${canAccessProject('_rp.project_id')})`;
 
-const or = (...parts: string[]) => parts.map((p) => `(${p})`).join(' or ');
-
 // Same predicate for every operation (Postgres "for all ... using/with check").
 const all = (p: Predicate): TablePolicy => ({ select: p, insert: p, update: p, check: p, delete: p });
 
@@ -77,7 +78,6 @@ const PROTECTED_ACCOUNT_FIELDS = [
   'is_admin',
   'can_manage_projects',
   'can_access_club',
-  'all_projects',
 ] as const;
 
 export const policies: Record<string, TablePolicy> = {
@@ -116,12 +116,14 @@ export const policies: Record<string, TablePolicy> = {
     delete: isAdmin,
   },
 
+  // Project settings, archiving and deletion need access to all projects;
+  // an individual grant only covers the project's content.
   projects: {
     select: (a) => or(canAccessProject(`${a}.id`), isProjectParticipant(`${a}.id`)),
     insert: canManageProjects,
-    update: (a) => canAccessProject(`${a}.id`),
+    update: canManageProjects,
     check: () => 'true',
-    delete: (a) => canAccessProject(`${a}.id`),
+    delete: canManageProjects,
   },
 
   user_projects: {

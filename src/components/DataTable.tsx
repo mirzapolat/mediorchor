@@ -53,6 +53,10 @@ interface DataTableProps<T> {
   onReorder?: (rows: T[]) => void;
   // Extra controls at the right end of the search/filter row.
   toolbar?: ReactNode;
+  // Controlled search text, for pages that render search elsewhere (e.g. a
+  // TableFilterMenu in the page header) together with hideToolbar.
+  query?: string;
+  hideToolbar?: boolean;
 }
 
 type SortDir = 'asc' | 'desc';
@@ -89,10 +93,13 @@ export function DataTable<T>({
   onSelectedIdsChange,
   onReorder,
   toolbar,
+  query: controlledQuery,
+  hideToolbar = false,
 }: DataTableProps<T>) {
   const { t } = useI18n();
   const reorderable = Boolean(onReorder);
-  const [query, setQuery] = useState('');
+  const [ownQuery, setQuery] = useState('');
+  const query = controlledQuery ?? ownQuery;
   const [sortId, setSortId] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [ownFilterValues, setOwnFilterValues] = useState<Record<string, string>>(() =>
@@ -152,7 +159,7 @@ export function DataTable<T>({
     }
   };
 
-  const hasToolbar = Boolean(search) || filters.length > 0 || Boolean(toolbar);
+  const hasToolbar = !hideToolbar && (Boolean(search) || filters.length > 0 || Boolean(toolbar));
   const hasActiveFilters =
     query.trim() !== '' ||
     filters.some((f) => (filterValues[f.id] ?? '') !== '') ||

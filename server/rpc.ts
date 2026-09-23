@@ -3,7 +3,7 @@
 // do their own authorization. Each call runs in one transaction.
 import { randomInt } from 'node:crypto';
 import { db, authUid, ApiError, forbidden } from './db.ts';
-import { canAccessProject, canManageProjects } from './policies.ts';
+import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 
 type Args = Record<string, unknown>;
@@ -742,7 +742,7 @@ const set_my_group = (args: Args) => {
 // Managers look up accounts by name/email to add them as project members.
 const search_accounts = (args: Args) => {
   requireUser();
-  if (!check(canManageProjects())) throw forbidden('Access denied');
+  if (!check(canManageAnyProject())) throw forbidden('Access denied');
   const query = trimmed(args.p_query);
   if (!query) return [];
   return db
@@ -768,6 +768,17 @@ const linked_account_names = (args: Args) => {
     .all(text(args.p_project_id));
 };
 
+// Admins see which accounts have a verified two-factor factor.
+const two_factor_users = () => {
+  requireUser();
+  if (!check(isAdmin())) throw forbidden('Access denied');
+  return (
+    db.prepare(`select distinct user_id from auth_factors where status = 'verified'`).all() as {
+      user_id: string;
+    }[]
+  ).map((r) => r.user_id);
+};
+
 const functions: Record<string, (args: Args) => unknown> = {
   get_public_config,
   get_public_checkin,
@@ -786,6 +797,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   set_my_group,
   search_accounts,
   linked_account_names,
+  two_factor_users,
 };
 
 // Public functions are rate limited by the HTTP layer.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bookmark, CalendarDays, Clock, LogIn, LogOut } from 'lucide-react';
+import { Bookmark, Clock, LogIn, LogOut } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -8,6 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
+import { cn } from '@/lib/cn';
 import { matchesConditions } from '@/lib/absenceConditions';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -97,6 +98,18 @@ export const MyParticipationPage = () => {
     [attendance],
   );
 
+  // Tallies over held Proben; missing records count as absent.
+  const stats = useMemo(() => {
+    const counts = { attended: 0, excused: 0, absent: 0 };
+    for (const e of past) {
+      const status = statusByEvent.get(e.id);
+      if (status === 'attended') counts.attended++;
+      else if (status === 'excused') counts.excused++;
+      else counts.absent++;
+    }
+    return counts;
+  }, [past, statusByEvent]);
+
   // Public labels that apply to this person, computed the same way as on the
   // Fehlzeiten page: absent = events without an attended/excused record.
   const matchingLabels = useMemo(() => {
@@ -111,14 +124,6 @@ export const MyParticipationPage = () => {
     // managers (who can read all labels) consistent with what participants see.
     return labels.filter((l) => l.is_public && matchesConditions(counts, l.conditions));
   }, [labels, attendance, events]);
-
-  const formatDate = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
-      weekday: 'short',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
 
   const join = async (e: FormEvent) => {
     e.preventDefault();
@@ -229,99 +234,105 @@ export const MyParticipationPage = () => {
           </form>
         </Card>
       ) : (
-        <div className="space-y-6 max-w-3xl">
-          <Card className="space-y-3">
-            <h2 className="text-base font-medium">{t('upcomingEvents')}</h2>
+        <div className="space-y-4 sm:space-y-6 max-w-3xl">
+          <Card className="max-sm:p-4">
+            <h2 className="text-base font-medium mb-1">{t('upcomingEvents')}</h2>
             {upcoming.length === 0 ? (
-              <p className="text-sm text-text-tertiary">{t('noUpcomingEvents')}</p>
+              <p className="text-sm text-text-tertiary mt-2">{t('noUpcomingEvents')}</p>
             ) : (
               <ul className="divide-y divide-border">
-                {upcoming.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <span className="min-w-0">
-                      <span className="block font-medium">{e.name}</span>
-                      {e.description && (
-                        <span className="mt-0.5 block text-xs text-text-secondary">{e.description}</span>
-                      )}
-                    </span>
-                    <span className="flex items-center gap-3 text-sm text-text-secondary">
-                      <span className="inline-flex items-center gap-1.5">
-                        <CalendarDays size={13} />
-                        {formatDate(e.date!)}
-                      </span>
+                {upcoming.map((e, i) => (
+                  <li key={e.id} className="flex items-start gap-3 py-3">
+                    <DateTile date={e.date} lang={lang} highlight={i === 0} />
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <p className="font-medium leading-snug break-words">{e.name}</p>
                       {e.time && (
-                        <span className="inline-flex items-center gap-1.5">
-                          <Clock size={13} />
+                        <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-text-secondary">
+                          <Clock size={13} className="shrink-0" />
                           {e.time}
-                        </span>
+                        </p>
                       )}
-                    </span>
+                      {e.description && (
+                        <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </Card>
 
-          <Card className="space-y-3">
+          <Card className="max-sm:p-4">
             <h2 className="text-base font-medium">{t('myAttendance')}</h2>
+            {past.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <Stat value={stats.attended} label={t('attended')} className="text-[#16a34a]" />
+                <Stat value={stats.excused} label={t('excused')} className="text-accent" />
+                <Stat value={stats.absent} label={t('notAttended')} className="text-text-secondary" />
+              </div>
+            )}
             {matchingLabels.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {matchingLabels.map((label) => (
                   <span
                     key={label.id}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-accent px-2.5 py-1 text-sm font-medium text-accent"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-accent px-2 py-0.5 text-sm font-medium text-accent"
                   >
-                    <Bookmark size={13} />
-                    {label.name}
+                    <Bookmark size={13} className="shrink-0" />
+                    <span className="truncate">{label.name}</span>
                   </span>
                 ))}
               </div>
             )}
             {past.length === 0 ? (
-              <p className="text-sm text-text-tertiary">{t('noAttendanceYet')}</p>
+              <p className="text-sm text-text-tertiary mt-2">{t('noAttendanceYet')}</p>
             ) : (
-              <ul className="divide-y divide-border">
+              <ul className="mt-1 divide-y divide-border">
                 {past.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{e.name}</p>
+                  <li key={e.id} className="flex items-start gap-3 py-3">
+                    <DateTile date={e.date} lang={lang} />
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-w-0 font-medium leading-snug break-words">{e.name}</p>
+                        <span className="shrink-0">
+                          <StatusBadge status={statusByEvent.get(e.id) ?? 'not_attended'} />
+                        </span>
+                      </div>
                       {e.description && (
-                        <p className="text-xs text-text-secondary">{e.description}</p>
-                      )}
-                      {e.date && (
-                        <p className="text-sm text-text-secondary">{formatDate(e.date)}</p>
+                        <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                       )}
                     </div>
-                    <StatusBadge status={statusByEvent.get(e.id) ?? 'not_attended'} />
                   </li>
                 ))}
               </ul>
             )}
           </Card>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Card className="flex flex-col space-y-4">
+          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
+            <Card className="flex flex-col gap-3 max-sm:p-4">
               <div>
                 <h2 className="text-base font-medium">{t('myGroup')}</h2>
                 <p className="text-sm text-text-secondary mt-1">{t('myGroupHint')}</p>
               </div>
               {groups.length > 0 ? (
-                <div className="flex items-center gap-3 max-w-xs">
-                  <Select
-                    value={member?.group_name ?? ''}
-                    onChange={(e) => changeGroup(e.target.value)}
-                  >
-                    {!member?.group_name && (
-                      <option value="" disabled>
-                        {t('selectGroup')}
-                      </option>
-                    )}
-                    {groups.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </Select>
+                <div className="flex items-center gap-3 sm:max-w-xs">
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      value={member?.group_name ?? ''}
+                      onChange={(e) => changeGroup(e.target.value)}
+                    >
+                      {!member?.group_name && (
+                        <option value="" disabled>
+                          {t('selectGroup')}
+                        </option>
+                      )}
+                      {groups.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
                   {groupSaved && <span className="text-sm text-text-secondary">✓</span>}
                 </div>
               ) : (
@@ -329,10 +340,17 @@ export const MyParticipationPage = () => {
               )}
             </Card>
 
-            <Card className="flex flex-col items-start space-y-3">
-              <h2 className="text-base font-medium">{t('leaveProject')}</h2>
-              <p className="text-sm text-text-secondary">{t('leaveProjectHint')}</p>
-              <Button variant="accent" onClick={() => setConfirmLeave(true)} disabled={busy}>
+            <Card className="flex flex-col items-start gap-3 max-sm:p-4">
+              <div>
+                <h2 className="text-base font-medium">{t('leaveProject')}</h2>
+                <p className="text-sm text-text-secondary mt-1">{t('leaveProjectHint')}</p>
+              </div>
+              <Button
+                variant="accent"
+                className="w-full sm:w-auto"
+                onClick={() => setConfirmLeave(true)}
+                disabled={busy}
+              >
                 <LogOut size={15} />
                 {t('leaveProject')}
               </Button>
@@ -353,3 +371,48 @@ export const MyParticipationPage = () => {
     </>
   );
 };
+
+// Calendar-style date block: weekday, day and month stacked, so rows stay
+// narrow on phones. The next upcoming Probe is highlighted.
+const DateTile = ({
+  date,
+  lang,
+  highlight = false,
+}: {
+  date: string | null;
+  lang: string;
+  highlight?: boolean;
+}) => {
+  const d = date ? new Date(`${date}T00:00:00`) : null;
+  const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+  return (
+    <div
+      className={cn(
+        'flex w-12 shrink-0 flex-col items-center rounded-md border py-1 leading-none',
+        highlight ? 'border-black bg-black text-white' : 'border-border bg-bg',
+      )}
+    >
+      {d ? (
+        <>
+          <span className={cn('text-[11px] uppercase', highlight ? 'text-white/70' : 'text-text-secondary')}>
+            {d.toLocaleDateString(locale, { weekday: 'short' }).replace('.', '')}
+          </span>
+          <span className="my-0.5 text-lg font-semibold">{d.getDate()}</span>
+          <span className={cn('text-[11px] uppercase', highlight ? 'text-white/70' : 'text-text-secondary')}>
+            {d.toLocaleDateString(locale, { month: 'short' }).replace('.', '')}
+            {d.getFullYear() !== new Date().getFullYear() && ` ${String(d.getFullYear()).slice(2)}`}
+          </span>
+        </>
+      ) : (
+        <span className="py-3 text-text-tertiary">—</span>
+      )}
+    </div>
+  );
+};
+
+const Stat = ({ value, label, className }: { value: number; label: string; className?: string }) => (
+  <div className="rounded-md border border-border px-2 py-2 text-center">
+    <p className={cn('text-xl font-semibold leading-none', className)}>{value}</p>
+    <p className="mt-1 truncate text-xs text-text-secondary">{label}</p>
+  </div>
+);

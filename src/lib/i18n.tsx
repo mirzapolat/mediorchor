@@ -35,6 +35,7 @@ const dict: Dict = {
   back: { de: 'Zurück', en: 'Back' },
   actions: { de: 'Aktionen', en: 'Actions' },
   clearFilters: { de: 'Zurücksetzen', en: 'Reset' },
+  searchAndFilter: { de: 'Suchen & filtern', en: 'Search & filter' },
   collapse: { de: 'Einklappen', en: 'Collapse' },
   deleteAccount: { de: 'Konto löschen', en: 'Delete account' },
   deleteAccountHint: {
@@ -130,16 +131,11 @@ const dict: Dict = {
     en: 'You cannot remove your own admin rights.',
   },
   projectManagement: { de: 'Projektverwaltung', en: 'Project management' },
-  projectManagementHint: {
-    de: 'Wenn aktiv, kann dieser Benutzer Projekte verwalten (alle oder ausgewählte).',
-    en: 'When on, this user can manage projects (all or selected ones).',
-  },
   clubAccess: { de: 'Zugriff auf Vereinsmitglieder', en: 'Club members access' },
   clubAccessHint: {
     de: 'Wenn aktiv, kann dieser Benutzer die Vereinsmitglieder-Seite sehen und bearbeiten.',
     en: 'When on, this user can view and manage the club members section.',
   },
-  projectAccess: { de: 'Projektzugriff', en: 'Project access' },
   accessAll: { de: 'Alle', en: 'All' },
   accessPartial: { de: 'Teilweise', en: 'Partial' },
   accessNone: { de: 'Nein', en: 'No' },
@@ -149,14 +145,29 @@ const dict: Dict = {
   manageAccess: { de: 'Zugriff verwalten', en: 'Manage access' },
   allProjectsAccess: { de: 'Zugriff auf alle Projekte', en: 'Access to all projects' },
   allProjectsHint: {
-    de: 'Wenn aktiv, kann dieser Benutzer auf alle aktuellen und zukünftigen Projekte zugreifen.',
-    en: 'When on, this user can access all current and future projects.',
+    de: 'Wenn aktiv, kann dieser Benutzer alle aktuellen und zukünftigen Projekte verwalten und neue anlegen.',
+    en: 'When on, this user can manage all current and future projects and create new ones.',
   },
-  selectedProjects: { de: 'Ausgewählte Projekte', en: 'Selected projects' },
+  selectedProjects: { de: 'Einzelne Projekte', en: 'Specific projects' },
+  selectedProjectsHint: {
+    de: 'Dieser Benutzer kann die ausgewählten Projekte verwalten. Dieselbe Auswahl lässt sich auch pro Projekt auf der Projektseite bearbeiten.',
+    en: 'This user can manage the selected projects. The same grants can also be edited per project on the projects page.',
+  },
+  projectAccessHint: {
+    de: 'Ausgewählte Benutzer können dieses Projekt verwalten, ohne Zugriff auf andere Projekte zu erhalten.',
+    en: 'Selected users can manage this project without getting access to other projects.',
+  },
+  coveredByAllProjects: { de: 'Hat bereits Zugriff auf alle Projekte', en: 'Already has access to all projects' },
+  noProjectsGranted: { de: 'Keine', en: 'None' },
+  projectSingular: { de: 'Projekt', en: 'project' },
+  projectPlural: { de: 'Projekte', en: 'projects' },
   accessFor: { de: 'Zugriff für', en: 'Access for' },
 
   // Account
   twoFactor: { de: 'Zwei-Faktor-Authentifizierung', en: 'Two-factor authentication' },
+  twoFactorShort: { de: '2FA', en: '2FA' },
+  twoFactorOn: { de: 'aktiviert', en: 'enabled' },
+  twoFactorOff: { de: 'nicht aktiviert', en: 'not enabled' },
   enable2fa: { de: '2FA aktivieren', en: 'Enable 2FA' },
   twoFactorCode: { de: 'Bestätigungscode', en: 'Verification code' },
   emailChangePending: {
