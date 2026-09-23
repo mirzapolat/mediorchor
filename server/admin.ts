@@ -3,6 +3,8 @@
 import { Hono, type Context } from 'hono';
 import { db, ApiError, forbidden } from './db.ts';
 import { createAccount, requireSession } from './auth.ts';
+import { mailStatus, sendTestMail } from './mail.ts';
+import { env } from './env.ts';
 
 const requireAdmin = (c: Context) => {
   const user = requireSession(c);
@@ -45,4 +47,26 @@ adminRoutes.post('/admin-delete-user', async (c) => {
   const { changes } = db.prepare('delete from auth_users where id = ?').run(userId);
   if (!changes) throw new ApiError('User not found', 404);
   return c.json({ ok: true });
+});
+
+// Server facts the admin config shows: email setup (never the password) and
+// the session length the environment defaults to.
+adminRoutes.post('/admin-server-info', (c) => {
+  requireAdmin(c);
+  return c.json({ mail: mailStatus(), session_days_default: env.sessionDays });
+});
+
+// Sends a test email, by default to the admin's own address.
+adminRoutes.post('/admin-send-test-mail', async (c) => {
+  const me = requireAdmin(c);
+  if (!mailStatus().configured) throw new ApiError('Email is not configured', 400, 'mail_not_configured');
+  const { to } = (await c.req.json().catch(() => ({}))) as { to?: unknown };
+  const target = typeof to === 'string' && to.trim() ? to.trim() : me.email;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) throw new ApiError('Invalid email address', 400);
+  try {
+    await sendTestMail(target);
+  } catch (err) {
+    throw new ApiError(`Sending failed: ${err instanceof Error ? err.message : String(err)}`, 502, 'mail_send_failed');
+  }
+  return c.json({ ok: true, to: target });
 });

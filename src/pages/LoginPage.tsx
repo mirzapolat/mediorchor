@@ -19,6 +19,8 @@ export const LoginPage = () => {
   const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [allowSelfSignup, setAllowSelfSignup] = useState(false);
+  // Whether sign-ups get a confirmation email first (server has SMTP).
+  const [mailEnabled, setMailEnabled] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -26,6 +28,10 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signedUp, setSignedUp] = useState(false);
+  // Self sign-up waiting for admin approval (also after the email link: ?pending=1).
+  const [approvalPending, setApprovalPending] = useState(
+    () => new URLSearchParams(location.search).get('pending') === '1',
+  );
   // Second step for accounts with two-factor authentication.
   const [mfaStep, setMfaStep] = useState(false);
   const [code, setCode] = useState('');
@@ -37,6 +43,7 @@ export const LoginPage = () => {
       setAllowSelfSignup(
         Boolean((data as { allow_self_signup?: boolean } | null)?.allow_self_signup),
       );
+      setMailEnabled(Boolean((data as { mail_enabled?: boolean } | null)?.mail_enabled));
     });
   }, []);
 
@@ -55,12 +62,14 @@ export const LoginPage = () => {
       });
       setSubmitting(false);
       if (error) {
-        setError(error.message);
+        setError(error.code === 'signup_domain_not_allowed' ? t('signupDomainNotAllowed') : error.message);
         return;
       }
       // With email confirmation enabled there is no session yet; the user
-      // first has to click the link in the email.
+      // first has to click the link in the email. With approval on, an
+      // administrator has to release the account as well.
       if (!data.session) {
+        setApprovalPending(data.approvalPending);
         setSignedUp(true);
         return;
       }
@@ -73,7 +82,13 @@ export const LoginPage = () => {
     if (error) {
       // Surface the real server message (e.g. "Email not confirmed") rather
       // than masking every failure as bad credentials.
-      setError(/invalid login/i.test(error) ? t('invalidCredentials') : error);
+      setError(
+        /invalid login/i.test(error)
+          ? t('invalidCredentials')
+          : /waiting for approval/i.test(error)
+            ? t('loginApprovalPending')
+            : error,
+      );
       return;
     }
     if (mfaRequired) {
@@ -83,10 +98,13 @@ export const LoginPage = () => {
     navigate(from ?? '/', { replace: true });
   };
 
+  const needsEmailConfirm = signedUp && mailEnabled;
+
   const switchMode = (next: 'signin' | 'signup') => {
     setMode(next);
     setError(null);
     setSignedUp(false);
+    setApprovalPending(false);
     setMfaStep(false);
     setCode('');
   };
@@ -100,11 +118,18 @@ export const LoginPage = () => {
         </div>
 
         <div className="bg-surface border border-border rounded-md p-6">
-          {signedUp ? (
+          {signedUp || approvalPending ? (
             <div className="py-4 text-center" role="status">
               <MailCheck size={38} className="mx-auto text-success" />
-              <h1 className="mt-4 text-lg font-semibold">{t('confirmEmailTitle')}</h1>
-              <p className="text-text-secondary text-sm mt-2">{t('confirmEmailHint')}</p>
+              <h1 className="mt-4 text-lg font-semibold">
+                {needsEmailConfirm ? t('confirmEmailTitle') : t('approvalPendingTitle')}
+              </h1>
+              <p className="text-text-secondary text-sm mt-2">
+                {needsEmailConfirm ? t('confirmEmailHint') : t('approvalPendingLoginHint')}
+              </p>
+              {needsEmailConfirm && approvalPending ? (
+                <p className="text-text-secondary text-sm mt-2">{t('approvalAfterConfirmHint')}</p>
+              ) : null}
               <button
                 type="button"
                 onClick={() => switchMode('signin')}

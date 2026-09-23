@@ -1,3 +1,4 @@
+import type { Language } from '@/lib/config';
 // Shared domain types mirroring the database schema (see server/migrations).
 
 // Every account is the same kind of account; capability flags grant extra
@@ -12,6 +13,11 @@ export interface AppUser {
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
   photo_url: string | null; // set by the account holder, mirrored onto linked members
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
+  approved: boolean; // false = self sign-up waiting for admin approval
+  notify_reminders: boolean; // email: reminder before a Probe (opt-in)
+  notify_status: boolean; // email: someone marked me excused/absent (opt-in)
+  notify_weekly: boolean; // email: Monday overview (opt-in)
+  language: Language | null; // for emails; the UI language is per device
   created_at: string;
 }
 
@@ -29,6 +35,8 @@ export interface Project {
   allow_guest_checkin: boolean; // check-in forms work without an account
   allow_guest_signup: boolean; // registration forms work without an account
   allow_participant_pieces: boolean; // participants see the Stücke page
+  require_signup_group: boolean; // sign-ups must name a group (when the project has any)
+  default_group: string | null; // group for new members added without one
   created_at: string;
   created_by: string | null;
 }

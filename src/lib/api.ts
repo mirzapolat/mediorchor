@@ -282,15 +282,35 @@ const functions = {
 interface SessionPayload {
   session: Session | null;
   mfa_required?: boolean;
+  // Admin requires 2FA for this account and it has none yet.
+  mfa_setup_required?: boolean;
+  // Self sign-up waiting for admin approval.
+  approval_pending?: boolean;
   email_change_pending?: boolean;
 }
 
+export interface DeviceSession {
+  id: string;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string | null;
+  current: boolean;
+}
+
 const auth = {
-  getSession: async (): Promise<{ data: { session: Session | null }; error: ApiError | null }> => {
+  getSession: async (): Promise<{
+    data: { session: Session | null; mfaSetupRequired: boolean };
+    error: ApiError | null;
+  }> => {
     const { data, error } = await request<SessionPayload>('GET', '/api/auth/session');
     currentSession = data?.session ?? null;
-    return { data: { session: currentSession }, error };
+    return { data: { session: currentSession, mfaSetupRequired: Boolean(data?.mfa_setup_required) }, error };
   },
+
+  // Signed-in devices of the account; revoke one, or all but this one.
+  listSessions: async () => request<{ sessions: DeviceSession[] }>('GET', '/api/auth/sessions'),
+  revokeSession: async (input: { id: string } | { others: true }) =>
+    request<{ ok: boolean }>('POST', '/api/auth/sessions/revoke', input),
 
   onAuthStateChange: (listener: AuthListener) => {
     listeners.add(listener);
@@ -317,7 +337,10 @@ const auth = {
       name: input.options?.data?.name ?? '',
     });
     if (data?.session) emit('SIGNED_IN', data.session);
-    return { data: { session: data?.session ?? null }, error };
+    return {
+      data: { session: data?.session ?? null, approvalPending: Boolean(data?.approval_pending) },
+      error,
+    };
   },
 
   signOut: async () => {
@@ -357,7 +380,8 @@ const auth = {
     },
     verify: async (input: { factorId: string; code: string }) =>
       request<{ ok: boolean }>('POST', '/api/auth/mfa/verify', input),
-    unenroll: async (input: { factorId: string }) =>
+    // An active factor needs a current code to be removed.
+    unenroll: async (input: { factorId: string; code?: string }) =>
       request<{ ok: boolean }>('POST', '/api/auth/mfa/unenroll', input),
   },
 };

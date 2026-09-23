@@ -127,7 +127,14 @@ export const UsersPage = () => {
         <div className="flex items-center gap-2.5 min-w-0">
           <Avatar name={u.name} photoUrl={u.photo_url} size={28} />
           <div className="min-w-0">
-            <p className="truncate leading-tight">{u.name}</p>
+            <p className="flex items-center gap-2 leading-tight">
+              <span className="truncate">{u.name}</span>
+              {!u.approved && (
+                <span className="flex-shrink-0 rounded-md bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent">
+                  {t('approvalPending')}
+                </span>
+              )}
+            </p>
             <p className="truncate text-sm leading-tight text-text-secondary">{u.email}</p>
           </div>
         </div>
@@ -202,6 +209,15 @@ export const UsersPage = () => {
   ];
 
   const filters = tf.bind<AppUser>([
+    {
+      id: 'approval',
+      label: t('accountStatus'),
+      options: [
+        { value: 'approved', label: t('approvedAccount') },
+        { value: 'pending', label: t('approvalPending') },
+      ],
+      predicate: (u, v) => (v === 'pending' ? !u.approved : u.approved),
+    },
     {
       id: 'role',
       label: t('role'),

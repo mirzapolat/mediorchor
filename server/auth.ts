@@ -5,8 +5,9 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { db, asUser, nowIso, uuid, ApiError } from './db.ts';
 import { env, mailEnabled } from './env.ts';
-import { sendConfirmEmailChange, sendConfirmSignup } from './mail.ts';
+import { sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
 import { rateLimit } from './ratelimit.ts';
+import { instanceSettings, emailDomainAllowed } from './settings.ts';
 
 const COOKIE = 'mo_session';
 const DAY = 24 * 60 * 60 * 1000;
@@ -15,6 +16,7 @@ const MIN_PASSWORD = 8;
 export interface SessionUser {
   id: string;
   email: string;
+  sessionId?: string; // the current device's session (auth_sessions.id)
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +83,8 @@ export const createAccount = async (opts: {
   name: string;
   confirmed: boolean;
   isAdmin?: boolean;
+  // false = self sign-up waiting for admin approval.
+  approved?: boolean;
 }) => {
   const email = normalizeEmail(opts.email);
   const passwordHash = await hashPassword(validatePassword(opts.password));
@@ -92,11 +96,12 @@ export const createAccount = async (opts: {
     db.prepare(
       'insert into auth_users (id, email, password_hash, email_confirmed_at) values (?, ?, ?, ?)',
     ).run(id, email, passwordHash, opts.confirmed ? nowIso() : null);
-    db.prepare('insert into app_users (id, email, name, is_admin) values (?, ?, ?, ?)').run(
+    db.prepare('insert into app_users (id, email, name, is_admin, approved) values (?, ?, ?, ?, ?)').run(
       id,
       email,
       opts.name.trim().slice(0, 200),
       opts.isAdmin ? 1 : 0,
+      opts.approved === false ? 0 : 1,
     );
   })();
   return id;
@@ -112,64 +117,87 @@ const newToken = () => randomBytes(32).toString('base64url');
 const isHttps = (c: Context) =>
   c.req.header('x-forwarded-proto') === 'https' || new URL(c.req.url).protocol === 'https:';
 
-const startSession = (c: Context, userId: string) => {
-  const token = newToken();
-  const expires = new Date(Date.now() + env.sessionDays * DAY);
-  db.prepare('insert into auth_sessions (token_hash, user_id, expires_at) values (?, ?, ?)').run(
-    sha256(token),
-    userId,
-    expires.toISOString(),
-  );
-  db.prepare('update auth_users set last_seen_at = ? where id = ?').run(nowIso(), userId);
+const setSessionCookie = (c: Context, token: string, days: number) =>
   setCookie(c, COOKIE, token, {
     httpOnly: true,
     sameSite: 'Lax',
     secure: isHttps(c),
     path: '/',
-    maxAge: env.sessionDays * 24 * 60 * 60,
+    maxAge: days * 24 * 60 * 60,
   });
+
+const startSession = (c: Context, userId: string) => {
+  const token = newToken();
+  const days = instanceSettings().sessionDays;
+  const now = nowIso();
+  db.prepare(
+    `insert into auth_sessions (token_hash, user_id, expires_at, id, user_agent, last_seen_at)
+     values (?, ?, ?, ?, ?, ?)`,
+  ).run(
+    sha256(token),
+    userId,
+    new Date(Date.now() + days * DAY).toISOString(),
+    randomBytes(16).toString('hex'),
+    (c.req.header('user-agent') ?? '').slice(0, 300) || null,
+    now,
+  );
+  db.prepare('update auth_users set last_seen_at = ? where id = ?').run(now, userId);
+  setSessionCookie(c, token, days);
 };
 
-// How stale auth_users.last_seen_at may get before a request refreshes it;
-// keeps "last seen" accurate enough without a write on every request.
+// How stale last_seen_at (account and session) may get before a request
+// refreshes it; keeps "last seen" accurate enough without a write per request.
 const LAST_SEEN_INTERVAL = 5 * 60 * 1000;
 
 // Resolves the session cookie to a user. Sessions slide: they are extended
-// once less than half of their lifetime is left.
+// once less than half of their lifetime is left, and shortened when the
+// admin lowered the session length. Accounts awaiting approval have none.
 export const sessionUser = (c: Context): SessionUser | null => {
   const token = getCookie(c, COOKIE);
   if (!token) return null;
   const hash = sha256(token);
   const row = db
     .prepare(
-      `select s.expires_at, u.id, u.email, u.last_seen_at from auth_sessions s
+      `select s.id as session_id, s.expires_at, s.last_seen_at as session_seen_at,
+              u.id, u.email, u.last_seen_at, coalesce(a.approved, 1) as approved
+       from auth_sessions s
        join auth_users u on u.id = s.user_id
+       left join app_users a on a.id = u.id
        where s.token_hash = ?`,
     )
     .get(hash) as
-    | { expires_at: string; id: string; email: string; last_seen_at: string | null }
+    | {
+        session_id: string;
+        expires_at: string;
+        session_seen_at: string | null;
+        id: string;
+        email: string;
+        last_seen_at: string | null;
+        approved: number;
+      }
     | undefined;
   if (!row) return null;
+  const now = Date.now();
   const expiresAt = Date.parse(row.expires_at);
-  if (expiresAt <= Date.now()) {
+  if (expiresAt <= now || !row.approved) {
     db.prepare('delete from auth_sessions where token_hash = ?').run(hash);
     return null;
   }
-  if (expiresAt - Date.now() < (env.sessionDays * DAY) / 2) {
-    const renewed = new Date(Date.now() + env.sessionDays * DAY).toISOString();
+  const days = instanceSettings().sessionDays;
+  const lifetime = days * DAY;
+  if (expiresAt - now < lifetime / 2 || expiresAt - now > lifetime) {
+    const renewed = new Date(now + lifetime).toISOString();
     db.prepare('update auth_sessions set expires_at = ? where token_hash = ?').run(renewed, hash);
-    setCookie(c, COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'Lax',
-      secure: isHttps(c),
-      path: '/',
-      maxAge: env.sessionDays * 24 * 60 * 60,
-    });
+    setSessionCookie(c, token, days);
   }
-  if (!row.last_seen_at || Date.now() - Date.parse(row.last_seen_at) > LAST_SEEN_INTERVAL) {
+  const stale = (iso: string | null) => !iso || now - Date.parse(iso) > LAST_SEEN_INTERVAL;
+  if (stale(row.session_seen_at)) {
+    db.prepare('update auth_sessions set last_seen_at = ? where token_hash = ?').run(nowIso(), hash);
+  }
+  if (stale(row.last_seen_at)) {
     db.prepare('update auth_users set last_seen_at = ? where id = ?').run(nowIso(), row.id);
   }
-  return { id: row.id, email: row.email };
+  return { id: row.id, email: row.email, sessionId: row.session_id };
 };
 
 export const requireSession = (c: Context): SessionUser => {
@@ -251,6 +279,44 @@ const verifiedFactor = (userId: string) =>
     .prepare(`select id, secret, last_step from auth_factors where user_id = ? and status = 'verified'`)
     .get(userId) as { id: string; secret: string; last_step: number | null } | undefined;
 
+const isApproved = (userId: string) => {
+  const row = db.prepare('select approved from app_users where id = ?').get(userId) as
+    | { approved: number }
+    | undefined;
+  return !row || Boolean(row.approved);
+};
+
+// With "require 2FA" on, admins and accounts with access to all projects must
+// have a verified factor; until then only 2FA setup (and signing out) works.
+const isPrivileged = (userId: string) => {
+  const row = db.prepare('select is_admin, can_manage_projects from app_users where id = ?').get(userId) as
+    | { is_admin: number; can_manage_projects: number }
+    | undefined;
+  return Boolean(row && (row.is_admin || row.can_manage_projects));
+};
+
+export const mfaRequiredFor = (userId: string) => instanceSettings().requireAdmin2fa && isPrivileged(userId);
+
+export const mfaSetupRequired = (userId: string) => mfaRequiredFor(userId) && !verifiedFactor(userId);
+
+// Admins learn about sign-ups waiting for approval (when email works).
+const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
+  if (!mailEnabled) return;
+  const admins = db
+    .prepare(
+      `select au.email from app_users u join auth_users au on au.id = u.id
+       where u.is_admin and au.email_confirmed_at is not null`,
+    )
+    .all() as { email: string }[];
+  for (const admin of admins) {
+    try {
+      await sendPendingSignupNotice(admin.email, name, email, env.publicUrl);
+    } catch (err) {
+      console.error('Sending approval notice failed:', err);
+    }
+  }
+};
+
 const useFactorCode = (factor: { id: string; secret: string; last_step: number | null }, code: string) => {
   const step = verifyTotp(factor.secret, code, factor.last_step);
   if (step === null) throw new ApiError('Invalid TOTP code entered', 422, 'mfa_verification_failed');
@@ -295,7 +361,11 @@ const body = async (c: Context) => {
   }
 };
 
-const sessionPayload = (user: SessionUser | null) => ({ session: user ? { user } : null });
+const sessionPayload = (user: SessionUser | null) => ({
+  session: user ? { user: { id: user.id, email: user.email } } : null,
+  // The app shows only the 2FA setup until this is false.
+  mfa_setup_required: user ? mfaSetupRequired(user.id) : false,
+});
 
 export const authRoutes = new Hono();
 
@@ -315,6 +385,9 @@ authRoutes.post('/login', async (c) => {
   const valid = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
   if (!user || !valid) throw new ApiError('Invalid login credentials', 400, 'invalid_credentials');
   if (!user.email_confirmed_at) throw new ApiError('Email not confirmed', 400, 'email_not_confirmed');
+  if (!isApproved(user.id)) {
+    throw new ApiError('Your account is waiting for approval by an administrator', 403, 'approval_pending');
+  }
 
   const factor = verifiedFactor(user.id);
   if (factor) {
@@ -335,15 +408,17 @@ authRoutes.post('/logout', (c) => {
 
 authRoutes.post('/signup', async (c) => {
   rateLimit(c, 'signup', 10, 60 * 60 * 1000);
-  const settings = db.prepare('select allow_self_signup from app_settings where id = 1').get() as
-    | { allow_self_signup: number }
-    | undefined;
-  if (settings && !settings.allow_self_signup) {
+  const settings = instanceSettings();
+  if (!settings.allowSelfSignup) {
     throw new ApiError('Signups not allowed for this instance', 403, 'signup_disabled');
   }
 
   const input = await body(c);
   const email = normalizeEmail(input.email);
+  if (!emailDomainAllowed(email, settings.allowedDomains)) {
+    throw new ApiError('Sign-up is not open for this email domain', 403, 'signup_domain_not_allowed');
+  }
+  const approved = !settings.requiresApproval;
   const password = validatePassword(input.password);
   const name = typeof input.name === 'string' ? input.name : '';
 
@@ -354,7 +429,11 @@ authRoutes.post('/signup', async (c) => {
   if (!mailEnabled) {
     // No mail server: accounts are confirmed right away.
     if (existing) throw new ApiError('User already registered', 422, 'user_already_exists');
-    const id = await createAccount({ email, password, name, confirmed: true });
+    const id = await createAccount({ email, password, name, confirmed: true, approved });
+    if (!approved) {
+      void notifyAdminsOfPendingSignup(name, email);
+      return c.json({ ...sessionPayload(null), approval_pending: true });
+    }
     startSession(c, id);
     return c.json(sessionPayload({ id, email }));
   }
@@ -362,9 +441,9 @@ authRoutes.post('/signup', async (c) => {
   // With confirmation on, never reveal whether an address is registered.
   if (existing) {
     if (!existing.email_confirmed_at) await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email));
-    return c.json(sessionPayload(null));
+    return c.json({ ...sessionPayload(null), approval_pending: !approved });
   }
-  const id = await createAccount({ email, password, name, confirmed: false });
+  const id = await createAccount({ email, password, name, confirmed: false, approved });
   try {
     await sendConfirmSignup(email, issueLink(c, id, 'confirm_signup', email));
   } catch (err) {
@@ -372,7 +451,7 @@ authRoutes.post('/signup', async (c) => {
     db.prepare('delete from auth_users where id = ?').run(id);
     throw new ApiError('Error sending confirmation email', 500, 'email_send_failed');
   }
-  return c.json(sessionPayload(null));
+  return c.json({ ...sessionPayload(null), approval_pending: !approved });
 });
 
 // Target of the emailed links. Signs the user in and returns to the app.
@@ -404,6 +483,16 @@ authRoutes.get('/confirm', (c) => {
     return true;
   })();
   if (!ok) return c.redirect('/login');
+  // Confirmed, but an admin still has to approve the account.
+  if (!isApproved(row.user_id)) {
+    if (row.kind === 'confirm_signup') {
+      const account = db.prepare('select name from app_users where id = ?').get(row.user_id) as
+        | { name: string }
+        | undefined;
+      void notifyAdminsOfPendingSignup(account?.name ?? '', row.email);
+    }
+    return c.redirect('/login?pending=1');
+  }
   // A second factor still has to be entered on the login page.
   if (!verifiedFactor(row.user_id)) startSession(c, row.user_id);
   return c.redirect(target);
@@ -522,10 +611,57 @@ authRoutes.post('/mfa/verify', async (c) => {
   return c.json({ ok: true });
 });
 
+// Turning off an active second factor needs a current code from it, so a
+// hijacked session alone can't remove 2FA. An unfinished enrollment can be
+// discarded freely.
 authRoutes.post('/mfa/unenroll', async (c) => {
+  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
   const user = requireSession(c);
-  const { factorId } = await body(c);
-  db.prepare('delete from auth_factors where id = ? and user_id = ?').run(String(factorId ?? ''), user.id);
+  const { factorId, code } = await body(c);
+  const factor = db
+    .prepare('select id, secret, last_step, status from auth_factors where id = ? and user_id = ?')
+    .get(String(factorId ?? ''), user.id) as
+    | { id: string; secret: string; last_step: number | null; status: string }
+    | undefined;
+  if (!factor) throw new ApiError('Factor not found', 404, 'mfa_factor_not_found');
+  if (factor.status === 'verified') {
+    if (mfaRequiredFor(user.id)) {
+      throw new ApiError('Two-factor authentication is required for your account', 403, 'mfa_enforced');
+    }
+    if (typeof code !== 'string' || !code.trim()) {
+      throw new ApiError('A two-factor code is required', 400, 'mfa_required');
+    }
+    useFactorCode(factor, code.trim());
+  }
+  db.prepare('delete from auth_factors where id = ?').run(factor.id);
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Sessions per device
+// ---------------------------------------------------------------------------
+
+authRoutes.get('/sessions', (c) => {
+  const user = requireSession(c);
+  const rows = db
+    .prepare(
+      `select id, user_agent, created_at, last_seen_at from auth_sessions
+       where user_id = ? and expires_at > ? order by coalesce(last_seen_at, created_at) desc`,
+    )
+    .all(user.id, nowIso()) as { id: string; user_agent: string | null; created_at: string; last_seen_at: string | null }[];
+  return c.json({ sessions: rows.map((r) => ({ ...r, current: r.id === user.sessionId })) });
+});
+
+// Signs out one other device, or every other device with { others: true }.
+authRoutes.post('/sessions/revoke', async (c) => {
+  const user = requireSession(c);
+  const { id, others } = await body(c);
+  if (others === true) {
+    db.prepare('delete from auth_sessions where user_id = ? and id is not ?').run(user.id, user.sessionId ?? null);
+  } else {
+    if (typeof id !== 'string' || id === user.sessionId) throw new ApiError('Invalid session', 400);
+    db.prepare('delete from auth_sessions where user_id = ? and id = ?').run(user.id, id);
+  }
   return c.json({ ok: true });
 });
 

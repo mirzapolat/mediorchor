@@ -16,6 +16,10 @@ interface AuthContextValue {
   isAdmin: boolean;
   canManageProjects: boolean;
   canAccessClub: boolean;
+  // The admin requires 2FA for this account and none is set up yet: the app
+  // shows only the setup until refreshSession() reports it done.
+  mfaSetupRequired: boolean;
+  refreshSession: () => Promise<void>;
   // With two-factor enabled, the first call reports mfaRequired; call again
   // with the 6-digit code.
   signIn: (
@@ -33,6 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
 
   const loadProfile = async (uid: string) => {
     // Attach any member rows whose (verified) email matches this account so
@@ -45,16 +50,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     api.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
-      if (data.session) await loadProfile(data.session.user.id);
+      setMfaSetupRequired(data.mfaSetupRequired);
+      // Blocked until 2FA is set up; the profile loads afterwards.
+      if (data.session && !data.mfaSetupRequired) await loadProfile(data.session.user.id);
       setLoading(false);
     });
 
     const { data: sub } = api.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       if (newSession) {
-        await loadProfile(newSession.user.id);
+        const { data } = await api.auth.getSession();
+        setMfaSetupRequired(data.mfaSetupRequired);
+        if (!data.mfaSetupRequired) await loadProfile(newSession.user.id);
       } else {
         setUser(null);
+        setMfaSetupRequired(false);
       }
     });
 
@@ -69,6 +79,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isAdmin: Boolean(user?.is_admin),
       canManageProjects: Boolean(user?.is_admin || user?.can_manage_projects),
       canAccessClub: Boolean(user?.is_admin || user?.can_access_club),
+      mfaSetupRequired,
+      refreshSession: async () => {
+        const { data } = await api.auth.getSession();
+        setMfaSetupRequired(data.mfaSetupRequired);
+        if (data.session && !data.mfaSetupRequired) await loadProfile(data.session.user.id);
+      },
       signIn: async (email, password, code) => {
         const { data, error } = await api.auth.signInWithPassword({ email, password, code });
         return { error: error?.message ?? null, mfaRequired: data.mfaRequired };
@@ -82,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (session) await loadProfile(session.user.id);
       },
     }),
-    [session, user, loading],
+    [session, user, loading, mfaSetupRequired],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

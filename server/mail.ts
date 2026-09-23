@@ -57,3 +57,41 @@ export const sendConfirmEmailChange = (to: string, link: string) =>
       'Der Link ist 24 Stunden gültig. / The link is valid for 24 hours.',
     ].join('\n'),
   );
+
+export const sendPendingSignupNotice = (to: string, name: string, email: string, baseUrl?: string) =>
+  sendMail(
+    to,
+    `${appName()}: Neues Konto wartet auf Freigabe / New account awaiting approval`,
+    [
+      'Hallo,',
+      '',
+      `${name || email} (${email}) hat sich registriert und wartet auf deine Freigabe.`,
+      ...(baseUrl ? ['', `Freigeben: ${baseUrl}/admin/users`] : []),
+      '',
+      'Hello,',
+      '',
+      `${name || email} (${email}) signed up and is waiting for your approval.`,
+      ...(baseUrl ? ['', `Approve: ${baseUrl}/admin/users`] : []),
+    ].join('\n'),
+  );
+
+export const sendTestMail = (to: string) =>
+  sendMail(
+    to,
+    `${appName()}: Test-E-Mail / Test email`,
+    [
+      'Diese Test-E-Mail bestätigt, dass der E-Mail-Versand funktioniert.',
+      '',
+      'This test email confirms that sending email works.',
+    ].join('\n'),
+  );
+
+// What the admin sees about the mail setup (never the password).
+export const mailStatus = () => ({
+  configured: mailEnabled,
+  host: env.smtp.host ?? null,
+  port: env.smtp.host ? env.smtp.port : null,
+  from: env.smtp.from ?? null,
+  from_name: env.smtp.fromName ?? null,
+  user: env.smtp.user ?? null,
+});

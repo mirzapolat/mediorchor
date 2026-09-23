@@ -45,9 +45,10 @@ import { GroupsPage } from '@/pages/GroupsPage';
 import { GroupDetailPage } from '@/pages/GroupDetailPage';
 import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
+import { MfaSetupGate } from '@/pages/MfaSetupGate';
 
 export const App = () => {
-  const { session, loading } = useAuth();
+  const { session, loading, mfaSetupRequired } = useAuth();
   const location = useLocation();
 
   if (
@@ -74,6 +75,8 @@ export const App = () => {
       </Routes>
     );
   }
+
+  if (mfaSetupRequired) return <MfaSetupGate />;
 
   // Every account lands on the projects list; participants only see the
   // projects they belong to (enforced by RLS), managers/admins see everything.

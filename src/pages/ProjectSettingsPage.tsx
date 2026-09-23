@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input, Textarea } from '@/components/Input';
+import { Input, Select, Textarea } from '@/components/Input';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { Avatar } from '@/components/Avatar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
@@ -23,6 +24,11 @@ export const ProjectSettingsPage = () => {
     description: project.description ?? '',
   });
   // Rows carry a stable id so drag & drop reordering works while editing.
+  const { names: groups } = useProjectGroups();
+  const [signupRules, setSignupRules] = useState({
+    require_signup_group: project.require_signup_group,
+    default_group: project.default_group ?? '',
+  });
   const [access, setAccess] = useState({
     allow_account_access: project.allow_account_access,
     allow_account_checkin: project.allow_account_checkin,
@@ -64,6 +70,8 @@ export const ProjectSettingsPage = () => {
         description: form.description.trim() || null,
         image_url: imageUrl,
         ...access,
+        require_signup_group: signupRules.require_signup_group,
+        default_group: signupRules.default_group || null,
       })
       .eq('id', project.id);
     setSaving(false);
@@ -184,7 +192,44 @@ export const ProjectSettingsPage = () => {
             ]}
             values={access}
             onToggle={toggle}
-          />
+          >
+            <label className="flex items-center justify-between gap-4 border-t border-border pt-4 cursor-pointer">
+              <span>
+                <span className="block font-medium">{t('requireSignupGroup')}</span>
+                <span className="block text-sm text-text-secondary mt-0.5">
+                  {groups.length ? t('requireSignupGroupHint') : t('requireSignupGroupNoGroups')}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 flex-shrink-0 accent-black"
+                checked={signupRules.require_signup_group}
+                onChange={(e) => {
+                  setSignupRules({ ...signupRules, require_signup_group: e.target.checked });
+                  setSaved(false);
+                }}
+              />
+            </label>
+            <div className="space-y-1.5 border-t border-border pt-4">
+              <Select
+                label={t('defaultGroup')}
+                value={signupRules.default_group}
+                disabled={groups.length === 0}
+                onChange={(e) => {
+                  setSignupRules({ ...signupRules, default_group: e.target.value });
+                  setSaved(false);
+                }}
+              >
+                <option value="">{t('noDefaultGroup')}</option>
+                {groups.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-sm text-text-secondary">{t('defaultGroupHint')}</p>
+            </div>
+          </ToggleCard>
         </div>
 
         <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
@@ -227,12 +272,15 @@ const ToggleCard = ({
   toggles,
   values,
   onToggle,
+  children,
 }: {
   title: string;
   hint: string;
   toggles: [AccessKey, TranslationKey, TranslationKey][];
   values: Record<AccessKey, boolean>;
   onToggle: (key: AccessKey, value: boolean) => void;
+  // Extra settings of the same topic, below the switches.
+  children?: ReactNode;
 }) => {
   const { t } = useI18n();
   return (
@@ -258,6 +306,7 @@ const ToggleCard = ({
           />
         </label>
       ))}
+      {children}
     </Card>
   );
 };

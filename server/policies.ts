@@ -6,7 +6,8 @@
 //   delete → target rows must satisfy `delete`
 //   insert → new rows must satisfy `insert`
 // A missing predicate denies the operation. auth_uid() is the calling user.
-import { ApiError } from './db.ts';
+import { ApiError, db } from './db.ts';
+import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
 
 type Predicate = (alias: string) => string;
 
@@ -78,6 +79,7 @@ const PROTECTED_ACCOUNT_FIELDS = [
   'is_admin',
   'can_manage_projects',
   'can_access_club',
+  'approved', // accounts waiting for approval can't approve themselves
 ] as const;
 
 export const policies: Record<string, TablePolicy> = {
@@ -114,6 +116,24 @@ export const policies: Record<string, TablePolicy> = {
     update: isAdmin,
     check: isAdmin,
     delete: isAdmin,
+    validateUpdate: (oldRow, patch, { uid }) => {
+      // Turning on required 2FA needs it on the admin's own account first, or
+      // they'd lock themselves out.
+      if (patch.require_admin_2fa && !oldRow.require_admin_2fa) {
+        const own = db
+          .prepare(`select 1 from auth_factors where user_id = ? and status = 'verified'`)
+          .get(uid);
+        if (!own) {
+          throw new ApiError('Enable two-factor authentication on your own account first', 400, 'mfa_self_required');
+        }
+      }
+      if ('session_days' in patch && patch.session_days !== null) {
+        const days = Number(patch.session_days);
+        if (!Number.isInteger(days) || days < MIN_SESSION_DAYS || days > MAX_SESSION_DAYS) {
+          throw new ApiError(`Session length must be ${MIN_SESSION_DAYS}–${MAX_SESSION_DAYS} days`, 400);
+        }
+      }
+    },
   },
 
   // Project settings, archiving and deletion need access to all projects;

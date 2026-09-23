@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Monitor, Moon, ShieldCheck, ShieldOff, Sun, Trash2, Upload, X } from 'lucide-react';
+import { Bell, Laptop, LogOut, Monitor, Moon, ShieldCheck, ShieldOff, Smartphone, Sun, Trash2, Upload, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { Modal } from '@/components/Modal';
 import { useI18n } from '@/lib/i18n';
-import { api } from '@/lib/api';
+import { api, type DeviceSession } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
@@ -127,13 +127,26 @@ export const AccountPage = () => {
         <div className="space-y-6">
           <Card className="space-y-4">
             <h2 className="text-base font-medium">{t('language')}</h2>
-            <Select value={lang} onChange={(e) => setLang(e.target.value as Language)} className="max-w-[200px]">
+            <Select
+              value={lang}
+              onChange={(e) => {
+                const next = e.target.value as Language;
+                setLang(next);
+                // Emails use the account's language.
+                if (user) void api.from('app_users').update({ language: next }).eq('id', user.id);
+              }}
+              className="max-w-[200px]"
+            >
               <option value="en">English</option>
               <option value="de">Deutsch</option>
             </Select>
           </Card>
 
           <AppearanceCard />
+
+          <NotificationsCard />
+
+          <SessionsCard />
 
           <TwoFactorCard />
 
@@ -146,7 +159,8 @@ export const AccountPage = () => {
 };
 
 // 2FA enrolment (TOTP). Once verified, sign-in asks for a code.
-const TwoFactorCard = () => {
+// Also used by the required-2FA setup screen (onEnabled continues from there).
+export const TwoFactorCard = ({ onEnabled }: { onEnabled?: () => void } = {}) => {
   const { t } = useI18n();
   const [factorId, setFactorId] = useState<string | null>(null);
   const [enrolled, setEnrolled] = useState(false);
@@ -189,12 +203,43 @@ const TwoFactorCard = () => {
     setQr(null);
     setCode('');
     await refresh();
+    onEnabled?.();
   };
 
-  const disable = async () => {
+  // Disabling asks for a current code (checked by the server).
+  const [disableOpen, setDisableOpen] = useState(false);
+  const [disableCode, setDisableCode] = useState('');
+  const [disableError, setDisableError] = useState<string | null>(null);
+  const [disabling, setDisabling] = useState(false);
+
+  const closeDisable = () => {
+    setDisableOpen(false);
+    setDisableCode('');
+    setDisableError(null);
+  };
+
+  const disable = async (e: FormEvent) => {
+    e.preventDefault();
+    setDisabling(true);
+    setDisableError(null);
     const { data } = await api.auth.mfa.listFactors();
-    const totp = data?.totp?.[0];
-    if (totp) await api.auth.mfa.unenroll({ factorId: totp.id });
+    const totp = data?.totp?.find((f) => f.status === 'verified');
+    const { error } = totp
+      ? await api.auth.mfa.unenroll({ factorId: totp.id, code: disableCode })
+      : { error: null };
+    setDisabling(false);
+    if (error) {
+      setDisableError(
+        error.code === 'mfa_verification_failed' || error.code === 'mfa_required'
+          ? t('disable2faWrongCode')
+          : error.code === 'mfa_enforced'
+            ? t('disable2faEnforced')
+            : error.message,
+      );
+      setDisableCode('');
+      return;
+    }
+    closeDisable();
     await refresh();
   };
 
@@ -212,9 +257,47 @@ const TwoFactorCard = () => {
       </h2>
 
       {enrolled ? (
-        <Button variant="secondary" onClick={disable}>
-          {t('disable2fa')}
-        </Button>
+        <>
+          <Button variant="secondary" onClick={() => setDisableOpen(true)}>
+            {t('disable2fa')}
+          </Button>
+          <Modal
+            open={disableOpen}
+            title={t('disable2fa')}
+            onClose={closeDisable}
+            footer={
+              <>
+                <Button variant="secondary" onClick={closeDisable}>
+                  {t('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  form="disable-2fa-form"
+                  disabled={disabling || disableCode.length < 6}
+                >
+                  {disabling ? t('loading') : t('disable2fa')}
+                </Button>
+              </>
+            }
+          >
+            <form id="disable-2fa-form" onSubmit={disable} className="space-y-4">
+              <p className="text-sm text-text-secondary">{t('disable2faConfirm')}</p>
+              <Input
+                label={t('twoFactorCode')}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                maxLength={6}
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ''))}
+                className="max-w-[160px] tracking-widest"
+                autoFocus
+                required
+              />
+              {disableError && <p className="text-sm text-danger-strong">{disableError}</p>}
+            </form>
+          </Modal>
+        </>
       ) : qr ? (
         <div className="space-y-4">
           <QRCodeSVG
@@ -225,8 +308,10 @@ const TwoFactorCard = () => {
             className="border border-border rounded-md bg-paper"
           />
           <Input
-            label="123456"
+            label={t('twoFactorCode')}
+            placeholder="123456"
             inputMode="numeric"
+            autoComplete="one-time-code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="max-w-[160px]"
@@ -389,6 +474,191 @@ const AppearanceCard = () => {
           );
         })}
       </div>
+    </Card>
+  );
+};
+
+// Email notifications (opt-in); they need the server's SMTP setup.
+const NotificationsCard = () => {
+  const { t } = useI18n();
+  const { user, refreshUser } = useAuth();
+  const [mailEnabled, setMailEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void api.rpc('get_public_config').then(({ data }) =>
+      setMailEnabled(Boolean((data as { mail_enabled?: boolean } | null)?.mail_enabled)),
+    );
+  }, []);
+
+  if (!user || mailEnabled === null) return null;
+
+  const toggles = [
+    ['notify_reminders', 'notifyReminders', 'notifyRemindersHint'],
+    ['notify_status', 'notifyStatus', 'notifyStatusHint'],
+    ['notify_weekly', 'notifyWeekly', 'notifyWeeklyHint'],
+  ] as const;
+
+  const toggle = async (key: (typeof toggles)[number][0], value: boolean) => {
+    await api.from('app_users').update({ [key]: value }).eq('id', user.id);
+    await refreshUser();
+  };
+
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium flex items-center gap-2">
+          <Bell size={17} className="text-text-secondary" />
+          {t('notifications')}
+        </h2>
+        <p className="text-sm text-text-secondary mt-1">
+          {mailEnabled ? t('notificationsHint') : t('notificationsUnavailable')}
+        </p>
+      </div>
+      {toggles.map(([key, label, hint]) => (
+        <label
+          key={key}
+          className={cn(
+            'flex items-center justify-between gap-4 border-t border-border pt-4',
+            mailEnabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
+          )}
+        >
+          <span>
+            <span className="block font-medium">{t(label)}</span>
+            <span className="block text-sm text-text-secondary mt-0.5">{t(hint)}</span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-4 w-4 flex-shrink-0 accent-black"
+            checked={user[key]}
+            disabled={!mailEnabled}
+            onChange={(e) => void toggle(key, e.target.checked)}
+          />
+        </label>
+      ))}
+    </Card>
+  );
+};
+
+// "Chrome on macOS" from a user agent; good enough to tell devices apart.
+const describeDevice = (ua: string | null) => {
+  if (!ua) return { label: null, mobile: false };
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+      ? 'Opera'
+      : /Firefox\//.test(ua)
+        ? 'Firefox'
+        : /Chrome\//.test(ua)
+          ? 'Chrome'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : null;
+  const os = /iPhone|iPad/.test(ua)
+    ? 'iOS'
+    : /Android/.test(ua)
+      ? 'Android'
+      : /Mac OS X|Macintosh/.test(ua)
+        ? 'macOS'
+        : /Windows/.test(ua)
+          ? 'Windows'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : null;
+  return {
+    label: [browser, os].filter(Boolean).join(' · ') || ua.slice(0, 60),
+    mobile: /Mobile|iPhone|Android/.test(ua),
+  };
+};
+
+const SESSIONS_PREVIEW = 5;
+
+// Signed-in devices, with sign-out per device or for all others.
+const SessionsCard = () => {
+  const { t, lang } = useI18n();
+  const [sessions, setSessions] = useState<DeviceSession[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  const load = async () => {
+    const { data } = await api.auth.listSessions();
+    setSessions(data?.sessions ?? []);
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const revoke = async (input: { id: string } | { others: true }) => {
+    setBusy(true);
+    await api.auth.revokeSession(input);
+    setBusy(false);
+    await load();
+  };
+
+  if (!sessions) return null;
+  const others = sessions.filter((s) => !s.current).length;
+  const when = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+      : '—';
+
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium">{t('activeSessions')}</h2>
+        <p className="text-sm text-text-secondary mt-1">{t('activeSessionsHint')}</p>
+      </div>
+      <ul className="divide-y divide-border border-t border-border">
+        {(showAll ? sessions : sessions.slice(0, SESSIONS_PREVIEW)).map((s) => {
+          const device = describeDevice(s.user_agent);
+          const Icon = device.mobile ? Smartphone : Laptop;
+          return (
+            <li key={s.id} className="flex items-center gap-3 py-3">
+              <Icon size={18} className="flex-shrink-0 text-text-secondary" />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
+                  {device.label ?? t('unknownDevice')}
+                  {s.current && (
+                    <span className="rounded-md bg-success-soft-strong px-1.5 py-0.5 text-xs font-semibold text-success-strong">
+                      {t('thisDevice')}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-text-secondary">
+                  {t('lastSeen')}: {when(s.last_seen_at ?? s.created_at)} · {t('signedInAt')}: {when(s.created_at)}
+                </p>
+              </div>
+              {!s.current && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void revoke({ id: s.id })}
+                  title={t('signOutDevice')}
+                  aria-label={t('signOutDevice')}
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-danger-soft hover:text-danger-strong disabled:opacity-50"
+                >
+                  <LogOut size={15} />
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {sessions.length > SESSIONS_PREVIEW && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="text-sm font-medium text-text-secondary hover:text-text"
+        >
+          {showAll ? t('showLess') : `${t('showMore')} (${sessions.length - SESSIONS_PREVIEW})`}
+        </button>
+      )}
+      {others > 0 && (
+        <Button variant="secondary" disabled={busy} onClick={() => void revoke({ others: true })}>
+          <LogOut size={15} />
+          {t('signOutOtherDevices')} ({others})
+        </Button>
+      )}
     </Card>
   );
 };

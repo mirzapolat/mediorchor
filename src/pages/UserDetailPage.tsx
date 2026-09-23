@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Crown, FolderKanban, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Crown, FolderKanban, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Avatar } from '@/components/Avatar';
@@ -59,6 +59,12 @@ export const UserDetailPage = () => {
     if (isSelf) await refreshUser();
   };
 
+  const approve = async () => {
+    const { error: approveError } = await api.from('app_users').update({ approved: true }).eq('id', user.id);
+    if (approveError) setError(approveError.message);
+    else setUser({ ...user, approved: true });
+  };
+
   const deleteUser = async () => {
     setError(null);
     // Accounts are deleted server-side behind an admin check (server/admin.ts).
@@ -104,6 +110,22 @@ export const UserDetailPage = () => {
       </div>
 
       {error && <p className="text-sm text-accent mb-4">{error}</p>}
+
+      {!user.approved && (
+        <Card className="max-w-xl mb-6 flex flex-col gap-3 border-accent sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Clock size={18} className="mt-0.5 flex-shrink-0 text-accent" />
+            <div>
+              <p className="font-medium">{t('approvalPending')}</p>
+              <p className="text-sm text-text-secondary mt-0.5">{t('approvalPendingHint')}</p>
+            </div>
+          </div>
+          <Button className="sm:flex-shrink-0" onClick={() => void approve()}>
+            <Check size={15} />
+            {t('approveAccount')}
+          </Button>
+        </Card>
+      )}
 
       <Card className="max-w-xl space-y-4">
         <div className="flex items-center justify-between gap-4">

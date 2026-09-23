@@ -7,13 +7,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db, migrate, loadTableMeta, translateDbError, ApiError } from './db.ts';
 import { env, mailEnabled } from './env.ts';
-import { authRoutes, withSessionUser, purgeExpired, createAccount } from './auth.ts';
+import { authRoutes, withSessionUser, purgeExpired, createAccount, sessionUser, mfaSetupRequired } from './auth.ts';
 import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
 import { adminRoutes } from './admin.ts';
 import { webhookRoutes } from './webhooks.ts';
 import { rateLimit } from './ratelimit.ts';
+import { startNotifications } from './notifications.ts';
 
 migrate();
 loadTableMeta();
@@ -37,6 +38,29 @@ app.use('/api/*', async (c, next) => {
   await next();
   c.res.headers.set('Cache-Control', 'no-store');
 });
+
+// With "require 2FA" on, a privileged account without a second factor may only
+// set one up (under /api/auth) and use the public forms until it has one.
+const PUBLIC_FUNCTIONS = new Set([
+  'get_public_config',
+  'get_public_checkin',
+  'submit_public_checkin',
+  'get_public_registration',
+  'submit_public_registration',
+]);
+const enforceMfaSetup = async (c: Context, next: () => Promise<void>) => {
+  const isPublicRpc = c.req.path.startsWith('/api/rpc/') && PUBLIC_FUNCTIONS.has(c.req.path.slice('/api/rpc/'.length));
+  if (!isPublicRpc) {
+    const user = sessionUser(c);
+    if (user && mfaSetupRequired(user.id)) {
+      throw new ApiError('Set up two-factor authentication to continue', 403, 'mfa_setup_required');
+    }
+  }
+  await next();
+};
+for (const prefix of ['/api/db', '/api/rpc/*', '/api/storage/*', '/api/functions/*']) {
+  app.use(prefix, enforceMfaSetup);
+}
 
 const jsonBody = async (c: Context) => {
   try {
@@ -146,6 +170,7 @@ const bootstrapAdmin = async () => {
 await bootstrapAdmin();
 purgeExpired();
 setInterval(purgeExpired, 60 * 60 * 1000).unref();
+startNotifications();
 
 const server = serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`mediorchor listening on http://localhost:${info.port}`);

@@ -5,6 +5,8 @@ import { randomInt } from 'node:crypto';
 import { db, authUid, ApiError, forbidden } from './db.ts';
 import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
+import { instanceSettings } from './settings.ts';
+import { mailEnabled } from './env.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -27,6 +29,15 @@ const check = (sql: string, params?: Args) => {
 };
 
 const userCanAccessProject = (pid: unknown) => check(canAccessProject('@pid'), { pid: text(pid) });
+
+// Project setting: sign-ups (forms, first check-in with an account) must name
+// one of the project's groups — only enforceable when it has groups.
+const signupGroupRequired = (projectId: string) => {
+  const row = db.prepare('select require_signup_group from projects where id = ?').get(projectId) as
+    | { require_signup_group: number }
+    | undefined;
+  return Boolean(row?.require_signup_group) && projectGroupNames(projectId).length > 0;
+};
 
 // The project's group names in their configured order.
 export const projectGroupNames = (projectId: unknown): string[] =>
@@ -156,10 +167,14 @@ const tooLong = (value: string | null, max: number) => (value ?? '').length > ma
 // ---------------------------------------------------------------------------
 
 const get_public_config = () => {
-  const row = db.prepare('select allow_self_signup from app_settings where id = 1').get() as
-    | { allow_self_signup: number }
-    | undefined;
-  return { allow_self_signup: row ? Boolean(row.allow_self_signup) : true };
+  const settings = instanceSettings();
+  return {
+    allow_self_signup: settings.allowSelfSignup,
+    signup_requires_approval: settings.requiresApproval,
+    signup_allowed_domains: settings.allowedDomains,
+    // Whether the server can send email (notification settings need it).
+    mail_enabled: mailEnabled,
+  };
 };
 
 const get_public_checkin = (args: Args) => {
@@ -255,6 +270,9 @@ const submit_public_checkin = (args: Args) => {
       if (!firstName || !lastName || tooLong(firstName, 120) || tooLong(lastName, 120) || tooLong(groupName, 120)) {
         return { state: 'invalid_input' };
       }
+      if (signupGroupRequired(checkin.project_id) && !projectGroupNames(checkin.project_id).includes(groupName)) {
+        return { state: 'invalid_input' };
+      }
       memberId = insertMember({
         project_id: checkin.project_id,
         first_name: firstName,
@@ -330,6 +348,7 @@ const get_public_registration = (args: Args) => {
   if (!page.is_active) return { state: 'inactive', title: page.title, project_name: page.project_name };
 
   const groups = projectGroupNames(page.project_id);
+  const requireGroup = signupGroupRequired(text(page.project_id));
 
   const uid = authUid();
   let me: Row | null = null;
@@ -351,7 +370,9 @@ const get_public_registration = (args: Args) => {
     title: page.title,
     description: page.description,
     ask_email: Boolean(page.ask_email),
-    ask_group: Boolean(page.ask_group),
+    // A required group is asked even when the form itself doesn't ask.
+    ask_group: Boolean(page.ask_group) || requireGroup,
+    require_group: requireGroup,
     groups,
     project_name: page.project_name,
     allow_guest_signup: Boolean(page.allow_guest_signup),
@@ -402,9 +423,11 @@ const submit_public_registration = (args: Args) => {
   // The account's verified address always wins over a typed one.
   if (asAccount) email = accountEmail(uid!);
   else if (!page.ask_email) email = null;
-  if (!page.ask_group) groupName = null;
+  const requireGroup = signupGroupRequired(page.project_id);
+  if (!page.ask_group && !requireGroup) groupName = null;
   const group = resolveGroup(page.project_id, groupName);
   groupName = group.name;
+  if (requireGroup && (!groupName || !group.known)) return { state: 'invalid_input' };
 
   // Membership only happens through the transfer, never at submission time.
   // Registrations with a group the project doesn't have wait for a manager.

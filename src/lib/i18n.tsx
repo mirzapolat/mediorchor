@@ -177,6 +177,23 @@ const dict: Dict = {
   twoFactorOff: { de: 'nicht aktiviert', en: 'not enabled' },
   enable2fa: { de: '2FA aktivieren', en: 'Enable 2FA' },
   twoFactorCode: { de: 'Bestätigungscode', en: 'Verification code' },
+  disable2faConfirm: {
+    de: 'Gib den aktuellen 6-stelligen Code aus deiner Authenticator-App ein, um die Zwei-Faktor-Authentifizierung zu deaktivieren.',
+    en: 'Enter the current 6-digit code from your authenticator app to turn off two-factor authentication.',
+  },
+  disable2faEnforced: {
+    de: 'Für dein Konto ist die Zwei-Faktor-Authentifizierung vorgeschrieben und kann nicht deaktiviert werden.',
+    en: 'Two-factor authentication is required for your account and can’t be turned off.',
+  },
+  mfaSetupTitle: { de: 'Zwei-Faktor-Authentifizierung einrichten', en: 'Set up two-factor authentication' },
+  mfaSetupHint: {
+    de: 'Für Administratoren und Konten mit Zugriff auf alle Projekte ist eine Zwei-Faktor-Authentifizierung vorgeschrieben. Richte sie ein, um fortzufahren.',
+    en: 'Two-factor authentication is required for administrators and accounts with access to all projects. Set it up to continue.',
+  },
+  disable2faWrongCode: {
+    de: 'Der Code ist falsch oder abgelaufen. Bitte versuche es mit dem aktuellen Code erneut.',
+    en: 'The code is wrong or has expired. Please try again with the current code.',
+  },
   emailChangePending: {
     de: 'Gespeichert. Bitte bestätige die neue E-Mail-Adresse über den Link, den wir dir geschickt haben.',
     en: 'Saved. Please confirm the new email address using the link we sent you.',
@@ -189,6 +206,40 @@ const dict: Dict = {
   newPassword: { de: 'Neues Passwort', en: 'New password' },
   language: { de: 'Sprache', en: 'Language' },
   appearance: { de: 'Darstellung', en: 'Appearance' },
+  notifications: { de: 'E-Mail-Benachrichtigungen', en: 'Email notifications' },
+  notificationsHint: {
+    de: 'Wähle, worüber wir dich per E-Mail informieren sollen.',
+    en: 'Choose what we should email you about.',
+  },
+  notificationsUnavailable: {
+    de: 'Auf diesem Server ist kein E-Mail-Versand eingerichtet, daher sind Benachrichtigungen nicht verfügbar.',
+    en: 'Email isn’t set up on this server, so notifications aren’t available.',
+  },
+  notifyReminders: { de: 'Erinnerung vor Proben', en: 'Rehearsal reminders' },
+  notifyRemindersHint: {
+    de: 'Etwa 24 Stunden vor jeder Probe, außer du bist entschuldigt.',
+    en: 'About 24 hours before each rehearsal, unless you’re excused.',
+  },
+  notifyStatus: { de: 'Änderungen deiner Anwesenheit', en: 'Changes to your attendance' },
+  notifyStatusHint: {
+    de: 'Wenn dich jemand anderes als entschuldigt oder abwesend einträgt.',
+    en: 'When someone else marks you excused or absent.',
+  },
+  notifyWeekly: { de: 'Wochenübersicht', en: 'Weekly overview' },
+  notifyWeeklyHint: {
+    de: 'Montags eine Übersicht deiner Proben in dieser Woche.',
+    en: 'On Mondays, an overview of your rehearsals that week.',
+  },
+  activeSessions: { de: 'Angemeldete Geräte', en: 'Signed-in devices' },
+  activeSessionsHint: {
+    de: 'Hier bist du gerade angemeldet. Melde Geräte ab, die du nicht kennst oder nicht mehr nutzt.',
+    en: 'Where you’re signed in. Sign out devices you don’t recognise or no longer use.',
+  },
+  thisDevice: { de: 'Dieses Gerät', en: 'This device' },
+  unknownDevice: { de: 'Unbekanntes Gerät', en: 'Unknown device' },
+  signedInAt: { de: 'Angemeldet', en: 'Signed in' },
+  signOutDevice: { de: 'Gerät abmelden', en: 'Sign out device' },
+  signOutOtherDevices: { de: 'Alle anderen Geräte abmelden', en: 'Sign out all other devices' },
   appearanceHint: {
     de: 'Gilt für dieses Gerät. „System“ folgt der Einstellung deines Betriebssystems.',
     en: 'Applies to this device. “System” follows your operating system setting.',
@@ -198,6 +249,71 @@ const dict: Dict = {
   themeSystem: { de: 'System', en: 'System' },
 
   // Admin config
+  signupSection: { de: 'Registrierung', en: 'Sign-up' },
+  accountStatus: { de: 'Kontostatus', en: 'Account status' },
+  approvedAccount: { de: 'Freigegeben', en: 'Approved' },
+  approvalPending: { de: 'Wartet auf Freigabe', en: 'Awaiting approval' },
+  approvalPendingHint: {
+    de: 'Dieses Konto hat sich selbst registriert und kann sich erst nach der Freigabe anmelden. Zum Ablehnen das Konto unten löschen.',
+    en: 'This account signed up itself and can only sign in once approved. To reject it, delete the account below.',
+  },
+  approveAccount: { de: 'Freigeben', en: 'Approve' },
+  approvalPendingTitle: { de: 'Konto wartet auf Freigabe', en: 'Account awaiting approval' },
+  approvalPendingLoginHint: {
+    de: 'Dein Konto wurde erstellt. Ein Administrator muss es noch freigeben, danach kannst du dich anmelden.',
+    en: 'Your account was created. An administrator still has to approve it; then you can sign in.',
+  },
+  approvalAfterConfirmHint: {
+    de: 'Danach muss ein Administrator dein Konto noch freigeben.',
+    en: 'After that, an administrator still has to approve your account.',
+  },
+  loginApprovalPending: {
+    de: 'Dein Konto wartet noch auf die Freigabe durch einen Administrator.',
+    en: 'Your account is still waiting for approval by an administrator.',
+  },
+  signupDomainNotAllowed: {
+    de: 'Mit dieser E-Mail-Domain ist keine Registrierung möglich. Wende dich an einen Administrator.',
+    en: 'Sign-up isn’t available for this email domain. Please contact an administrator.',
+  },
+  signupApproval: { de: 'Neue Konten freigeben', en: 'Approve new accounts' },
+  signupApprovalHint: {
+    de: 'Selbst registrierte Konten können sich erst anmelden, wenn ein Administrator sie freigegeben hat. Administratoren werden per E-Mail informiert.',
+    en: 'Self-registered accounts can only sign in once an administrator approved them. Administrators are notified by email.',
+  },
+  signupDomains: { de: 'Erlaubte E-Mail-Domains', en: 'Allowed email domains' },
+  signupDomainsHint: {
+    de: 'Nur Adressen dieser Domains dürfen sich selbst registrieren, getrennt durch Komma oder Zeilenumbruch. Leer = alle Domains.',
+    en: 'Only addresses at these domains may sign up themselves, separated by commas or line breaks. Empty = any domain.',
+  },
+  securitySection: { de: 'Sicherheit', en: 'Security' },
+  require2fa: { de: '2FA für Administratoren vorschreiben', en: 'Require 2FA for administrators' },
+  require2faHint: {
+    de: 'Administratoren und Konten mit Zugriff auf alle Projekte müssen eine Zwei-Faktor-Authentifizierung einrichten, bevor sie weiterarbeiten können.',
+    en: 'Administrators and accounts with access to all projects must set up two-factor authentication before they can continue.',
+  },
+  require2faSelfFirst: {
+    de: 'Richte zuerst für dein eigenes Konto die Zwei-Faktor-Authentifizierung ein (unter Konto), damit du dich nicht aussperrst.',
+    en: 'Set up two-factor authentication on your own account first (under Account), so you don’t lock yourself out.',
+  },
+  sessionLength: { de: 'Sitzungsdauer (Tage)', en: 'Session length (days)' },
+  sessionLengthHint: {
+    de: 'So lange bleibt man angemeldet, verlängert bei Nutzung. Leer = Standard des Servers ({n} Tage). Kürzere Werte gelten sofort auch für bestehende Sitzungen.',
+    en: 'How long people stay signed in, extended while in use. Empty = server default ({n} days). Shorter values also apply to existing sessions right away.',
+  },
+  emailSection: { de: 'E-Mail-Versand', en: 'Email' },
+  mailConfigured: { de: 'E-Mail-Versand ist eingerichtet', en: 'Email is set up' },
+  mailNotConfigured: { de: 'E-Mail-Versand ist nicht eingerichtet', en: 'Email is not set up' },
+  mailNotConfiguredHint: {
+    de: 'Setze SMTP_HOST und SMTP_FROM (optional SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM_NAME) in der Server-Umgebung. Ohne E-Mail gibt es keine Bestätigungslinks und keine Benachrichtigungen.',
+    en: 'Set SMTP_HOST and SMTP_FROM (optionally SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM_NAME) in the server environment. Without email there are no confirmation links and no notifications.',
+  },
+  mailServer: { de: 'Server', en: 'Server' },
+  mailSender: { de: 'Absender', en: 'Sender' },
+  mailUser: { de: 'Benutzer', en: 'User' },
+  testMailTo: { de: 'Test-E-Mail senden an', en: 'Send test email to' },
+  sendTestMail: { de: 'Test senden', en: 'Send test' },
+  testMailSent: { de: 'Test-E-Mail an {to} gesendet.', en: 'Test email sent to {to}.' },
+  saved: { de: 'Gespeichert', en: 'Saved' },
   allowSelfSignup: { de: 'Selbstregistrierung erlauben', en: 'Allow self-signup' },
   allowSelfSignupHint: {
     de: 'Wenn aktiv, können auf der Anmeldeseite eigene Konten erstellt werden.',
@@ -558,6 +674,21 @@ const dict: Dict = {
     en: 'How people can register through sign-up forms.',
   },
   deleteProject: { de: 'Projekt löschen', en: 'Delete project' },
+  requireSignupGroup: { de: 'Gruppe bei Anmeldung verpflichtend', en: 'Require a group when signing up' },
+  requireSignupGroupHint: {
+    de: 'Anmeldeformulare und die erste Anmeldung per Check-in verlangen eine der Projektgruppen, auch wenn ein Formular sonst nicht danach fragt.',
+    en: 'Sign-up forms and a first check-in with an account ask for one of the project’s groups, even if a form wouldn’t otherwise.',
+  },
+  requireSignupGroupNoGroups: {
+    de: 'Greift, sobald das Projekt Gruppen hat.',
+    en: 'Takes effect once the project has groups.',
+  },
+  defaultGroup: { de: 'Standardgruppe für neue Mitglieder', en: 'Default group for new members' },
+  noDefaultGroup: { de: 'Keine', en: 'None' },
+  defaultGroupHint: {
+    de: 'Neue Mitglieder ohne Gruppe landen hier – egal ob per Formular, Import oder von Hand angelegt.',
+    en: 'New members without a group are put here — whether added by form, import or by hand.',
+  },
   accessSettingsHint: {
     de: 'Lege fest, wie Konten und Gäste mit diesem Projekt interagieren dürfen.',
     en: 'Control how accounts and guests may interact with this project.',
