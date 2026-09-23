@@ -85,12 +85,12 @@ const Stepper = ({ step, onSelect }: { step: Step; onSelect: (step: Step) => voi
 const StepHeading = ({ step, title, hint }: { step: Step; title: string; hint: string }) => {
   const { t } = useI18n();
   return (
-    <div className="mb-8">
+    <div className="mb-10 text-center">
       <p className="mb-2 text-sm font-medium text-text-tertiary">
         {step + 1} / {STEPS.length} · {t(STEPS[step])}
       </p>
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-      <p className="mt-2 max-w-2xl text-text-secondary">{hint}</p>
+      <p className="mx-auto mt-2 max-w-xl text-text-secondary">{hint}</p>
     </div>
   );
 };
@@ -146,11 +146,17 @@ const useFileDrop = (onFile: (file: File) => void) => {
   };
 };
 
-const Footer = ({ children }: { children: ReactNode }) => (
-  <footer className="sticky bottom-0 z-10 border-t border-border bg-surface/90 backdrop-blur">
-    <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6">{children}</div>
+const Footer = ({ width, children }: { width: string; children: ReactNode }) => (
+  <footer className="sticky bottom-0 z-10 bg-bg">
+    <div className={cn('mx-auto flex w-full flex-wrap items-center gap-3 px-4 pb-8 pt-4 sm:px-6 sm:pb-12', width)}>
+      {children}
+    </div>
   </footer>
 );
+
+// Content width per step (the member import needs room for its columns).
+const stepWidth = (step: Step, importing: boolean) =>
+  step === 0 ? 'max-w-xl' : step === 1 && importing ? 'max-w-4xl' : step === 3 ? 'max-w-3xl' : 'max-w-2xl';
 
 // A member from the import, kept in memory until the project is created.
 interface DraftMember {
@@ -331,7 +337,7 @@ const Onboarding = () => {
 
   const countOf = (g: ProjectGroup) => members.filter((m) => sameName(m.group_name, g.name)).length;
   const canSkip = step < 3 && form.name.trim() !== '';
-  const displayName = form.name.trim() || t('newProject');
+  const width = stepWidth(step, Boolean(imp.rawText));
 
   const tips: { icon: LucideIcon; title: Parameters<typeof t>[0]; hint: Parameters<typeof t>[0]; path: string }[] = [
     { icon: CalendarPlus, title: 'onboardingTipEvent', hint: 'onboardingTipEventHint', path: 'events' },
@@ -348,56 +354,33 @@ const Onboarding = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-bg">
-      <header className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <Avatar name={displayName} photoUrl={logoPreview} size={30} square />
-            <span className="hidden truncate font-semibold sm:inline">{displayName}</span>
-          </div>
-          <div className="hidden flex-shrink-0 md:block">
+      <header className="sticky top-0 z-20 bg-bg">
+        <div className="relative mx-auto flex h-24 w-full max-w-5xl items-center justify-center px-4 sm:px-6">
+          <div className="hidden md:block">
             <Stepper step={step} onSelect={setStep} />
           </div>
-          <div className="flex flex-1 flex-shrink-0 items-center justify-end gap-1">
-            {canSkip && (
-              <button
-                type="button"
-                onClick={() => void skip()}
-                disabled={saving}
-                className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-text"
-              >
-                {t('onboardingSkip')}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={close}
-              aria-label={t('close')}
-              className="rounded-md p-2 text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-text"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-        <div className="h-0.5 bg-border/60">
-          <div
-            className="h-full bg-accent transition-[width] duration-500 ease-out"
-            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-          />
+          <button
+            type="button"
+            onClick={close}
+            aria-label={t('close')}
+            className="absolute right-4 rounded-md p-2 text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-text sm:right-6"
+          >
+            <X size={18} />
+          </button>
         </div>
       </header>
 
-      <main className="flex-1">
-        <div key={step} className="mx-auto w-full max-w-5xl px-4 py-10 animate-[fadein_250ms_ease-out] sm:px-6 sm:py-14">
+      <main className="flex flex-1 flex-col justify-center">
+        <div
+          key={step}
+          className={cn('mx-auto w-full px-4 py-12 animate-[fadein_250ms_ease-out] sm:px-6 sm:py-16', width)}
+        >
           {step === 0 && (
             <>
               <StepHeading step={0} title={t('onboardingProjectTitle')} hint={t('onboardingProjectHint')} />
-              <form
-                id="onboarding-project"
-                onSubmit={submitDetails}
-                className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start"
-              >
-                <Card className="space-y-6 p-6">
-                  <div className="flex flex-wrap items-center gap-5">
+              <form id="onboarding-project" onSubmit={submitDetails}>
+                <Card className="space-y-6 p-6 sm:p-8">
+                  <div className="flex flex-col items-center gap-4 text-center">
                     <label
                       {...logoDrop.props}
                       className={cn(
@@ -423,7 +406,7 @@ const Onboarding = () => {
                         {t('onboardingLogo')} <span className="font-normal text-text-tertiary">({t('optional')})</span>
                       </p>
                       <p className="mt-0.5 text-sm text-text-secondary">{t('onboardingLogoHint')}</p>
-                      <div className="mt-3 flex items-center gap-3">
+                      <div className="mt-3 flex items-center justify-center gap-3">
                         <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5]">
                           <ImagePlus size={15} />
                           {t('onboardingLogoUpload')}
@@ -464,21 +447,8 @@ const Onboarding = () => {
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
-                  {error && <p className="text-sm text-accent">{error}</p>}
                 </Card>
 
-                <div className="hidden lg:block">
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-text-tertiary">
-                    {t('onboardingPreview')}
-                  </p>
-                  <Card className="p-6">
-                    <Avatar name={displayName} photoUrl={logoPreview} size={64} square />
-                    <p className="mt-4 text-lg font-semibold break-words">{displayName}</p>
-                    <p className="mt-1 line-clamp-4 text-sm text-text-secondary break-words">
-                      {form.description.trim() || '—'}
-                    </p>
-                  </Card>
-                </div>
               </form>
             </>
           )}
@@ -495,6 +465,9 @@ const Onboarding = () => {
               {imp.rawText ? (
                 <Card className="space-y-4 p-6">
                   <MemberImportFields imp={imp} />
+                  <div className="border-t border-border pt-4">
+                    <MemberImportSummary imp={imp} />
+                  </div>
                 </Card>
               ) : (
                 <label
@@ -526,9 +499,9 @@ const Onboarding = () => {
           {step === 2 && (
             <>
               <StepHeading step={2} title={t('onboardingGroupsTitle')} hint={t('onboardingGroupsHint')} />
-              <div className="max-w-2xl">
+              <div className="flex flex-col items-center">
                 {groups.length > 0 ? (
-                  <ul className="overflow-hidden rounded-md border border-border bg-surface">
+                  <ul className="w-full overflow-hidden rounded-md border border-border bg-surface">
                     {groups.map((g, index) => {
                       const dragging = dnd.isDragging(g.id);
                       return (
@@ -589,7 +562,7 @@ const Onboarding = () => {
                     })}
                   </ul>
                 ) : (
-                  <div className="flex flex-col items-center rounded-md border border-dashed border-border bg-surface px-6 py-12 text-center">
+                  <div className="flex w-full flex-col items-center rounded-md border border-dashed border-border bg-surface px-6 py-12 text-center">
                     <Tags size={24} className="mb-3 text-text-tertiary" />
                     <p className="text-sm text-text-secondary">{t('onboardingNoGroups')}</p>
                   </div>
@@ -651,7 +624,7 @@ const Onboarding = () => {
       </main>
 
       {step < 3 && (
-        <Footer>
+        <Footer width={width}>
           {step > 0 && (
             <Button variant="secondary" onClick={() => setStep((step - 1) as Step)}>
               <ArrowLeft size={16} />
@@ -659,6 +632,17 @@ const Onboarding = () => {
             </Button>
           )}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+            {error && <span className="text-sm text-accent">{error}</span>}
+            {canSkip && (
+              <button
+                type="button"
+                onClick={() => void skip()}
+                disabled={saving}
+                className="whitespace-nowrap px-2 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
+              >
+                {t('onboardingSkip')}
+              </button>
+            )}
             {step === 0 && (
               <Button type="submit" form="onboarding-project" disabled={saving || !form.name.trim()}>
                 {saving ? t('loading') : t('onboardingContinue')}
@@ -667,7 +651,6 @@ const Onboarding = () => {
             )}
             {step === 1 && (
               <>
-                <MemberImportSummary imp={imp} />
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -685,7 +668,6 @@ const Onboarding = () => {
                 )}
               </>
             )}
-            {error && <span className="text-sm text-accent">{error}</span>}
             {step === 2 && (
               <Button onClick={() => void finish()} disabled={saving}>
                 {saving ? t('loading') : t('onboardingSetUpProject')}

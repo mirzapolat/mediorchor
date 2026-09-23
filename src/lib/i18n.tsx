@@ -907,7 +907,6 @@ const dict: Dict = {
   onboardingLogo: { de: 'Logo', en: 'Logo' },
   onboardingLogoHint: { de: 'Quadratisches Bild, z. B. PNG oder JPG', en: 'Square image, e.g. PNG or JPG' },
   onboardingLogoUpload: { de: 'Logo hochladen', en: 'Upload logo' },
-  onboardingPreview: { de: 'Vorschau', en: 'Preview' },
   onboardingNamePlaceholder: { de: 'z. B. Sommerkonzert 2026', en: 'e.g. Summer concert 2026' },
   onboardingMembersTitle: { de: 'Mitgliederliste importieren', en: 'Import your member list' },
   onboardingMembersHint: {
