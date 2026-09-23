@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Search, X } from 'lucide-react';
 import type { FilterDef } from './DataTable';
 import { useI18n } from '@/lib/i18n';
@@ -19,16 +19,22 @@ export interface FilterMenuFilter {
 //   const filters = tf.bind(defs);
 //   <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
 //   <DataTable filters={filters} query={tf.query} hideToolbar ... />
-export const useTableFilters = (defaults: Record<string, string> = {}) => {
+// bind is stable while the values are unchanged, so pages that memoize their
+// filters (e.g. with onVisibleRowsChange) can memoize the bound ones too.
+export const useTableFilters = (initial: Record<string, string> = {}) => {
+  const [defaults] = useState(initial);
   const [query, setQuery] = useState('');
-  const [values, setValues] = useState(defaults);
-  const bind = <T,>(defs: FilterDef<T>[]): (FilterDef<T> & FilterMenuFilter)[] =>
-    defs.map((f) => ({
-      ...f,
-      defaultValue: defaults[f.id] ?? '',
-      value: values[f.id] ?? '',
-      onChange: (value: string) => setValues((s) => ({ ...s, [f.id]: value })),
-    }));
+  const [values, setValues] = useState(initial);
+  const bind = useCallback(
+    <T,>(defs: FilterDef<T>[]): (FilterDef<T> & FilterMenuFilter)[] =>
+      defs.map((f) => ({
+        ...f,
+        defaultValue: defaults[f.id] ?? '',
+        value: values[f.id] ?? '',
+        onChange: (value: string) => setValues((s) => ({ ...s, [f.id]: value })),
+      })),
+    [defaults, values],
+  );
   return { query, setQuery, bind };
 };
 

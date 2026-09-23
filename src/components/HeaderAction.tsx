@@ -8,15 +8,18 @@ export const HeaderAction = ({
   label,
   onClick,
   variant = 'primary',
+  disabled,
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
   variant?: 'primary' | 'secondary';
+  disabled?: boolean;
 }) => (
   <Button
     variant={variant}
     onClick={onClick}
+    disabled={disabled}
     aria-label={label}
     title={label}
     className="h-9 max-sm:w-9 max-sm:px-0"

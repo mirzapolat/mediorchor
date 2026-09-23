@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Plus, Tags, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { DataTable, type Column } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { GroupPill } from '@/components/GroupPill';
 import { GroupForm } from '@/components/GroupForm';
@@ -38,6 +39,7 @@ export const GroupsPage = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectGroup | null>(null);
   const [toDelete, setToDelete] = useState<ProjectGroup | null>(null);
+  const tf = useTableFilters();
 
   const loadCounts = useCallback(async () => {
     const { data } = await api
@@ -109,16 +111,19 @@ export const GroupsPage = () => {
       <PageHeader
         title={t('groupsList')}
         subtitle={t('groupsHint')}
+        inlineActions
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus size={16} />
-            {t('newGroup')}
-          </Button>
+          <>
+            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} />
+            <HeaderAction
+              icon={Plus}
+              label={t('newGroup')}
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            />
+          </>
         }
       />
 
@@ -128,7 +133,11 @@ export const GroupsPage = () => {
           columns={columns}
           getRowId={(g) => g.id}
           onRowClick={(g) => navigate(`/projects/${project.id}/groups/${g.id}`)}
-          onReorder={reorder}
+          search={(g) => g.name}
+          query={tf.query}
+          hideToolbar
+          // Reordering a filtered subset would scramble positions.
+          onReorder={tf.query.trim() ? undefined : reorder}
           emptyMessage={t('noGroups')}
           emptyIcon={Tags}
           actions={(g) => (

@@ -15,6 +15,8 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
+import { HeaderAction } from '@/components/HeaderAction';
 import { Input, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { PageHeader } from '@/components/PageHeader';
@@ -211,6 +213,7 @@ export const AbsencesPage = () => {
   const [labelPublic, setLabelPublic] = useState(false);
   const [savingLabel, setSavingLabel] = useState(false);
   const [labelSettingsOpen, setLabelSettingsOpen] = useState(false);
+  const tf = useTableFilters({ status: 'active' });
 
   useEffect(() => {
     let cancelled = false;
@@ -306,7 +309,6 @@ export const AbsencesPage = () => {
       {
         id: 'status',
         label: t('status'),
-        defaultValue: 'active',
         options: [
           { value: 'active', label: t('active') },
           { value: 'archived', label: t('archived') },
@@ -322,6 +324,8 @@ export const AbsencesPage = () => {
     ],
     [groups, t],
   );
+  const bindFilters = tf.bind;
+  const boundFilters = useMemo(() => bindFilters(filters), [bindFilters, filters]);
   const exportLabels = useMemo<AbsenceExportLabels>(
     () => ({
       title: `${t('absences')} - ${project.name}`,
@@ -550,30 +554,37 @@ export const AbsencesPage = () => {
         </div>
       </Card>
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
+      {/* Search, filters and exports apply to the results table below. */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="font-semibold">{t('matchingMembers')}</h2>
           <p className="mt-1 text-sm text-text-secondary">
             {visibleRows.length} {t('matchingMembers').toLowerCase()}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" disabled={visibleRows.length === 0} onClick={downloadCsv}>
-            <FileDown size={16} />
-            {t('downloadCsv')}
-          </Button>
-          <Button
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={boundFilters} />
+          <HeaderAction
+            icon={FileDown}
+            label={t('downloadCsv')}
+            variant="secondary"
+            disabled={visibleRows.length === 0}
+            onClick={downloadCsv}
+          />
+          <HeaderAction
+            icon={FileText}
+            label={exportingPdf ? t('loading') : t('downloadPdf')}
             variant="secondary"
             disabled={visibleRows.length === 0 || exportingPdf}
             onClick={downloadPdf}
-          >
-            <FileText size={16} />
-            {exportingPdf ? t('loading') : t('downloadPdf')}
-          </Button>
-          <Button variant="secondary" disabled={visibleRows.length === 0} onClick={copyNames}>
-            <ClipboardCopy size={16} />
-            {t('copyNameList')}
-          </Button>
+          />
+          <HeaderAction
+            icon={ClipboardCopy}
+            label={t('copyNameList')}
+            variant="secondary"
+            disabled={visibleRows.length === 0}
+            onClick={copyNames}
+          />
         </div>
       </div>
       {exportMessage ? (
@@ -586,7 +597,9 @@ export const AbsencesPage = () => {
         getRowId={getResultRowId}
         onRowClick={(row) => navigate(`/projects/${project.id}/members/${row.member.id}`)}
         search={searchResultRow}
-        filters={filters}
+        filters={boundFilters}
+        query={tf.query}
+        hideToolbar
         emptyMessage={t('noAbsenceResults')}
         emptyIcon={CalendarX2}
         onVisibleRowsChange={setVisibleRows}
