@@ -2,23 +2,17 @@ import { Fragment, useState } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
-import { Select } from './Input';
 import { ConfirmDialog } from './ConfirmDialog';
+import { MAP_TARGETS, TargetSelect, type MapTarget } from './FieldMapper';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { WEBHOOK_GUIDES } from '@/lib/webhookGuides';
-import type { RegistrationPage, WebhookMapping, WebhookTarget } from '@/types';
+import type { RegistrationPage, WebhookMapping } from '@/types';
 
-const TARGETS: { target: WebhookTarget; label: 'firstName' | 'lastName' | 'fullNameField' | 'email' | 'group' }[] = [
-  { target: 'first_name', label: 'firstName' },
-  { target: 'last_name', label: 'lastName' },
-  { target: 'full_name', label: 'fullNameField' },
-  { target: 'email', label: 'email' },
-  { target: 'group_name', label: 'group' },
-];
-
-const AUTO = '';
+// Mapping value that switches a target off (no automatic detection either);
+// the server treats it as "no field".
+const OFF = '-';
 
 // Renders `backticks` as inline code.
 const RichText = ({ text }: { text: string }) => (
@@ -65,6 +59,8 @@ export const WebhookSetup = ({
   const [guideId, setGuideId] = useState(WEBHOOK_GUIDES[0].id);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Outcome of re-applying the mapping to pending registrations.
+  const [remapNote, setRemapNote] = useState<string | null>(null);
 
   const url = `${window.location.origin}/api/webhooks/registrations/${page.token}`;
   const guide = WEBHOOK_GUIDES.find((g) => g.id === guideId) ?? WEBHOOK_GUIDES[0];
@@ -88,12 +84,49 @@ export const WebhookSetup = ({
     await update({ token: crypto.randomUUID() });
   };
 
-  const setMapping = (target: WebhookTarget, field: string) => {
-    const next: WebhookMapping = { ...page.webhook_mapping };
-    if (field === AUTO) delete next[target];
-    else next[target] = field;
-    void update({ webhook_mapping: next });
+  const mapping = page.webhook_mapping;
+  const targets = MAP_TARGETS.map((m) => m.target);
+
+  // What a field feeds: an explicit choice wins over the detection the server
+  // reported for the last delivery.
+  const explicitFor = (field: string) => targets.find((k) => mapping[k] === field) ?? null;
+  const autoFor = (field: string) =>
+    targets.find((k) => !mapping[k] && delivery?.matched[k] === field) ?? null;
+
+  // Saves the mapping, then re-maps pending registrations and reloads them.
+  const saveMapping = async (next: WebhookMapping) => {
+    await update({ webhook_mapping: next });
+    const { data } = await api.rpc('remap_webhook_registrations', { p_page_id: page.id });
+    const r = data as { updated: number; skipped: number; without_raw: number } | null;
+    if (r) {
+      setRemapNote(
+        [
+          t('remapUpdated').replace('{n}', String(r.updated)),
+          r.skipped ? t('remapSkipped').replace('{n}', String(r.skipped)) : null,
+          r.without_raw ? t('remapWithoutRaw').replace('{n}', String(r.without_raw)) : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      );
+    }
+    onRefresh();
   };
+
+  const assignField = (field: string, target: MapTarget | null) => {
+    const next: WebhookMapping = { ...mapping };
+    for (const k of targets) if (next[k] === field) delete next[k];
+    if (target) {
+      next[target] = field;
+    } else {
+      // Turning off a detected field keeps the detection from choosing it again.
+      const detected = autoFor(field);
+      if (detected) next[detected] = OFF;
+    }
+    void saveMapping(next);
+  };
+
+  const hasCustomMapping = Object.values(mapping).some(Boolean);
+  const switchedOff = targets.filter((k) => mapping[k] === OFF);
 
   const statusLabel = (status: string | null) => {
     const key = `webhookStatus_${status}` as Parameters<typeof t>[0];
@@ -129,11 +162,11 @@ export const WebhookSetup = ({
           </div>
         </Card>
 
-        <Card className="space-y-3">
+        <Card className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-medium">{t('webhookLastDelivery')}</h2>
-              {page.webhook_last_received_at && (
+              {page.webhook_last_received_at ? (
                 <p className="mt-1 text-sm text-text-secondary">
                   {dateFormatter.format(new Date(page.webhook_last_received_at))} ·{' '}
                   <span
@@ -145,76 +178,77 @@ export const WebhookSetup = ({
                     {statusLabel(page.webhook_last_status)}
                   </span>
                 </p>
-              )}
+              ) : null}
             </div>
             <Button variant="secondary" onClick={onRefresh} aria-label="Refresh">
               <RefreshCw size={15} />
             </Button>
           </div>
+
           {delivery && fieldNames.length > 0 ? (
-            <div className="overflow-hidden rounded-md border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-[#f5f5f5] text-text-secondary">
-                  <tr>
-                    <th className="px-3 py-1.5 text-left font-medium">{t('webhookField')}</th>
-                    <th className="px-3 py-1.5 text-left font-medium">{t('webhookValue')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fieldNames.map((name) => {
-                    const target = TARGETS.find((x) => delivery.matched[x.target] === name);
-                    return (
-                      <tr key={name} className="border-t border-border align-top">
-                        <td className="px-3 py-1.5 font-mono text-xs">
+            <>
+              <p className="text-sm text-text-secondary">{t('webhookMappingVisualHint')}</p>
+              <ul className="divide-y divide-border rounded-md border border-border">
+                {fieldNames.map((name) => {
+                  const explicit = explicitFor(name);
+                  const target = explicit ?? autoFor(name);
+                  const color = target ? MAP_TARGETS.find((m) => m.target === target)!.color : null;
+                  return (
+                    <li
+                      key={name}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 sm:flex-nowrap"
+                      style={color ? { boxShadow: `inset 3px 0 0 ${color}`, backgroundColor: `${color}08` } : undefined}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono text-xs text-text-secondary" title={name}>
                           {name}
-                          {target && (
-                            <span className="ml-2 font-sans text-xs text-accent">→ {t(target.label)}</span>
-                          )}
-                        </td>
-                        <td className="break-all px-3 py-1.5 text-text-secondary">
+                        </div>
+                        <div
+                          className={cn('truncate text-sm', target ? 'text-text' : 'text-text-tertiary')}
+                          title={delivery.fields[name]}
+                        >
                           {delivery.fields[name] || '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </div>
+                      <TargetSelect
+                        value={target}
+                        auto={!explicit && Boolean(target)}
+                        onChange={(next) => assignField(name, next)}
+                        className={cn('flex-shrink-0', busy && 'pointer-events-none opacity-60')}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           ) : (
             <p className="text-sm text-text-tertiary">{t('webhookNoDelivery')}</p>
           )}
-        </Card>
 
-        <Card className="space-y-3">
-          <div>
-            <h2 className="text-base font-medium">{t('webhookMapping')}</h2>
-            <p className="mt-1 text-sm text-text-secondary">{t('webhookMappingHint')}</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {TARGETS.map(({ target, label }) => {
-              const current = page.webhook_mapping[target] ?? AUTO;
-              const detected = !page.webhook_mapping[target] ? delivery?.matched[target] : null;
-              const options = [...new Set([...fieldNames, ...(current ? [current] : [])])];
-              return (
-                <Select
-                  key={target}
-                  label={t(label)}
-                  value={current}
+          {remapNote && (
+            <p className="rounded-md bg-[#f0fdf4] px-3 py-2 text-sm text-[#16803b]">{remapNote}</p>
+          )}
+
+          {(switchedOff.length > 0 || hasCustomMapping) && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              {switchedOff.length > 0 && (
+                <span className="text-text-secondary">
+                  {t('webhookSwitchedOff')}:{' '}
+                  {switchedOff.map((k) => t(MAP_TARGETS.find((m) => m.target === k)!.label)).join(', ')}
+                </span>
+              )}
+              {hasCustomMapping && (
+                <button
+                  type="button"
                   disabled={busy}
-                  onChange={(e) => setMapping(target, e.target.value)}
+                  onClick={() => void saveMapping({})}
+                  className="font-medium text-text-secondary underline underline-offset-2 hover:text-text"
                 >
-                  <option value={AUTO}>
-                    {detected ? t('webhookAutoDetected').replace('{field}', detected) : t('webhookAuto')}
-                  </option>
-                  {options.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </Select>
-              );
-            })}
-          </div>
+                  {t('webhookResetMapping')}
+                </button>
+              )}
+            </div>
+          )}
         </Card>
       </div>
 

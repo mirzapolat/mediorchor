@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
+import { Input, Textarea } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -15,6 +15,7 @@ export const EventSettingsPage = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: event.name,
+    description: event.description ?? '',
     date: event.date ?? '',
     time: event.time ?? '',
   });
@@ -33,7 +34,12 @@ export const EventSettingsPage = () => {
     setSaved(false);
     await api
       .from('events')
-      .update({ name: form.name.trim(), date: form.date || null, time: form.time || null })
+      .update({
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        date: form.date || null,
+        time: form.time || null,
+      })
       .eq('id', event.id);
     setSaving(false);
     setSaved(true);
@@ -56,6 +62,14 @@ export const EventSettingsPage = () => {
             value={form.name}
             onChange={(e) => update({ name: e.target.value })}
             required
+          />
+          <Textarea
+            label={`${t('eventDescription')} (${t('optional')})`}
+            placeholder={t('eventDescriptionPlaceholder')}
+            rows={2}
+            maxLength={500}
+            value={form.description}
+            onChange={(e) => update({ description: e.target.value })}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input

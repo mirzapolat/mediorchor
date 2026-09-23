@@ -3,6 +3,8 @@ import { Upload, FileText } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Select } from './Input';
+import { GroupPill } from './GroupPill';
+import { ColumnMapper, MAP_TARGETS, type MapTarget } from './FieldMapper';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { parseCsv } from '@/lib/csv';
@@ -18,55 +20,56 @@ interface MemberImportProps {
   onSaved: () => void;
 }
 
-type TargetField = 'first_name' | 'last_name' | 'group_name' | 'email';
+type Assignment = Record<MapTarget, number | null>;
 
-const NONE = '';
-
-const TARGET_FIELDS: TargetField[] = ['first_name', 'last_name', 'group_name', 'email'];
-
-const LABEL_KEYS: Record<TargetField, 'firstName' | 'lastName' | 'group' | 'email'> = {
-  first_name: 'firstName',
-  last_name: 'lastName',
-  group_name: 'group',
-  email: 'email',
-};
-
-type NameMode = 'split' | 'combined';
+const EMPTY: Assignment = { first_name: null, last_name: null, full_name: null, email: null, group_name: null };
 
 // How a group that isn't in the project yet is handled: create it, drop it, or
 // (any other value) assign the rows to that existing group.
 const CREATE_GROUP = '__create__';
 const DROP_GROUP = '__none__';
 
-// Fields mapped column-by-column regardless of the chosen name mode.
-const OTHER_FIELDS: TargetField[] = ['group_name', 'email'];
+const PREVIEW_ROWS = 5;
 
-// Best-effort match of a CSV header to a target field by common substrings.
-const guessColumn = (headers: string[], needles: string[]): string => {
-  const idx = headers.findIndex((h) =>
-    needles.some((n) => h.toLowerCase().includes(n)),
-  );
-  return idx >= 0 ? String(idx) : NONE;
+// Best-effort match of a CSV header to an attribute by common substrings.
+const guessColumn = (headers: string[], needles: string[], taken: Set<number>): number | null => {
+  const idx = headers.findIndex((h, i) => !taken.has(i) && needles.some((n) => h.toLowerCase().includes(n)));
+  return idx >= 0 ? idx : null;
 };
 
-const guessMapping = (headers: string[]): Record<TargetField, string> => ({
-  first_name: guessColumn(headers, ['vorname', 'first', 'given']),
-  last_name: guessColumn(headers, ['nachname', 'last', 'surname', 'familien']),
-  group_name: guessColumn(headers, ['gruppe', 'group', 'team', 'klasse']),
-  email: guessColumn(headers, ['mail']),
-});
-
-// A column that looks like a full name (contains "name" but not a first/last
-// qualifier), used as the default when the combined name mode is selected.
-const guessFullNameColumn = (headers: string[]): string => {
-  const idx = headers.findIndex((h) => {
-    const l = h.toLowerCase();
-    return (
-      l.includes('name') &&
-      !['vor', 'nach', 'first', 'last', 'sur', 'given', 'familien'].some((q) => l.includes(q))
-    );
-  });
-  return idx >= 0 ? String(idx) : NONE;
+const guessAssignment = (headers: string[]): Assignment => {
+  const taken = new Set<number>();
+  const pick = (needles: string[]) => {
+    const col = guessColumn(headers, needles, taken);
+    if (col !== null) taken.add(col);
+    return col;
+  };
+  const first_name = pick(['vorname', 'first', 'given']);
+  const last_name = pick(['nachname', 'last', 'surname', 'familien']);
+  // A "name" column without a first/last qualifier is the full name, used only
+  // when first and last name aren't both there.
+  let full_name: number | null = null;
+  if (first_name === null || last_name === null) {
+    const idx = headers.findIndex((h, i) => {
+      const l = h.toLowerCase();
+      return (
+        !taken.has(i) &&
+        l.includes('name') &&
+        !['vor', 'nach', 'first', 'last', 'sur', 'given', 'familien'].some((q) => l.includes(q))
+      );
+    });
+    if (idx >= 0) {
+      full_name = idx;
+      taken.add(idx);
+    }
+  }
+  return {
+    first_name,
+    last_name,
+    full_name,
+    email: pick(['mail']),
+    group_name: pick(['gruppe', 'group', 'team', 'klasse', 'stimme', 'instrument', 'register']),
+  };
 };
 
 export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: MemberImportProps) => {
@@ -74,9 +77,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
   const [fileName, setFileName] = useState<string | null>(null);
   const [firstRowHeader, setFirstRowHeader] = useState(true);
   const [rawText, setRawText] = useState<string>('');
-  const [nameMode, setNameMode] = useState<NameMode>('split');
-  const [mapping, setMapping] = useState<Record<TargetField, string>>(guessMapping([]));
-  const [fullNameCol, setFullNameCol] = useState<string>(NONE);
+  const [assignment, setAssignment] = useState<Assignment>(EMPTY);
   const [groupActions, setGroupActions] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +88,7 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
       setFileName(null);
       setFirstRowHeader(true);
       setRawText('');
-      setNameMode('split');
-      setMapping(guessMapping([]));
-      setFullNameCol(NONE);
+      setAssignment(EMPTY);
       setGroupActions({});
       setImporting(false);
       setError(null);
@@ -101,12 +100,9 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     [rawText, firstRowHeader],
   );
 
-  // Re-guess the mapping whenever the parsed headers change.
+  // Re-guess the assignment whenever the parsed headers change.
   useEffect(() => {
-    if (parsed.headers.length) {
-      setMapping(guessMapping(parsed.headers));
-      setFullNameCol(guessFullNameColumn(parsed.headers));
-    }
+    if (parsed.headers.length) setAssignment(guessAssignment(parsed.headers));
   }, [parsed.headers]);
 
   const handleFile = async (file: File) => {
@@ -116,60 +112,69 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     setRawText(text);
   };
 
-  const colValue = (row: string[], col: string): string =>
-    col === NONE ? '' : (row[Number(col)] ?? '').trim();
-
-  const cellValue = (row: string[], field: TargetField): string =>
-    colValue(row, mapping[field]);
-
-  // Resolve a row's first/last name honouring the chosen name mode.
-  const namesOf = (row: string[]): { first: string; last: string } =>
-    nameMode === 'combined'
-      ? splitName(colValue(row, fullNameCol))
-      : { first: cellValue(row, 'first_name'), last: cellValue(row, 'last_name') };
-
-  // A row is importable when it yields at least a first name. In split mode the
-  // last name is required too; in combined mode single-token names are allowed.
-  const isValid = (row: string[]): boolean => {
-    const { first, last } = namesOf(row);
-    return nameMode === 'combined' ? Boolean(first) : Boolean(first && last);
+  // Assigning an attribute moves it to this column; a column holds at most one.
+  const assign = (column: number, target: MapTarget | null) => {
+    setAssignment((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(next) as MapTarget[]) if (next[key] === column) next[key] = null;
+      if (target) next[target] = column;
+      return next;
+    });
   };
 
+  const value = (row: string[], target: MapTarget): string => {
+    const col = assignment[target];
+    return col === null ? '' : (row[col] ?? '').trim();
+  };
+
+  // First/last name from their own columns, filled from a full-name column
+  // (split at the last space) where missing.
+  const namesOf = (row: string[]): { first: string; last: string } => {
+    const full = splitName(value(row, 'full_name'));
+    return {
+      first: value(row, 'first_name') || full.first,
+      last: value(row, 'last_name') || full.last,
+    };
+  };
+
+  const hasFullName = assignment.full_name !== null;
   const requiredMapped =
-    nameMode === 'combined'
-      ? fullNameCol !== NONE
-      : mapping.first_name !== NONE && mapping.last_name !== NONE;
+    hasFullName || (assignment.first_name !== null && assignment.last_name !== null);
+
+  // With separate columns both names are required; a full name may be a
+  // single token (empty last name).
+  const isValid = (row: string[]): boolean => {
+    const { first, last } = namesOf(row);
+    return hasFullName ? Boolean(first) : Boolean(first && last);
+  };
 
   const validRows = useMemo(
-    () => parsed.rows.filter(isValid),
+    () => (requiredMapped ? parsed.rows.filter(isValid) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [parsed.rows, mapping, fullNameCol, nameMode],
+    [parsed.rows, assignment],
   );
 
   // Existing group matching a CSV value, ignoring case ("sopran" → "Sopran").
-  const existingGroup = (value: string): string | undefined =>
-    groups.find((g) => g.toLowerCase() === value.toLowerCase());
+  const existingGroup = (group: string): string | undefined =>
+    groups.find((g) => g.toLowerCase() === group.toLowerCase());
 
   // CSV groups the project doesn't have yet, in order of first appearance
   // (case variants collapse onto the first spelling seen).
   const unknownGroups = useMemo(() => {
     const seen = new Map<string, string>();
     for (const r of validRows) {
-      const g = cellValue(r, 'group_name');
+      const g = value(r, 'group_name');
       if (g && !existingGroup(g) && !seen.has(g.toLowerCase())) seen.set(g.toLowerCase(), g);
     }
     return [...seen.values()];
-  },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [validRows, groups],
-  );
+  }, [validRows, groups]);
 
-  const resolveGroup = (value: string): string | null => {
-    if (!value) return null;
-    const existing = existingGroup(value);
+  const resolveGroup = (raw: string): string | null => {
+    if (!raw) return null;
+    const existing = existingGroup(raw);
     if (existing) return existing;
-    const spelling =
-      unknownGroups.find((g) => g.toLowerCase() === value.toLowerCase()) ?? value;
+    const spelling = unknownGroups.find((g) => g.toLowerCase() === raw.toLowerCase()) ?? raw;
     const action = groupActions[spelling] ?? CREATE_GROUP;
     if (action === CREATE_GROUP) return spelling;
     if (action === DROP_GROUP) return null;
@@ -202,8 +207,8 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
         project_id: projectId,
         first_name: first,
         last_name: last,
-        group_name: resolveGroup(cellValue(r, 'group_name')),
-        email: cellValue(r, 'email') || null,
+        group_name: resolveGroup(value(r, 'group_name')),
+        email: value(r, 'email') || null,
         photo_url: null,
       };
     });
@@ -217,41 +222,45 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
     onClose();
   };
 
-  const previewRows = validRows.slice(0, 5);
+  const resultRows = validRows.slice(0, 3);
 
   return (
     <Modal
       open={open}
+      size="3xl"
       title={t('importMembers')}
       onClose={onClose}
       footer={
         <>
+          {requiredMapped && parsed.rows.length > 0 && (
+            <span className="mr-auto text-sm text-text-secondary">
+              {t('rowsReadyToImport')
+                .replace('{n}', String(validRows.length))
+                .replace('{total}', String(parsed.rows.length))}
+            </span>
+          )}
           <Button variant="secondary" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button
-            onClick={runImport}
-            disabled={importing || !requiredMapped || validRows.length === 0}
-          >
+          <Button onClick={runImport} disabled={importing || !requiredMapped || validRows.length === 0}>
             {importing ? t('importing') : t('import')}
           </Button>
         </>
       }
     >
-      <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-[#f5f5f5] transition-colors duration-150">
-        {fileName ? <FileText size={15} /> : <Upload size={15} />}
-        {fileName ?? t('selectCsvFile')}
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
-      </label>
-
-      {rawText && (
-        <>
-          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-[#f5f5f5]">
+          {fileName ? <FileText size={15} /> : <Upload size={15} />}
+          {fileName ?? t('selectCsvFile')}
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
+        </label>
+        {rawText && (
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-text-secondary">
             <input
               type="checkbox"
               checked={firstRowHeader}
@@ -259,173 +268,100 @@ export const MemberImport = ({ open, projectId, groups, onClose, onSaved }: Memb
             />
             {t('firstRowHeader')}
           </label>
+        )}
+      </div>
 
-          {parsed.headers.length === 0 ? (
-            <p className="text-sm text-text-secondary">{t('emptyCsv')}</p>
-          ) : (
-            <>
+      {rawText &&
+        (parsed.headers.length === 0 ? (
+          <p className="text-sm text-text-secondary">{t('emptyCsv')}</p>
+        ) : (
+          <>
+            <div>
+              <h3 className="mb-1 text-sm font-semibold">{t('mapColumns')}</h3>
+              <p className="mb-3 text-xs text-text-tertiary">{t('mapColumnsVisualHint')}</p>
+              <ColumnMapper
+                headers={parsed.headers}
+                rows={parsed.rows.slice(0, PREVIEW_ROWS)}
+                assignment={assignment}
+                onAssign={assign}
+              />
+              {parsed.rows.length > PREVIEW_ROWS && (
+                <p className="mt-2 text-xs text-text-tertiary">
+                  {t('andMore').replace('{n}', String(parsed.rows.length - PREVIEW_ROWS))}
+                </p>
+              )}
+              {!requiredMapped && (
+                <p className="mt-2 text-sm text-accent">{t('mapNameRequired')}</p>
+              )}
+            </div>
+
+            {requiredMapped && unknownGroups.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-2">{t('nameFormat')}</h3>
-                <div className="space-y-1.5">
-                  {(['split', 'combined'] as NameMode[]).map((mode) => (
-                    <label
-                      key={mode}
-                      className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none"
+                <h3 className="mb-1 text-sm font-semibold">{t('newGroupsInImport')}</h3>
+                <p className="mb-3 text-xs text-text-tertiary">{t('newGroupsInImportHint')}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {unknownGroups.map((g) => (
+                    <Select
+                      key={g}
+                      label={g}
+                      value={groupActions[g] ?? CREATE_GROUP}
+                      onChange={(e) => setGroupActions({ ...groupActions, [g]: e.target.value })}
                     >
-                      <input
-                        type="radio"
-                        name="name-mode"
-                        checked={nameMode === mode}
-                        onChange={() => setNameMode(mode)}
-                      />
-                      {mode === 'split' ? t('nameSeparate') : t('nameCombined')}
-                    </label>
+                      <option value={CREATE_GROUP}>{t('createNewGroup')}</option>
+                      {groups.map((existing) => (
+                        <option key={existing} value={existing}>
+                          {t('assignToGroup').replace('{group}', existing)}
+                        </option>
+                      ))}
+                      <option value={DROP_GROUP}>{t('removeGroupFromImport')}</option>
+                    </Select>
                   ))}
                 </div>
-                {nameMode === 'combined' && (
-                  <p className="text-xs text-text-tertiary mt-2">{t('nameCombinedHint')}</p>
+              </div>
+            )}
+
+            {requiredMapped && (
+              <div>
+                <h3 className="mb-1 text-sm font-semibold">{t('importResultPreview')}</h3>
+                <p className="mb-2 text-xs text-text-tertiary">{t('rowsSkippedHint')}</p>
+                {resultRows.length > 0 ? (
+                  <div className="overflow-hidden rounded-md border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[#f5f5f5] text-text-secondary">
+                        <tr>
+                          {MAP_TARGETS.filter((m) => m.target !== 'full_name').map((m) => (
+                            <th key={m.target} className="px-3 py-1.5 text-left font-medium">
+                              {t(m.label)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resultRows.map((r, i) => {
+                          const { first, last } = namesOf(r);
+                          return (
+                            <tr key={i} className="border-t border-border">
+                              <td className="px-3 py-1.5">{first || '—'}</td>
+                              <td className="px-3 py-1.5">{last || '—'}</td>
+                              <td className="px-3 py-1.5 text-text-secondary">{value(r, 'email') || '—'}</td>
+                              <td className="px-3 py-1.5">
+                                <GroupPill name={resolveGroup(value(r, 'group_name'))} />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary">{t('noRowsToImport')}</p>
                 )}
               </div>
+            )}
+          </>
+        ))}
 
-              <div>
-                <h3 className="text-sm font-semibold mb-1">{t('mapColumns')}</h3>
-                <p className="text-xs text-text-tertiary mb-3">{t('mapColumnsHint')}</p>
-                <div className="space-y-3">
-                  {nameMode === 'combined' ? (
-                    <Select
-                      label={t('fullName')}
-                      value={fullNameCol}
-                      onChange={(e) => setFullNameCol(e.target.value)}
-                    >
-                      <option value={NONE}>{t('notMapped')}</option>
-                      {parsed.headers.map((h, i) => (
-                        <option key={i} value={String(i)}>
-                          {h || `Column ${i + 1}`}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    (['first_name', 'last_name'] as TargetField[]).map((field) => (
-                      <Select
-                        key={field}
-                        label={t(LABEL_KEYS[field])}
-                        value={mapping[field]}
-                        onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
-                      >
-                        <option value={NONE}>{t('notMapped')}</option>
-                        {parsed.headers.map((h, i) => (
-                          <option key={i} value={String(i)}>
-                            {h || `Column ${i + 1}`}
-                          </option>
-                        ))}
-                      </Select>
-                    ))
-                  )}
-                  {OTHER_FIELDS.map((field) => (
-                    <Select
-                      key={field}
-                      label={`${t(LABEL_KEYS[field])} (${t('optional')})`}
-                      value={mapping[field]}
-                      onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
-                    >
-                      <option value={NONE}>{t('notMapped')}</option>
-                      {parsed.headers.map((h, i) => (
-                        <option key={i} value={String(i)}>
-                          {h || `Column ${i + 1}`}
-                        </option>
-                      ))}
-                    </Select>
-                  ))}
-                </div>
-              </div>
-
-              {requiredMapped && unknownGroups.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-1">{t('newGroupsInImport')}</h3>
-                  <p className="text-xs text-text-tertiary mb-3">{t('newGroupsInImportHint')}</p>
-                  <div className="space-y-3">
-                    {unknownGroups.map((g) => (
-                      <Select
-                        key={g}
-                        label={g}
-                        value={groupActions[g] ?? CREATE_GROUP}
-                        onChange={(e) => setGroupActions({ ...groupActions, [g]: e.target.value })}
-                      >
-                        <option value={CREATE_GROUP}>{t('createNewGroup')}</option>
-                        {groups.map((existing) => (
-                          <option key={existing} value={existing}>
-                            {t('assignToGroup').replace('{group}', existing)}
-                          </option>
-                        ))}
-                        <option value={DROP_GROUP}>{t('removeGroupFromImport')}</option>
-                      </Select>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {requiredMapped && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-1">{t('preview')}</h3>
-                  <p className="text-xs text-text-tertiary mb-2">
-                    {t('rowsReadyToImport')
-                      .replace('{n}', String(validRows.length))
-                      .replace('{total}', String(parsed.rows.length))}
-                  </p>
-                  {previewRows.length > 0 ? (
-                    <div className="border border-border rounded-md overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-[#f5f5f5] text-text-secondary">
-                          <tr>
-                            {TARGET_FIELDS.map((f) => (
-                              <th key={f} className="text-left font-medium px-2 py-1.5">
-                                {t(LABEL_KEYS[f])}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {previewRows.map((r, i) => {
-                            const { first, last } = namesOf(r);
-                            const preview: Record<TargetField, string> = {
-                              first_name: first,
-                              last_name: last,
-                              group_name: resolveGroup(cellValue(r, 'group_name')) ?? '',
-                              email: cellValue(r, 'email'),
-                            };
-                            return (
-                              <tr key={i} className="border-t border-border">
-                                {TARGET_FIELDS.map((f) => (
-                                  <td key={f} className="px-2 py-1.5 text-text-secondary">
-                                    {preview[f] || '—'}
-                                  </td>
-                                ))}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-text-secondary">{t('noRowsToImport')}</p>
-                  )}
-                  {validRows.length > previewRows.length && (
-                    <p className="text-xs text-text-tertiary mt-2">
-                      {t('andMore').replace(
-                        '{n}',
-                        String(validRows.length - previewRows.length),
-                      )}
-                    </p>
-                  )}
-                  <p className="text-xs text-text-tertiary mt-2">{t('rowsSkippedHint')}</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-        </>
-      )}
+      {error && <p className="text-sm text-accent">{error}</p>}
     </Modal>
   );
 };

@@ -85,6 +85,7 @@ export interface Event {
   id: string;
   project_id: string;
   name: string;
+  description: string | null;
   date: string | null; // ISO date
   time: string | null; // HH:MM
   created_at: string;
@@ -163,6 +164,9 @@ export interface Registration {
   member_id: string | null;
   transferred: boolean;
   user_id: string | null; // set when the registration was submitted with an account
+  // Fields a webhook registration arrived with (for re-mapping); null for form
+  // sign-ups, older webhook entries and rows edited by hand.
+  raw_payload: Record<string, string> | null;
   created_at: string;
 }
 

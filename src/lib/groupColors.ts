@@ -1,14 +1,16 @@
-// Preset group colors, assigned in order to new groups (mirrored in the SQL
-// migration and triggers that create groups server-side).
+// Preset group colors, assigned in this order to new groups (mirrored in the
+// SQL triggers that create groups server-side). The order keeps neighbouring
+// groups — which sit next to each other in the Groups donut — distinguishable,
+// also for colour-blind readers; slate is a deliberate neutral and stays last.
 export const GROUP_PALETTE = [
-  '#e11d48', // rose
-  '#ea580c', // orange
-  '#ca8a04', // amber
-  '#16a34a', // green
-  '#0d9488', // teal
   '#0284c7', // sky
-  '#4f46e5', // indigo
+  '#ea580c', // orange
+  '#16a34a', // green
   '#9333ea', // purple
+  '#ca8a04', // amber
+  '#e11d48', // rose
+  '#0d9488', // teal
+  '#4f46e5', // indigo
   '#db2777', // pink
   '#64748b', // slate
 ];

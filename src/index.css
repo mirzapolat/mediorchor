@@ -61,3 +61,18 @@ body {
   border-radius: 9999px;
   animation: spin 0.7s linear infinite;
 }
+
+/* Referenced as animate-[fadein_…] / animate-[popin_…] in components. */
+@keyframes fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popin {
+  from { opacity: 0; transform: scale(0.94) rotate(-8deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

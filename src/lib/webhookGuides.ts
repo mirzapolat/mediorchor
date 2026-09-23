@@ -23,31 +23,44 @@ export const WEBHOOK_GUIDES: WebhookGuide[] = [
     label: 'Google Forms',
     steps: {
       de: [
-        'Öffne das Formular im Bearbeitungsmodus, dann ⋮ (Mehr) → „Apps Script“.',
+        'Öffne das Formular im Bearbeitungsmodus, dann ⋮ (Mehr) → „Apps Script“ (nicht aus der Antworttabelle heraus).',
         'Ersetze den vorhandenen Code durch das Skript unten und speichere.',
-        'Links „Trigger“ (Wecker-Symbol) → „Trigger hinzufügen“: Funktion `onFormSubmit`, Ereignisquelle „Aus Formular“, Ereignistyp „Beim Senden des Formulars“. Speichern und den Zugriff erlauben.',
+        'Links „Trigger“ (Wecker-Symbol) → „Trigger hinzufügen“: Funktion `onFormSubmit`, Ereignisquelle „Aus Formular“, Ereignistyp „Beim Senden des Formulars“. Speichern und den Zugriff erlauben. Nur einen Trigger anlegen, sonst kommt jede Anmeldung doppelt an.',
         'Sende eine Testantwort ab und prüfe unten „Letzte Übermittlung“.',
       ],
       en: [
-        'Open the form in edit mode, then ⋮ (More) → "Apps Script".',
+        'Open the form in edit mode, then ⋮ (More) → "Apps Script" (not from the response spreadsheet).',
         'Replace the existing code with the script below and save.',
-        'On the left, "Triggers" (alarm clock icon) → "Add trigger": function `onFormSubmit`, event source "From form", event type "On form submit". Save and grant access.',
+        'On the left, "Triggers" (alarm clock icon) → "Add trigger": function `onFormSubmit`, event source "From form", event type "On form submit". Save and grant access. Create only one trigger, otherwise every registration arrives twice.',
         'Submit a test response and check "Last delivery" below.',
       ],
     },
     note: {
-      de: 'Fragen mit Titeln wie „Vorname“, „Nachname“, „E-Mail“ und „Gruppe“ werden automatisch erkannt. Sammelt das Formular E-Mail-Adressen, wird diese mitgesendet.',
-      en: 'Questions titled like "First name", "Last name", "Email" and "Group" are detected automatically. If the form collects email addresses, that address is sent too.',
+      de: 'Fragen mit Titeln wie „Vorname“, „Nachname“, „E-Mail“ und „Gruppe“ werden automatisch erkannt. Sammelt das Formular E-Mail-Adressen, wird diese mitgesendet. Das Skript funktioniert auch mit einem Trigger aus der Antworttabelle. Startest du es manuell mit ▶, sendet es die letzte Antwort als Test.',
+      en: 'Questions titled like "First name", "Last name", "Email" and "Group" are detected automatically. If the form collects email addresses, that address is sent too. The script also works with a trigger from the response spreadsheet. Running it manually with ▶ sends the latest response as a test.',
     },
     code: (url) => `const WEBHOOK_URL = '${url}';
 
+// Works with a trigger "From form" (e.response), "From spreadsheet"
+// (e.namedValues) and when run manually (sends the latest response).
 function onFormSubmit(e) {
   const data = {};
-  e.response.getItemResponses().forEach(function (item) {
-    data[item.getItem().getTitle()] = item.getResponse();
-  });
-  const email = e.response.getRespondentEmail();
-  if (email) data['E-Mail'] = email;
+  if (e && e.namedValues) {
+    Object.keys(e.namedValues).forEach(function (title) {
+      data[title] = e.namedValues[title].join(', ');
+    });
+  } else {
+    let response = e && e.response;
+    if (!response) {
+      const responses = FormApp.getActiveForm().getResponses();
+      response = responses[responses.length - 1];
+    }
+    response.getItemResponses().forEach(function (item) {
+      data[item.getItem().getTitle()] = item.getResponse();
+    });
+    const email = response.getRespondentEmail();
+    if (email) data['E-Mail'] = email;
+  }
   UrlFetchApp.fetch(WEBHOOK_URL, {
     method: 'post',
     contentType: 'application/json',

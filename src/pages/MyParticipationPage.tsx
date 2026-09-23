@@ -267,7 +267,12 @@ export const MyParticipationPage = () => {
               <ul className="divide-y divide-border">
                 {upcoming.map((e) => (
                   <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <span className="font-medium">{e.name}</span>
+                    <span className="min-w-0">
+                      <span className="block font-medium">{e.name}</span>
+                      {e.description && (
+                        <span className="mt-0.5 block text-xs text-text-secondary">{e.description}</span>
+                      )}
+                    </span>
                     <span className="flex items-center gap-3 text-sm text-text-secondary">
                       <span className="inline-flex items-center gap-1.5">
                         <CalendarDays size={13} />
@@ -309,6 +314,9 @@ export const MyParticipationPage = () => {
                   <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <p className="font-medium truncate">{e.name}</p>
+                      {e.description && (
+                        <p className="text-xs text-text-secondary">{e.description}</p>
+                      )}
                       {e.date && (
                         <p className="text-sm text-text-secondary">{formatDate(e.date)}</p>
                       )}

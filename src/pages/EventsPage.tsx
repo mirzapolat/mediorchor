@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
+import { Input, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
@@ -16,7 +16,7 @@ import type { Event } from '@/types';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const blank = { name: '', date: '', time: '' };
+const blank = { name: '', description: '', date: '', time: '' };
 
 export const EventsPage = () => {
   const { t } = useI18n();
@@ -79,6 +79,7 @@ export const EventsPage = () => {
     const payload = {
       project_id: project.id,
       name: form.name.trim(),
+      description: form.description.trim() || null,
       date: form.date || null,
       time: form.time || null,
     };
@@ -120,19 +121,24 @@ export const EventsPage = () => {
       header: t('eventName'),
       accessor: (ev) => ev.name,
       render: (ev) => (
-        <div className="flex items-center gap-2">
-          <span className="truncate">{ev.name}</span>
-          {highlightRowId === ev.id ? (
-            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#dcfce7] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
-              {ev.date === today() ? t('todayRehearsal') : t('nextRehearsal')}
-            </span>
-          ) : null}
-          {(warningCounts[ev.id] ?? 0) > 0 ? (
-            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#fef2f2] px-2 py-1 text-xs font-semibold text-[#b91c1c]">
-              <AlertTriangle size={13} />
-              {warningCounts[ev.id]} {t('unrecognizedCheckIns').toLowerCase()}
-            </span>
-          ) : null}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="truncate">{ev.name}</span>
+            {highlightRowId === ev.id ? (
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#dcfce7] px-2 py-0.5 text-xs font-semibold text-[#16803b]">
+                {ev.date === today() ? t('todayRehearsal') : t('nextRehearsal')}
+              </span>
+            ) : null}
+            {(warningCounts[ev.id] ?? 0) > 0 ? (
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-[#fef2f2] px-2 py-1 text-xs font-semibold text-[#b91c1c]">
+                <AlertTriangle size={13} />
+                {warningCounts[ev.id]} {t('unrecognizedCheckIns').toLowerCase()}
+              </span>
+            ) : null}
+          </div>
+          {ev.description && (
+            <p className="mt-0.5 line-clamp-2 text-xs text-text-secondary">{ev.description}</p>
+          )}
         </div>
       ),
     },
@@ -198,7 +204,7 @@ export const EventsPage = () => {
         columns={columns}
         getRowId={(ev) => ev.id}
         onRowClick={(ev) => navigate(`/projects/${project.id}/events/${ev.id}`)}
-        search={(ev) => ev.name}
+        search={(ev) => `${ev.name} ${ev.description ?? ''}`}
         filters={filters}
         highlightRowId={highlightRowId}
         onClearFilters={() => setHighlightNext(false)}
@@ -241,6 +247,14 @@ export const EventsPage = () => {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
             autoFocus
+          />
+          <Textarea
+            label={`${t('eventDescription')} (${t('optional')})`}
+            placeholder={t('eventDescriptionPlaceholder')}
+            rows={2}
+            maxLength={500}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input

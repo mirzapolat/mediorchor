@@ -17,7 +17,7 @@ const ClubHeader = () => {
       )}
     >
       <UsersRound size={collapsed ? 20 : 18} className="text-text-secondary flex-shrink-0" />
-      {!collapsed && <span className="font-semibold truncate">{t('clubMembers')}</span>}
+      {!collapsed && <span className="font-semibold truncate">{t('club')}</span>}
     </div>
   );
 };
@@ -38,7 +38,7 @@ const MobileTab = ({ to, label, icon: Icon }: { to: string; label: string; icon:
   </NavLink>
 );
 
-// The "Vereinsmitglieder" section. On desktop it lives inside the top dashboard
+// The "Verein" section. On desktop it lives inside the top dashboard
 // (the primary app sidebar stays visible) and adds its own secondary sidebar.
 // On mobile the secondary sidebar collapses to a horizontal tab strip so the
 // app's single drawer stays the only off-canvas menu.

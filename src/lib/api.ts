@@ -326,6 +326,13 @@ const auth = {
     return { error };
   },
 
+  // Permanently deletes the signed-in account (password, plus a TOTP code
+  // when two-factor authentication is enabled).
+  deleteUser: async (password: string, code?: string) => {
+    const { error } = await request('DELETE', '/api/auth/user', { password, code });
+    if (!error) emit('SIGNED_OUT', null);
+    return { error };
+  },
   updateUser: async (changes: { email?: string; password?: string }) => {
     const { data, error } = await request<SessionPayload>('PATCH', '/api/auth/user', changes);
     if (data?.session) emit('USER_UPDATED', data.session);

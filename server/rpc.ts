@@ -1,8 +1,10 @@
 // Server-side functions, ported from the former Postgres security-definer
 // functions. They run with full database access (like `security definer`) and
 // do their own authorization. Each call runs in one transaction.
+import { randomInt } from 'node:crypto';
 import { db, authUid, ApiError, forbidden } from './db.ts';
 import { canAccessProject, canManageProjects } from './policies.ts';
+import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -427,25 +429,28 @@ const transfer_registration = (args: Args) => {
   return { success: true, transferred: 1 };
 };
 
-const transfer_all_registrations = (args: Args) => {
-  requireUser();
-  const page = db.prepare('select project_id from registration_pages where id = ?').get(text(args.p_page_id)) as
+// Pending registrations of a page the caller manages, oldest first.
+const pendingRegistrations = (pageId: string) => {
+  const page = db.prepare('select project_id from registration_pages where id = ?').get(pageId) as
     | { project_id: string }
     | undefined;
   if (!page) throw new ApiError('Registration page not found');
   if (!userCanAccessProject(page.project_id)) throw forbidden('Project access denied');
-
   const regs = db
     .prepare(
       `select id, first_name, last_name, email, group_name, user_id
        from registrations where registration_page_id = ? and not transferred
-       order by created_at`,
+       order by created_at, rowid`,
     )
-    .all(text(args.p_page_id)) as Row[];
+    .all(pageId) as Row[];
+  return { projectId: page.project_id, regs };
+};
+
+const transferRegistrations = (projectId: string, regs: Row[]) => {
   const mark = db.prepare('update registrations set transferred = 1, member_id = ? where id = ?');
   for (const reg of regs) {
     const memberId = registrationToMember(
-      page.project_id,
+      projectId,
       text(reg.first_name),
       text(reg.last_name),
       reg.group_name as string | null,
@@ -454,7 +459,115 @@ const transfer_all_registrations = (args: Args) => {
     );
     mark.run(memberId, reg.id);
   }
+};
+
+const transfer_all_registrations = (args: Args) => {
+  requireUser();
+  const { projectId, regs } = pendingRegistrations(text(args.p_page_id));
+  transferRegistrations(projectId, regs);
   return { success: true, transferred: regs.length };
+};
+
+// Transfers `p_count` pending registrations: the earliest ones (`first`) or a
+// uniformly random draw (`random`, drawn server-side with a CSPRNG so the
+// selection can't be influenced from the browser). Returns who was picked.
+const transfer_registration_selection = (args: Args) => {
+  requireUser();
+  const { projectId, regs } = pendingRegistrations(text(args.p_page_id));
+  const count = Math.min(Math.max(Math.floor(Number(args.p_count) || 0), 0), regs.length);
+  if (count === 0) return { success: true, transferred: 0, selected: [] };
+
+  let picked: Row[];
+  if (args.p_mode === 'random') {
+    const pool = [...regs];
+    // Partial Fisher–Yates: the first `count` slots end up a uniform sample.
+    for (let i = 0; i < count; i++) {
+      const j = i + randomInt(pool.length - i);
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    picked = pool.slice(0, count);
+  } else if (args.p_mode === 'first') {
+    picked = regs.slice(0, count);
+  } else {
+    throw new ApiError('Unknown selection mode');
+  }
+
+  transferRegistrations(projectId, picked);
+  return {
+    success: true,
+    transferred: picked.length,
+    selected: picked.map((r) => ({ id: r.id, first_name: r.first_name, last_name: r.last_name })),
+  };
+};
+
+// Re-applies a webhook page's current field mapping to its pending
+// registrations that still carry their raw fields. Transferred rows and rows
+// without raw fields (older entries, rows a manager edited by hand) stay as
+// they are, as do rows the new mapping can't produce a name for.
+const remap_webhook_registrations = (args: Args) => {
+  requireUser();
+  const page = db
+    .prepare(
+      'select id, project_id, source, webhook_mapping, webhook_last_payload from registration_pages where id = ?',
+    )
+    .get(text(args.p_page_id)) as
+    | { id: string; project_id: string; source: string; webhook_mapping: string; webhook_last_payload: string | null }
+    | undefined;
+  if (!page) throw new ApiError('Registration page not found');
+  if (!userCanAccessProject(page.project_id)) throw forbidden('Project access denied');
+  if (page.source !== 'webhook') return { updated: 0, skipped: 0, without_raw: 0 };
+
+  const mapping = parseMapping(page.webhook_mapping);
+  const groups = projectGroupNames(page.project_id);
+
+  // Refresh what the last delivery's fields map to, for the mapping display.
+  try {
+    const last = page.webhook_last_payload ? (JSON.parse(page.webhook_last_payload) as { fields?: Fields }) : null;
+    if (last?.fields) {
+      db.prepare('update registration_pages set webhook_last_payload = ? where id = ?').run(
+        JSON.stringify({ fields: last.fields, matched: matchFields(last.fields, mapping) }),
+        page.id,
+      );
+    }
+  } catch {
+    /* unreadable payload: leave it */
+  }
+  const regs = db
+    .prepare(
+      `select id, first_name, last_name, email, group_name, raw_payload
+       from registrations where registration_page_id = ? and not transferred`,
+    )
+    .all(page.id) as Row[];
+  const save = db.prepare(
+    'update registrations set first_name = ?, last_name = ?, email = ?, group_name = ? where id = ?',
+  );
+
+  let updated = 0;
+  let skipped = 0;
+  let withoutRaw = 0;
+  for (const reg of regs) {
+    let fields: Fields | null = null;
+    try {
+      fields = reg.raw_payload ? (JSON.parse(text(reg.raw_payload)) as Fields) : null;
+    } catch {
+      fields = null;
+    }
+    if (!fields) {
+      withoutRaw++;
+      continue;
+    }
+    const result = extractRegistration(fields, matchFields(fields, mapping), groups);
+    if (!result.ok) {
+      skipped++;
+      continue;
+    }
+    const next = [result.firstName, result.lastName, result.email, result.groupName];
+    const current = [reg.first_name, reg.last_name, reg.email ?? null, reg.group_name ?? null];
+    if (next.every((v, i) => v === current[i])) continue;
+    save.run(...next, reg.id);
+    updated++;
+  }
+  return { updated, skipped, without_raw: withoutRaw };
 };
 
 // Attaches unlinked member rows whose email matches the caller's confirmed
@@ -598,6 +711,8 @@ const functions: Record<string, (args: Args) => unknown> = {
   assign_checkin_submission,
   transfer_registration,
   transfer_all_registrations,
+  transfer_registration_selection,
+  remap_webhook_registrations,
   claim_my_memberships,
   join_project,
   leave_project,

@@ -10,35 +10,11 @@ import { Hono, type Context } from 'hono';
 import { db, nowIso, ApiError } from './db.ts';
 import { rateLimit } from './ratelimit.ts';
 import { projectGroupNames, registrationToMember } from './rpc.ts';
+import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_STORED_FIELDS = 50;
 const MAX_STORED_VALUE = 300;
-
-type Fields = Record<string, string>;
-type Target = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name';
-const TARGETS: Target[] = ['first_name', 'last_name', 'full_name', 'email', 'group_name'];
-
-// Lower-case, keep letters/digits only ("E-Mail-Adresse" → "emailadresse").
-const norm = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]/g, '');
-
-// Synonyms per target (normalized). Exact matches win over "contains" matches.
-const SYNONYMS: Record<Target, string[]> = {
-  first_name: ['firstname', 'first', 'vorname', 'givenname', 'forename', 'prenom'],
-  last_name: ['lastname', 'last', 'nachname', 'surname', 'familyname', 'familienname', 'nom'],
-  full_name: ['name', 'fullname', 'vollername', 'vollstaendigername', 'deinname', 'ihrname', 'yourname'],
-  email: ['email', 'emailaddress', 'emailadresse', 'mail', 'mailadresse', 'respondentemail'],
-  group_name: ['group', 'gruppe', 'stimme', 'stimmgruppe', 'stimmlage', 'voice', 'instrument', 'register', 'section'],
-};
-
-// A "name" field only counts as the full name when it isn't qualified.
-const NAME_QUALIFIERS = ['vor', 'nach', 'first', 'last', 'sur', 'given', 'famil', 'user', 'nick'];
 
 const isScalar = (v: unknown): v is string | number | boolean =>
   typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
@@ -107,71 +83,6 @@ const readFields = async (c: Context): Promise<Fields> => {
   return fields;
 };
 
-// Field whose full key or last path segment matches `wanted`.
-const findKey = (fields: Fields, wanted: string): string | null => {
-  const target = norm(wanted);
-  if (!target) return null;
-  return (
-    Object.keys(fields).find((k) => norm(k) === target) ??
-    Object.keys(fields).find((k) => norm(k.split('.').pop() ?? '') === target) ??
-    null
-  );
-};
-
-const guessKey = (fields: Fields, target: Target, taken: Set<string>): string | null => {
-  const keys = Object.keys(fields).filter((k) => !taken.has(k) && fields[k] !== '');
-  const leaf = (k: string) => norm(k.split('.').pop() ?? k);
-  const exact = keys.find((k) => SYNONYMS[target].includes(leaf(k)));
-  if (exact) return exact;
-  return (
-    keys.find((k) => {
-      const n = leaf(k);
-      if (target === 'full_name') {
-        return n.includes('name') && !NAME_QUALIFIERS.some((q) => n.includes(q));
-      }
-      // Short synonyms ("last", "mail", "nom") only match exactly.
-      return SYNONYMS[target].some((s) => s.length >= 5 && n.includes(s));
-    }) ?? null
-  );
-};
-
-// Which incoming field feeds which target: explicit mapping first, then guesses.
-const matchFields = (fields: Fields, mapping: Partial<Record<Target, string>>) => {
-  const matched = {} as Record<Target, string | null>;
-  const taken = new Set<string>();
-  for (const target of TARGETS) {
-    const explicit = mapping[target]?.trim();
-    matched[target] = explicit ? findKey(fields, explicit) : null;
-    if (matched[target]) taken.add(matched[target]!);
-  }
-  for (const target of TARGETS) {
-    if (mapping[target]?.trim() || matched[target]) continue;
-    // A full name is only needed when first/last aren't both there.
-    if (target === 'full_name' && matched.first_name && matched.last_name) continue;
-    matched[target] = guessKey(fields, target, taken);
-    if (matched[target]) taken.add(matched[target]!);
-  }
-  return matched;
-};
-
-// Same rule as the rest of the app: split at the last space.
-const splitName = (full: string) => {
-  const trimmed = full.trim().replace(/\s+/g, ' ');
-  const at = trimmed.lastIndexOf(' ');
-  return at === -1
-    ? { first: trimmed, last: '' }
-    : { first: trimmed.slice(0, at), last: trimmed.slice(at + 1) };
-};
-
-const parseMapping = (raw: unknown): Partial<Record<Target, string>> => {
-  try {
-    const parsed = JSON.parse(typeof raw === 'string' ? raw : '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-};
-
 const storedFields = (fields: Fields): Fields =>
   Object.fromEntries(
     Object.entries(fields)
@@ -226,33 +137,14 @@ webhookRoutes.post('/registrations/:token', async (c) => {
     return c.json({ ok: false, error: 'inactive' }, 409);
   }
 
-  const value = (target: Target) => (matched[target] ? fields[matched[target]!].trim() : '');
-  let firstName = value('first_name');
-  let lastName = value('last_name');
-  // Fill whatever is missing from a full-name field ("Anna Maria Müller").
-  if ((!firstName || !lastName) && value('full_name')) {
-    const split = splitName(value('full_name'));
-    firstName ||= split.first;
-    lastName ||= firstName === split.first ? split.last : value('full_name');
+  const result = extractRegistration(fields, matched, projectGroupNames(page.project_id));
+  if (!result.ok) {
+    record(result.error);
+    return c.json({ ok: false, error: result.error }, 422);
   }
-  const email = value('email') || null;
-  const rawGroup = value('group_name');
-
-  if (!firstName) {
-    record('missing_name');
-    return c.json({ ok: false, error: 'missing_name' }, 422);
-  }
-  if (firstName.length > 120 || lastName.length > 120 || (email ?? '').length > 200 || rawGroup.length > 120) {
-    record('invalid_input');
-    return c.json({ ok: false, error: 'invalid_input' }, 422);
-  }
-
-  // Match the project's groups ignoring case; unknown groups stay on the
-  // registration for a manager to resolve and are never auto-transferred.
-  const groups = projectGroupNames(page.project_id);
-  const known = groups.find((g) => g.toLowerCase() === rawGroup.toLowerCase());
-  const groupName = known ?? (rawGroup || null);
-  const canTransfer = Boolean(page.auto_transfer) && (!rawGroup || Boolean(known));
+  const { firstName, lastName, email, groupName, knownGroup } = result;
+  // Registrations with a group the project doesn't have are never auto-transferred.
+  const canTransfer = Boolean(page.auto_transfer) && knownGroup;
 
   const memberId = db.transaction(() => {
     const id = canTransfer
@@ -260,9 +152,9 @@ webhookRoutes.post('/registrations/:token', async (c) => {
       : null;
     db.prepare(
       `insert into registrations
-         (registration_page_id, first_name, last_name, email, group_name, member_id, transferred)
-       values (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(page.id, firstName, lastName, email, groupName, id, id ? 1 : 0);
+         (registration_page_id, first_name, last_name, email, group_name, member_id, transferred, raw_payload)
+       values (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(page.id, firstName, lastName, email, groupName, id, id ? 1 : 0, JSON.stringify(storedFields(fields)));
     record('ok');
     return id;
   })();

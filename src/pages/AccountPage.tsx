@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ShieldCheck, ShieldOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
+import { Modal } from '@/components/Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -89,6 +91,8 @@ export const AccountPage = () => {
           </Card>
 
           <TwoFactorCard />
+
+          <DeleteAccountCard />
         </div>
       </div>
     </>
@@ -194,6 +198,108 @@ const TwoFactorCard = () => {
           {error && <p className="text-sm text-accent">{error}</p>}
         </>
       )}
+    </Card>
+  );
+};
+
+// Permanently deletes the own account after re-entering the password.
+const DeleteAccountCard = () => {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  // Accounts with verified 2FA must also enter a current code.
+  const [needsCode, setNeedsCode] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const openDialog = async () => {
+    setOpen(true);
+    const { data } = await api.auth.mfa.listFactors();
+    setNeedsCode(Boolean(data?.totp?.some((f) => f.status === 'verified')));
+  };
+
+  const close = () => {
+    setOpen(false);
+    setPassword('');
+    setCode('');
+    setError(null);
+  };
+
+  const confirm = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error: deleteError } = await api.auth.deleteUser(password, needsCode ? code : undefined);
+    setBusy(false);
+    if (deleteError) {
+      if (deleteError.code === 'mfa_required') setNeedsCode(true);
+      const messages: Record<string, string> = {
+        invalid_credentials: t('deleteAccountWrongPassword'),
+        last_admin: t('deleteAccountLastAdmin'),
+        mfa_required: t('deleteAccountConfirm2fa'),
+        mfa_verification_failed: t('deleteAccountWrongCode'),
+      };
+      setError(messages[deleteError.code ?? ''] ?? deleteError.message);
+      return;
+    }
+    navigate('/login', { replace: true });
+  };
+
+  return (
+    <Card className="space-y-3">
+      <h2 className="text-base font-medium">{t('deleteAccount')}</h2>
+      <p className="text-sm text-text-secondary">{t('deleteAccountHint')}</p>
+      <Button variant="accent" onClick={openDialog}>
+        <Trash2 size={15} />
+        {t('deleteAccount')}
+      </Button>
+
+      <Modal
+        open={open}
+        title={t('deleteAccount')}
+        onClose={close}
+        footer={
+          <>
+            <Button variant="secondary" onClick={close}>
+              {t('cancel')}
+            </Button>
+            <Button type="submit" form="delete-account-form" variant="accent" disabled={busy || !password || (needsCode && code.trim().length < 6)}>
+              {busy ? t('loading') : t('deleteAccount')}
+            </Button>
+          </>
+        }
+      >
+        <form id="delete-account-form" onSubmit={confirm} className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            {needsCode ? t('deleteAccountConfirm2fa') : t('deleteAccountConfirm')}
+          </p>
+          <Input
+            type="password"
+            label={t('password')}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoFocus
+            required
+          />
+          {needsCode && (
+            <Input
+              label={t('deleteAccountCode')}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              className="max-w-[160px] tracking-widest"
+              required
+            />
+          )}
+          {error && <p className="text-sm text-accent">{error}</p>}
+        </form>
+      </Modal>
     </Card>
   );
 };

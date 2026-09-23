@@ -35,7 +35,7 @@ export const AppLayout = () => {
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
           {canAccessClub && (
-            <SidebarNavItem to="/club" label={t('clubMembers')} icon={UsersRound} />
+            <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />
           )}
         </div>
 

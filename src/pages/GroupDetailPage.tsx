@@ -82,16 +82,7 @@ export const GroupDetailPage = () => {
       id: 'last_name',
       header: t('lastName'),
       accessor: (m) => m.last_name,
-      render: (m) => (
-        <span className="flex items-center gap-2.5">
-          {m.last_name || '—'}
-          {m.status === 'archived' && (
-            <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-text-tertiary">
-              {t('archived')}
-            </span>
-          )}
-        </span>
-      ),
+      render: (m) => <span>{m.last_name || '—'}</span>,
     },
     {
       id: 'email',
@@ -99,13 +90,30 @@ export const GroupDetailPage = () => {
       accessor: (m) => m.email,
       render: (m) => <span className="text-text-secondary">{m.email ?? '—'}</span>,
     },
+    {
+      id: 'status',
+      header: t('status'),
+      accessor: (m) => (m.status === 'active' ? 0 : 1),
+      render: (m) =>
+        m.status === 'active' ? (
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#16803b]">
+            <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
+            {t('active')}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary">
+            <span className="h-2 w-2 rounded-full bg-text-tertiary" />
+            {t('archived')}
+          </span>
+        ),
+      className: 'w-px whitespace-nowrap',
+    },
   ];
 
   const filters: FilterDef<Member>[] = [
     {
       id: 'status',
       label: t('status'),
-      defaultValue: 'active',
       options: [
         { value: 'active', label: t('active') },
         { value: 'archived', label: t('archived') },

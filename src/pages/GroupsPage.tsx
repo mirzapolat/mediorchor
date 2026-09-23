@@ -9,18 +9,19 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { GroupPill } from '@/components/GroupPill';
 import { GroupForm } from '@/components/GroupForm';
+import { GroupDonut, type DonutSlice } from '@/components/GroupDonut';
+import { Card } from '@/components/Card';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import type { ProjectGroup } from '@/types';
 
-// Counts active members per group (by lower-cased group name).
-export const countMembersByGroup = (rows: { group_name: string | null }[]) => {
+// Counts active members per group (by lower-cased group name; '' = no group).
+const countMembersByGroup = (rows: { group_name: string | null }[]) => {
   const counts = new Map<string, number>();
   for (const { group_name } of rows) {
-    if (!group_name) continue;
-    const key = group_name.toLowerCase();
+    const key = (group_name ?? '').trim().toLowerCase();
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
@@ -80,6 +81,14 @@ export const GroupsPage = () => {
   if (loading) return <PageSpinner />;
 
   const countOf = (g: ProjectGroup) => counts.get(g.name.toLowerCase()) ?? 0;
+  const unassigned = counts.get('') ?? 0;
+
+  const slices: DonutSlice[] = [
+    ...groups.map((g) => ({ id: g.id, label: g.name, value: countOf(g), color: g.color })),
+    ...(unassigned > 0
+      ? [{ id: 'none', label: t('noGroupAssigned'), value: unassigned, color: '', muted: true }]
+      : []),
+  ];
 
   const columns: Column<ProjectGroup>[] = [
     {
@@ -113,31 +122,46 @@ export const GroupsPage = () => {
         }
       />
 
-      <DataTable
-        rows={groups}
-        columns={columns}
-        getRowId={(g) => g.id}
-        onRowClick={(g) => navigate(`/projects/${project.id}/groups/${g.id}`)}
-        onReorder={reorder}
-        emptyMessage={t('noGroups')}
-        emptyIcon={Tags}
-        actions={(g) => (
-          <>
-            <RowActionButton
-              label={t('edit')}
-              onClick={() => {
-                setEditing(g);
-                setFormOpen(true);
-              }}
-            >
-              <Pencil size={15} />
-            </RowActionButton>
-            <RowActionButton label={t('delete')} onClick={() => setToDelete(g)}>
-              <Trash2 size={15} />
-            </RowActionButton>
-          </>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <DataTable
+          rows={groups}
+          columns={columns}
+          getRowId={(g) => g.id}
+          onRowClick={(g) => navigate(`/projects/${project.id}/groups/${g.id}`)}
+          onReorder={reorder}
+          emptyMessage={t('noGroups')}
+          emptyIcon={Tags}
+          actions={(g) => (
+            <>
+              <RowActionButton
+                label={t('edit')}
+                onClick={() => {
+                  setEditing(g);
+                  setFormOpen(true);
+                }}
+              >
+                <Pencil size={15} />
+              </RowActionButton>
+              <RowActionButton label={t('delete')} onClick={() => setToDelete(g)}>
+                <Trash2 size={15} />
+              </RowActionButton>
+            </>
+          )}
+        />
+
+        {groups.length > 0 && (
+          <Card className="p-6 lg:sticky lg:top-6">
+            <div className="mb-5">
+              <h2 className="text-base font-medium">{t('groupDistribution')}</h2>
+              <p className="mt-0.5 text-sm text-text-secondary">{t('groupDistributionHint')}</p>
+            </div>
+            <GroupDonut
+              slices={slices}
+              onSelect={(slice) => navigate(`/projects/${project.id}/groups/${slice.id}`)}
+            />
+          </Card>
         )}
-      />
+      </div>
 
       <GroupForm
         open={formOpen}

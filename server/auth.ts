@@ -434,6 +434,46 @@ authRoutes.patch('/user', async (c) => {
   return c.json({ ...sessionPayload(requireSession(c)), email_change_pending: emailChangePending });
 });
 
+// Delete the own account after re-entering the password (and, with 2FA, a
+// current code). Deleting the auth user cascades to the profile, sessions,
+// tokens, 2FA and project scope; linked member rows keep their attendance
+// history and are just unlinked.
+authRoutes.delete('/user', async (c) => {
+  rateLimit(c, 'delete-account', 10, 15 * 60 * 1000);
+  const user = requireSession(c);
+  const { password, code } = await body(c);
+
+  // Never leave the instance without an administrator.
+  const { me, others } = db
+    .prepare(
+      `select coalesce(sum(id = @id), 0) as me, coalesce(sum(id <> @id), 0) as others
+       from app_users where is_admin`,
+    )
+    .get({ id: user.id }) as { me: number; others: number };
+  if (me && !others) {
+    throw new ApiError('The last administrator cannot delete their account', 400, 'last_admin');
+  }
+
+  const row = db.prepare('select password_hash from auth_users where id = ?').get(user.id) as
+    | { password_hash: string }
+    | undefined;
+  if (!row || typeof password !== 'string' || !(await verifyPassword(password, row.password_hash))) {
+    throw new ApiError('Invalid password', 400, 'invalid_credentials');
+  }
+
+  const factor = verifiedFactor(user.id);
+  if (factor) {
+    if (typeof code !== 'string' || !code.trim()) {
+      throw new ApiError('A two-factor code is required', 400, 'mfa_required');
+    }
+    useFactorCode(factor, code.trim());
+  }
+
+  db.prepare('delete from auth_users where id = ?').run(user.id);
+  deleteCookie(c, COOKIE, { path: '/' });
+  return c.json({ ok: true });
+});
+
 // --- two-factor -------------------------------------------------------------
 
 authRoutes.get('/mfa/factors', (c) => {

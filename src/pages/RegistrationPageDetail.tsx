@@ -7,6 +7,7 @@ import {
   Copy,
   Pencil,
   Play,
+  Shuffle,
   Square,
   Trash2,
   UserPlus,
@@ -23,6 +24,7 @@ import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationPageForm } from '@/components/RegistrationPageForm';
 import { WebhookSetup } from '@/components/WebhookSetup';
+import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
@@ -55,6 +57,7 @@ export const RegistrationPageDetail = () => {
   const [toDelete, setToDelete] = useState<Registration | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectionOpen, setSelectionOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [pageResult, regsResult] = await Promise.all([
@@ -175,6 +178,8 @@ export const RegistrationPageDetail = () => {
         last_name: draft.last_name.trim(),
         email: draft.email.trim() || null,
         group_name: draft.group_name.trim() || null,
+        // Hand edits win: the row is no longer re-mapped from its raw fields.
+        raw_payload: null,
       })
       .eq('id', editingId);
     setEditingId(null);
@@ -395,11 +400,21 @@ export const RegistrationPageDetail = () => {
             </Button>
           </div>
         ) : (
-          <Button disabled={busy || pendingCount === 0} onClick={transferAll}>
-            <Users size={16} />
-            {t('transferAllToMembers')}
-            {pendingCount > 0 ? ` (${pendingCount})` : ''}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={busy || pendingCount === 0}
+              onClick={() => setSelectionOpen(true)}
+            >
+              <Shuffle size={16} />
+              {t('transferSelection')}
+            </Button>
+            <Button disabled={busy || pendingCount === 0} onClick={transferAll}>
+              <Users size={16} />
+              {t('transferAllToMembers')}
+              {pendingCount > 0 ? ` (${pendingCount})` : ''}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -457,6 +472,14 @@ export const RegistrationPageDetail = () => {
         destructive
         onConfirm={remove}
         onCancel={() => setToDelete(null)}
+      />
+
+      <RegistrationSelectionDialog
+        open={selectionOpen}
+        pageId={page.id}
+        pending={registrations.filter((r) => !r.transferred)}
+        onClose={() => setSelectionOpen(false)}
+        onTransferred={() => void load()}
       />
 
       <ConfirmDialog

@@ -102,6 +102,7 @@ Unlinked member rows whose email matches an account's **confirmed** email addres
 - **Name propagation:** changing the display name renames every linked member row across all projects. The name is split into first/last at the last space. A manager may afterwards rename that member within a project; the UI then flags "name differs from account" and shows the account's name.
 - UI language switch (German / English), remembered per browser.
 - **Two-factor authentication** via time-based one-time codes: enroll (shows a QR code to scan, then asks for a 6-digit confirmation code), and disable.
+- **Delete account:** a card explaining the consequences opens a dialog that requires the current password and, when two-factor authentication is enabled, a current code from the authenticator app (the code field appears automatically; a missing or wrong code is rejected with its own message). Deleting removes the account, its sign-in, sessions, pending email links, 2FA and project-management scope; member rows linked to it stay (with their attendance history) but are unlinked — signing up again later with the same email re-links them automatically. The last remaining administrator cannot delete their account ("Make someone else an administrator first"). Afterwards the user lands on the login page.
 
 ### 4.5 Account administration (administrators only)
 
@@ -129,9 +130,9 @@ A dedicated administration area with its own sidebar (Users, Configuration) and 
 Every authenticated screen is a **left sidebar + scrolling content** layout. Content is capped at a comfortable max width with generous padding that shrinks on small screens.
 
 The sidebar is a shared shell reused by every section:
-- **Header** — an icon/logo plus the current context's name (app name, project name + logo, event name + date/time, "Admin settings", "Club members"). Sub-contexts (project, event, admin) additionally show a "back" row at the very top.
+- **Header** — an icon/logo plus the current context's name (app name, project name + logo, event name + date/time, "Admin settings", "Club (beta)"). Sub-contexts (project, event, admin) additionally show a "back" row at the very top.
 - **Nav items** — icon + label, active item highlighted, optional red warning badge with a count.
-- **Footer** — Admin link (administrators only), Account link showing the user's name, and Sign out.
+- **Footer** — Admin link (administrators only), then an **account card**: a rounded, bordered rectangle with the user's avatar (initials), name and email linking to account settings, and sign-out as an icon-only button (tooltip "Sign out", turns red on hover). Collapsed, the card shows just the avatar above the sign-out icon.
 - **Collapsible** to a 64px icon rail (labels become tooltips; badges become a red dot).
 - **Resizable** by dragging the right edge (200–440px).
 - Collapsed state and width persist per browser, and independently per sidebar so a nested sidebar keeps its own preference.
@@ -267,8 +268,8 @@ Joining rules: a manager/administrator may join any project they can access. A p
 Four cards:
 
 1. **My group** — a dropdown of the project's groups, saved immediately with a "✓". Once a group is set it can be changed but not cleared (the server rejects an empty group while the project has groups). If the project defines no groups, a muted "No groups are available for this project."
-2. **Upcoming events** — every event dated today or later, name plus date and time.
-3. **My attendance** — every past or undated event (newest first) with its own status badge. Undated events count as held. Above the list, any **public absence labels** whose conditions this person currently matches are shown as accent-outlined chips.
+2. **Upcoming events** — every event dated today or later, name (with its description in small text below, if any) plus date and time.
+3. **My attendance** — every past or undated event (newest first) with its description in small text below the name, if any, and its own status badge. Undated events count as held. Above the list, any **public absence labels** whose conditions this person currently matches are shown as accent-outlined chips.
 4. **Leave project** — an accent button with a confirmation. Leaving archives the member row: the person disappears from the active member list and loses participant access, but their attendance history is preserved and rejoining restores everything.
 
 ---
@@ -296,10 +297,10 @@ A guided dialog:
 
 1. **File** — pick a `.csv`. The parser handles quoted fields, escaped quotes, embedded newlines, a leading byte-order mark, and auto-detects the delimiter among comma, semicolon and tab. Fully blank rows are dropped.
 2. **Header row** — a checkbox for "First row contains column names"; when off, generic "Column N" headers are generated and every record is data.
-3. **Name format** — radio choice between *first and last name in separate columns* and *full name in one column*. In combined mode the name is split at the last space, and single-token names are allowed (empty last name); in split mode both are required.
-4. **Column mapping** — dropdowns mapping CSV columns to first name / last name (or full name), plus optional group and email. Mapping is **pre-guessed** from the headers by substring matching in both languages (`vorname/first/given`, `nachname/last/surname/familien`, `gruppe/group/team/klasse`, `mail`), and the full-name guess looks for a header containing "name" without a first/last qualifier.
-5. **New groups** — shown only when the mapped group column contains groups the project doesn't have (values matching an existing group apart from case are mapped to it silently). For each new group the manager chooses: **create it as a new group** (default; appended to the project's groups with the next palette color), **assign its rows to an existing group**, or **remove** it (those rows get no group).
-6. **Preview** — "*n* of *total* rows will be imported", the first 5 valid rows in a mini table, "… and *n* more", and the note "Rows without a first and last name are skipped."
+3. **Column mapping (graphical)** — the first 5 rows are shown as a preview table ("… and *n* more" below). Above every column sits a chip-styled dropdown to assign what the column contains: *First name*, *Last name*, *Full name*, *Email*, *Group* or *Not used*. Each attribute has its own color and icon; assigned columns are tinted in that color with a colored top edge, unused columns are greyed out. Assigning an attribute moves it from any other column (one column per attribute, one attribute per column). Columns are **pre-assigned** from the headers by substring matching in both languages (`vorname/first/given`, `nachname/last/surname/familien`, `mail`, `gruppe/group/team/klasse/stimme/instrument/register`); a "name" header without a first/last qualifier becomes the full name when first and last name aren't both found.
+   - Names: first and last name come from their own columns; a *Full name* column fills whatever is missing, split at the last space. Required is either first + last name, or a full name (then single-token names are allowed). Until then an accent note asks for it.
+4. **New groups** — shown only when the group column contains groups the project doesn't have (values matching an existing group apart from case are mapped to it silently). For each new group the manager chooses: **create it as a new group** (default; appended to the project's groups with the next palette color), **assign its rows to an existing group**, or **remove** it (those rows get no group).
+5. **Result preview** — "How members will be created": the first 3 resulting members (first name, last name, email, group pill). The footer states "*n* of *total* rows will be imported"; rows without a usable name are skipped.
 
 Import is a single batch operation; errors are surfaced inline.
 
@@ -316,11 +317,13 @@ A project page of its own (sidebar: **Groups**, managers only). Groups live in t
 
 **Group list** — a table of all groups in their configured order: the group pill and the number of active members in it. Rows are **drag-sortable**; that order is used everywhere (check-in and registration forms, the participation picker, member forms, group filters). Row click opens the group; row actions edit and delete. Hint in the header: "The order here is used everywhere … Drag to reorder."
 
+**Distribution chart** — on wide screens a second, sticky column next to the table: a card "Distribution · Active members per group" with a **donut chart** of active members per group in the group colors, in the configured order starting at 12 o'clock, separated by thin surface-colored gaps; members without a group form a grey hatched segment ("No group"). The hole shows the total ("64 Members"); hovering a segment or legend row lifts that segment slightly, fades the others and shows its name, count and share in the hole. Below it a legend (color dot, name, count, percentage) doubles as the accessible table view; clicking a segment or row opens the group. On narrow screens the card stacks under the table. New groups get their preset colors in an order validated so that neighbouring segments stay distinguishable, including for colour-blind readers.
+
 **Create / edit dialog** — group name (unique within the project regardless of case; a duplicate is flagged inline) and a color: ten preset swatches (rose, orange, amber, green, teal, sky, indigo, purple, pink, slate) or a **custom color** via the system color picker. A live pill preview shows the result. New groups preselect the next palette color. Editing a name notes that the rename applies to all members.
 
 **Delete** — confirmation stating how many members will lose their group.
 
-**Group detail** — back link, the group name with its active member count, edit and delete buttons, the pill, and a table of the group's members (first name with avatar, last name with an "Archived" tag, email), searchable, filtered to Active by default. Row click opens the member.
+**Group detail** — back link, the group name with its active member count, edit and delete buttons, the pill, and a table of the group's members (first name with avatar, last name, email, and a status column with a green "Active" or grey "Archived" dot), searchable, with a status filter (all members shown by default). Row click opens the member.
 
 **Group pills** — wherever a group is shown in a table or on a member (members, group detail, event attendance, check-in submissions and the assign picker, absences, registrations, member detail), it is rendered as a rounded pill tinted with the group's color and a colored dot. A group that isn't in the project (a pending webhook registration) renders grey.
 
@@ -335,7 +338,7 @@ A project page of its own (sidebar: **Groups**, managers only). Groups live in t
 
 ### 9.1 Events list (managers)
 
-Table sorted by date ascending (then time; undated events last), columns: name, date, time. Search by name; filter by timeframe (Upcoming / Past). Create/edit dialog: name (required), optional date, optional time.
+Table sorted by date ascending (then time; undated events last), columns: name (with the optional description in small text below, clamped to two lines), date, time. Search by name and description; filter by timeframe (Upcoming / Past). Create dialog: name (required), optional description (up to 500 characters), optional date, optional time.
 
 Two badges appear inline on rows:
 - The **next rehearsal** — the nearest event dated today or later — is pinned to the top, tinted green, and tagged "Today" or "Next rehearsal". Resetting the filters unpins it.
@@ -356,7 +359,7 @@ An event gets its own sidebar layout, so opening it feels like entering it: a ba
 
 ### 9.4 Event settings
 
-Name, date and time in a card with a "✓" on save, plus a delete card with confirmation that returns to the events list.
+Name, optional description, date and time in a card with a "✓" on save, plus a delete card with confirmation that returns to the events list.
 
 ---
 
@@ -406,6 +409,8 @@ The public endpoints never expose member names or any other project data — onl
 
 ### 11.1 Registration pages (managers)
 
+In the UI the list is titled **Registrations** (*Anmeldungen*, also the sidebar label) and each page is called a **source** (*Quelle*): "New source", "Edit source", "No sources yet".
+
 A project can have any number of registration pages, each of one of two **types**, chosen when it is created:
 - **Form** — the public registration wizard (§11.3), shared by link or QR code.
 - **Webhook** — entries arrive from an external tool (Google Forms, Microsoft Forms, Zapier, IFTTT, Make, …) through a secret URL (§11.4).
@@ -432,6 +437,11 @@ Both types feed the same registrations list, table, transfer and auto-transfer. 
   - **Delete** with confirmation.
   - **Bulk selection:** checkboxes enable "*n* selected" plus bulk *Transfer to members* and bulk *Delete* (with a confirmation warning it cannot be undone).
   - **Transfer all** button showing the count of pending rows, replaced by the bulk actions while a selection exists.
+  - **Transfer a selection** (next to Transfer all, also hidden while rows are selected) opens a dialog to transfer only part of the pending registrations:
+    - **The first *n*** — the earliest *n* by registration time; a numbered preview lists who will be transferred (first 8, then "and *n* more").
+    - **Random draw** — *n* registrations drawn uniformly at random **on the server** with a cryptographically secure random source, so the draw can't be influenced from the browser.
+    - The number is set with a −/+ stepper or typed, limited to 1…pending ("of *N* pending registrations"). The submit button reads "Transfer *n*" / "Draw and transfer *n*".
+    - Afterwards the dialog lists exactly who was transferred (numbered, with check marks) until closed with "Done"; the table refreshes behind it. Transfers follow the usual transfer semantics.
 
 **Transfer semantics:** transferring creates an active project member from the registration and marks it transferred. If the registration was submitted by a signed-in account that *already* has a member row in that project, that row is re-activated (and its group updated) rather than duplicated, and the new member is linked to the account. Transferring an already-transferred registration is a no-op.
 
@@ -469,8 +479,8 @@ A webhook page's token never opens the public form (it shows "no longer valid"),
 
 **Webhook panel** (on the page detail, two columns on wide screens):
 - **Webhook URL** with copy button and "Generate new URL", plus a hint to treat the URL like a password.
-- **Last delivery** — timestamp and outcome (Accepted / Rejected: no name found / values too long / registration inactive), a refresh button, and a table of the received fields and values (up to 50 fields, values truncated), with "→ First name" etc. next to the fields that were used. Stored for rejected deliveries too, so a failing setup can be diagnosed.
-- **Field mapping** — one dropdown per target: "Automatic (detected: <field>)" or any field seen in the last delivery. Saved immediately.
+- **Last delivery & mapping** (one card) — timestamp and outcome (Accepted / Rejected: no name found / values too long / registration inactive), a refresh button, and the received fields as a list (up to 50 fields, values truncated; stored for rejected deliveries too, so a failing setup can be diagnosed). Each row shows the field name, its value and the same attribute chip as the CSV import: fields the server **detected** show their attribute with a dashed "AUTO" chip, explicitly chosen ones a solid chip; rows in use are tinted with a colored left edge. Choosing an attribute fixes it for that field (moving it from any other field); choosing *Not used* on a detected field **switches that attribute off** (it is then neither mapped nor detected). Below the list: "Switched off: …" and "Restore automatic detection" to clear all choices. Saved immediately.
+- **Re-mapping pending registrations:** every webhook registration stores the fields it arrived with (up to 50 fields, values truncated). Whenever the mapping changes (including "Restore automatic detection"), all **pending** (not transferred) registrations of the page are re-derived from their stored fields with the new mapping — same rules as on arrival, including case-insensitive group matching — and the table refreshes. Transferred registrations never change. A registration edited by hand drops its stored fields and keeps the manual values; registrations from before this feature have no stored fields either. Rows the new mapping can't produce a name for stay unchanged. A green note reports the outcome ("Mapping saved – *n* pending registrations updated · *n* unchanged because no name would be found · *n* without raw data"). The detection shown for the last delivery is recomputed at the same time.
 - **Setup** — tabs with step-by-step guides for Google Forms (a copy-ready Apps Script with the URL filled in, installed as an "On form submit" trigger), Microsoft Forms (Power Automate), Zapier, IFTTT, Make and "Other" (formats, detected fields, responses and a curl example), each noting plan requirements where relevant.
 
 ---
@@ -572,7 +582,9 @@ For an audio block with bars. The recording is assumed to be **evenly divided** 
 
 ---
 
-## 15. Club members (association directory)
+## 15. Club (association directory)
+
+Shown in the navigation as **Club (beta)** / *Verein (Beta)*.
 
 A workspace-wide directory, gated behind the club-access capability, with its own nested sidebar (Members / Membership applications / Rules) that becomes a horizontal tab strip on mobile. Applications and Rules are placeholders showing "Coming soon".
 
@@ -592,7 +604,7 @@ This directory is completely separate from project members — no linking, no sh
 
 ## 16. Cross-cutting behaviours
 
-**Internationalisation** — every visible string comes from a German/English dictionary. The default language comes from configuration; the user's choice overrides it and persists per browser. Dates and times are formatted per locale (`de-DE` vs. `en-GB`/`en-US`). Note the domain wording: the German term for "event" is *Probe* (rehearsal), and "club members" is *Vereinsmitglieder*.
+**Internationalisation** — every visible string comes from a German/English dictionary. The default language comes from configuration; the user's choice overrides it and persists per browser. Dates and times are formatted per locale (`de-DE` vs. `en-GB`/`en-US`). Note the domain wording: the German term for "event" is *Probe* (rehearsal), and the club section is *Verein*.
 
 **Branding** — app name, accent color and default language are deployment configuration, resolvable at container start without rebuilding the frontend. The accent color drives a CSS variable and an auto-darkened hover shade; the app name sets the document title; the logo is the favicon.
 
@@ -634,7 +646,7 @@ member             id, project, first_name, last_name, group_name, email, photo_
                    status (active|archived|guest), account (nullable), created_at
                    — unique: one linked member per (project, account)
 
-event              id, project, name, date?, time?, created_at
+event              id, project, name, description?, date?, time?, created_at
 attendance         id, event, member, status (attended|excused|not_attended), is_guest
                    — unique: (event, member)
 
@@ -649,7 +661,8 @@ registration_page  id, project, token, source (form|webhook), title, description
                    {fields, matched}, webhook_last_received_at,
                    webhook_last_status, created_at
 registration       id, page, first_name, last_name, email?, group_name?,
-                   member?, transferred, account?, created_at
+                   member?, transferred, account?, raw_payload? (webhook fields),
+                   created_at
 
 piece              id, project, name, composer, position, created_at
 piece_block        id, piece, type (file|audio|link|text), title,

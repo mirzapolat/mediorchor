@@ -36,6 +36,26 @@ const dict: Dict = {
   actions: { de: 'Aktionen', en: 'Actions' },
   clearFilters: { de: 'Zurücksetzen', en: 'Reset' },
   collapse: { de: 'Einklappen', en: 'Collapse' },
+  deleteAccount: { de: 'Konto löschen', en: 'Delete account' },
+  deleteAccountHint: {
+    de: 'Dein Konto und deine Anmeldedaten werden endgültig gelöscht. Deine bisherige Anwesenheit in Projekten bleibt als Mitgliedseintrag erhalten, ist aber nicht mehr mit einem Konto verbunden.',
+    en: 'Your account and sign-in are permanently deleted. Your attendance history in projects stays as member entries, no longer connected to an account.',
+  },
+  deleteAccountConfirm: {
+    de: 'Das kann nicht rückgängig gemacht werden. Gib zur Bestätigung dein Passwort ein.',
+    en: 'This cannot be undone. Enter your password to confirm.',
+  },
+  deleteAccountWrongPassword: { de: 'Das Passwort ist falsch.', en: 'The password is incorrect.' },
+  deleteAccountConfirm2fa: {
+    de: 'Das kann nicht rückgängig gemacht werden. Gib zur Bestätigung dein Passwort und einen aktuellen Code aus deiner Authenticator-App ein.',
+    en: 'This cannot be undone. Enter your password and a current code from your authenticator app to confirm.',
+  },
+  deleteAccountCode: { de: 'Code aus der Authenticator-App', en: 'Authenticator code' },
+  deleteAccountWrongCode: { de: 'Der Code ist falsch oder abgelaufen.', en: 'The code is incorrect or expired.' },
+  deleteAccountLastAdmin: {
+    de: 'Du bist der letzte Administrator. Ernenne zuerst jemand anderen zum Administrator.',
+    en: 'You are the last administrator. Make someone else an administrator first.',
+  },
   expand: { de: 'Ausklappen', en: 'Expand' },
   remove: { de: 'Entfernen', en: 'Remove' },
   reorder: { de: 'Verschieben', en: 'Reorder' },
@@ -192,27 +212,19 @@ const dict: Dict = {
     de: 'Erste Zeile enthält Spaltennamen',
     en: 'First row contains column names',
   },
-  nameFormat: { de: 'Namensformat', en: 'Name format' },
-  nameSeparate: {
-    de: 'Vor- und Nachname getrennt',
-    en: 'First and last name separate',
-  },
-  nameCombined: {
-    de: 'Voller Name in einem Feld',
-    en: 'Full name in one field',
-  },
-  nameCombinedHint: {
-    de: 'Der Name wird beim letzten Leerzeichen in Vor- und Nachname getrennt.',
-    en: 'The name is split into first and last name at the last space.',
-  },
-  fullName: { de: 'Voller Name', en: 'Full name' },
   mapColumns: { de: 'Spalten zuordnen', en: 'Map columns' },
-  mapColumnsHint: {
-    de: 'Lege fest, welche Spalte der CSV welchem Feld entspricht.',
-    en: 'Choose which CSV column maps to which field.',
-  },
-  notMapped: { de: '— nicht zuordnen —', en: '— do not map —' },
   preview: { de: 'Vorschau', en: 'Preview' },
+  mapNotUsed: { de: 'Nicht verwenden', en: 'Not used' },
+  mapAssign: { de: 'Attribut zuordnen', en: 'Assign attribute' },
+  mapColumnsVisualHint: {
+    de: 'Wähle über jeder Spalte, was sie enthält. Erkannte Spalten sind schon zugeordnet.',
+    en: 'Choose above each column what it contains. Recognised columns are already assigned.',
+  },
+  mapNameRequired: {
+    de: 'Ordne Vorname und Nachname zu – oder eine Spalte mit dem vollständigen Namen.',
+    en: 'Assign first and last name – or one column with the full name.',
+  },
+  importResultPreview: { de: 'So werden die Mitglieder angelegt', en: 'How members will be created' },
   rowsReadyToImport: {
     de: '{n} von {total} Zeilen werden importiert',
     en: '{n} of {total} rows will be imported',
@@ -242,6 +254,11 @@ const dict: Dict = {
   newEvent: { de: 'Neue Probe', en: 'New event' },
   editEvent: { de: 'Probe bearbeiten', en: 'Edit event' },
   eventName: { de: 'Probenname', en: 'Event name' },
+  eventDescription: { de: 'Beschreibung', en: 'Description' },
+  eventDescriptionPlaceholder: {
+    de: 'z. B. Tutti, nur Streicher, Raum 2',
+    en: 'e.g. tutti, strings only, room 2',
+  },
   date: { de: 'Datum', en: 'Date' },
   time: { de: 'Uhrzeit', en: 'Time' },
   noEvents: { de: 'Noch keine Proben', en: 'No events yet' },
@@ -473,8 +490,8 @@ const dict: Dict = {
     en: 'Participants see the pieces page with scores, audio and the practice view.',
   },
 
-  // Club members (Vereinsmitglieder)
-  clubMembers: { de: 'Vereinsmitglieder', en: 'Club members' },
+  // Club (Verein) section with the association's member directory
+  club: { de: 'Verein (Beta)', en: 'Club (beta)' },
   membershipApplications: { de: 'Mitgliedsanträge', en: 'Membership applications' },
   rules: { de: 'Regeln', en: 'Rules' },
   newClubMember: { de: 'Neues Vereinsmitglied', en: 'New club member' },
@@ -585,9 +602,9 @@ const dict: Dict = {
   },
 
   // Registration pages
-  registration: { de: 'Anmeldung', en: 'Registration' },
-  registrationPages: { de: 'Anmeldeseiten', en: 'Registration pages' },
-  newRegistrationPage: { de: 'Neue Anmeldeseite', en: 'New registration page' },
+  registration: { de: 'Anmeldungen', en: 'Registrations' },
+  registrationPages: { de: 'Anmeldungen', en: 'Registrations' },
+  newRegistrationPage: { de: 'Neue Quelle', en: 'New source' },
   registrationSource: { de: 'Art', en: 'Type' },
   sourceForm: { de: 'Formular', en: 'Form' },
   sourceFormHint: {
@@ -618,15 +635,24 @@ const dict: Dict = {
   webhookStatus_missing_name: { de: 'Abgelehnt: kein Name erkannt', en: 'Rejected: no name found' },
   webhookStatus_invalid_input: { de: 'Abgelehnt: Werte zu lang', en: 'Rejected: values too long' },
   webhookStatus_inactive: { de: 'Abgelehnt: Anmeldung inaktiv', en: 'Rejected: registration inactive' },
-  webhookField: { de: 'Feld', en: 'Field' },
-  webhookValue: { de: 'Wert', en: 'Value' },
-  webhookMapping: { de: 'Feldzuordnung', en: 'Field mapping' },
-  webhookMappingHint: {
-    de: 'Standardmäßig werden Felder wie „Vorname“, „Nachname“, „Name“, „E-Mail“ oder „Gruppe“ automatisch erkannt. Lege hier fest, welches Feld verwendet werden soll, wenn die Erkennung nicht passt.',
-    en: 'By default fields such as "First name", "Last name", "Name", "Email" or "Group" are detected automatically. Choose a field here when the detection gets it wrong.',
+  webhookMappingVisualHint: {
+    de: 'Rechts siehst du, wofür jedes Feld verwendet wird. „Auto“ ist automatisch erkannt – wähle etwas anderes, um es festzulegen.',
+    en: 'On the right you see what each field is used for. "Auto" is detected automatically – choose something else to fix it.',
   },
-  webhookAuto: { de: 'Automatisch', en: 'Automatic' },
-  webhookAutoDetected: { de: 'Automatisch (erkannt: {field})', en: 'Automatic (detected: {field})' },
+  webhookSwitchedOff: { de: 'Ausgeschaltet', en: 'Switched off' },
+  remapUpdated: {
+    de: 'Zuordnung gespeichert – {n} offene Anmeldungen aktualisiert',
+    en: 'Mapping saved – {n} pending registrations updated',
+  },
+  remapSkipped: {
+    de: '{n} unverändert, weil damit kein Name erkannt würde',
+    en: '{n} unchanged because no name would be found',
+  },
+  remapWithoutRaw: {
+    de: '{n} ohne Rohdaten (älter oder von Hand bearbeitet)',
+    en: '{n} without raw data (older or edited by hand)',
+  },
+  webhookResetMapping: { de: 'Automatische Erkennung wiederherstellen', en: 'Restore automatic detection' },
   fullNameField: { de: 'Vollständiger Name', en: 'Full name' },
   webhookSetup: { de: 'Einrichtung', en: 'Setup' },
   webhookAutoTransferNote: {
@@ -637,8 +663,8 @@ const dict: Dict = {
     de: 'Nicht im Projekt – vor dem Übertragen anpassen',
     en: 'Not in the project – adjust before transferring',
   },
-  editRegistrationPage: { de: 'Anmeldeseite bearbeiten', en: 'Edit registration page' },
-  noRegistrationPages: { de: 'Noch keine Anmeldeseiten', en: 'No registration pages yet' },
+  editRegistrationPage: { de: 'Quelle bearbeiten', en: 'Edit source' },
+  noRegistrationPages: { de: 'Noch keine Quellen', en: 'No sources yet' },
   registrationTitle: { de: 'Titel', en: 'Title' },
   registrationDescription: { de: 'Beschreibung', en: 'Description' },
   registrationDescriptionHint: {
@@ -663,6 +689,13 @@ const dict: Dict = {
   customColor: { de: 'Eigene Farbe', en: 'Custom color' },
   groupMemberCount: { de: 'Mitglieder', en: 'Members' },
   noGroups: { de: 'Noch keine Gruppen', en: 'No groups yet' },
+  groupDistribution: { de: 'Verteilung', en: 'Distribution' },
+  groupDistributionHint: {
+    de: 'Aktive Mitglieder je Gruppe',
+    en: 'Active members per group',
+  },
+  groupDonutTotal: { de: 'Mitglieder', en: 'Members' },
+  noGroupAssigned: { de: 'Ohne Gruppe', en: 'No group' },
   noMembersInGroup: { de: 'Keine Mitglieder in dieser Gruppe', en: 'No members in this group' },
   groupNameTaken: {
     de: 'Eine Gruppe mit diesem Namen gibt es bereits.',
@@ -688,6 +721,25 @@ const dict: Dict = {
   noRegistrations: { de: 'Noch keine Anmeldungen', en: 'No registrations yet' },
   transferToMembers: { de: 'Zu Mitgliedern übertragen', en: 'Transfer to members' },
   transferAllToMembers: { de: 'Alle übertragen', en: 'Transfer all' },
+  transferSelection: { de: 'Auswahl übertragen', en: 'Transfer a selection' },
+  selectionFirst: { de: 'Die ersten', en: 'The first' },
+  selectionFirstHint: {
+    de: 'Nach Anmeldezeitpunkt, früheste zuerst.',
+    en: 'By registration time, earliest first.',
+  },
+  selectionRandom: { de: 'Zufällig auslosen', en: 'Random draw' },
+  selectionRandomHint: {
+    de: 'Gleichmäßig zufällig aus allen offenen Anmeldungen, gelost auf dem Server.',
+    en: 'Uniformly at random from all pending registrations, drawn on the server.',
+  },
+  selectionCount: { de: 'Anzahl', en: 'Number' },
+  selectionOfPending: { de: 'von {n} offenen Anmeldungen', en: 'of {n} pending registrations' },
+  selectionSubmit: { de: '{n} übertragen', en: 'Transfer {n}' },
+  selectionDrawSubmit: { de: '{n} auslosen und übertragen', en: 'Draw and transfer {n}' },
+  selectionPreview: { de: 'Diese Anmeldungen werden übertragen', en: 'These registrations will be transferred' },
+  selectionResult: { de: '{n} übertragen', en: '{n} transferred' },
+  selectionDrawResult: { de: 'Ausgelost und übertragen: {n}', en: 'Drawn and transferred: {n}' },
+  selectionAndMore: { de: 'und {n} weitere', en: 'and {n} more' },
   selectedCount: { de: '{n} ausgewählt', en: '{n} selected' },
   confirmBulkDeleteRegistrations: {
     de: 'Ausgewählte Anmeldungen endgültig löschen? Dies kann nicht rückgängig gemacht werden.',
