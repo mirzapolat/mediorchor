@@ -6,6 +6,7 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { MailStatsCard } from '@/components/MailStatsCard';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api, type ApiError } from '@/lib/api';
@@ -332,6 +333,10 @@ export const AdminEmailPage = () => {
             </p>
           )}
         </Card>
+      </div>
+
+      <div className="mt-6 max-w-5xl">
+        <MailStatsCard />
       </div>
 
       <ConfirmDialog

@@ -17,11 +17,18 @@ export const channels = (hex: string): string => {
   return m ? [m[1], m[2], m[3]].map((c) => parseInt(c, 16)).join(' ') : '239 161 0';
 };
 
-// Applies env-driven branding (accent color + document title) once at startup.
-// App name and accent color come purely from VITE_* env vars; the logo is the
-// favicon.
+// Applies the branding (accent color, document title, favicon) once at
+// startup. The values come from /config.js: Admin Config → Branding, else the
+// VITE_* environment; the server also puts name and favicon into index.html.
 export const applyBranding = () => {
   document.documentElement.style.setProperty('--c-accent', channels(config.accentColor));
   document.documentElement.style.setProperty('--c-accent-hover', channels(darken(config.accentColor)));
   document.title = config.appName;
+  if (config.logoUrl) {
+    const icon = document.getElementById('favicon') as HTMLLinkElement | null;
+    if (icon) {
+      icon.type = 'image/png';
+      icon.href = config.logoUrl;
+    }
+  }
 };

@@ -37,6 +37,14 @@ export default {
       },
       // Background tint of public pages; the accent unless a page sets one.
       tint: token('tint'),
+      // Categorical chart series (fixed order; see index.css).
+      chart: {
+        1: token('chart-1'),
+        2: token('chart-2'),
+        3: token('chart-3'),
+        4: token('chart-4'),
+        5: token('chart-5'),
+      },
       // Inverse pair: swaps in dark mode (see index.css).
       black: {
         DEFAULT: token('black'),

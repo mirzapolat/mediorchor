@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Archive, ArchiveRestore, Pencil, Trash2, UserCog } from 'lucide-react';
+import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, UserCog } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
@@ -17,9 +17,11 @@ import type { Project } from '@/types';
 
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { isAdmin, canManageProjects } = useAuth();
+  const { isAdmin, canManageProjects, user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
+  // Projects I take part in myself: an active member row linked to my account.
+  const [participating, setParticipating] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [toDelete, setToDelete] = useState<Project | null>(null);
   const [accessFor, setAccessFor] = useState<Project | null>(null);
@@ -27,17 +29,21 @@ export const ProjectsPage = () => {
   const tf = useTableFilters({ status: 'active' });
 
   const load = async () => {
-    const { data } = await api
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [{ data }, { data: mine }] = await Promise.all([
+      api.from('projects').select('*').order('created_at', { ascending: false }),
+      user
+        ? api.from('members').select('project_id').eq('user_id', user.id).eq('status', 'active')
+        : Promise.resolve({ data: [] }),
+    ]);
     setProjects((data as Project[]) ?? []);
+    setParticipating(new Set(((mine as { project_id: string }[] | null) ?? []).map((m) => m.project_id)));
     setLoading(false);
   };
 
   useEffect(() => {
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const toggleArchive = async (p: Project) => {
     await api
@@ -84,6 +90,21 @@ export const ProjectsPage = () => {
           <span className="text-text-secondary">—</span>
         ),
     },
+    {
+      id: 'participating',
+      header: t('myParticipation'),
+      accessor: (p) => (participating.has(p.id) ? 1 : 0),
+      className: 'w-px whitespace-nowrap',
+      render: (p) =>
+        participating.has(p.id) ? (
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success-strong">
+            <Check size={15} />
+            {t('participatingYes')}
+          </span>
+        ) : (
+          <span className="text-text-tertiary">—</span>
+        ),
+    },
   ];
 
   const filters = tf.bind<Project>([
@@ -95,6 +116,15 @@ export const ProjectsPage = () => {
         { value: 'archived', label: t('archived') },
       ],
       predicate: (p, v) => p.status === v,
+    },
+    {
+      id: 'participating',
+      label: t('myParticipation'),
+      options: [
+        { value: 'yes', label: t('participatingYes') },
+        { value: 'no', label: t('participatingNo') },
+      ],
+      predicate: (p, v) => participating.has(p.id) === (v === 'yes'),
     },
   ]);
 

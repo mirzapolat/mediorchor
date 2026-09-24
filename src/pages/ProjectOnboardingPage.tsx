@@ -238,6 +238,9 @@ const Onboarding = () => {
         name: form.name.trim(),
         description: form.description.trim() || null,
         created_by: user?.id ?? null,
+        // New projects ask sign-ups for a group by default (takes effect once
+        // the project has groups); can be turned off in the project settings.
+        require_signup_group: true,
       })
       .select()
       .single();

@@ -4,7 +4,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { useI18n } from '@/lib/i18n';
 
-// Size of the crop area on screen and of the saved image, in px.
+// Size of the crop area on screen and (default) of the saved image, in px.
 const VIEWPORT = 288;
 const OUTPUT = 512;
 const MAX_ZOOM = 4;
@@ -17,17 +17,26 @@ interface View {
   y: number;
 }
 
-// Lets the user move and zoom a picked photo inside a circular frame and
-// returns the square crop as a JPEG file.
+// Lets the user move and zoom a picked photo inside a frame and returns the
+// square crop as a JPEG file. The frame is a circle for avatars ('circle') or
+// the whole square for images shown as squares, like registration covers.
 export const PhotoCropper = ({
   file,
   onCancel,
   onConfirm,
+  shape = 'circle',
+  outputSize = OUTPUT,
+  format = 'jpeg',
 }: {
   // The picked image; the dialog is open while set.
   file: File | null;
   onCancel: () => void;
   onConfirm: (cropped: File) => void;
+  shape?: 'circle' | 'square';
+  // Edge length of the saved image in px.
+  outputSize?: number;
+  // PNG keeps transparency (logos); JPEG is smaller (photos).
+  format?: 'jpeg' | 'png';
 }) => {
   const { t } = useI18n();
   const [src, setSrc] = useState<string | null>(null);
@@ -106,21 +115,24 @@ export const PhotoCropper = ({
     setSaving(true);
     const s = scaleOf(view.zoom);
     const canvas = document.createElement('canvas');
-    canvas.width = OUTPUT;
-    canvas.height = OUTPUT;
+    canvas.width = outputSize;
+    canvas.height = outputSize;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    // Transparent areas (e.g. PNGs) become white in the JPEG.
-    ctx.fillStyle = '#ffffff'; // theme-ok: exported JPEG background
-    ctx.fillRect(0, 0, OUTPUT, OUTPUT);
+    // Transparent areas (e.g. PNGs) become white in a JPEG; a PNG keeps them.
+    if (format === 'jpeg') {
+      ctx.fillStyle = '#ffffff'; // theme-ok: exported JPEG background
+      ctx.fillRect(0, 0, outputSize, outputSize);
+    }
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, -view.x / s, -view.y / s, VIEWPORT / s, VIEWPORT / s, 0, 0, OUTPUT, OUTPUT);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    ctx.drawImage(img, -view.x / s, -view.y / s, VIEWPORT / s, VIEWPORT / s, 0, 0, outputSize, outputSize);
+    const type = format === 'png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9));
     if (!blob) {
       setSaving(false);
       return;
     }
-    onConfirm(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+    onConfirm(new File([blob], format === 'png' ? 'image.png' : 'photo.jpg', { type }));
   };
 
   const s = scaleOf(view.zoom);
@@ -141,7 +153,7 @@ export const PhotoCropper = ({
         </>
       }
     >
-      <p className="text-sm text-text-secondary">{t('cropPhotoHint')}</p>
+      <p className="text-sm text-text-secondary">{shape === 'square' ? t('cropSquareHint') : t('cropPhotoHint')}</p>
       <div className="flex justify-center">
         <div
           className="relative cursor-grab touch-none select-none overflow-hidden rounded-md bg-surface-hover active:cursor-grabbing"
@@ -167,12 +179,23 @@ export const PhotoCropper = ({
               }
             />
           )}
-          {/* Dims everything outside the circle that becomes the avatar. It sits
-              on the photo, not the page, so it looks the same in both themes. */}
-          <div
-            className="pointer-events-none absolute inset-0 rounded-full"
-            style={{ boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', outline: '2px solid rgba(255,255,255,0.9)' }} // theme-ok: overlay on the photo
-          />
+          {/* Circle: dims everything outside the circle that becomes the avatar.
+              Square: the whole area is kept; a thin rule-of-thirds grid helps
+              framing. Both sit on the photo, not the page, so they look the
+              same in both themes. */}
+          {shape === 'circle' ? (
+            <div
+              className="pointer-events-none absolute inset-0 rounded-full"
+              style={{ boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', outline: '2px solid rgba(255,255,255,0.9)' }} // theme-ok: overlay on the photo
+            />
+          ) : (
+            <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-paper/90">
+              <span className="absolute inset-y-0 left-1/3 w-px bg-paper/40" />
+              <span className="absolute inset-y-0 left-2/3 w-px bg-paper/40" />
+              <span className="absolute inset-x-0 top-1/3 h-px bg-paper/40" />
+              <span className="absolute inset-x-0 top-2/3 h-px bg-paper/40" />
+            </div>
+          )}
         </div>
       </div>
       <div className="mx-auto flex max-w-[288px] items-center gap-3">

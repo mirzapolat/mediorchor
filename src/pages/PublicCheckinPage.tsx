@@ -8,6 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { LegalFooter } from '@/components/LegalLinks';
 import { AppLogo } from '@/components/AppLogo';
 
 type PublicCheckinInfo =
@@ -267,6 +268,7 @@ export const PublicCheckinPage = () => {
             </h1>
           </Card>
         )}
+        <LegalFooter className="mt-10" />
       </div>
     </main>
   );

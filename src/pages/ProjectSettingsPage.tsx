@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { TranslationKey } from '@/lib/i18n';
+import { CardColumns } from '@/components/CardColumns';
 import { useAuth } from '@/hooks/useAuth';
 
 export const ProjectSettingsPage = () => {
@@ -105,11 +106,11 @@ export const ProjectSettingsPage = () => {
       <form
         id="project-settings"
         onSubmit={save}
-        className="grid gap-6 max-w-5xl lg:grid-cols-2 lg:items-start"
+        className="max-w-5xl"
       >
-        {/* Two balanced columns on wide screens; on phones the cards stack in
-            reading order: general, participants, check-in, sign-up, delete. */}
-        <div className="space-y-6">
+        {/* Balanced columns on wide screens; on phones the cards stack in
+            reading order: general, participants, check-in, sign-up. */}
+        <CardColumns>
           <Card className="space-y-4">
             <h2 className="text-base font-medium">{t('generalSettings')}</h2>
             <div>
@@ -170,9 +171,7 @@ export const ProjectSettingsPage = () => {
             values={access}
             onToggle={toggle}
           />
-        </div>
 
-        <div className="space-y-6">
           <ToggleCard
             title={t('checkinSettings')}
             hint={t('checkinSettingsHint')}
@@ -230,9 +229,9 @@ export const ProjectSettingsPage = () => {
               <p className="text-sm text-text-secondary">{t('defaultGroupHint')}</p>
             </div>
           </ToggleCard>
-        </div>
+        </CardColumns>
 
-        <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+        <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-medium">{t('deleteProject')}</h2>
             <p className="text-sm text-text-secondary mt-1">{t('confirmDelete')}</p>

@@ -29,6 +29,8 @@
                        (QR codes to scan, print-like previews)
      tint              background glow of public pages; the accent unless a
                        registration form sets its own color
+     chart-1 … chart-5 categorical chart series, fixed order, validated for
+                       color-vision deficiency per theme
 
    The active theme is html[data-theme="light" | "dark"], set before first
    paint by the script in index.html and kept in sync by ThemeProvider.
@@ -66,6 +68,15 @@
   --c-paper: 255 255 255;
   /* Background tint of public pages (overridden per registration form). */
   --c-tint: var(--c-accent);
+  /* Categorical chart series, in fixed order (never cycled). Validated for
+     color-vision deficiency on the light surface; the dark theme has its own
+     steps below. Slots 3–5 are < 3:1 on white, so charts using them ship a
+     legend and a table view. */
+  --c-chart-1: 42 120 214;
+  --c-chart-2: 235 104 52;
+  --c-chart-3: 27 175 122;
+  --c-chart-4: 237 161 0;
+  --c-chart-5: 232 123 164;
 }
 
 :root[data-theme='dark'] {
@@ -92,6 +103,11 @@
   --c-danger-soft: 48 18 18;
   --c-info-soft: 20 32 56;
   --c-info-soft-strong: 27 44 76;
+  --c-chart-1: 57 135 229;
+  --c-chart-2: 217 89 38;
+  --c-chart-3: 25 158 112;
+  --c-chart-4: 201 133 0;
+  --c-chart-5: 213 81 129;
 }
 
 /* The app logo (public/favicon.svg) is drawn for light backgrounds; in dark
@@ -113,6 +129,11 @@
   --color-text-secondary: rgb(var(--c-text-secondary));
   --color-black: rgb(var(--c-black));
   --color-accent: rgb(var(--c-accent));
+  --color-chart-1: rgb(var(--c-chart-1));
+  --color-chart-2: rgb(var(--c-chart-2));
+  --color-chart-3: rgb(var(--c-chart-3));
+  --color-chart-4: rgb(var(--c-chart-4));
+  --color-chart-5: rgb(var(--c-chart-5));
 }
 
 html,

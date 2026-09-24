@@ -4,6 +4,7 @@ import { useSidebar } from './Sidebar';
 import { Avatar } from './Avatar';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
+import { FadingText } from './FadingText';
 import { useAuth } from '@/hooks/useAuth';
 
 // Shared bottom section for every sidebar: an account card
@@ -61,10 +62,8 @@ export const SidebarFooter = () => {
           >
             <Avatar name={name} photoUrl={user?.photo_url} size={32} />
             <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-medium text-text">{name}</span>
-              {user?.email && (
-                <span className="block truncate text-xs text-text-tertiary">{user.email}</span>
-              )}
+              <FadingText className="block text-sm font-medium text-text">{name}</FadingText>
+              {user?.email && <FadingText className="block text-xs text-text-tertiary">{user.email}</FadingText>}
             </span>
           </NavLink>
           {signOutButton}

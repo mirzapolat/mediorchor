@@ -4,6 +4,7 @@ import { SidebarNavItem } from '@/components/SidebarNav';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
+import { FadingText } from '@/components/FadingText';
 import { useAuth } from '@/hooks/useAuth';
 
 const ClubHeader = () => {
@@ -17,7 +18,7 @@ const ClubHeader = () => {
       )}
     >
       <UsersRound size={collapsed ? 20 : 18} className="text-text-secondary flex-shrink-0" />
-      {!collapsed && <span className="font-semibold truncate">{t('club')}</span>}
+      {!collapsed && <FadingText className="font-semibold">{t('club')}</FadingText>}
     </div>
   );
 };

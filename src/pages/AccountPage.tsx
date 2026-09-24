@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
 import { useTheme, type ThemePreference } from '@/lib/theme';
+import { CardColumns } from '@/components/CardColumns';
 import { cn } from '@/lib/cn';
 
 export const AccountPage = () => {
@@ -59,7 +60,7 @@ export const AccountPage = () => {
     <>
       <PageHeader title={t('account')} subtitle={user.email} />
 
-      <div className="grid gap-6 max-w-5xl lg:grid-cols-2 lg:items-start">
+      <CardColumns>
         <form onSubmit={saveProfile}>
           <Card className="space-y-4">
             <h2 className="text-base font-medium">{t('account')}</h2>
@@ -124,35 +125,33 @@ export const AccountPage = () => {
           </Card>
         </form>
 
-        <div className="space-y-6">
-          <Card className="space-y-4">
-            <h2 className="text-base font-medium">{t('language')}</h2>
-            <Select
-              value={lang}
-              onChange={(e) => {
-                const next = e.target.value as Language;
-                setLang(next);
-                // Emails use the account's language.
-                if (user) void api.from('app_users').update({ language: next }).eq('id', user.id);
-              }}
-              className="max-w-[200px]"
-            >
-              <option value="en">English</option>
-              <option value="de">Deutsch</option>
-            </Select>
-          </Card>
+        <Card className="space-y-4">
+          <h2 className="text-base font-medium">{t('language')}</h2>
+          <Select
+            value={lang}
+            onChange={(e) => {
+              const next = e.target.value as Language;
+              setLang(next);
+              // Emails use the account's language.
+              if (user) void api.from('app_users').update({ language: next }).eq('id', user.id);
+            }}
+            className="max-w-[200px]"
+          >
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+          </Select>
+        </Card>
 
-          <AppearanceCard />
+        <AppearanceCard />
 
-          <NotificationsCard />
+        <NotificationsCard />
 
-          <SessionsCard />
+        <SessionsCard />
 
-          <TwoFactorCard />
+        <TwoFactorCard />
 
-          <DeleteAccountCard />
-        </div>
-      </div>
+        <DeleteAccountCard />
+      </CardColumns>
       {photo.cropper}
     </>
   );

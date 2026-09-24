@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { useAuth } from '@/hooks/useAuth';
+import { FadingText } from '@/components/FadingText';
 import type { Project } from '@/types';
 
 const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => void }) => {
@@ -38,7 +39,7 @@ const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => vo
         )}
       >
         <Avatar name={project.name} photoUrl={project.image_url} size={collapsed ? 32 : 28} square />
-        {!collapsed && <span className="font-semibold truncate">{project.name}</span>}
+        {!collapsed && <FadingText className="font-semibold">{project.name}</FadingText>}
       </div>
     </>
   );

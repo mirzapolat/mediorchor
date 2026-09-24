@@ -15,6 +15,7 @@ import {
 } from '@/layouts/ProjectLayout';
 import { EventLayout } from '@/layouts/EventLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { LegalPage } from '@/pages/LegalPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
 import { ProjectOnboardingPage } from '@/pages/ProjectOnboardingPage';
 import { ClubMembersPage } from '@/pages/ClubMembersPage';
@@ -54,12 +55,16 @@ export const App = () => {
 
   if (
     location.pathname.startsWith('/check-in/') ||
-    location.pathname.startsWith('/register/')
+    location.pathname.startsWith('/register/') ||
+    location.pathname === '/impressum' ||
+    location.pathname === '/datenschutz'
   ) {
     return (
       <Routes>
         <Route path="/check-in/:token" element={<PublicCheckinPage />} />
         <Route path="/register/:token" element={<PublicRegistrationPage />} />
+        <Route path="/impressum" element={<LegalPage kind="imprint" />} />
+        <Route path="/datenschutz" element={<LegalPage kind="privacy" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );

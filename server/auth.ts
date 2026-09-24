@@ -5,6 +5,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { db, asUser, nowIso, uuid, ApiError } from './db.ts';
 import { env } from './env.ts';
+import { branding } from './branding.ts';
 import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
 import { rateLimit } from './ratelimit.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
@@ -210,6 +211,8 @@ export const purgeExpired = () => {
   const now = nowIso();
   db.prepare('delete from auth_sessions where expires_at <= ?').run(now);
   db.prepare('delete from auth_tokens where expires_at <= ?').run(now);
+  // The sending statistics look back at most 12 months (plus the comparison).
+  db.prepare("delete from mail_log where sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-400 days')").run();
 };
 
 // ---------------------------------------------------------------------------
@@ -592,7 +595,7 @@ authRoutes.post('/mfa/enroll', (c) => {
     db.prepare(`delete from auth_factors where user_id = ? and status = 'unverified'`).run(user.id);
     db.prepare('insert into auth_factors (id, user_id, secret) values (?, ?, ?)').run(id, user.id, secret);
   })();
-  const issuer = env.client.VITE_APP_NAME;
+  const issuer = branding().appName;
   const label = encodeURIComponent(`${issuer}:${user.email}`);
   const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
   return c.json({ id, factor_type: 'totp', totp: { secret, uri } });

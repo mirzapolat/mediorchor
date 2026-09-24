@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { ImagePlus, Upload, X } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { uploadImage } from '@/lib/uploadImage';
+import { PhotoCropper } from './PhotoCropper';
 
-// Optional cover image of a public registration form. Uploads right away;
-// the URL is saved with the rest of the form.
+// Optional cover image of a public registration form. A picked image must be
+// cropped to a square (the page shows it square) and is then uploaded right
+// away; the URL is saved with the rest of the form.
 export const CoverInput = ({ value, onChange }: { value: string | null; onChange: (url: string | null) => void }) => {
   const { t } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<File | null>(null);
 
   const upload = async (file: File) => {
+    setPicked(null);
     setUploading(true);
     setError(null);
     const { url, error: uploadError } = await uploadImage('registrations', file);
@@ -43,7 +47,7 @@ export const CoverInput = ({ value, onChange }: { value: string | null; onChange
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   e.target.value = '';
-                  if (file) void upload(file);
+                  if (file) setPicked(file);
                 }}
               />
             </label>
@@ -62,6 +66,13 @@ export const CoverInput = ({ value, onChange }: { value: string | null; onChange
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-danger-strong">{error}</p>}
+      <PhotoCropper
+        file={picked}
+        shape="square"
+        outputSize={1200}
+        onCancel={() => setPicked(null)}
+        onConfirm={(cropped) => void upload(cropped)}
+      />
     </div>
   );
 };

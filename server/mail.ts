@@ -4,6 +4,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { db } from './db.ts';
 import { env } from './env.ts';
 import { decryptSecret } from './secrets.ts';
+import { branding } from './branding.ts';
 
 // tls = implicit TLS, starttls = STARTTLS required, none = no encryption,
 // auto = STARTTLS when offered (legacy behaviour of the environment config).
@@ -102,10 +103,41 @@ const transportFor = (config: SmtpConfig) => {
   return cached.transport;
 };
 
-export const sendMail = async (to: string, subject: string, text: string) => {
+// What an email was for, in the sending statistics (mail_log.kind).
+export type MailKind = 'account' | 'reminder' | 'status' | 'weekly' | 'test';
+
+// Error class only (nodemailer code like EAUTH, or the SMTP status); never the
+// message, which can contain the recipient's address.
+const errorCode = (err: unknown) => {
+  const e = err as { code?: unknown; responseCode?: unknown };
+  if (typeof e?.code === 'string' && /^[A-Z_]{2,32}$/.test(e.code)) return e.code;
+  if (typeof e?.responseCode === 'number') return `SMTP_${e.responseCode}`;
+  return 'UNKNOWN';
+};
+
+// Records one send attempt for the statistics; never fails the send itself.
+const logMail = (kind: MailKind, err?: unknown) => {
+  try {
+    db.prepare('insert into mail_log (kind, ok, error) values (?, ?, ?)').run(
+      kind,
+      err === undefined ? 1 : 0,
+      err === undefined ? null : errorCode(err),
+    );
+  } catch (logErr) {
+    console.error('Could not record mail statistics:', logErr);
+  }
+};
+
+export const sendMail = async (to: string, subject: string, text: string, kind: MailKind) => {
   const config = activeSmtpConfig();
   if (!config) throw new Error('Email is not configured');
-  await transportFor(config).sendMail({ from: fromAddress(config), to, subject, text });
+  try {
+    await transportFor(config).sendMail({ from: fromAddress(config), to, subject, text });
+  } catch (err) {
+    logMail(kind, err);
+    throw err;
+  }
+  logMail(kind);
 };
 
 // Connects and authenticates with `config` (which need not be saved yet) and,
@@ -115,7 +147,15 @@ export const testSmtp = async (config: SmtpConfig, to?: string) => {
   const transport = createSmtpTransport(config, 20_000);
   try {
     await transport.verify();
-    if (to) await transport.sendMail({ from: fromAddress(config), to, ...testMail() });
+    if (to) {
+      try {
+        await transport.sendMail({ from: fromAddress(config), to, ...testMail() });
+      } catch (err) {
+        logMail('test', err);
+        throw err;
+      }
+      logMail('test');
+    }
   } catch (err) {
     let message = err instanceof Error ? err.message : String(err);
     if (config.pass) message = message.split(config.pass).join('***');
@@ -125,7 +165,7 @@ export const testSmtp = async (config: SmtpConfig, to?: string) => {
   }
 };
 
-const appName = () => env.client.VITE_APP_NAME;
+const appName = () => branding().appName;
 
 export const sendConfirmSignup = (to: string, link: string) =>
   sendMail(
@@ -144,6 +184,7 @@ export const sendConfirmSignup = (to: string, link: string) =>
       '',
       'Der Link ist 24 Stunden gültig. / The link is valid for 24 hours.',
     ].join('\n'),
+    'account',
   );
 
 export const sendConfirmEmailChange = (to: string, link: string) =>
@@ -163,6 +204,7 @@ export const sendConfirmEmailChange = (to: string, link: string) =>
       '',
       'Der Link ist 24 Stunden gültig. / The link is valid for 24 hours.',
     ].join('\n'),
+    'account',
   );
 
 export const sendPendingSignupNotice = (to: string, name: string, email: string, baseUrl?: string) =>
@@ -180,6 +222,7 @@ export const sendPendingSignupNotice = (to: string, name: string, email: string,
       `${name || email} (${email}) signed up and is waiting for your approval.`,
       ...(baseUrl ? ['', `Approve: ${baseUrl}/admin/users`] : []),
     ].join('\n'),
+    'account',
   );
 
 const testMail = () => ({

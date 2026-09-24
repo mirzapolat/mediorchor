@@ -10,6 +10,7 @@
 import { db } from './db.ts';
 import { env } from './env.ts';
 import { mailEnabled, sendMail } from './mail.ts';
+import { branding } from './branding.ts';
 
 type Lang = 'de' | 'en';
 
@@ -39,7 +40,7 @@ interface EventRow {
 const lang = (r: Recipient): Lang =>
   (r.language ?? env.client.VITE_DEFAULT_LANGUAGE) === 'de' ? 'de' : 'en';
 
-const appName = () => env.client.VITE_APP_NAME;
+const appName = () => branding().appName;
 
 const eventStart = (e: Pick<EventRow, 'date' | 'time'>) => new Date(`${e.date}T${e.time ?? '00:00'}`);
 
@@ -66,9 +67,15 @@ const wasSent = (userId: string, kind: string, ref: string) =>
 const markSent = (userId: string, kind: string, ref: string) =>
   db.prepare('insert or ignore into notification_log (user_id, kind, ref) values (?, ?, ?)').run(userId, kind, ref);
 
-const deliver = async (r: Recipient, kind: string, ref: string, subject: string, lines: string[]) => {
+const deliver = async (
+  r: Recipient,
+  kind: 'reminder' | 'weekly' | 'status',
+  ref: string,
+  subject: string,
+  lines: string[],
+) => {
   try {
-    await sendMail(r.email, `${appName()}: ${subject}`, [...lines, ...footer(lang(r))].join('\n'));
+    await sendMail(r.email, `${appName()}: ${subject}`, [...lines, ...footer(lang(r))].join('\n'), kind);
     markSent(r.user_id, kind, ref);
   } catch (err) {
     console.error(`Sending ${kind} notification to ${r.email} failed:`, err);

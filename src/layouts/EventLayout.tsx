@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
+import { FadingText } from '@/components/FadingText';
 import type { Event, Project } from '@/types';
 
 const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) => {
@@ -34,7 +35,7 @@ const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) =>
         </div>
       ) : (
         <div className="px-5 py-4 border-b border-border">
-          <p className="font-semibold truncate">{event.name}</p>
+          <FadingText className="block font-semibold">{event.name}</FadingText>
           {(event.date || event.time) && (
             <div className="flex items-center gap-3 text-sm text-text-secondary mt-1">
               {event.date && (

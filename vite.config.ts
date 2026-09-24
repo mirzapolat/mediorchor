@@ -20,6 +20,8 @@ export default defineConfig({
     proxy: {
       '/api': apiServer,
       '/files': apiServer,
+      // Branding from Admin Config (falls back to public/config.js without the server).
+      '/config.js': apiServer,
     },
   },
 });

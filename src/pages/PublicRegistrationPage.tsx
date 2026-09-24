@@ -14,6 +14,8 @@ import { config } from '@/lib/config';
 import { channels } from '@/lib/branding';
 import { isHexColor } from '@/lib/groupColors';
 import { cn } from '@/lib/cn';
+import { LegalFooter, LegalLink } from '@/components/LegalLinks';
+import { useLegalPages } from '@/lib/legalPages';
 import { formatDeadlineParts, timeLeft } from '@/lib/registrationDeadline';
 
 type RegistrationInfo =
@@ -35,6 +37,9 @@ type RegistrationInfo =
       description: string;
       ask_email: boolean;
       ask_group: boolean;
+      // The project requires a group (Project settings → sign-up rules);
+      // otherwise the group is optional.
+      require_group: boolean;
       groups: string[];
       project_name: string;
       project_image: string | null;
@@ -64,6 +69,7 @@ type Step = 1 | 2 | 3 | 4;
 export const PublicRegistrationPage = () => {
   const { token = '' } = useParams();
   const { t, lang } = useI18n();
+  const legal = useLegalPages();
   const location = useLocation();
   const { session } = useAuth();
   const [info, setInfo] = useState<RegistrationInfo | null>(null);
@@ -133,7 +139,7 @@ export const PublicRegistrationPage = () => {
     if (!active) return false;
     if (!firstName.trim() || !lastName.trim()) return false;
     if (active.ask_email && !accountMode && !email.trim()) return false;
-    if (active.ask_group && active.groups.length > 0 && !groupName.trim()) return false;
+    if (active.require_group && !groupName.trim()) return false;
     return true;
   }, [active, accountMode, firstName, lastName, email, groupName]);
 
@@ -323,13 +329,13 @@ export const PublicRegistrationPage = () => {
         ) : null}
         {active.ask_group ? (
           <Select
-            label={t('group')}
+            label={active.require_group ? t('group') : `${t('group')} (${t('optional')})`}
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            required
+            required={active.require_group}
             disabled={active.groups.length === 0}
           >
-            <option value="">{t('selectGroup')}</option>
+            <option value="">{active.require_group ? t('selectGroup') : t('noGroupChoice')}</option>
             {active.groups.map((group) => (
               <option key={group} value={group}>
                 {group}
@@ -365,7 +371,16 @@ export const PublicRegistrationPage = () => {
             </div>
           ))}
         </dl>
-        <p className="text-xs leading-relaxed text-text-tertiary">{t('privacyNotice')}</p>
+        <p className="text-xs leading-relaxed text-text-tertiary">
+          {t('privacyNotice')}
+          {legal && legal.privacy.mode !== 'none' ? (
+            <>
+              {' '}
+              {t('privacyReadMore')}{' '}
+              <LegalLink kind="privacy" className="underline underline-offset-2 hover:text-text-secondary" />.
+            </>
+          ) : null}
+        </p>
         <label className="flex cursor-pointer items-start gap-2.5 text-sm">
           <input
             type="checkbox"
@@ -427,7 +442,7 @@ export const PublicRegistrationPage = () => {
             <img
               src={coverUrl}
               alt=""
-              className="aspect-[2/1] w-full rounded-2xl border border-border object-cover shadow-lg md:aspect-square"
+              className="mx-auto aspect-square w-full max-w-md rounded-2xl border border-border object-cover shadow-lg md:max-w-none"
             />
           </aside>
         ) : null}
@@ -512,6 +527,7 @@ const Shell = ({
         </header>
       )}
       {children}
+      <LegalFooter className="mt-12" />
     </div>
   </main>
 );

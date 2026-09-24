@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
 import { api } from '@/lib/api';
 import { safeRedirectPath } from '@/lib/safePath';
+import { LegalFooter } from '@/components/LegalLinks';
 import { AppLogo } from '@/components/AppLogo';
 
 export const LoginPage = () => {
@@ -251,6 +252,7 @@ export const LoginPage = () => {
             </>
           )}
         </div>
+        <LegalFooter className="mt-8" />
       </div>
     </div>
   );

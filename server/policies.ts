@@ -112,6 +112,34 @@ const validateTintColor = (row: Record<string, unknown>) => {
   }
 };
 
+// Absolute http(s) URL, as shown to the public (no javascript:, data:, ...).
+const isHttpUrl = (value: unknown) => {
+  if (typeof value !== 'string' || value.length > 2000) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+};
+
+// Branding: a short plain-text name, a #rrggbb accent, an uploaded logo.
+const validateBranding = (row: Record<string, unknown>) => {
+  const name = row.brand_name;
+  // eslint-disable-next-line no-control-regex
+  if (name != null && (typeof name !== 'string' || name.length > 60 || /[\u0000-\u001f\u007f]/.test(name))) {
+    throw new ApiError('Invalid app name', 400);
+  }
+  const accent = row.brand_accent;
+  if (accent != null && (typeof accent !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(accent))) {
+    throw new ApiError('Invalid accent color', 400);
+  }
+  const logo = row.brand_logo_url;
+  if (logo != null && (typeof logo !== 'string' || !/^\/files\/photos\/[A-Za-z0-9._\/-]+$/.test(logo) || logo.includes('..'))) {
+    throw new ApiError('Invalid logo', 400);
+  }
+};
+
 // --- policies ---------------------------------------------------------------
 
 const PROTECTED_ACCOUNT_FIELDS = [
@@ -172,6 +200,18 @@ export const policies: Record<string, TablePolicy> = {
         const days = Number(patch.session_days);
         if (!Number.isInteger(days) || days < MIN_SESSION_DAYS || days > MAX_SESSION_DAYS) {
           throw new ApiError(`Session length must be ${MIN_SESSION_DAYS}–${MAX_SESSION_DAYS} days`, 400);
+        }
+      }
+      validateBranding(patch);
+      // Legal pages (imprint, privacy policy): bounded text, http(s) links only.
+      for (const kind of ['imprint', 'privacy']) {
+        const text = patch[`${kind}_text`];
+        if (text !== undefined && (typeof text !== 'string' || text.length > 100_000)) {
+          throw new ApiError('Text is too long', 400);
+        }
+        const url = patch[`${kind}_url`];
+        if (url !== undefined && url !== null && !isHttpUrl(url)) {
+          throw new ApiError('Link must be an http(s) URL', 400, 'invalid_legal_url');
         }
       }
     },

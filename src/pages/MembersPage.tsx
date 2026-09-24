@@ -82,29 +82,34 @@ export const MembersPage = () => {
       id: 'first_name',
       header: t('firstName'),
       accessor: (m) => m.first_name,
-      render: (m) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
-          <span>{m.first_name}</span>
-        </div>
-      ),
+      render: (m) => {
+        // A name that differs from the linked account's shows as a dot on the
+        // photo; the details are in the tooltip (and on the member's page).
+        const deviation = accountNameDeviation(m, accountNames[m.id]);
+        const hint = deviation ? `${t('nameDiffersFromAccount')}: ${deviation}` : undefined;
+        return (
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex-shrink-0" title={hint}>
+              <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
+              {hint ? (
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-surface">
+                  <span className="sr-only">{hint}</span>
+                </span>
+              ) : null}
+            </span>
+            <span>{m.first_name}</span>
+          </div>
+        );
+      },
     },
     {
       id: 'last_name',
       header: t('lastName'),
       accessor: (m) => m.last_name,
       render: (m) => {
-        const deviation = accountNameDeviation(m, accountNames[m.id]);
         return (
           <div className="flex items-center gap-2.5">
-            <span>
-              {m.last_name || '—'}
-              {deviation && (
-                <span className="block text-xs text-accent">
-                  {t('nameDiffersFromAccount')}: {deviation}
-                </span>
-              )}
-            </span>
+            <span>{m.last_name || '—'}</span>
             {m.status === 'archived' && (
               <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
                 {t('archived')}

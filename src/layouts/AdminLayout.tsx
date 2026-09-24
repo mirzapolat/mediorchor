@@ -1,10 +1,11 @@
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Settings, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, LockKeyhole, Mail, ShieldCheck, Users } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/cn';
+import { FadingText } from '@/components/FadingText';
 import { useI18n } from '@/lib/i18n';
 
 const AdminHeader = ({ onBack }: { onBack: () => void }) => {
@@ -32,7 +33,7 @@ const AdminHeader = ({ onBack }: { onBack: () => void }) => {
         )}
       >
         <ShieldCheck size={collapsed ? 22 : 19} className="text-text-secondary" />
-        {!collapsed ? <span className="truncate font-semibold">{t('adminSettings')}</span> : null}
+        {!collapsed ? <FadingText className="font-semibold">{t('adminSettings')}</FadingText> : null}
       </div>
     </>
   );
@@ -52,7 +53,7 @@ export const AdminLayout = () => {
 
         <div className="flex-1 space-y-1 overflow-y-auto p-3">
           <SidebarNavItem to="/admin/users" label={t('users')} icon={Users} />
-          <SidebarNavItem to="/admin/config" label={t('configuration')} icon={Settings} />
+          <SidebarNavItem to="/admin/config" label={t('adminSecurity')} icon={LockKeyhole} />
           <SidebarNavItem to="/admin/email" label={t('emailSection')} icon={Mail} />
         </div>
 

@@ -16,6 +16,7 @@ import { webhookRoutes } from './webhooks.ts';
 import { rateLimit } from './ratelimit.ts';
 import { startNotifications } from './notifications.ts';
 import { mailEnabled } from './mail.ts';
+import { brandIndexHtml, clientConfig } from './branding.ts';
 
 migrate();
 loadTableMeta();
@@ -108,7 +109,9 @@ app.route('/files', fileRoutes);
 app.get('/config.js', (c) => {
   c.header('Content-Type', 'text/javascript; charset=utf-8');
   c.header('Cache-Control', 'no-store');
-  return c.body(`window.__APP_CONFIG__ = ${JSON.stringify(env.client)};\n`);
+  // Branding from Admin Config (else the environment); JSON-encoded, and "<"
+  // escaped so a name can't close a surrounding script tag.
+  return c.body(`window.__APP_CONFIG__ = ${JSON.stringify(clientConfig()).replace(/</g, '\\u003c')};\n`);
 });
 
 // Built frontend with SPA fallback (only when dist/ exists; vite serves it in dev).
@@ -116,7 +119,7 @@ const indexHtml = path.join(env.staticDir, 'index.html');
 if (fs.existsSync(indexHtml)) {
   const spa = (c: Context) => {
     c.header('Cache-Control', 'no-store');
-    return c.html(fs.readFileSync(indexHtml, 'utf8'));
+    return c.html(brandIndexHtml(fs.readFileSync(indexHtml, 'utf8')));
   };
   app.get('/', spa);
   app.get('/index.html', spa);

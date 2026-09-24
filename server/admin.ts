@@ -55,7 +55,11 @@ adminRoutes.post('/admin-delete-user', async (c) => {
 // defaults to.
 adminRoutes.post('/admin-server-info', (c) => {
   requireAdmin(c);
-  return c.json({ session_days_default: env.sessionDays });
+  return c.json({
+    session_days_default: env.sessionDays,
+    // Branding defaults from the environment, for the Branding card's placeholders.
+    brand_defaults: { app_name: env.client.VITE_APP_NAME, accent_color: env.client.VITE_ACCENT_COLOR },
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -173,4 +177,104 @@ adminRoutes.post('/admin-smtp-test', async (c) => {
     throw new ApiError(err instanceof Error ? err.message : String(err), 502, 'mail_send_failed');
   }
   return c.json({ ok: true, to: to ?? null });
+});
+
+// ---------------------------------------------------------------------------
+// Email sending statistics (Admin → Email). Aggregates only: mail_log holds no
+// recipients or content.
+// ---------------------------------------------------------------------------
+
+const MAIL_KINDS = ['account', 'reminder', 'status', 'weekly', 'test'] as const;
+const RANGES = {
+  '7d': { days: 7, bucket: 'day' },
+  '30d': { days: 30, bucket: 'day' },
+  '90d': { days: 90, bucket: 'day' },
+  '12m': { days: 365, bucket: 'month' },
+} as const;
+
+adminRoutes.post('/admin-mail-stats', async (c) => {
+  requireAdmin(c);
+  const body = (await c.req.json().catch(() => ({}))) as { range?: unknown; tz_offset?: unknown };
+  const range =
+    typeof body.range === 'string' && Object.hasOwn(RANGES, body.range) ? (body.range as keyof typeof RANGES) : '30d';
+  const { days, bucket } = RANGES[range];
+  // Minutes to add to UTC for the viewer's local time (−getTimezoneOffset()).
+  const offset = Math.max(-14 * 60, Math.min(14 * 60, Math.round(Number(body.tz_offset) || 0)));
+
+  // Bucket keys in local time: YYYY-MM-DD or YYYY-MM.
+  const local = (d: Date) => new Date(d.getTime() + offset * 60_000);
+  const keyOf = (d: Date) => local(d).toISOString().slice(0, bucket === 'day' ? 10 : 7);
+  const now = new Date();
+  const keys: string[] = [];
+  if (bucket === 'day') {
+    for (let i = days - 1; i >= 0; i--) keys.push(keyOf(new Date(now.getTime() - i * 86_400_000)));
+  } else {
+    const l = local(now);
+    for (let i = 11; i >= 0; i--) {
+      const m = new Date(Date.UTC(l.getUTCFullYear(), l.getUTCMonth() - i, 1));
+      keys.push(m.toISOString().slice(0, 7));
+    }
+  }
+  // Start of the first bucket, in UTC.
+  const startLocal = bucket === 'day' ? `${keys[0]}T00:00:00.000Z` : `${keys[0]}-01T00:00:00.000Z`;
+  const since = new Date(Date.parse(startLocal) - offset * 60_000);
+  const span = now.getTime() - since.getTime();
+  const previousSince = new Date(since.getTime() - span);
+
+  const fmt = bucket === 'day' ? '%Y-%m-%d' : '%Y-%m';
+  const rows = db
+    .prepare(
+      `select strftime('${fmt}', sent_at, ? || ' minutes') as bucket, kind, ok, count(*) as n
+       from mail_log where sent_at >= ?
+       group by bucket, kind, ok`,
+    )
+    .all(`${offset >= 0 ? '+' : ''}${offset}`, since.toISOString()) as { bucket: string; kind: string; ok: number; n: number }[];
+
+  const empty = () => Object.fromEntries(MAIL_KINDS.map((k) => [k, 0])) as Record<string, number>;
+  const byKey = new Map(keys.map((k) => [k, { key: k, sent: empty(), failed: 0 }]));
+  const totals = { sent: 0, failed: 0, by_kind: empty(), failed_by_kind: empty() };
+  for (const r of rows) {
+    const b = byKey.get(r.bucket);
+    if (!b) continue;
+    if (r.ok) {
+      b.sent[r.kind] = (b.sent[r.kind] ?? 0) + r.n;
+      totals.sent += r.n;
+      totals.by_kind[r.kind] = (totals.by_kind[r.kind] ?? 0) + r.n;
+    } else {
+      b.failed += r.n;
+      totals.failed += r.n;
+      totals.failed_by_kind[r.kind] = (totals.failed_by_kind[r.kind] ?? 0) + r.n;
+    }
+  }
+
+  const previous = db
+    .prepare(
+      `select coalesce(sum(ok), 0) as sent, coalesce(sum(1 - ok), 0) as failed
+       from mail_log where sent_at >= ? and sent_at < ?`,
+    )
+    .get(previousSince.toISOString(), since.toISOString()) as { sent: number; failed: number };
+  const lastSent = db.prepare('select sent_at from mail_log where ok order by sent_at desc limit 1').get() as
+    | { sent_at: string }
+    | undefined;
+  const lastFailed = db
+    .prepare('select sent_at, error from mail_log where not ok order by sent_at desc limit 1')
+    .get() as { sent_at: string; error: string | null } | undefined;
+  const recentErrors = db
+    .prepare(
+      `select error, count(*) as n from mail_log where not ok and sent_at >= ?
+       group by error order by n desc limit 5`,
+    )
+    .all(since.toISOString()) as { error: string | null; n: number }[];
+
+  return c.json({
+    range,
+    bucket,
+    kinds: MAIL_KINDS,
+    buckets: [...byKey.values()],
+    totals,
+    previous,
+    last_sent_at: lastSent?.sent_at ?? null,
+    last_failed: lastFailed ? { at: lastFailed.sent_at, error: lastFailed.error } : null,
+    errors: recentErrors.map((e) => ({ error: e.error ?? 'UNKNOWN', count: e.n })),
+  });
 });

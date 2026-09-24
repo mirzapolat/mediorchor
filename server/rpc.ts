@@ -7,7 +7,7 @@ import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
-import { env } from './env.ts';
+import { branding } from './branding.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -337,6 +337,26 @@ const submit_public_checkin = (args: Args) => {
 const registrationClosed = (closesAt: unknown) =>
   typeof closesAt === 'string' && closesAt !== '' && !(Date.parse(closesAt) > Date.now());
 
+// Imprint and privacy policy for public pages (no session needed). Only what
+// is shown: the text in text mode, the URL in link mode, else nothing.
+const get_legal_pages = () => {
+  const row = (db
+    .prepare(
+      `select imprint_mode, imprint_text, imprint_url, privacy_mode, privacy_text, privacy_url
+       from app_settings where id = 1`,
+    )
+    .get() ?? {}) as Record<string, string | null>;
+  const page = (kind: 'imprint' | 'privacy') => {
+    const mode = row[`${kind}_mode`];
+    const text = row[`${kind}_text`];
+    const url = row[`${kind}_url`];
+    if (mode === 'text' && text?.trim()) return { mode: 'text', text };
+    if (mode === 'link' && url) return { mode: 'link', url };
+    return { mode: 'none' };
+  };
+  return { imprint: page('imprint'), privacy: page('privacy') };
+};
+
 const get_public_registration = (args: Args) => {
   const page = db
     .prepare(
@@ -356,7 +376,7 @@ const get_public_registration = (args: Args) => {
       ? null
       : page.header_mode === 'custom' && typeof page.header_text === 'string' && page.header_text.trim()
         ? page.header_text.trim()
-        : env.client.VITE_APP_NAME;
+        : branding().appName;
   // Background tint (#rrggbb); null = the app's accent color.
   const tint = page.tint_color ?? null;
   if (!page.is_active) {
@@ -856,6 +876,7 @@ const last_seen = () => {
 
 const functions: Record<string, (args: Args) => unknown> = {
   get_public_config,
+  get_legal_pages,
   get_public_checkin,
   submit_public_checkin,
   get_public_registration,

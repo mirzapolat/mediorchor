@@ -7,9 +7,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { FadingText } from './FadingText';
 import { config } from '@/lib/config';
 import { AppLogo } from './AppLogo';
 
@@ -59,10 +60,14 @@ export const Sidebar = ({
   children,
   storageKey,
   hideMobileBar = false,
+  actions,
 }: {
   children: ReactNode;
   storageKey?: string;
   hideMobileBar?: boolean;
+  // Icon buttons shown next to the collapse toggle (e.g. settings). Use
+  // SidebarActionLink for a consistent look.
+  actions?: ReactNode;
 }) => {
   const { t } = useI18n();
   const isDesktop = useIsDesktop();
@@ -150,7 +155,7 @@ export const Sidebar = ({
             <Menu size={20} />
           </button>
           <AppLogo className="h-5 w-5 flex-shrink-0" />
-          <span className="truncate font-semibold">{config.appName}</span>
+          <FadingText className="font-semibold">{config.appName}</FadingText>
         </div>
       )}
 
@@ -177,18 +182,9 @@ export const Sidebar = ({
           'md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]',
         ].join(' ')}
       >
-        {/* Mobile-only close button. */}
-        <button
-          onClick={() => setMobileOpen(false)}
-          aria-label={t('close')}
-          className="absolute right-2 top-2.5 z-20 rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-surface-hover md:hidden"
-        >
-          <X size={18} />
-        </button>
-
         {collapsed ? (
           // Own slot at the top of the rail so it doesn't overlap the header.
-          <div className="hidden justify-center py-2.5 md:flex">
+          <div className="hidden flex-col items-center gap-1 py-2.5 md:flex">
             <button
               onClick={toggle}
               title={t('expand')}
@@ -196,16 +192,28 @@ export const Sidebar = ({
             >
               <PanelLeftOpen size={18} />
             </button>
+            {actions}
           </div>
         ) : (
-          // Pinned to the top-right corner of the header when expanded (desktop).
-          <button
-            onClick={toggle}
-            title={t('collapse')}
-            className="absolute top-2.5 right-2 z-20 hidden p-1.5 rounded-md bg-surface text-text-secondary hover:bg-surface-hover transition-colors duration-150 md:block"
-          >
-            <PanelLeftClose size={18} />
-          </button>
+          // Pinned to the top-right corner of the header when expanded: the
+          // actions, then collapse (desktop) or close (mobile drawer).
+          <div className="absolute right-2 top-2.5 z-20 flex items-center gap-0.5">
+            {actions}
+            <button
+              onClick={toggle}
+              title={t('collapse')}
+              className="hidden p-1.5 rounded-md bg-surface text-text-secondary hover:bg-surface-hover transition-colors duration-150 md:block"
+            >
+              <PanelLeftClose size={18} />
+            </button>
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label={t('close')}
+              className="rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-surface-hover md:hidden"
+            >
+              <X size={18} />
+            </button>
+          </div>
         )}
 
         {children}
@@ -220,3 +228,21 @@ export const Sidebar = ({
     </SidebarContext.Provider>
   );
 };
+
+// Icon link for Sidebar `actions`, styled like the collapse toggle and
+// highlighted while its section is open.
+export const SidebarActionLink = ({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) => (
+  <NavLink
+    to={to}
+    title={label}
+    aria-label={label}
+    className={({ isActive }) =>
+      [
+        'p-1.5 rounded-md transition-colors duration-150',
+        isActive ? 'bg-surface-hover text-text' : 'bg-surface text-text-secondary hover:bg-surface-hover',
+      ].join(' ')
+    }
+  >
+    <Icon size={18} />
+  </NavLink>
+);
