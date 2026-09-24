@@ -75,6 +75,8 @@ An account may edit its own display name, email and password, but must never be 
 
 - Email + password form on a centered card showing the app logo and name.
 - Failure shows the real reason where useful (e.g. "email not confirmed") and a generic "invalid credentials" message for bad passwords.
+- **Two-factor step:** when the account has a second factor, the password only opens a short-lived challenge (10 minutes, at most 5 wrong attempts, single use) and the card asks for one of the account's methods — a switch offers each available one: *Passkey* (device prompt), *App* (6-digit authenticator code) and *Email* (a "Send code" button mails a 6-digit code, with "Send a new code" after a 30-second pause). An expired challenge returns to the password step with "The confirmation expired or there were too many attempts".
+- **Sign in with a passkey:** below the password form (in browsers that support passkeys) — signs in without email or password; the device must verify the user (fingerprint, face, PIN). Unconfirmed or unapproved accounts are refused as with a password.
 - **Deep-link memory:** if an unauthenticated visitor opens any in-app URL, they are sent to the login page and, after signing in, returned to exactly that URL. Only safe in-app paths are accepted as return targets (never absolute or protocol-relative URLs).
 
 ### 4.2 Self sign-up
@@ -101,8 +103,12 @@ Unlinked member rows whose email matches an account's **confirmed** email addres
 - Edit display name, email address and set a new password.
 - **Name propagation:** changing the display name renames every linked member row across all projects. The name is split into first/last at the last space. A manager may afterwards rename that member within a project; the UI then flags "name differs from account" and shows the account's name.
 - UI language switch (German / English), remembered per browser.
-- **Two-factor authentication** via time-based one-time codes: enroll (shows a QR code to scan, then asks for a 6-digit confirmation code), and disable.
-- **Delete account:** a card explaining the consequences opens a dialog that requires the current password and, when two-factor authentication is enabled, a current code from the authenticator app (the code field appears automatically; a missing or wrong code is rejected with its own message). Deleting removes the account, its sign-in, sessions, pending email links, 2FA and project-management scope; member rows linked to it stay (with their attendance history) but are unlinked — signing up again later with the same email re-links them automatically. The last remaining administrator cannot delete their account ("Make someone else an administrator first"). Afterwards the user lands on the login page.
+- **Two-factor authentication** with any combination of methods; one active method turns 2FA on:
+  - *Authenticator app* (time-based one-time codes): "Set up" shows a QR code (tapping it on a phone opens the authenticator app) and the key for manual entry, grouped in blocks of four with a Copy button, then asks for a 6-digit confirmation code. Remove after a confirmation dialog.
+  - *Passkeys:* "Add passkey" runs the device prompt and stores the passkey named after the browser and OS; the list shows when each was added and last used, each with a remove button. A passkey is a second factor and also signs in on its own.
+  - *Codes by email:* only offered while the administrator allows it and email is set up. Turning it on mails a code to the account's address that must be entered. When it becomes unavailable, it's shown as such and doesn't count.
+- **Re-confirmation ("Confirm it's you"):** adding or removing a method, changing email or password and deleting the account need a recent sign-in (within 10 minutes). Otherwise a dialog asks for a second factor — or the password for accounts without one — and then carries out the change.
+- **Delete account:** a card explaining the consequences opens a dialog that requires the current password and, when two-factor authentication is enabled, a re-confirmation with a second factor (see above). Deleting removes the account, its sign-in, sessions, pending email links, 2FA and project-management scope; member rows linked to it stay (with their attendance history) but are unlinked — signing up again later with the same email re-links them automatically. The last remaining administrator cannot delete their account ("Make someone else an administrator first"). Afterwards the user lands on the login page.
 
 ### 4.5 Account administration (administrators only)
 
@@ -119,7 +125,7 @@ A dedicated administration area with its own sidebar (Users, Configuration) and 
 - Club members access; disabled (and shown as on) for administrators.
 - Delete user (hidden for oneself, blocked for other administrators), with confirmation showing the name and email.
 
-**Configuration** — currently just the "Allow self-signup" toggle.
+**Configuration** — currently just the "Allow self-signup" toggle. Under Security, "Allow codes by email as second factor" (off by default; can only be turned on while outgoing email is set up) lets accounts use emailed codes as their second factor. "Require 2FA for administrators" counts any method (authenticator app, passkey, or — while allowed — email codes).
 
 ---
 

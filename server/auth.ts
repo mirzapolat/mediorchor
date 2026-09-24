@@ -1,14 +1,35 @@
 // Authentication: email + password accounts, cookie sessions, optional email
-// confirmation (when SMTP is configured) and TOTP two-factor authentication.
+// confirmation (when SMTP is configured), two-factor authentication
+// (authenticator app, passkeys, email codes; see mfa.ts) and passkey sign-in.
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { db, asUser, nowIso, uuid, ApiError } from './db.ts';
 import { env } from './env.ts';
 import { branding } from './branding.ts';
 import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
 import { rateLimit } from './ratelimit.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
+import {
+  base32Encode,
+  createChallenge,
+  email2faAvailable,
+  factorSummary,
+  getChallenge,
+  hasSecondFactor,
+  mfaMethods,
+  passkeyAuthenticationOptions,
+  passkeyRegistrationOptions,
+  purgeChallenges,
+  registerPasskey,
+  sendChallengeEmail,
+  setEmail2fa,
+  useTotpCode,
+  verifiedTotp,
+  verifyPasskeyLogin,
+  verifyProof,
+  type Challenge,
+} from './mfa.ts';
 
 const COOKIE = 'mo_session';
 const DAY = 24 * 60 * 60 * 1000;
@@ -127,13 +148,15 @@ const setSessionCookie = (c: Context, token: string, days: number) =>
     maxAge: days * 24 * 60 * 60,
   });
 
-const startSession = (c: Context, userId: string) => {
+// verified: the user just proved who they are (password, second factor or
+// passkey), which counts as a recent sign-in (see requireRecentAuth).
+const startSession = (c: Context, userId: string, verified: boolean) => {
   const token = newToken();
   const days = instanceSettings().sessionDays;
   const now = nowIso();
   db.prepare(
-    `insert into auth_sessions (token_hash, user_id, expires_at, id, user_agent, last_seen_at)
-     values (?, ?, ?, ?, ?, ?)`,
+    `insert into auth_sessions (token_hash, user_id, expires_at, id, user_agent, last_seen_at, reauth_at)
+     values (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     sha256(token),
     userId,
@@ -141,6 +164,7 @@ const startSession = (c: Context, userId: string) => {
     randomBytes(16).toString('hex'),
     (c.req.header('user-agent') ?? '').slice(0, 300) || null,
     now,
+    verified ? now : null,
   );
   db.prepare('update auth_users set last_seen_at = ? where id = ?').run(now, userId);
   setSessionCookie(c, token, days);
@@ -211,76 +235,10 @@ export const purgeExpired = () => {
   const now = nowIso();
   db.prepare('delete from auth_sessions where expires_at <= ?').run(now);
   db.prepare('delete from auth_tokens where expires_at <= ?').run(now);
+  purgeChallenges();
   // The sending statistics look back at most 12 months (plus the comparison).
   db.prepare("delete from mail_log where sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-400 days')").run();
 };
-
-// ---------------------------------------------------------------------------
-// TOTP (RFC 6238, SHA-1, 6 digits, 30 s)
-// ---------------------------------------------------------------------------
-
-const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-const base32Encode = (buffer: Buffer) => {
-  let bits = 0;
-  let value = 0;
-  let out = '';
-  for (const byte of buffer) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      out += BASE32[(value >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-  }
-  if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
-  return out;
-};
-
-const base32Decode = (input: string) => {
-  let bits = 0;
-  let value = 0;
-  const out: number[] = [];
-  for (const ch of input.replace(/=+$/, '').toUpperCase()) {
-    const index = BASE32.indexOf(ch);
-    if (index === -1) continue;
-    value = (value << 5) | index;
-    bits += 5;
-    if (bits >= 8) {
-      out.push((value >>> (bits - 8)) & 255);
-      bits -= 8;
-    }
-  }
-  return Buffer.from(out);
-};
-
-const hotp = (secret: Buffer, counter: number) => {
-  const message = Buffer.alloc(8);
-  message.writeBigUInt64BE(BigInt(counter));
-  const digest = createHmac('sha1', secret).update(message).digest();
-  const offset = digest[digest.length - 1] & 15;
-  const code = (digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
-  return code.toString().padStart(6, '0');
-};
-
-// Returns the matched time step (±1 step of drift), or null.
-const verifyTotp = (secret: string, code: string, lastStep: number | null) => {
-  const clean = code.replace(/\s/g, '');
-  if (!/^\d{6}$/.test(clean)) return null;
-  const key = base32Decode(secret);
-  const current = Math.floor(Date.now() / 30_000);
-  for (const step of [current - 1, current, current + 1]) {
-    if (lastStep !== null && step <= lastStep) continue;
-    const expected = hotp(key, step);
-    if (timingSafeEqual(Buffer.from(expected), Buffer.from(clean))) return step;
-  }
-  return null;
-};
-
-const verifiedFactor = (userId: string) =>
-  db
-    .prepare(`select id, secret, last_step from auth_factors where user_id = ? and status = 'verified'`)
-    .get(userId) as { id: string; secret: string; last_step: number | null } | undefined;
 
 const isApproved = (userId: string) => {
   const row = db.prepare('select approved from app_users where id = ?').get(userId) as
@@ -300,7 +258,29 @@ const isPrivileged = (userId: string) => {
 
 export const mfaRequiredFor = (userId: string) => instanceSettings().requireAdmin2fa && isPrivileged(userId);
 
-export const mfaSetupRequired = (userId: string) => mfaRequiredFor(userId) && !verifiedFactor(userId);
+export const mfaSetupRequired = (userId: string) => mfaRequiredFor(userId) && !hasSecondFactor(userId);
+
+// Adding or removing sign-in methods (and deleting the account) needs the
+// session to have proved its user recently; otherwise the client asks for a
+// second factor (or the password, without one) via /reauth and retries.
+const REAUTH_WINDOW = 10 * 60 * 1000;
+
+const requireRecentAuth = (user: SessionUser) => {
+  const row = db.prepare('select reauth_at from auth_sessions where id = ?').get(user.sessionId ?? '') as
+    | { reauth_at: string | null }
+    | undefined;
+  if (!row?.reauth_at || Date.now() - Date.parse(row.reauth_at) > REAUTH_WINDOW) {
+    throw new ApiError('Please confirm it’s you', 403, 'reauth_required');
+  }
+};
+
+// With 2FA required for this account, its last method can't be removed.
+const assertCanRemoveMethod = (userId: string, method: string) => {
+  const methods = mfaMethods(userId);
+  if (mfaRequiredFor(userId) && methods.length === 1 && methods[0] === method) {
+    throw new ApiError('Two-factor authentication is required for your account', 403, 'mfa_enforced');
+  }
+};
 
 // Admins learn about sign-ups waiting for approval (when email works).
 const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
@@ -318,12 +298,6 @@ const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
       console.error('Sending approval notice failed:', err);
     }
   }
-};
-
-const useFactorCode = (factor: { id: string; secret: string; last_step: number | null }, code: string) => {
-  const step = verifyTotp(factor.secret, code, factor.last_step);
-  if (step === null) throw new ApiError('Invalid TOTP code entered', 422, 'mfa_verification_failed');
-  db.prepare('update auth_factors set last_step = ? where id = ?').run(step, factor.id);
 };
 
 // ---------------------------------------------------------------------------
@@ -376,7 +350,7 @@ authRoutes.get('/session', (c) => c.json(sessionPayload(sessionUser(c))));
 
 authRoutes.post('/login', async (c) => {
   rateLimit(c, 'login', 20, 15 * 60 * 1000);
-  const { email, password, code } = await body(c);
+  const { email, password } = await body(c);
   if (typeof email !== 'string' || typeof password !== 'string') {
     throw new ApiError('Invalid login credentials', 400, 'invalid_credentials');
   }
@@ -392,15 +366,122 @@ authRoutes.post('/login', async (c) => {
     throw new ApiError('Your account is waiting for approval by an administrator', 403, 'approval_pending');
   }
 
-  const factor = verifiedFactor(user.id);
-  if (factor) {
-    if (typeof code !== 'string' || !code.trim()) return c.json({ mfa_required: true, session: null });
-    useFactorCode(factor, code);
+  // With two-factor on, the password only opens a challenge; /login/mfa
+  // completes the sign-in with one of the account's methods.
+  const methods = mfaMethods(user.id);
+  if (methods.length > 0) {
+    return c.json({
+      session: null,
+      mfa_required: true,
+      mfa: { challenge_id: createChallenge(user.id, 'login'), methods },
+    });
   }
 
-  startSession(c, user.id);
+  startSession(c, user.id, true);
   return c.json(sessionPayload({ id: user.id, email: user.email }));
 });
+
+// Second step of the sign-in: { challenge_id, method, code | credential }.
+authRoutes.post('/login/mfa', async (c) => {
+  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['login']);
+  const userId = await verifyProof(challenge, input, baseUrl(c));
+  return c.json(signInVerified(c, userId));
+});
+
+// Passwordless sign-in with a passkey: options first, then the assertion.
+authRoutes.post('/passkey/options', async (c) => {
+  rateLimit(c, 'login', 20, 15 * 60 * 1000);
+  return c.json(await passkeyAuthenticationOptions(null, baseUrl(c)));
+});
+
+authRoutes.post('/passkey/login', async (c) => {
+  rateLimit(c, 'login', 20, 15 * 60 * 1000);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['passkey_login']);
+  const userId = await verifyPasskeyLogin(challenge, input.credential, baseUrl(c));
+  const account = db.prepare('select email_confirmed_at from auth_users where id = ?').get(userId) as
+    | { email_confirmed_at: string | null }
+    | undefined;
+  if (!account?.email_confirmed_at) throw new ApiError('Email not confirmed', 400, 'email_not_confirmed');
+  return c.json(signInVerified(c, userId));
+});
+
+const signInVerified = (c: Context, userId: string) => {
+  if (!isApproved(userId)) {
+    throw new ApiError('Your account is waiting for approval by an administrator', 403, 'approval_pending');
+  }
+  startSession(c, userId, true);
+  const { email } = db.prepare('select email from auth_users where id = ?').get(userId) as { email: string };
+  return sessionPayload({ id: userId, email });
+};
+
+// Email codes and passkey options for a pending challenge (sign-in or
+// re-confirmation). The random challenge id is what authorizes the call.
+authRoutes.post('/mfa/challenge/email', async (c) => {
+  rateLimit(c, 'mfa-email', 10, 15 * 60 * 1000);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['login', 'reauth']);
+  if (!challenge.user_id || !mfaMethods(challenge.user_id).includes('email')) {
+    throw new ApiError('This verification method is not available', 400, 'mfa_method_unavailable');
+  }
+  const { email } = db.prepare('select email from auth_users where id = ?').get(challenge.user_id) as {
+    email: string;
+  };
+  await sendChallengeEmail(challenge, email);
+  return c.json({ ok: true });
+});
+
+authRoutes.post('/mfa/challenge/passkey', async (c) => {
+  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['login', 'reauth']);
+  if (!challenge.user_id || !mfaMethods(challenge.user_id).includes('passkey')) {
+    throw new ApiError('This verification method is not available', 400, 'mfa_method_unavailable');
+  }
+  const { options } = await passkeyAuthenticationOptions(challenge, baseUrl(c));
+  return c.json({ options });
+});
+
+// Re-confirmation before sensitive changes (see requireRecentAuth): a second
+// factor, or the password for accounts without one.
+authRoutes.post('/reauth/start', (c) => {
+  const user = requireSession(c);
+  const methods = mfaMethods(user.id);
+  return c.json({
+    challenge_id: createChallenge(user.id, 'reauth'),
+    methods: methods.length > 0 ? methods : ['password'],
+  });
+});
+
+authRoutes.post('/reauth', async (c) => {
+  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
+  const user = requireSession(c);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['reauth']);
+  if (challenge.user_id !== user.id) throw new ApiError('Invalid confirmation', 400, 'mfa_challenge_expired');
+  if (input.method === 'password' && !hasSecondFactor(user.id)) {
+    await checkOwnPassword(user.id, input.password);
+    endReauthChallenge(challenge);
+  } else {
+    await verifyProof(challenge, input, baseUrl(c));
+  }
+  db.prepare('update auth_sessions set reauth_at = ? where id = ?').run(nowIso(), user.sessionId ?? '');
+  return c.json({ ok: true });
+});
+
+const endReauthChallenge = (challenge: Challenge) =>
+  db.prepare('delete from auth_challenges where id_hash = ?').run(challenge.id_hash);
+
+const checkOwnPassword = async (userId: string, password: unknown) => {
+  const row = db.prepare('select password_hash from auth_users where id = ?').get(userId) as
+    | { password_hash: string }
+    | undefined;
+  if (!row || typeof password !== 'string' || !(await verifyPassword(password, row.password_hash))) {
+    throw new ApiError('Invalid password', 400, 'invalid_credentials');
+  }
+};
 
 authRoutes.post('/logout', (c) => {
   const token = getCookie(c, COOKIE);
@@ -437,7 +518,7 @@ authRoutes.post('/signup', async (c) => {
       void notifyAdminsOfPendingSignup(name, email);
       return c.json({ ...sessionPayload(null), approval_pending: true });
     }
-    startSession(c, id);
+    startSession(c, id, true);
     return c.json(sessionPayload({ id, email }));
   }
 
@@ -497,7 +578,7 @@ authRoutes.get('/confirm', (c) => {
     return c.redirect('/login?pending=1');
   }
   // A second factor still has to be entered on the login page.
-  if (!verifiedFactor(row.user_id)) startSession(c, row.user_id);
+  if (!hasSecondFactor(row.user_id)) startSession(c, row.user_id, false);
   return c.redirect(target);
 });
 
@@ -506,6 +587,10 @@ authRoutes.patch('/user', async (c) => {
   const user = requireSession(c);
   const input = await body(c);
   let emailChangePending = false;
+  // A hijacked session alone must not be able to take over the account.
+  if (input.password !== undefined || (input.email !== undefined && input.email !== user.email)) {
+    requireRecentAuth(user);
+  }
 
   if (input.password !== undefined) {
     const passwordHash = await hashPassword(validatePassword(input.password));
@@ -537,13 +622,13 @@ authRoutes.patch('/user', async (c) => {
 });
 
 // Delete the own account after re-entering the password (and, with 2FA, a
-// current code). Deleting the auth user cascades to the profile, sessions,
-// tokens, 2FA and project scope; linked member rows keep their attendance
-// history and are just unlinked.
+// recent confirmation with a second factor). Deleting the auth user cascades
+// to the profile, sessions, tokens, 2FA and project scope; linked member rows
+// keep their attendance history and are just unlinked.
 authRoutes.delete('/user', async (c) => {
   rateLimit(c, 'delete-account', 10, 15 * 60 * 1000);
   const user = requireSession(c);
-  const { password, code } = await body(c);
+  const { password } = await body(c);
 
   // Never leave the instance without an administrator.
   const { me, others } = db
@@ -556,20 +641,8 @@ authRoutes.delete('/user', async (c) => {
     throw new ApiError('The last administrator cannot delete their account', 400, 'last_admin');
   }
 
-  const row = db.prepare('select password_hash from auth_users where id = ?').get(user.id) as
-    | { password_hash: string }
-    | undefined;
-  if (!row || typeof password !== 'string' || !(await verifyPassword(password, row.password_hash))) {
-    throw new ApiError('Invalid password', 400, 'invalid_credentials');
-  }
-
-  const factor = verifiedFactor(user.id);
-  if (factor) {
-    if (typeof code !== 'string' || !code.trim()) {
-      throw new ApiError('A two-factor code is required', 400, 'mfa_required');
-    }
-    useFactorCode(factor, code.trim());
-  }
+  await checkOwnPassword(user.id, password);
+  if (hasSecondFactor(user.id)) requireRecentAuth(user);
 
   db.prepare('delete from auth_users where id = ?').run(user.id);
   deleteCookie(c, COOKIE, { path: '/' });
@@ -577,18 +650,20 @@ authRoutes.delete('/user', async (c) => {
 });
 
 // --- two-factor -------------------------------------------------------------
+// Adding or removing a method needs a recent sign-in or re-confirmation, so a
+// hijacked session alone can neither remove 2FA nor plant its own factor.
 
 authRoutes.get('/mfa/factors', (c) => {
   const user = requireSession(c);
-  const factors = db
-    .prepare('select id, status, created_at from auth_factors where user_id = ? order by created_at')
-    .all(user.id) as { id: string; status: string; created_at: string }[];
-  return c.json({ totp: factors.map((f) => ({ ...f, factor_type: 'totp' })) });
+  return c.json({ ...factorSummary(user.id), required: mfaRequiredFor(user.id) });
 });
 
+// Authenticator app: enroll returns the secret (QR code and manual entry);
+// verify activates it with a first code from the app.
 authRoutes.post('/mfa/enroll', (c) => {
   const user = requireSession(c);
-  if (verifiedFactor(user.id)) throw new ApiError('Two-factor authentication is already enabled', 422);
+  if (verifiedTotp(user.id)) throw new ApiError('An authenticator app is already set up', 422);
+  requireRecentAuth(user);
   const secret = base32Encode(randomBytes(20));
   const id = uuid();
   db.transaction(() => {
@@ -606,37 +681,90 @@ authRoutes.post('/mfa/verify', async (c) => {
   const user = requireSession(c);
   const { factorId, code } = await body(c);
   const factor = db
-    .prepare('select id, secret, last_step from auth_factors where id = ? and user_id = ?')
+    .prepare(`select id, secret, last_step from auth_factors where id = ? and user_id = ? and status = 'unverified'`)
     .get(String(factorId ?? ''), user.id) as { id: string; secret: string; last_step: number | null } | undefined;
   if (!factor) throw new ApiError('Factor not found', 404, 'mfa_factor_not_found');
-  useFactorCode(factor, String(code ?? ''));
+  useTotpCode(factor, String(code ?? ''));
   db.prepare(`update auth_factors set status = 'verified' where id = ?`).run(factor.id);
   return c.json({ ok: true });
 });
 
-// Turning off an active second factor needs a current code from it, so a
-// hijacked session alone can't remove 2FA. An unfinished enrollment can be
-// discarded freely.
+// An unfinished enrollment can be discarded freely.
 authRoutes.post('/mfa/unenroll', async (c) => {
-  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
   const user = requireSession(c);
-  const { factorId, code } = await body(c);
+  const { factorId } = await body(c);
   const factor = db
-    .prepare('select id, secret, last_step, status from auth_factors where id = ? and user_id = ?')
-    .get(String(factorId ?? ''), user.id) as
-    | { id: string; secret: string; last_step: number | null; status: string }
-    | undefined;
+    .prepare('select id, status from auth_factors where id = ? and user_id = ?')
+    .get(String(factorId ?? ''), user.id) as { id: string; status: string } | undefined;
   if (!factor) throw new ApiError('Factor not found', 404, 'mfa_factor_not_found');
   if (factor.status === 'verified') {
-    if (mfaRequiredFor(user.id)) {
-      throw new ApiError('Two-factor authentication is required for your account', 403, 'mfa_enforced');
-    }
-    if (typeof code !== 'string' || !code.trim()) {
-      throw new ApiError('A two-factor code is required', 400, 'mfa_required');
-    }
-    useFactorCode(factor, code.trim());
+    assertCanRemoveMethod(user.id, 'totp');
+    requireRecentAuth(user);
   }
   db.prepare('delete from auth_factors where id = ?').run(factor.id);
+  return c.json({ ok: true });
+});
+
+// Passkeys: registration options, then the device's response (+ a name).
+authRoutes.post('/mfa/passkeys/options', async (c) => {
+  const user = requireSession(c);
+  requireRecentAuth(user);
+  const profile = db.prepare('select name from app_users where id = ?').get(user.id) as { name: string } | undefined;
+  return c.json(await passkeyRegistrationOptions({ ...user, name: profile?.name ?? '' }, baseUrl(c)));
+});
+
+authRoutes.post('/mfa/passkeys', async (c) => {
+  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
+  const user = requireSession(c);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['passkey_register']);
+  if (challenge.user_id !== user.id) throw new ApiError('Invalid confirmation', 400, 'mfa_challenge_expired');
+  await registerPasskey(challenge, input.credential, input.name, baseUrl(c));
+  return c.json({ ok: true });
+});
+
+authRoutes.post('/mfa/passkeys/remove', async (c) => {
+  const user = requireSession(c);
+  const { id } = await body(c);
+  const passkey = db.prepare('select id from auth_passkeys where id = ? and user_id = ?').get(String(id ?? ''), user.id);
+  if (!passkey) throw new ApiError('Passkey not found', 404, 'mfa_factor_not_found');
+  const count = (db.prepare('select count(*) as n from auth_passkeys where user_id = ?').get(user.id) as { n: number }).n;
+  if (count === 1) assertCanRemoveMethod(user.id, 'passkey');
+  requireRecentAuth(user);
+  db.prepare('delete from auth_passkeys where id = ?').run(String(id));
+  return c.json({ ok: true });
+});
+
+// Email codes: enroll sends a code to the account's address, verify turns
+// them on with it. Only while the admin allows them and email works.
+authRoutes.post('/mfa/email/enroll', async (c) => {
+  rateLimit(c, 'mfa-email', 10, 15 * 60 * 1000);
+  const user = requireSession(c);
+  if (!email2faAvailable()) {
+    throw new ApiError('Codes by email are not available', 400, 'mfa_method_unavailable');
+  }
+  requireRecentAuth(user);
+  const token = createChallenge(user.id, 'email_enroll');
+  await sendChallengeEmail(getChallenge(token, ['email_enroll']), user.email);
+  return c.json({ challenge_id: token });
+});
+
+authRoutes.post('/mfa/email/verify', async (c) => {
+  rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
+  const user = requireSession(c);
+  const input = await body(c);
+  const challenge = getChallenge(input.challenge_id, ['email_enroll']);
+  if (challenge.user_id !== user.id) throw new ApiError('Invalid confirmation', 400, 'mfa_challenge_expired');
+  await verifyProof(challenge, { ...input, method: 'email' }, baseUrl(c));
+  setEmail2fa(user.id, true);
+  return c.json({ ok: true });
+});
+
+authRoutes.post('/mfa/email/disable', (c) => {
+  const user = requireSession(c);
+  if (mfaMethods(user.id).includes('email')) assertCanRemoveMethod(user.id, 'email');
+  requireRecentAuth(user);
+  setEmail2fa(user.id, false);
   return c.json({ ok: true });
 });
 

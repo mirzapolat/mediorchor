@@ -113,12 +113,6 @@ const dict: Dict = {
     en: 'This cannot be undone. Enter your password to confirm.',
   },
   deleteAccountWrongPassword: { de: 'Das Passwort ist falsch.', en: 'The password is incorrect.' },
-  deleteAccountConfirm2fa: {
-    de: 'Das kann nicht rückgängig gemacht werden. Gib zur Bestätigung dein Passwort und einen aktuellen Code aus deiner Authenticator-App ein.',
-    en: 'This cannot be undone. Enter your password and a current code from your authenticator app to confirm.',
-  },
-  deleteAccountCode: { de: 'Code aus der Authenticator-App', en: 'Authenticator code' },
-  deleteAccountWrongCode: { de: 'Der Code ist falsch oder abgelaufen.', en: 'The code is incorrect or expired.' },
   deleteAccountLastAdmin: {
     de: 'Du bist der letzte Administrator. Ernenne zuerst jemand anderen zum Administrator.',
     en: 'You are the last administrator. Make someone else an administrator first.',
@@ -240,12 +234,7 @@ const dict: Dict = {
   twoFactorShort: { de: '2FA', en: '2FA' },
   twoFactorOn: { de: 'aktiviert', en: 'enabled' },
   twoFactorOff: { de: 'nicht aktiviert', en: 'not enabled' },
-  enable2fa: { de: '2FA aktivieren', en: 'Enable 2FA' },
   twoFactorCode: { de: 'Bestätigungscode', en: 'Verification code' },
-  disable2faConfirm: {
-    de: 'Gib den aktuellen 6-stelligen Code aus deiner Authenticator-App ein, um die Zwei-Faktor-Authentifizierung zu deaktivieren.',
-    en: 'Enter the current 6-digit code from your authenticator app to turn off two-factor authentication.',
-  },
   disable2faEnforced: {
     de: 'Für dein Konto ist die Zwei-Faktor-Authentifizierung vorgeschrieben und kann nicht deaktiviert werden.',
     en: 'Two-factor authentication is required for your account and can’t be turned off.',
@@ -255,19 +244,135 @@ const dict: Dict = {
     de: 'Für Administratoren und Konten mit Zugriff auf alle Projekte ist eine Zwei-Faktor-Authentifizierung vorgeschrieben. Richte sie ein, um fortzufahren.',
     en: 'Two-factor authentication is required for administrators and accounts with access to all projects. Set it up to continue.',
   },
-  disable2faWrongCode: {
-    de: 'Der Code ist falsch oder abgelaufen. Bitte versuche es mit dem aktuellen Code erneut.',
-    en: 'The code is wrong or has expired. Please try again with the current code.',
-  },
   emailChangePending: {
     de: 'Gespeichert. Bitte bestätige die neue E-Mail-Adresse über den Link, den wir dir geschickt haben.',
     en: 'Saved. Please confirm the new email address using the link we sent you.',
   },
+  twoFactorOnHint: {
+    de: 'Aktiv: Bei der Anmeldung fragen wir zusätzlich nach einer der eingerichteten Methoden.',
+    en: 'On: signing in also asks for one of the methods you set up.',
+  },
+  twoFactorOffHint: {
+    de: 'Schütze dein Konto mit einem zweiten Schritt bei der Anmeldung. Eine Methode genügt, mehrere sind als Reserve sinnvoll.',
+    en: 'Protect your account with a second step at sign-in. One method is enough; more are useful as a backup.',
+  },
+  mfaMethodTotp: { de: 'App', en: 'App' },
+  mfaMethodPasskey: { de: 'Passkey', en: 'Passkey' },
+  mfaMethodEmail: { de: 'E-Mail', en: 'Email' },
+  mfaChooseMethod: { de: 'Bestätigungsmethode', en: 'Verification method' },
+  mfaSetUp: { de: 'Einrichten', en: 'Set up' },
+  mfaTurnOn: { de: 'Aktivieren', en: 'Turn on' },
+  mfaTurnOff: { de: 'Deaktivieren', en: 'Turn off' },
+  mfaMethodTotpTitle: { de: 'Authenticator-App', en: 'Authenticator app' },
+  mfaMethodTotpHint: {
+    de: '6-stellige Codes aus einer App wie Google Authenticator, Microsoft Authenticator, 1Password oder Bitwarden.',
+    en: '6-digit codes from an app like Google Authenticator, Microsoft Authenticator, 1Password or Bitwarden.',
+  },
+  totpScanHint: {
+    de: 'Scanne den QR-Code mit deiner Authenticator-App (auf dem Handy: antippen, um die App zu öffnen) und gib dann den angezeigten Code ein.',
+    en: 'Scan the QR code with your authenticator app (on a phone: tap it to open the app), then enter the code it shows.',
+  },
+  totpOpenApp: { de: 'In Authenticator-App öffnen', en: 'Open in authenticator app' },
+  totpManualKey: { de: 'Schlüssel für die manuelle Eingabe', en: 'Key for manual entry' },
+  totpManualHint: {
+    de: 'Kein Scannen möglich? Füge in der App ein Konto manuell hinzu und gib diesen Schlüssel ein (zeitbasiert, 6 Stellen, 30 Sekunden).',
+    en: 'Can’t scan? Add an account manually in the app and enter this key (time-based, 6 digits, 30 seconds).',
+  },
+  copy: { de: 'Kopieren', en: 'Copy' },
+  copied: { de: 'Kopiert', en: 'Copied' },
+  mfaRemoveTotpTitle: { de: 'Authenticator-App entfernen', en: 'Remove authenticator app' },
+  mfaRemoveTotpConfirm: {
+    de: 'Codes aus deiner Authenticator-App werden danach nicht mehr akzeptiert.',
+    en: 'Codes from your authenticator app will no longer be accepted.',
+  },
+  mfaMethodPasskeyTitle: { de: 'Passkeys', en: 'Passkeys' },
+  mfaMethodPasskeyHint: {
+    de: 'Bestätigen per Fingerabdruck, Gesicht, Geräte-PIN oder Sicherheitsschlüssel. Mit einem Passkey kannst du dich auch ohne Passwort anmelden.',
+    en: 'Confirm with your fingerprint, face, device PIN or a security key. A passkey also signs you in without a password.',
+  },
+  passkeyAdd: { de: 'Passkey hinzufügen', en: 'Add passkey' },
+  passkeyAdded: { de: 'Hinzugefügt', en: 'Added' },
+  passkeyLastUsed: { de: 'Zuletzt verwendet', en: 'Last used' },
+  passkeyRemoveTitle: { de: 'Passkey entfernen', en: 'Remove passkey' },
+  passkeyRemoveConfirm: {
+    de: '„{name}“ kann danach nicht mehr zur Anmeldung verwendet werden. Lösche den Passkey bei Bedarf auch auf dem Gerät bzw. im Passwortmanager.',
+    en: '“{name}” can no longer be used to sign in. If you like, also delete it on the device or in your password manager.',
+  },
+  passkeyUnsupported: {
+    de: 'Dieser Browser unterstützt keine Passkeys.',
+    en: 'This browser doesn’t support passkeys.',
+  },
+  passkeyUnknown: {
+    de: 'Dieser Passkey ist für kein Konto hier registriert.',
+    en: 'This passkey isn’t registered for an account here.',
+  },
+  passkeyExists: {
+    de: 'Dieser Passkey ist bereits registriert.',
+    en: 'This passkey is already registered.',
+  },
+  passkeyFailed: {
+    de: 'Der Passkey konnte nicht bestätigt werden. Bitte versuche es erneut.',
+    en: 'The passkey couldn’t be verified. Please try again.',
+  },
+  mfaMethodEmailTitle: { de: 'Codes per E-Mail', en: 'Codes by email' },
+  mfaMethodEmailHint: {
+    de: 'Wir schicken dir bei der Anmeldung einen 6-stelligen Code an deine E-Mail-Adresse.',
+    en: 'We email a 6-digit code to your address when you sign in.',
+  },
+  mfaMethodEmailUnavailable: {
+    de: 'Derzeit nicht verfügbar (vom Administrator deaktiviert oder kein E-Mail-Versand). Solange zählt diese Methode nicht.',
+    en: 'Currently unavailable (turned off by the administrator, or email isn’t set up). It doesn’t count until then.',
+  },
+  mfaEmailEnrollSent: {
+    de: 'Wir haben einen Code an {email} geschickt. Gib ihn ein, um Codes per E-Mail zu aktivieren.',
+    en: 'We sent a code to {email}. Enter it to turn on codes by email.',
+  },
+  mfaEmailDisableConfirm: {
+    de: 'Bei der Anmeldung werden dann keine Codes mehr per E-Mail angeboten.',
+    en: 'Sign-in will no longer offer codes by email.',
+  },
+  mfaPasskeyPrompt: {
+    de: 'Bestätige mit einem Passkey dieses Kontos.',
+    en: 'Confirm with one of this account’s passkeys.',
+  },
+  mfaUsePasskey: { de: 'Passkey verwenden', en: 'Use passkey' },
+  mfaEmailPrompt: {
+    de: 'Wir schicken dir einen 6-stelligen Code an deine E-Mail-Adresse.',
+    en: 'We’ll email you a 6-digit code.',
+  },
+  mfaSendEmail: { de: 'Code senden', en: 'Send code' },
+  mfaResendEmail: { de: 'Code erneut senden', en: 'Send a new code' },
+  mfaEmailSent: {
+    de: 'Gib den Code aus der E-Mail ein, die wir dir gerade geschickt haben.',
+    en: 'Enter the code from the email we just sent you.',
+  },
+  mfaEmailWait: {
+    de: 'Bitte warte einen Moment, bevor du einen neuen Code anforderst.',
+    en: 'Please wait a moment before requesting a new code.',
+  },
+  mfaEmailFailed: {
+    de: 'Die E-Mail konnte nicht gesendet werden. Bitte versuche es später erneut.',
+    en: 'The email couldn’t be sent. Please try again later.',
+  },
+  mfaWrongCode: {
+    de: 'Der Code ist falsch oder abgelaufen.',
+    en: 'The code is incorrect or expired.',
+  },
+  mfaExpired: {
+    de: 'Die Bestätigung ist abgelaufen oder es gab zu viele Versuche. Bitte beginne erneut.',
+    en: 'The confirmation expired or there were too many attempts. Please start again.',
+  },
+  reauthTitle: { de: 'Bestätige, dass du es bist', en: 'Confirm it’s you' },
+  reauthHint: {
+    de: 'Für diese Änderung musst du dich kurz erneut bestätigen.',
+    en: 'This change needs you to confirm your identity again.',
+  },
+  reauthPasswordPrompt: { de: 'Gib dein aktuelles Passwort ein.', en: 'Enter your current password.' },
+  signInWithPasskey: { de: 'Mit Passkey anmelden', en: 'Sign in with a passkey' },
   twoFactorPrompt: {
     de: 'Gib den 6-stelligen Code aus deiner Authenticator-App ein.',
     en: 'Enter the 6-digit code from your authenticator app.',
   },
-  disable2fa: { de: '2FA deaktivieren', en: 'Disable 2FA' },
   newPassword: { de: 'Neues Passwort', en: 'New password' },
   language: { de: 'Sprache', en: 'Language' },
   appearance: { de: 'Darstellung', en: 'Appearance' },
@@ -359,6 +464,15 @@ const dict: Dict = {
   require2faSelfFirst: {
     de: 'Richte zuerst für dein eigenes Konto die Zwei-Faktor-Authentifizierung ein (unter Konto), damit du dich nicht aussperrst.',
     en: 'Set up two-factor authentication on your own account first (under Account), so you don’t lock yourself out.',
+  },
+  allowEmail2fa: { de: 'Codes per E-Mail als zweiten Faktor erlauben', en: 'Allow codes by email as second factor' },
+  allowEmail2faHint: {
+    de: 'Konten können sich Bestätigungscodes per E-Mail schicken lassen. Bequemer, aber schwächer als Authenticator-App oder Passkey. Wird die Option ausgeschaltet, zählt sie für niemanden mehr.',
+    en: 'Accounts may get verification codes by email. More convenient but weaker than an authenticator app or passkey. When turned off, it no longer counts for anyone.',
+  },
+  allowEmail2faNoMail: {
+    de: 'Erfordert eingerichteten E-Mail-Versand (unter E-Mail).',
+    en: 'Requires outgoing email to be set up (under Email).',
   },
   sessionLength: { de: 'Sitzungsdauer (Tage)', en: 'Session length (days)' },
   sessionLengthHint: {

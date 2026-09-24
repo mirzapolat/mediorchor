@@ -1,12 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MailCheck } from 'lucide-react';
+import { Fingerprint, MailCheck } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
-import { api } from '@/lib/api';
+import { api, type ApiError, type MfaChallenge } from '@/lib/api';
+import { passkeysSupported } from '@/lib/passkeys';
+import { SecondFactorForm, mfaErrorMessage } from '@/components/SecondFactorForm';
 import { safeRedirectPath } from '@/lib/safePath';
 import { LegalFooter } from '@/components/LegalLinks';
 import { AppLogo } from '@/components/AppLogo';
@@ -34,8 +36,8 @@ export const LoginPage = () => {
     () => new URLSearchParams(location.search).get('pending') === '1',
   );
   // Second step for accounts with two-factor authentication.
-  const [mfaStep, setMfaStep] = useState(false);
-  const [code, setCode] = useState('');
+  const [mfa, setMfa] = useState<MfaChallenge | null>(null);
+  const mfaStep = mfa !== null;
 
   useEffect(() => {
     // Whether the sign-up option is offered is an instance setting readable
@@ -78,22 +80,51 @@ export const LoginPage = () => {
       return;
     }
 
-    const { error, mfaRequired } = await signIn(email, password, mfaStep ? code : undefined);
+    const { error, mfa: challenge } = await signIn(email, password);
     setSubmitting(false);
     if (error) {
-      // Surface the real server message (e.g. "Email not confirmed") rather
-      // than masking every failure as bad credentials.
-      setError(
-        /invalid login/i.test(error)
-          ? t('invalidCredentials')
-          : /waiting for approval/i.test(error)
-            ? t('loginApprovalPending')
-            : error,
-      );
+      setError(signInError(error));
       return;
     }
-    if (mfaRequired) {
-      setMfaStep(true);
+    if (challenge) {
+      setMfa(challenge);
+      return;
+    }
+    navigate(from ?? '/', { replace: true });
+  };
+
+  // Surface the real server message (e.g. "Email not confirmed") rather than
+  // masking every failure as bad credentials.
+  const signInError = (error: ApiError) =>
+    error.code === 'invalid_credentials'
+      ? t('invalidCredentials')
+      : error.code === 'approval_pending'
+        ? t('loginApprovalPending')
+        : mfaErrorMessage(error, t);
+
+  const completeSignIn = async (proof: Parameters<typeof api.auth.completeSignIn>[1]) => {
+    if (!mfa) return null;
+    const { error } = await api.auth.completeSignIn(mfa.challenge_id, proof);
+    if (error) {
+      // Too many wrong codes or too slow: start over with the password.
+      if (error.code === 'mfa_challenge_expired') {
+        setMfa(null);
+        setError(t('mfaExpired'));
+        return null;
+      }
+      return error;
+    }
+    navigate(from ?? '/', { replace: true });
+    return null;
+  };
+
+  const signInWithPasskey = async () => {
+    setError(null);
+    setSubmitting(true);
+    const { error } = await api.auth.signInWithPasskey();
+    setSubmitting(false);
+    if (error) {
+      setError(signInError(error));
       return;
     }
     navigate(from ?? '/', { replace: true });
@@ -106,8 +137,7 @@ export const LoginPage = () => {
     setError(null);
     setSignedUp(false);
     setApprovalPending(false);
-    setMfaStep(false);
-    setCode('');
+    setMfa(null);
   };
 
   return (
@@ -148,24 +178,9 @@ export const LoginPage = () => {
                 {mfaStep ? t('twoFactorPrompt') : mode === 'signup' ? t('signUpSubtitle') : t('loginSubtitle')}
               </p>
 
-              {mfaStep ? (
-                <form onSubmit={onSubmit} className="space-y-4">
-                  <Input
-                    id="code"
-                    label={t('twoFactorCode')}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9 ]*"
-                    maxLength={7}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    autoFocus
-                    required
-                  />
-                  {error && <p className="text-sm text-accent">{error}</p>}
-                  <Button type="submit" className="w-full" disabled={submitting || code.trim().length < 6}>
-                    {submitting ? t('loading') : t('signIn')}
-                  </Button>
+              {mfa ? (
+                <div className="space-y-4">
+                  <SecondFactorForm challenge={mfa} submitLabel={t('signIn')} onSubmit={completeSignIn} />
                   <button
                     type="button"
                     onClick={() => switchMode('signin')}
@@ -173,7 +188,7 @@ export const LoginPage = () => {
                   >
                     {t('back')}
                   </button>
-                </form>
+                </div>
               ) : (
                 <form onSubmit={onSubmit} className="space-y-4">
                   {mode === 'signup' && (
@@ -219,6 +234,25 @@ export const LoginPage = () => {
                   <Button type="submit" className="w-full" disabled={submitting}>
                     {submitting ? t('loading') : mode === 'signup' ? t('signUp') : t('signIn')}
                   </Button>
+                  {mode === 'signin' && passkeysSupported() && (
+                    <>
+                      <div className="flex items-center gap-3 text-xs text-text-tertiary">
+                        <span className="h-px flex-1 bg-border" />
+                        {t('or')}
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full"
+                        disabled={submitting}
+                        onClick={() => void signInWithPasskey()}
+                      >
+                        <Fingerprint size={16} />
+                        {t('signInWithPasskey')}
+                      </Button>
+                    </>
+                  )}
                 </form>
               )}
 

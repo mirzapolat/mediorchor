@@ -1,6 +1,25 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Laptop, LogOut, Monitor, Moon, ShieldCheck, ShieldOff, Smartphone, Sun, Trash2, Upload, X } from 'lucide-react';
+import {
+  Bell,
+  Check,
+  Copy,
+  Fingerprint,
+  KeyRound,
+  Laptop,
+  LogOut,
+  Mail,
+  Monitor,
+  Moon,
+  Plus,
+  ShieldCheck,
+  ShieldOff,
+  Smartphone,
+  Sun,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
@@ -9,8 +28,12 @@ import { Input, Select } from '@/components/Input';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { Modal } from '@/components/Modal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { mfaErrorMessage } from '@/components/SecondFactorForm';
 import { useI18n } from '@/lib/i18n';
-import { api, type DeviceSession } from '@/lib/api';
+import { api, type ApiError, type DeviceSession, type MfaFactors } from '@/lib/api';
+import { createPasskey, passkeysSupported } from '@/lib/passkeys';
+import { useReauth } from '@/hooks/useReauth';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
@@ -29,6 +52,7 @@ export const AccountPage = () => {
   const photo = useProfilePhoto();
   const photoBusy = photo.busy;
   const photoError = photo.error;
+  const reauth = useReauth();
 
   if (!user) return <PageSpinner />;
 
@@ -42,9 +66,9 @@ export const AccountPage = () => {
     if (password) authUpdate.password = password;
     let emailChangePending = false;
     if (Object.keys(authUpdate).length > 0) {
-      const { data, error } = await api.auth.updateUser(authUpdate);
+      const { data, error } = await reauth.run(() => api.auth.updateUser(authUpdate));
       if (error) {
-        setProfileMsg(error.message);
+        setProfileMsg(error.code === 'reauth_cancelled' ? null : error.message);
         setBusy(false);
         return;
       }
@@ -153,207 +177,454 @@ export const AccountPage = () => {
         <DeleteAccountCard />
       </CardColumns>
       {photo.cropper}
+      {reauth.modal}
     </>
   );
 };
 
-// 2FA enrolment (TOTP). Once verified, sign-in asks for a code.
-// Also used by the required-2FA setup screen (onEnabled continues from there).
+// Two-factor authentication: authenticator app, passkeys and (when the admin
+// allows them and email works) codes by email. Any one active method makes
+// sign-in ask for a second step. Also used by the required-2FA setup screen
+// (onEnabled continues from there).
 export const TwoFactorCard = ({ onEnabled }: { onEnabled?: () => void } = {}) => {
   const { t } = useI18n();
-  const [factorId, setFactorId] = useState<string | null>(null);
-  const [enrolled, setEnrolled] = useState(false);
-  // otpauth:// URI for the authenticator app, shown as a QR code.
-  const [qr, setQr] = useState<string | null>(null);
-  const [code, setCode] = useState('');
+  const reauth = useReauth();
+  const [factors, setFactors] = useState<MfaFactors | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
     const { data } = await api.auth.mfa.listFactors();
-    const totp = data?.totp?.[0];
-    setEnrolled(Boolean(totp && totp.status === 'verified'));
-    setLoading(false);
+    setFactors(data);
+    return data;
   };
 
   useEffect(() => {
     void refresh();
   }, []);
 
-  const startEnroll = async () => {
+  // Shows the error of an action (unless the confirmation was cancelled);
+  // true when it succeeded.
+  const done = async (result: { error: ApiError | null }) => {
+    if (result.error) {
+      if (result.error.code !== 'reauth_cancelled') setError(mfaErrorMessage(result.error, t));
+      return false;
+    }
     setError(null);
-    const { data, error } = await api.auth.mfa.enroll({ factorType: 'totp' });
-    if (error || !data) {
-      setError(error?.message ?? null);
-      return;
-    }
-    setFactorId(data.id);
-    setQr(data.totp.uri);
+    const data = await refresh();
+    if (data && data.methods.length > 0) onEnabled?.();
+    return true;
   };
 
-  const verify = async () => {
-    if (!factorId) return;
-    setError(null);
-    const { error } = await api.auth.mfa.verify({ factorId, code });
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setQr(null);
-    setCode('');
-    await refresh();
-    onEnabled?.();
-  };
-
-  // Disabling asks for a current code (checked by the server).
-  const [disableOpen, setDisableOpen] = useState(false);
-  const [disableCode, setDisableCode] = useState('');
-  const [disableError, setDisableError] = useState<string | null>(null);
-  const [disabling, setDisabling] = useState(false);
-
-  const closeDisable = () => {
-    setDisableOpen(false);
-    setDisableCode('');
-    setDisableError(null);
-  };
-
-  const disable = async (e: FormEvent) => {
-    e.preventDefault();
-    setDisabling(true);
-    setDisableError(null);
-    const { data } = await api.auth.mfa.listFactors();
-    const totp = data?.totp?.find((f) => f.status === 'verified');
-    const { error } = totp
-      ? await api.auth.mfa.unenroll({ factorId: totp.id, code: disableCode })
-      : { error: null };
-    setDisabling(false);
-    if (error) {
-      setDisableError(
-        error.code === 'mfa_verification_failed' || error.code === 'mfa_required'
-          ? t('disable2faWrongCode')
-          : error.code === 'mfa_enforced'
-            ? t('disable2faEnforced')
-            : error.message,
-      );
-      setDisableCode('');
-      return;
-    }
-    closeDisable();
-    await refresh();
-  };
-
-  if (loading) return null;
+  if (!factors) return null;
+  const enabled = factors.methods.length > 0;
 
   return (
     <Card className="space-y-4">
-      <h2 className="text-base font-medium flex items-center gap-2">
-        {enrolled ? (
-          <ShieldCheck size={18} className="text-accent" />
-        ) : (
-          <ShieldOff size={18} className="text-text-secondary" />
-        )}
-        {t('twoFactor')}
-      </h2>
+      <div>
+        <h2 className="text-base font-medium flex items-center gap-2">
+          {enabled ? (
+            <ShieldCheck size={18} className="text-accent" />
+          ) : (
+            <ShieldOff size={18} className="text-text-secondary" />
+          )}
+          {t('twoFactor')}
+        </h2>
+        <p className="text-sm text-text-secondary mt-1">{enabled ? t('twoFactorOnHint') : t('twoFactorOffHint')}</p>
+      </div>
 
-      {enrolled ? (
-        <>
-          <Button variant="secondary" onClick={() => setDisableOpen(true)}>
-            {t('disable2fa')}
+      <AuthenticatorSection factors={factors} run={reauth.run} done={done} />
+      <PasskeySection factors={factors} run={reauth.run} done={done} />
+      {(factors.email.available || factors.email.enabled) && (
+        <EmailCodeSection factors={factors} run={reauth.run} done={done} />
+      )}
+
+      {error && <p className="text-sm text-danger-strong">{error}</p>}
+      {reauth.modal}
+    </Card>
+  );
+};
+
+interface MethodSectionProps {
+  factors: MfaFactors;
+  run: ReturnType<typeof useReauth>['run'];
+  done: (result: { error: ApiError | null }) => Promise<boolean>;
+}
+
+const MethodSection = ({
+  icon: Icon,
+  title,
+  hint,
+  active,
+  action,
+  children,
+}: {
+  icon: typeof KeyRound;
+  title: string;
+  hint: string;
+  active: boolean;
+  action?: ReactNode;
+  children?: ReactNode;
+}) => {
+  const { t } = useI18n();
+  return (
+    <section className="space-y-3 border-t border-border pt-4">
+      <div className="flex items-start gap-3">
+        <Icon size={18} className="mt-0.5 flex-shrink-0 text-text-secondary" />
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-x-2 font-medium">
+            {title}
+            {active && (
+              <span className="rounded-md bg-success-soft-strong px-1.5 py-0.5 text-xs font-semibold text-success-strong">
+                {t('twoFactorOn')}
+              </span>
+            )}
+          </p>
+          <p className="text-sm text-text-secondary mt-0.5">{hint}</p>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+};
+
+// "JBSW Y3DP EHPK 3PXP" — easier to type into an authenticator app.
+const groupSecret = (secret: string) => secret.match(/.{1,4}/g)?.join(' ') ?? secret;
+
+const AuthenticatorSection = ({ factors, run, done }: MethodSectionProps) => {
+  const { t } = useI18n();
+  const active = factors.totp.find((f) => f.status === 'verified');
+  const [setup, setSetup] = useState<{ id: string; secret: string; uri: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const start = async () => {
+    setBusy(true);
+    const result = await run(() => api.auth.mfa.enroll());
+    setBusy(false);
+    if (result.data) setSetup({ id: result.data.id, ...result.data.totp });
+    else await done(result);
+  };
+
+  const cancel = async () => {
+    if (setup) await api.auth.mfa.unenroll({ factorId: setup.id });
+    setSetup(null);
+    setCode('');
+  };
+
+  const verify = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!setup) return;
+    setBusy(true);
+    const ok = await done(await api.auth.mfa.verify({ factorId: setup.id, code }));
+    setBusy(false);
+    setCode('');
+    if (ok) setSetup(null);
+  };
+
+  const copySecret = async () => {
+    if (!setup) return;
+    try {
+      await navigator.clipboard.writeText(setup.secret);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* clipboard unavailable: the key stays visible for manual copying */
+    }
+  };
+
+  const remove = async () => {
+    setConfirmRemove(false);
+    if (!active) return;
+    setBusy(true);
+    await done(await run(() => api.auth.mfa.unenroll({ factorId: active.id })));
+    setBusy(false);
+  };
+
+  return (
+    <MethodSection
+      icon={KeyRound}
+      title={t('mfaMethodTotpTitle')}
+      hint={t('mfaMethodTotpHint')}
+      active={Boolean(active)}
+      action={
+        active ? (
+          <Button variant="secondary" disabled={busy} onClick={() => setConfirmRemove(true)}>
+            {t('remove')}
           </Button>
-          <Modal
-            open={disableOpen}
-            title={t('disable2fa')}
-            onClose={closeDisable}
-            footer={
-              <>
-                <Button variant="secondary" onClick={closeDisable}>
-                  {t('cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  form="disable-2fa-form"
-                  disabled={disabling || disableCode.length < 6}
-                >
-                  {disabling ? t('loading') : t('disable2fa')}
-                </Button>
-              </>
-            }
-          >
-            <form id="disable-2fa-form" onSubmit={disable} className="space-y-4">
-              <p className="text-sm text-text-secondary">{t('disable2faConfirm')}</p>
-              <Input
-                label={t('twoFactorCode')}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="123456"
-                maxLength={6}
-                value={disableCode}
-                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ''))}
-                className="max-w-[160px] tracking-widest"
-                autoFocus
-                required
-              />
-              {disableError && <p className="text-sm text-danger-strong">{disableError}</p>}
-            </form>
-          </Modal>
-        </>
-      ) : qr ? (
-        <div className="space-y-4">
-          <QRCodeSVG
-            value={qr}
-            size={176}
-            marginSize={2}
-            title="TOTP QR"
-            className="border border-border rounded-md bg-paper"
-          />
+        ) : !setup ? (
+          <Button variant="secondary" disabled={busy} onClick={() => void start()}>
+            {t('mfaSetUp')}
+          </Button>
+        ) : null
+      }
+    >
+      {setup && (
+        <form onSubmit={verify} className="space-y-4">
+          <p className="text-sm text-text-secondary">{t('totpScanHint')}</p>
+          <a href={setup.uri} className="inline-block" title={t('totpOpenApp')}>
+            <QRCodeSVG
+              value={setup.uri}
+              size={176}
+              marginSize={2}
+              title="TOTP QR"
+              className="border border-border rounded-md bg-paper"
+            />
+          </a>
+          <div>
+            <p className="text-sm font-medium mb-1.5">{t('totpManualKey')}</p>
+            <div className="flex items-center gap-2">
+              <code
+                className="min-w-0 flex-1 break-all rounded-md border border-border bg-surface-muted px-3 py-2 font-mono text-sm tracking-wider select-all"
+                aria-label={t('totpManualKey')}
+              >
+                {groupSecret(setup.secret)}
+              </code>
+              <Button type="button" variant="secondary" onClick={() => void copySecret()} title={t('copy')}>
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                {copied ? t('copied') : t('copy')}
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-text-secondary">{t('totpManualHint')}</p>
+          </div>
           <Input
             label={t('twoFactorCode')}
             placeholder="123456"
             inputMode="numeric"
             autoComplete="one-time-code"
+            maxLength={7}
             value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="max-w-[160px]"
+            onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
+            className="max-w-[180px] tracking-widest"
+            required
           />
-          {error && <p className="text-sm text-accent">{error}</p>}
-          <Button onClick={verify} disabled={code.length < 6}>
-            {t('confirm')}
-          </Button>
-        </div>
-      ) : (
-        <>
-          <Button variant="secondary" onClick={startEnroll}>
-            {t('enable2fa')}
-          </Button>
-          {error && <p className="text-sm text-accent">{error}</p>}
-        </>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || code.replace(/\s/g, '').length < 6}>
+              {busy ? t('loading') : t('confirm')}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void cancel()}>
+              {t('cancel')}
+            </Button>
+          </div>
+        </form>
       )}
-    </Card>
+      <ConfirmDialog
+        open={confirmRemove}
+        title={t('mfaRemoveTotpTitle')}
+        message={t('mfaRemoveTotpConfirm')}
+        confirmLabel={t('remove')}
+        destructive
+        onConfirm={() => void remove()}
+        onCancel={() => setConfirmRemove(false)}
+      />
+    </MethodSection>
   );
 };
 
-// Permanently deletes the own account after re-entering the password.
+const PasskeySection = ({ factors, run, done }: MethodSectionProps) => {
+  const { t, lang } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<MfaFactors['passkeys'][number] | null>(null);
+  const supported = passkeysSupported();
+
+  const add = async () => {
+    setBusy(true);
+    const options = await run(() => api.auth.mfa.passkeyOptions());
+    if (!options.data) {
+      await done(options);
+      setBusy(false);
+      return;
+    }
+    const prompt = await createPasskey(options.data.options);
+    if (prompt.error) {
+      await done({ error: prompt.error });
+      setBusy(false);
+      return;
+    }
+    await done(
+      await api.auth.mfa.addPasskey({
+        challengeId: options.data.challenge_id,
+        credential: prompt.credential,
+        name: describeDevice(navigator.userAgent).label ?? '',
+      }),
+    );
+    setBusy(false);
+  };
+
+  const remove = async () => {
+    const passkey = removing;
+    setRemoving(null);
+    if (!passkey) return;
+    setBusy(true);
+    await done(await run(() => api.auth.mfa.removePasskey(passkey.id)));
+    setBusy(false);
+  };
+
+  const date = (iso: string) =>
+    new Date(iso).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium' });
+
+  return (
+    <MethodSection
+      icon={Fingerprint}
+      title={t('mfaMethodPasskeyTitle')}
+      hint={supported ? t('mfaMethodPasskeyHint') : t('passkeyUnsupported')}
+      active={factors.passkeys.length > 0}
+      action={
+        supported ? (
+          <Button variant="secondary" disabled={busy} onClick={() => void add()}>
+            <Plus size={15} />
+            {busy ? t('loading') : t('passkeyAdd')}
+          </Button>
+        ) : null
+      }
+    >
+      {factors.passkeys.length > 0 && (
+        <ul className="divide-y divide-border rounded-md border border-border">
+          {factors.passkeys.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{p.name || t('mfaMethodPasskey')}</p>
+                <p className="text-xs text-text-secondary">
+                  {t('passkeyAdded')}: {date(p.created_at)}
+                  {p.last_used_at ? ` · ${t('passkeyLastUsed')}: ${date(p.last_used_at)}` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setRemoving(p)}
+                title={t('remove')}
+                aria-label={`${t('remove')}: ${p.name}`}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-danger-soft hover:text-danger-strong disabled:opacity-50"
+              >
+                <Trash2 size={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ConfirmDialog
+        open={removing !== null}
+        title={t('passkeyRemoveTitle')}
+        message={t('passkeyRemoveConfirm').replace('{name}', removing?.name || t('mfaMethodPasskey'))}
+        confirmLabel={t('remove')}
+        destructive
+        onConfirm={() => void remove()}
+        onCancel={() => setRemoving(null)}
+      />
+    </MethodSection>
+  );
+};
+
+const EmailCodeSection = ({ factors, run, done }: MethodSectionProps) => {
+  const { t } = useI18n();
+  const { session } = useAuth();
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmDisable, setConfirmDisable] = useState(false);
+  const { enabled, available } = factors.email;
+
+  const start = async () => {
+    setBusy(true);
+    const result = await run(() => api.auth.mfa.enrollEmail());
+    setBusy(false);
+    if (result.data) setChallengeId(result.data.challenge_id);
+    else await done(result);
+  };
+
+  const verify = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!challengeId) return;
+    setBusy(true);
+    const result = await api.auth.mfa.verifyEmail({ challengeId, code });
+    setBusy(false);
+    setCode('');
+    if (result.error?.code === 'mfa_challenge_expired') setChallengeId(null);
+    if (await done(result)) setChallengeId(null);
+  };
+
+  const disable = async () => {
+    setConfirmDisable(false);
+    setBusy(true);
+    await done(await run(() => api.auth.mfa.disableEmail()));
+    setBusy(false);
+  };
+
+  return (
+    <MethodSection
+      icon={Mail}
+      title={t('mfaMethodEmailTitle')}
+      hint={available ? t('mfaMethodEmailHint') : t('mfaMethodEmailUnavailable')}
+      active={enabled && available}
+      action={
+        enabled ? (
+          <Button variant="secondary" disabled={busy} onClick={() => setConfirmDisable(true)}>
+            {t('mfaTurnOff')}
+          </Button>
+        ) : !challengeId ? (
+          <Button variant="secondary" disabled={busy} onClick={() => void start()}>
+            {busy ? t('loading') : t('mfaTurnOn')}
+          </Button>
+        ) : null
+      }
+    >
+      {challengeId && (
+        <form onSubmit={verify} className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            {t('mfaEmailEnrollSent').replace('{email}', session?.user.email ?? '')}
+          </p>
+          <Input
+            label={t('twoFactorCode')}
+            placeholder="123456"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={7}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
+            className="max-w-[180px] tracking-widest"
+            autoFocus
+            required
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || code.replace(/\s/g, '').length < 6}>
+              {busy ? t('loading') : t('confirm')}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setChallengeId(null)}>
+              {t('cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+      <ConfirmDialog
+        open={confirmDisable}
+        title={t('mfaMethodEmailTitle')}
+        message={t('mfaEmailDisableConfirm')}
+        confirmLabel={t('mfaTurnOff')}
+        destructive
+        onConfirm={() => void disable()}
+        onCancel={() => setConfirmDisable(false)}
+      />
+    </MethodSection>
+  );
+};
+
+// Permanently deletes the own account after re-entering the password (and,
+// with 2FA, confirming with a second factor).
 const DeleteAccountCard = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const reauth = useReauth();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
-  // Accounts with verified 2FA must also enter a current code.
-  const [needsCode, setNeedsCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const openDialog = async () => {
-    setOpen(true);
-    const { data } = await api.auth.mfa.listFactors();
-    setNeedsCode(Boolean(data?.totp?.some((f) => f.status === 'verified')));
-  };
 
   const close = () => {
     setOpen(false);
     setPassword('');
-    setCode('');
     setError(null);
   };
 
@@ -361,17 +632,15 @@ const DeleteAccountCard = () => {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: deleteError } = await api.auth.deleteUser(password, needsCode ? code : undefined);
+    const { error: deleteError } = await reauth.run(() => api.auth.deleteUser(password));
     setBusy(false);
     if (deleteError) {
-      if (deleteError.code === 'mfa_required') setNeedsCode(true);
+      if (deleteError.code === 'reauth_cancelled') return;
       const messages: Record<string, string> = {
         invalid_credentials: t('deleteAccountWrongPassword'),
         last_admin: t('deleteAccountLastAdmin'),
-        mfa_required: t('deleteAccountConfirm2fa'),
-        mfa_verification_failed: t('deleteAccountWrongCode'),
       };
-      setError(messages[deleteError.code ?? ''] ?? deleteError.message);
+      setError(messages[deleteError.code ?? ''] ?? mfaErrorMessage(deleteError, t));
       return;
     }
     navigate('/login', { replace: true });
@@ -381,13 +650,13 @@ const DeleteAccountCard = () => {
     <Card className="space-y-3">
       <h2 className="text-base font-medium">{t('deleteAccount')}</h2>
       <p className="text-sm text-text-secondary">{t('deleteAccountHint')}</p>
-      <Button variant="accent" onClick={openDialog}>
+      <Button variant="accent" onClick={() => setOpen(true)}>
         <Trash2 size={15} />
         {t('deleteAccount')}
       </Button>
 
       <Modal
-        open={open}
+        open={open && !reauth.modal}
         title={t('deleteAccount')}
         onClose={close}
         footer={
@@ -395,16 +664,14 @@ const DeleteAccountCard = () => {
             <Button variant="secondary" onClick={close}>
               {t('cancel')}
             </Button>
-            <Button type="submit" form="delete-account-form" variant="accent" disabled={busy || !password || (needsCode && code.trim().length < 6)}>
+            <Button type="submit" form="delete-account-form" variant="accent" disabled={busy || !password}>
               {busy ? t('loading') : t('deleteAccount')}
             </Button>
           </>
         }
       >
         <form id="delete-account-form" onSubmit={confirm} className="space-y-4">
-          <p className="text-sm text-text-secondary">
-            {needsCode ? t('deleteAccountConfirm2fa') : t('deleteAccountConfirm')}
-          </p>
+          <p className="text-sm text-text-secondary">{t('deleteAccountConfirm')}</p>
           <Input
             type="password"
             label={t('password')}
@@ -414,22 +681,10 @@ const DeleteAccountCard = () => {
             autoFocus
             required
           />
-          {needsCode && (
-            <Input
-              label={t('deleteAccountCode')}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              className="max-w-[160px] tracking-widest"
-              required
-            />
-          )}
           {error && <p className="text-sm text-accent">{error}</p>}
         </form>
       </Modal>
+      {reauth.modal}
     </Card>
   );
 };

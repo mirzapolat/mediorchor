@@ -10,6 +10,7 @@ interface SettingsRow {
   signup_allowed_domains: string;
   signup_requires_approval: number;
   require_admin_2fa: number;
+  allow_email_2fa: number;
 }
 
 export const MIN_SESSION_DAYS = 1;
@@ -19,7 +20,7 @@ export const instanceSettings = () => {
   const row = db
     .prepare(
       `select allow_self_signup, session_days, signup_allowed_domains,
-              signup_requires_approval, require_admin_2fa
+              signup_requires_approval, require_admin_2fa, allow_email_2fa
        from app_settings where id = 1`,
     )
     .get() as SettingsRow | undefined;
@@ -30,6 +31,7 @@ export const instanceSettings = () => {
     allowedDomains: parseDomains(row?.signup_allowed_domains ?? ''),
     requiresApproval: Boolean(row?.signup_requires_approval),
     requireAdmin2fa: Boolean(row?.require_admin_2fa),
+    allowEmail2fa: Boolean(row?.allow_email_2fa),
   };
 };
 

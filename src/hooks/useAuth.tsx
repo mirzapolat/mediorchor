@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, type Session } from '@/lib/api';
+import { api, type ApiError, type MfaChallenge, type Session } from '@/lib/api';
 import type { AppUser } from '@/types';
 
 interface AuthContextValue {
@@ -20,13 +20,9 @@ interface AuthContextValue {
   // shows only the setup until refreshSession() reports it done.
   mfaSetupRequired: boolean;
   refreshSession: () => Promise<void>;
-  // With two-factor enabled, the first call reports mfaRequired; call again
-  // with the 6-digit code.
-  signIn: (
-    email: string,
-    password: string,
-    code?: string,
-  ) => Promise<{ error: string | null; mfaRequired: boolean }>;
+  // With two-factor enabled the password only opens a challenge (mfa), to
+  // be answered with api.auth.completeSignIn.
+  signIn: (email: string, password: string) => Promise<{ error: ApiError | null; mfa: MfaChallenge | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -85,9 +81,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setMfaSetupRequired(data.mfaSetupRequired);
         if (data.session && !data.mfaSetupRequired) await loadProfile(data.session.user.id);
       },
-      signIn: async (email, password, code) => {
-        const { data, error } = await api.auth.signInWithPassword({ email, password, code });
-        return { error: error?.message ?? null, mfaRequired: data.mfaRequired };
+      signIn: async (email, password) => {
+        const { data, error } = await api.auth.signInWithPassword({ email, password });
+        return { error, mfa: data.mfa };
       },
       signOut: async () => {
         await api.auth.signOut();

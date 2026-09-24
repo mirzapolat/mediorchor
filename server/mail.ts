@@ -225,6 +225,25 @@ export const sendPendingSignupNotice = (to: string, name: string, email: string,
     'account',
   );
 
+export const sendTwoFactorCode = (to: string, code: string) =>
+  sendMail(
+    to,
+    `${appName()}: Dein Bestätigungscode / Your verification code`,
+    [
+      'Hallo,',
+      '',
+      `dein Bestätigungscode lautet: ${code}`,
+      '',
+      'Hello,',
+      '',
+      `your verification code is: ${code}`,
+      '',
+      'Der Code ist 10 Minuten gültig. Wenn du das nicht warst, ändere bitte dein Passwort.',
+      'The code is valid for 10 minutes. If this wasn’t you, please change your password.',
+    ].join('\n'),
+    'account',
+  );
+
 const testMail = () => ({
   subject: `${appName()}: Test-E-Mail / Test email`,
   text: [

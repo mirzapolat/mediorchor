@@ -5,6 +5,8 @@
 //
 // Results never throw: like supabase-js they resolve to { data, error }.
 
+import { getPasskey } from '@/lib/passkeys';
+
 export interface ApiError {
   message: string;
   code?: string;
@@ -279,9 +281,35 @@ const functions = {
 // Auth
 // ---------------------------------------------------------------------------
 
+export type MfaMethod = 'totp' | 'passkey' | 'email';
+
+// A pending second-factor check: after the password at sign-in, or a
+// re-confirmation before sensitive changes ('password' = account without 2FA).
+export interface MfaChallenge {
+  challenge_id: string;
+  methods: (MfaMethod | 'password')[];
+}
+
+// How the user answers a challenge.
+export type MfaProof =
+  | { method: 'totp' | 'email'; code: string }
+  | { method: 'passkey'; credential: unknown }
+  | { method: 'password'; password: string };
+
+export interface MfaFactors {
+  totp: { id: string; status: 'verified' | 'unverified'; created_at: string }[];
+  passkeys: { id: string; name: string; created_at: string; last_used_at: string | null }[];
+  email: { enabled: boolean; available: boolean };
+  // Active methods.
+  methods: MfaMethod[];
+  // The admin requires 2FA for this account (the last method can't be removed).
+  required: boolean;
+}
+
 interface SessionPayload {
   session: Session | null;
   mfa_required?: boolean;
+  mfa?: MfaChallenge;
   // Admin requires 2FA for this account and it has none yet.
   mfa_setup_required?: boolean;
   // Self sign-up waiting for admin approval.
@@ -317,16 +345,40 @@ const auth = {
     return { data: { subscription: { unsubscribe: () => void listeners.delete(listener) } } };
   },
 
-  // With two-factor enabled the first call answers mfaRequired; call again
-  // with the 6-digit code.
-  signInWithPassword: async (credentials: { email: string; password: string; code?: string }) => {
+  // With two-factor enabled the password only opens a challenge (mfa);
+  // completeSignIn answers it with one of the listed methods.
+  signInWithPassword: async (credentials: { email: string; password: string }) => {
     const { data, error } = await request<SessionPayload>('POST', '/api/auth/login', credentials);
     if (data?.session) emit('SIGNED_IN', data.session);
-    return {
-      data: { session: data?.session ?? null, mfaRequired: Boolean(data?.mfa_required) },
-      error,
-    };
+    return { data: { session: data?.session ?? null, mfa: data?.mfa ?? null }, error };
   },
+  completeSignIn: async (challengeId: string, proof: MfaProof) => {
+    const { data, error } = await request<SessionPayload>('POST', '/api/auth/login/mfa', {
+      challenge_id: challengeId,
+      ...proof,
+    });
+    if (data?.session) emit('SIGNED_IN', data.session);
+    return { error };
+  },
+  // Passwordless sign-in with a passkey (runs the browser's passkey prompt).
+  signInWithPasskey: async (): Promise<{ error: ApiError | null }> => {
+    const start = await request<{ challenge_id: string; options: any }>('POST', '/api/auth/passkey/options', {});
+    if (start.error || !start.data) return { error: start.error };
+    const prompt = await getPasskey(start.data.options);
+    if (prompt.error) return { error: prompt.error };
+    const { data, error } = await request<SessionPayload>('POST', '/api/auth/passkey/login', {
+      challenge_id: start.data.challenge_id,
+      credential: prompt.credential,
+    });
+    if (data?.session) emit('SIGNED_IN', data.session);
+    return { error };
+  },
+
+  // Re-confirmation before sensitive changes: calls that need it fail with
+  // code reauth_required until reauth() succeeded (valid for a few minutes).
+  startReauth: async () => request<MfaChallenge>('POST', '/api/auth/reauth/start', {}),
+  reauth: async (challengeId: string, proof: MfaProof) =>
+    request<{ ok: boolean }>('POST', '/api/auth/reauth', { challenge_id: challengeId, ...proof }),
 
   // Without email confirmation the account is signed in right away; with it,
   // session is null until the emailed link is opened.
@@ -349,10 +401,10 @@ const auth = {
     return { error };
   },
 
-  // Permanently deletes the signed-in account (password, plus a TOTP code
-  // when two-factor authentication is enabled).
-  deleteUser: async (password: string, code?: string) => {
-    const { error } = await request('DELETE', '/api/auth/user', { password, code });
+  // Permanently deletes the signed-in account (password, plus a recent
+  // re-confirmation when two-factor authentication is enabled).
+  deleteUser: async (password: string) => {
+    const { error } = await request('DELETE', '/api/auth/user', { password });
     if (!error) emit('SIGNED_OUT', null);
     return { error };
   },
@@ -363,26 +415,42 @@ const auth = {
   },
 
   mfa: {
-    listFactors: async () => {
-      const { data, error } = await request<{ totp: { id: string; status: 'verified' | 'unverified' }[] }>(
-        'GET',
-        '/api/auth/mfa/factors',
-      );
-      return { data, error };
-    },
-    enroll: async (_options: { factorType: 'totp' }) => {
-      const { data, error } = await request<{ id: string; totp: { secret: string; uri: string } }>(
-        'POST',
-        '/api/auth/mfa/enroll',
-        {},
-      );
-      return { data, error };
-    },
+    listFactors: async () => request<MfaFactors>('GET', '/api/auth/mfa/factors'),
+
+    // Pending challenges (sign-in or re-confirmation): email a code, or get
+    // the options for the browser's passkey prompt.
+    sendChallengeEmail: async (challengeId: string) =>
+      request<{ ok: boolean }>('POST', '/api/auth/mfa/challenge/email', { challenge_id: challengeId }),
+    challengePasskeyOptions: async (challengeId: string) =>
+      request<{ options: any }>('POST', '/api/auth/mfa/challenge/passkey', { challenge_id: challengeId }),
+
+    // Authenticator app.
+    enroll: async () =>
+      request<{ id: string; totp: { secret: string; uri: string } }>('POST', '/api/auth/mfa/enroll', {}),
     verify: async (input: { factorId: string; code: string }) =>
       request<{ ok: boolean }>('POST', '/api/auth/mfa/verify', input),
-    // An active factor needs a current code to be removed.
-    unenroll: async (input: { factorId: string; code?: string }) =>
+    unenroll: async (input: { factorId: string }) =>
       request<{ ok: boolean }>('POST', '/api/auth/mfa/unenroll', input),
+
+    // Passkeys.
+    passkeyOptions: async () =>
+      request<{ challenge_id: string; options: any }>('POST', '/api/auth/mfa/passkeys/options', {}),
+    addPasskey: async (input: { challengeId: string; credential: unknown; name: string }) =>
+      request<{ ok: boolean }>('POST', '/api/auth/mfa/passkeys', {
+        challenge_id: input.challengeId,
+        credential: input.credential,
+        name: input.name,
+      }),
+    removePasskey: async (id: string) => request<{ ok: boolean }>('POST', '/api/auth/mfa/passkeys/remove', { id }),
+
+    // Codes by email.
+    enrollEmail: async () => request<{ challenge_id: string }>('POST', '/api/auth/mfa/email/enroll', {}),
+    verifyEmail: async (input: { challengeId: string; code: string }) =>
+      request<{ ok: boolean }>('POST', '/api/auth/mfa/email/verify', {
+        challenge_id: input.challengeId,
+        code: input.code,
+      }),
+    disableEmail: async () => request<{ ok: boolean }>('POST', '/api/auth/mfa/email/disable', {}),
   },
 };
 

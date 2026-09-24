@@ -7,6 +7,7 @@ import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
+import { email2faAvailable, usersWithSecondFactor } from './mfa.ts';
 import { branding } from './branding.ts';
 
 type Args = Record<string, unknown>;
@@ -175,6 +176,8 @@ const get_public_config = () => {
     signup_allowed_domains: settings.allowedDomains,
     // Whether the server can send email (notification settings need it).
     mail_enabled: mailEnabled(),
+    // Codes by email as second factor (admin allows them and email works).
+    email_2fa_available: email2faAvailable(),
   };
 };
 
@@ -858,11 +861,7 @@ const linked_account_names = (args: Args) => {
 const two_factor_users = () => {
   requireUser();
   if (!check(isAdmin())) throw forbidden('Access denied');
-  return (
-    db.prepare(`select distinct user_id from auth_factors where status = 'verified'`).all() as {
-      user_id: string;
-    }[]
-  ).map((r) => r.user_id);
+  return usersWithSecondFactor();
 };
 
 // Admins see when each account was last active (auth tables stay private).

@@ -23,6 +23,7 @@ interface Settings {
   signup_requires_approval: boolean;
   signup_allowed_domains: string;
   require_admin_2fa: boolean;
+  allow_email_2fa: boolean;
   session_days: number | null;
 }
 
@@ -41,6 +42,8 @@ export const AdminSecurityPage = () => {
   const { isAdmin } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [info, setInfo] = useState<ServerInfo | null>(null);
+  // Codes by email need outgoing email.
+  const [mailEnabled, setMailEnabled] = useState(false);
   const [domains, setDomains] = useState('');
   const [sessionDays, setSessionDays] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
@@ -51,12 +54,14 @@ export const AdminSecurityPage = () => {
       api
         .from('app_settings')
         .select(
-          'allow_self_signup, signup_requires_approval, signup_allowed_domains, require_admin_2fa, session_days',
+          'allow_self_signup, signup_requires_approval, signup_allowed_domains, require_admin_2fa, allow_email_2fa, session_days',
         )
         .eq('id', 1)
         .maybeSingle(),
       api.functions.invoke('admin-server-info'),
-    ]).then(([s, i]) => {
+      api.rpc('get_public_config'),
+    ]).then(([s, i, c]) => {
+      setMailEnabled(Boolean((c.data as { mail_enabled?: boolean } | null)?.mail_enabled));
       const row = s.data as Settings | null;
       setSettings(row);
       setDomains(row?.signup_allowed_domains ?? '');
@@ -132,6 +137,13 @@ export const AdminSecurityPage = () => {
             hint={t('require2faHint')}
             checked={settings.require_admin_2fa}
             onChange={(v) => void update('security', { require_admin_2fa: v })}
+          />
+          <ToggleRow
+            label={t('allowEmail2fa')}
+            hint={mailEnabled ? t('allowEmail2faHint') : `${t('allowEmail2faHint')} ${t('allowEmail2faNoMail')}`}
+            checked={settings.allow_email_2fa}
+            disabled={!mailEnabled && !settings.allow_email_2fa}
+            onChange={(v) => void update('security', { allow_email_2fa: v })}
           />
           <div className="space-y-2 border-t border-border pt-4">
             <Input

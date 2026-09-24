@@ -6,8 +6,9 @@
 //   delete → target rows must satisfy `delete`
 //   insert → new rows must satisfy `insert`
 // A missing predicate denies the operation. auth_uid() is the calling user.
-import { ApiError, db } from './db.ts';
+import { ApiError } from './db.ts';
 import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
+import { hasSecondFactor } from './mfa.ts';
 
 type Predicate = (alias: string) => string;
 
@@ -189,10 +190,7 @@ export const policies: Record<string, TablePolicy> = {
       // Turning on required 2FA needs it on the admin's own account first, or
       // they'd lock themselves out.
       if (patch.require_admin_2fa && !oldRow.require_admin_2fa) {
-        const own = db
-          .prepare(`select 1 from auth_factors where user_id = ? and status = 'verified'`)
-          .get(uid);
-        if (!own) {
+        if (!hasSecondFactor(uid)) {
           throw new ApiError('Enable two-factor authentication on your own account first', 400, 'mfa_self_required');
         }
       }

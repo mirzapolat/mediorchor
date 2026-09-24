@@ -50,8 +50,13 @@ switch (command) {
     break;
   }
   case 'disable-2fa': {
-    db.prepare('delete from auth_factors where user_id = ?').run(userId(args[0]));
-    console.log(`Two-factor authentication removed for ${args[0]}`);
+    const id = userId(args[0]);
+    db.transaction(() => {
+      db.prepare('delete from auth_factors where user_id = ?').run(id);
+      db.prepare('delete from auth_passkeys where user_id = ?').run(id);
+      db.prepare('update auth_users set email_2fa = 0 where id = ?').run(id);
+    })();
+    console.log(`Two-factor authentication (authenticator app, passkeys, email codes) removed for ${args[0]}`);
     break;
   }
   default:
