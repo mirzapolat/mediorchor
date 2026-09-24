@@ -10,7 +10,7 @@ import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { CardColumns } from '@/components/CardColumns';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
-import { LEGAL_KINDS, LEGAL_PATH, LEGAL_TITLE, refreshLegalPages, type LegalKind } from '@/lib/legalPages';
+import { LEGAL_PATH, LEGAL_TITLE, refreshLegalPages, type LegalKind } from '@/lib/legalPages';
 import { cn } from '@/lib/cn';
 import { uploadImage } from '@/lib/uploadImage';
 import { PhotoCropper } from '@/components/PhotoCropper';
@@ -31,9 +31,12 @@ interface ServerInfo {
   brand_defaults: { app_name: string; accent_color: string };
 }
 
-// Instance-wide configuration (app_settings singleton) plus server facts.
-// Email (SMTP) has its own page: AdminEmailPage.
-export const AdminConfigPage = () => {
+// Admin settings pages, one per tab in the admin sidebar: Branding,
+// Security (sign-up + security), Imprint, Privacy. All edit the app_settings
+// singleton; Email (SMTP) is AdminEmailPage.
+
+// Security: who may sign up, and how accounts are protected.
+export const AdminSecurityPage = () => {
   const { t } = useI18n();
   const { isAdmin } = useAuth();
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -84,8 +87,6 @@ export const AdminConfigPage = () => {
   return (
     <>
       <PageHeader title={t('adminSecurity')} />
-
-      {info ? <BrandingCard defaults={info.brand_defaults} /> : null}
 
       <CardColumns>
         <Card className="space-y-4">
@@ -161,11 +162,44 @@ export const AdminConfigPage = () => {
           ) : null}
         </Card>
       </CardColumns>
+    </>
+  );
+};
 
-      <div className="max-w-5xl space-y-6">
-        {LEGAL_KINDS.map((kind) => (
-          <LegalPageCard key={kind} kind={kind} />
-        ))}
+// Branding: app name, logo/favicon and accent color.
+export const AdminBrandingPage = () => {
+  const { t } = useI18n();
+  const { isAdmin } = useAuth();
+  const [defaults, setDefaults] = useState<ServerInfo['brand_defaults'] | null>(null);
+
+  useEffect(() => {
+    void api.functions.invoke('admin-server-info').then(({ data }) => {
+      setDefaults((data as ServerInfo | null)?.brand_defaults ?? null);
+    });
+  }, []);
+
+  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!defaults) return <PageSpinner />;
+
+  return (
+    <>
+      <PageHeader title={t('branding')} />
+      <BrandingCard defaults={defaults} />
+    </>
+  );
+};
+
+// Imprint (Impressum) or privacy policy (Datenschutzerklärung).
+export const AdminLegalPage = ({ kind }: { kind: LegalKind }) => {
+  const { t } = useI18n();
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return (
+    <>
+      <PageHeader title={t(LEGAL_TITLE[kind])} />
+      <div className="max-w-5xl">
+        {/* Keyed so switching between the two tabs starts from fresh state. */}
+        <LegalPageCard key={kind} kind={kind} />
       </div>
     </>
   );
@@ -310,10 +344,7 @@ const LegalPageCard = ({ kind }: { kind: LegalKind }) => {
   return (
     <form onSubmit={(e) => void save(e)}>
       <Card className="space-y-4">
-        <div>
-          <h2 className="text-base font-medium">{t(LEGAL_TITLE[kind])}</h2>
-          <p className="mt-1 text-sm text-text-secondary">{t(copy.hint)}</p>
-        </div>
+        <p className="text-sm text-text-secondary">{t(copy.hint)}</p>
 
         <div role="radiogroup" aria-label={t(LEGAL_TITLE[kind])} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {(
@@ -471,12 +502,9 @@ const BrandingCard = ({ defaults }: { defaults: ServerInfo['brand_defaults'] }) 
   };
 
   return (
-    <form onSubmit={(e) => void save(e)} className="mb-6 max-w-5xl">
+    <form onSubmit={(e) => void save(e)} className="max-w-5xl">
       <Card className="space-y-5">
-        <div>
-          <h2 className="text-base font-medium">{t('branding')}</h2>
-          <p className="mt-1 text-sm text-text-secondary">{t('brandingHint')}</p>
-        </div>
+        <p className="text-sm text-text-secondary">{t('brandingHint')}</p>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="space-y-5">

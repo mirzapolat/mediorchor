@@ -24,7 +24,7 @@ import { ClubApplicationsPage } from '@/pages/ClubApplicationsPage';
 import { ClubRulesPage } from '@/pages/ClubRulesPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
-import { AdminConfigPage } from '@/pages/AdminConfigPage';
+import { AdminBrandingPage, AdminLegalPage, AdminSecurityPage } from '@/pages/AdminSettingsPages';
 import { AdminEmailPage } from '@/pages/AdminEmailPage';
 import { AccountPage } from '@/pages/AccountPage';
 import { EventsPage } from '@/pages/EventsPage';
@@ -120,7 +120,12 @@ export const App = () => {
           <Route index element={<Navigate to="users" replace />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
-          <Route path="config" element={<AdminConfigPage />} />
+          <Route path="branding" element={<AdminBrandingPage />} />
+          <Route path="security" element={<AdminSecurityPage />} />
+          {/* Old link to the combined settings page. */}
+          <Route path="config" element={<Navigate to="/admin/security" replace />} />
+          <Route path="imprint" element={<AdminLegalPage kind="imprint" />} />
+          <Route path="privacy" element={<AdminLegalPage kind="privacy" />} />
           <Route path="email" element={<AdminEmailPage />} />
         </Route>
 

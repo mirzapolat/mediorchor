@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LockKeyhole, Mail, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeft, Building2, LockKeyhole, Mail, Palette, ShieldCheck, ShieldHalf, Users } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -53,7 +53,10 @@ export const AdminLayout = () => {
 
         <div className="flex-1 space-y-1 overflow-y-auto p-3">
           <SidebarNavItem to="/admin/users" label={t('users')} icon={Users} />
-          <SidebarNavItem to="/admin/config" label={t('adminSecurity')} icon={LockKeyhole} />
+          <SidebarNavItem to="/admin/branding" label={t('branding')} icon={Palette} />
+          <SidebarNavItem to="/admin/security" label={t('adminSecurity')} icon={LockKeyhole} />
+          <SidebarNavItem to="/admin/imprint" label={t('imprint')} icon={Building2} />
+          <SidebarNavItem to="/admin/privacy" label={t('privacyPolicy')} icon={ShieldHalf} />
           <SidebarNavItem to="/admin/email" label={t('emailSection')} icon={Mail} />
         </div>
 

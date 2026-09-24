@@ -65,30 +65,28 @@ export const ProjectsPage = () => {
   const columns: Column<Project>[] = [
     {
       id: 'name',
-      header: t('projectName'),
+      header: t('projectLabel'),
       accessor: (p) => p.name,
+      // Name and description in one column: the description is the name's
+      // secondary line (one line, clipped).
       render: (p) => (
-        <div className="flex items-center gap-2.5">
-          <Avatar name={p.name} photoUrl={p.image_url} size={28} square />
-          <span className="font-medium">{p.name}</span>
-          {p.status === 'archived' && (
-            <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
-              {t('archived')}
-            </span>
-          )}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={p.name} photoUrl={p.image_url} size={p.description ? 36 : 28} square />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{p.name}</span>
+              {p.status === 'archived' && (
+                <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
+                  {t('archived')}
+                </span>
+              )}
+            </div>
+            {p.description ? (
+              <p className="line-clamp-1 text-sm text-text-secondary">{p.description}</p>
+            ) : null}
+          </div>
         </div>
       ),
-    },
-    {
-      id: 'description',
-      header: t('description'),
-      accessor: (p) => p.description,
-      render: (p) =>
-        p.description ? (
-          <span className="text-text-secondary line-clamp-1">{p.description}</span>
-        ) : (
-          <span className="text-text-secondary">—</span>
-        ),
     },
     {
       id: 'participating',

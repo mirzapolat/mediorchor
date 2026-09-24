@@ -23,7 +23,7 @@ export const LegalLink = ({ kind, className }: { kind: LegalKind; className?: st
 
 // Subtle centered footer ("Impressum · Datenschutz") for the bottom of public
 // pages. Empty — and hidden — until an admin sets up at least one page
-// (Admin → Configuration).
+// (Admin → Impressum / Datenschutz).
 export const LegalFooter = ({ className }: { className?: string }) => {
   const { t } = useI18n();
   const pages = useLegalPages();
