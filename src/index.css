@@ -232,13 +232,13 @@ body {
   border-radius: 0.75rem;
 }
 
-.glass-panel input:not([type='checkbox']):not([type='radio']) {
+.glass-panel input:not([type='checkbox']):not([type='radio']):not(.otp-input) {
   min-height: 2.75rem;
   background-color: rgb(var(--c-white) / 0.7);
   transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
 }
 
-.glass-panel input:not([type='checkbox']):not([type='radio']):focus {
+.glass-panel input:not([type='checkbox']):not([type='radio']):not(.otp-input):focus {
   background-color: rgb(var(--c-white));
   box-shadow: 0 0 0 4px rgb(var(--c-black) / 0.07);
 }
@@ -250,6 +250,16 @@ body {
 /* A soft lift under primary buttons (light theme; in dark mode they're light). */
 :root:not([data-theme='dark']) .glass-panel button.bg-black:not(:disabled) {
   box-shadow: 0 8px 18px -8px rgb(var(--c-black) / 0.5);
+}
+
+/* Blinking caret in the active box of a verification code (CodeInput). */
+@keyframes otpcaret {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+.otp-caret {
+  animation: otpcaret 1s linear infinite;
 }
 
 /* Background strands of the sign-in screens (FloatingPaths): each path has
@@ -269,4 +279,5 @@ body {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   /* A looping animation at 0.01ms would flicker; keep the strands still. */
   .floating-paths path { animation: none !important; stroke-dasharray: none; }
+  .otp-caret { animation: none !important; }
 }

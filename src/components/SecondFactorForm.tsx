@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Fingerprint, KeyRound, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { CodeInput } from '@/components/CodeInput';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api, type ApiError, type MfaChallenge, type MfaProof } from '@/lib/api';
 import { getPasskey, passkeysSupported } from '@/lib/passkeys';
@@ -107,25 +108,24 @@ export const SecondFactorForm = ({
     await submit({ method: 'passkey', credential: prompt.credential });
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
+
   const onCodeSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     if (method === 'password') void submit({ method: 'password', password });
     else if (method === 'totp' || method === 'email') void submit({ method, code });
   };
 
   const codeInput = (
-    <Input
+    <CodeInput
       id="mfa-code"
       label={t('twoFactorCode')}
-      inputMode="numeric"
-      autoComplete="one-time-code"
-      placeholder="123456"
-      maxLength={7}
       value={code}
-      onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
-      className="max-w-[180px] tracking-widest"
+      onChange={setCode}
+      // The sixth digit submits right away.
+      onComplete={() => formRef.current?.requestSubmit()}
       autoFocus
-      required
     />
   );
 
@@ -183,7 +183,7 @@ export const SecondFactorForm = ({
           </Button>
         </div>
       ) : (
-        <form onSubmit={onCodeSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={onCodeSubmit} className="space-y-4">
           <p className="text-sm text-text-secondary">
             {method === 'totp' ? t('twoFactorPrompt') : method === 'email' ? t('mfaEmailSent') : t('reauthPasswordPrompt')}
           </p>
@@ -204,7 +204,7 @@ export const SecondFactorForm = ({
           <Button
             type="submit"
             className="w-full"
-            disabled={busy || (method === 'password' ? !password : code.replace(/\s/g, '').length < 6)}
+            disabled={busy || (method === 'password' ? !password : code.length < 6)}
           >
             {busy ? t('loading') : submitLabel}
           </Button>
@@ -221,7 +221,7 @@ export const SecondFactorForm = ({
         </form>
       )}
       {error && (
-        <p className="text-sm text-danger-strong" role="alert">
+        <p className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger-strong" role="alert">
           {error}
         </p>
       )}

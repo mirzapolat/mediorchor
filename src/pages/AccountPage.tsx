@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -28,6 +28,7 @@ import { Input, Select } from '@/components/Input';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { Modal } from '@/components/Modal';
+import { CodeInput } from '@/components/CodeInput';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { mfaErrorMessage } from '@/components/SecondFactorForm';
 import { useI18n } from '@/lib/i18n';
@@ -318,9 +319,11 @@ const AuthenticatorSection = ({ factors, run, done }: MethodSectionProps) => {
     setCode('');
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
+
   const verify = async (e: FormEvent) => {
     e.preventDefault();
-    if (!setup) return;
+    if (!setup || busy) return;
     setBusy(true);
     const ok = await done(await api.auth.mfa.verify({ factorId: setup.id, code }));
     setBusy(false);
@@ -366,7 +369,7 @@ const AuthenticatorSection = ({ factors, run, done }: MethodSectionProps) => {
       }
     >
       {setup && (
-        <form onSubmit={verify} className="space-y-4">
+        <form ref={formRef} onSubmit={verify} className="space-y-4">
           <p className="text-sm text-text-secondary">{t('totpScanHint')}</p>
           <a href={setup.uri} className="inline-block" title={t('totpOpenApp')}>
             <QRCodeSVG
@@ -393,19 +396,17 @@ const AuthenticatorSection = ({ factors, run, done }: MethodSectionProps) => {
             </div>
             <p className="mt-1.5 text-xs text-text-secondary">{t('totpManualHint')}</p>
           </div>
-          <Input
-            label={t('twoFactorCode')}
-            placeholder="123456"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={7}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
-            className="max-w-[180px] tracking-widest"
-            required
-          />
+          <div className="max-w-xs space-y-1.5">
+            <p className="text-sm font-medium">{t('twoFactorCode')}</p>
+            <CodeInput
+              label={t('twoFactorCode')}
+              value={code}
+              onChange={setCode}
+              onComplete={() => formRef.current?.requestSubmit()}
+            />
+          </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || code.replace(/\s/g, '').length < 6}>
+            <Button type="submit" disabled={busy || code.length < 6}>
               {busy ? t('loading') : t('confirm')}
             </Button>
             <Button type="button" variant="secondary" onClick={() => void cancel()}>
@@ -539,9 +540,11 @@ const EmailCodeSection = ({ factors, run, done }: MethodSectionProps) => {
     else await done(result);
   };
 
+  const formRef = useRef<HTMLFormElement>(null);
+
   const verify = async (e: FormEvent) => {
     e.preventDefault();
-    if (!challengeId) return;
+    if (!challengeId || busy) return;
     setBusy(true);
     const result = await api.auth.mfa.verifyEmail({ challengeId, code });
     setBusy(false);
@@ -576,24 +579,21 @@ const EmailCodeSection = ({ factors, run, done }: MethodSectionProps) => {
       }
     >
       {challengeId && (
-        <form onSubmit={verify} className="space-y-4">
+        <form ref={formRef} onSubmit={verify} className="space-y-4">
           <p className="text-sm text-text-secondary">
             {t('mfaEmailEnrollSent').replace('{email}', session?.user.email ?? '')}
           </p>
-          <Input
-            label={t('twoFactorCode')}
-            placeholder="123456"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={7}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ''))}
-            className="max-w-[180px] tracking-widest"
-            autoFocus
-            required
-          />
+          <div className="max-w-xs">
+            <CodeInput
+              label={t('twoFactorCode')}
+              value={code}
+              onChange={setCode}
+              onComplete={() => formRef.current?.requestSubmit()}
+              autoFocus
+            />
+          </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || code.replace(/\s/g, '').length < 6}>
+            <Button type="submit" disabled={busy || code.length < 6}>
               {busy ? t('loading') : t('confirm')}
             </Button>
             <Button type="button" variant="secondary" onClick={() => setChallengeId(null)}>
