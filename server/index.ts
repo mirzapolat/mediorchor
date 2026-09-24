@@ -6,7 +6,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, migrate, loadTableMeta, translateDbError, ApiError } from './db.ts';
-import { env, mailEnabled } from './env.ts';
+import { env } from './env.ts';
 import { authRoutes, withSessionUser, purgeExpired, createAccount, sessionUser, mfaSetupRequired } from './auth.ts';
 import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
@@ -15,6 +15,7 @@ import { adminRoutes } from './admin.ts';
 import { webhookRoutes } from './webhooks.ts';
 import { rateLimit } from './ratelimit.ts';
 import { startNotifications } from './notifications.ts';
+import { mailEnabled } from './mail.ts';
 
 migrate();
 loadTableMeta();
@@ -175,7 +176,7 @@ startNotifications();
 const server = serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`mediorchor listening on http://localhost:${info.port}`);
   console.log(`Data directory: ${env.dataDir}`);
-  console.log(mailEnabled ? 'Email confirmation enabled (SMTP configured).' : 'SMTP not configured: sign-ups are confirmed immediately.');
+  console.log(mailEnabled() ? 'Email confirmation enabled (SMTP configured).' : 'SMTP not configured: sign-ups are confirmed immediately.');
 });
 
 const shutdown = () => {

@@ -1,19 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { CheckCircle2, LockKeyhole, LogIn, UserRound } from 'lucide-react';
+import { Check, CheckCircle2, LockKeyhole, LogIn, Users, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
 import { Input, Select } from '@/components/Input';
+import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
+import { AppLogo } from '@/components/AppLogo';
 import { Markdown } from '@/lib/markdown';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
-import { AppLogo } from '@/components/AppLogo';
+import { config } from '@/lib/config';
+import { cn } from '@/lib/cn';
+import { formatDeadlineParts, timeLeft } from '@/lib/registrationDeadline';
 
 type RegistrationInfo =
   | { state: 'invalid' }
   | { state: 'inactive'; title?: string; project_name?: string }
+  | {
+      state: 'closed';
+      title?: string;
+      project_name?: string;
+      project_image?: string | null;
+      closes_at?: string | null;
+    }
   | {
       state: 'active';
       title: string;
@@ -22,6 +32,8 @@ type RegistrationInfo =
       ask_group: boolean;
       groups: string[];
       project_name: string;
+      project_image: string | null;
+      closes_at: string | null;
       allow_guest_signup: boolean;
       allow_account_signup: boolean;
       logged_in: boolean;
@@ -29,31 +41,23 @@ type RegistrationInfo =
     };
 
 type SubmitResult = {
-  state: 'success' | 'invalid' | 'inactive' | 'invalid_input' | 'not_allowed';
+  state: 'success' | 'invalid' | 'inactive' | 'closed' | 'invalid_input' | 'not_allowed';
+  closes_at?: string | null;
 };
 
-const TOTAL_STEPS = 4;
+// 1 = welcome, 2 = details, 3 = review, 4 = done.
+type Step = 1 | 2 | 3 | 4;
 
-const StepDots = ({ step }: { step: number }) => (
-  <div className="mb-6 flex items-center justify-center gap-2" aria-hidden="true">
-    {Array.from({ length: TOTAL_STEPS }, (_, index) => (
-      <span
-        key={index}
-        className={`h-2 rounded-full transition-all duration-200 ${
-          index + 1 === step ? 'w-6 bg-black' : index + 1 < step ? 'w-2 bg-black' : 'w-2 bg-border'
-        }`}
-      />
-    ))}
-  </div>
-);
-
+// Public sign-up page of a registration form. Laid out like an event page
+// (cover + title + key facts on the left/top, the registration card next to
+// it), in the app's own tokens so it follows branding and dark mode.
 export const PublicRegistrationPage = () => {
   const { token = '' } = useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const location = useLocation();
   const { session } = useAuth();
   const [info, setInfo] = useState<RegistrationInfo | null>(null);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState<Step>(1);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -87,10 +91,30 @@ export const PublicRegistrationPage = () => {
 
   const active = info?.state === 'active' ? info : null;
   // Logged-in visitors register with their account when the project allows it.
-  const accountMode = Boolean(
-    active && active.logged_in && active.allow_account_signup && !asGuest,
-  );
+  const accountMode = Boolean(active && active.logged_in && active.allow_account_signup && !asGuest);
   const guestBlocked = Boolean(active && !active.allow_guest_signup && !accountMode);
+
+  // The page stays open in a tab: close the form when the deadline passes
+  // (the server refuses late submissions either way).
+  useEffect(() => {
+    if (!active?.closes_at || step === 4) return;
+    const ms = Date.parse(active.closes_at) - Date.now();
+    if (ms > 2 ** 31 - 1) return;
+    const close = () =>
+      setInfo({
+        state: 'closed',
+        title: active.title,
+        project_name: active.project_name,
+        project_image: active.project_image,
+        closes_at: active.closes_at,
+      });
+    if (!(ms > 0)) {
+      close();
+      return;
+    }
+    const timer = window.setTimeout(close, ms);
+    return () => window.clearTimeout(timer);
+  }, [active, step]);
 
   const dataValid = useMemo(() => {
     if (!active) return false;
@@ -122,6 +146,14 @@ export const PublicRegistrationPage = () => {
       setStep(4);
     } else if (result.state === 'inactive') {
       setInfo({ state: 'inactive', title: active?.title, project_name: active?.project_name });
+    } else if (result.state === 'closed') {
+      setInfo({
+        state: 'closed',
+        title: active?.title,
+        project_name: active?.project_name,
+        project_image: active?.project_image,
+        closes_at: result.closes_at ?? active?.closes_at,
+      });
     } else if (result.state === 'invalid') {
       setInfo({ state: 'invalid' });
     } else if (result.state === 'not_allowed') {
@@ -133,272 +165,435 @@ export const PublicRegistrationPage = () => {
 
   if (!info) return <PageSpinner />;
 
-  if (info.state !== 'active') {
+  // Unknown link: nothing to show about the page itself.
+  if (info.state === 'invalid' || ((info.state === 'inactive' || info.state === 'closed') && !info.title)) {
     return (
-      <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
-        <div className="mx-auto w-full max-w-xl">
-          <Card className="p-8 text-center">
-            <LockKeyhole size={38} className="mx-auto text-text-secondary" />
-            {'title' in info && info.title ? (
-              <p className="mt-5 font-semibold">{info.title}</p>
-            ) : null}
-            <h1 className="mt-2 text-lg font-semibold">
-              {info.state === 'inactive' ? t('registrationUnavailable') : t('registrationInvalid')}
-            </h1>
-          </Card>
+      <Shell>
+        <div className="mx-auto max-w-md">
+          <RegistrationCard label={t('registrationCardTitle')}>
+            <Notice
+              icon={LockKeyhole}
+              title={info.state === 'invalid' ? t('registrationInvalid') : t('registrationUnavailable')}
+            />
+          </RegistrationCard>
         </div>
-      </main>
+      </Shell>
     );
   }
-  if (!active) return null;
 
-  if (guestBlocked) {
-    return (
-      <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
-        <div className="mx-auto w-full max-w-xl">
-          <Card className="p-8 text-center">
-            <LockKeyhole size={38} className="mx-auto text-text-secondary" />
-            <p className="mt-5 font-semibold">{active.title}</p>
-            <h1 className="mt-2 text-lg font-semibold">{t('guestSignupDisabled')}</h1>
-            {active.allow_account_signup ? (
-              <Link
-                to="/login"
-                state={{ from: location.pathname }}
-                className="mt-4 inline-flex items-center gap-2 text-sm font-medium underline"
-              >
-                <LogIn size={15} />
-                {t('signInToRegister')}
-              </Link>
-            ) : null}
-          </Card>
+  const title = active?.title ?? ('title' in info ? info.title! : '');
+  const projectName = active?.project_name ?? ('project_name' in info ? (info.project_name ?? '') : '');
+  const projectImage = active?.project_image ?? (info.state === 'closed' ? (info.project_image ?? null) : null);
+  const closesAt = active?.closes_at ?? (info.state === 'closed' ? (info.closes_at ?? null) : null);
+  const signInLink =
+    active && !active.logged_in && active.allow_account_signup ? (
+      <Link
+        to="/login"
+        state={{ from: location.pathname }}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary underline-offset-4 transition-colors hover:text-text hover:underline"
+      >
+        <LogIn size={14} />
+        {t('signInToRegister')}
+      </Link>
+    ) : null;
+
+  let card: ReactNode;
+  if (info.state === 'closed') {
+    // The deadline itself is shown next to the calendar tile above.
+    card = <Notice icon={LockKeyhole} title={t('registrationClosedTitle')} text={t('registrationClosedHint')} />;
+  } else if (info.state === 'inactive') {
+    card = <Notice icon={LockKeyhole} title={t('registrationUnavailable')} />;
+  } else if (active && guestBlocked) {
+    card = (
+      <div className="space-y-4">
+        <Notice icon={LockKeyhole} title={t('guestSignupDisabled')} />
+        {active.allow_account_signup ? <p className="text-center">{signInLink}</p> : null}
+      </div>
+    );
+  } else if (active && step === 1) {
+    card = (
+      <div className="space-y-4">
+        <p className="text-text-secondary">{t('registrationWelcome')}</p>
+        {accountMode && active.me ? (
+          <div className="flex items-center gap-3">
+            <Avatar name={active.me.name || active.me.email} size={36} />
+            <div className="min-w-0">
+              <p className="truncate font-medium">{active.me.name || active.me.email}</p>
+              <p className="truncate text-sm text-text-secondary">{active.me.email}</p>
+            </div>
+          </div>
+        ) : null}
+        <Button className="h-11 w-full text-base" onClick={() => setStep(2)}>
+          {accountMode ? t('registerWithAccount') : t('registerNow')}
+        </Button>
+        {signInLink ? <p className="text-center">{signInLink}</p> : null}
+        {accountMode && active.allow_guest_signup ? (
+          <button
+            type="button"
+            onClick={() => setAsGuest(true)}
+            className="w-full text-sm text-text-secondary underline-offset-4 hover:text-text hover:underline"
+          >
+            {t('continueAsGuestInstead')}
+          </button>
+        ) : null}
+        {asGuest && active.logged_in && active.allow_account_signup ? (
+          <button
+            type="button"
+            onClick={() => setAsGuest(false)}
+            className="w-full text-sm text-text-secondary underline-offset-4 hover:text-text hover:underline"
+          >
+            {t('continueWithAccountInstead')}
+          </button>
+        ) : null}
+      </div>
+    );
+  } else if (active && step === 2) {
+    card = (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (dataValid) setStep(3);
+        }}
+        className="space-y-4"
+      >
+        {accountMode ? (
+          <p className="rounded-lg bg-surface-subtle px-3 py-2.5 text-sm text-text-secondary">
+            {t('dataFromAccountHint')}
+          </p>
+        ) : null}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Input
+            label={t('firstName')}
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            autoComplete="given-name"
+            maxLength={120}
+            required
+            autoFocus={!accountMode}
+            // Account sign-ups use the account's data; only the group is
+            // chosen per project.
+            disabled={accountMode}
+          />
+          <Input
+            label={t('lastName')}
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            autoComplete="family-name"
+            maxLength={120}
+            required
+            disabled={accountMode}
+          />
         </div>
-      </main>
+        {active.ask_email || accountMode ? (
+          <Input
+            type="email"
+            label={t('email')}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            maxLength={200}
+            required
+            // The account's address is authoritative for account sign-ups.
+            disabled={accountMode}
+          />
+        ) : null}
+        {active.ask_group ? (
+          <Select
+            label={t('group')}
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            required
+            disabled={active.groups.length === 0}
+          >
+            <option value="">{t('selectGroup')}</option>
+            {active.groups.map((group) => (
+              <option key={group} value={group}>
+                {group}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="h-11 flex-1" onClick={() => setStep(1)}>
+            {t('back')}
+          </Button>
+          <Button type="submit" className="h-11 flex-1" disabled={!dataValid}>
+            {t('next')}
+          </Button>
+        </div>
+      </form>
+    );
+  } else if (active && step === 3) {
+    const rows: [string, string][] = [
+      [t('firstName'), firstName],
+      [t('lastName'), lastName],
+      ...(active.ask_email || accountMode ? [[t('email'), email || '—'] as [string, string]] : []),
+      ...(active.ask_group ? [[t('group'), groupName || '—'] as [string, string]] : []),
+    ];
+    card = (
+      <div className="space-y-4">
+        <p className="text-sm text-text-secondary">{t('reviewHint')}</p>
+        <dl className="divide-y divide-border rounded-lg border border-border text-sm">
+          {rows.map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-3 px-3.5 py-2.5">
+              <dt className="text-text-secondary">{label}</dt>
+              <dd className="min-w-0 truncate font-medium">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-xs leading-relaxed text-text-tertiary">{t('privacyNotice')}</p>
+        <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+          <input
+            type="checkbox"
+            checked={acceptPrivacy}
+            onChange={(e) => setAcceptPrivacy(e.target.checked)}
+            className="mt-0.5 accent-black"
+          />
+          <span>{t('acceptPrivacy')}</span>
+        </label>
+        {error ? (
+          <p className="text-sm text-danger-strong" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex gap-2 pt-1">
+          <Button type="button" variant="secondary" className="h-11 flex-1" onClick={() => setStep(2)}>
+            {t('back')}
+          </Button>
+          <Button type="button" className="h-11 flex-1" disabled={!acceptPrivacy || submitting} onClick={submit}>
+            {submitting ? t('loading') : t('submitRegistration')}
+          </Button>
+        </div>
+      </div>
+    );
+  } else {
+    card = (
+      <div className="py-4 text-center" role="status">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-soft text-success-strong">
+          <Check size={28} strokeWidth={2.5} />
+        </span>
+        <h2 className="mt-4 text-lg font-semibold">{t('registrationDoneTitle')}</h2>
+        <p className="mt-1 text-sm text-text-secondary">{t('registrationSuccess')}</p>
+      </div>
     );
   }
+
+  const cardLabel =
+    active && step === 2
+      ? t('enterYourData')
+      : active && step === 3
+        ? t('reviewYourData')
+        : t('registrationCardTitle');
+  const showSteps = Boolean(active && !guestBlocked && (step === 2 || step === 3));
+  const left = closesAt && info.state === 'active' ? timeLeft(closesAt, lang) : null;
 
   return (
-    <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
-      <div className="mx-auto w-full max-w-2xl">
-        <header className="mb-8 text-center">
-          <AppLogo className="mx-auto mb-5 h-12 w-12 sm:h-14 sm:w-14" />
-          <h1 className="text-2xl font-bold sm:text-3xl">{active.title}</h1>
-          <p className="mt-1 text-sm text-text-tertiary">{active.project_name}</p>
-        </header>
-
-        <Card className="p-5 sm:p-7">
-          {step < 4 ? <StepDots step={step} /> : null}
-
-          {step === 1 ? (
-            <div className="space-y-6">
-              {active.description.trim() ? (
-                <Markdown
-                  source={active.description}
-                  className="space-y-3 text-text-secondary leading-relaxed"
-                />
-              ) : (
-                <p className="text-text-secondary">{t('startRegistration')}</p>
-              )}
-              {accountMode && active.me ? (
-                <div className="flex items-center gap-3 rounded-md border border-border px-4 py-3">
-                  <UserRound size={20} className="text-text-secondary" />
-                  <div>
-                    <p className="font-medium">{active.me.name || active.me.email}</p>
-                    <p className="text-sm text-text-secondary">{t('registeringWithAccount')}</p>
-                  </div>
-                </div>
-              ) : null}
-              <Button className="w-full" onClick={() => setStep(2)}>
-                {t('next')}
-              </Button>
-              {!active.logged_in && active.allow_account_signup ? (
-                <p className="text-center text-sm text-text-secondary">
-                  <Link
-                    to="/login"
-                    state={{ from: location.pathname }}
-                    className="inline-flex items-center gap-1.5 font-medium underline"
-                  >
-                    <LogIn size={14} />
-                    {t('signInToRegister')}
-                  </Link>
-                </p>
-              ) : null}
-              {accountMode && active.allow_guest_signup ? (
-                <button
-                  type="button"
-                  onClick={() => setAsGuest(true)}
-                  className="w-full text-sm text-text-secondary hover:text-text underline"
-                >
-                  {t('continueAsGuestInstead')}
-                </button>
-              ) : null}
-              {asGuest && active.logged_in && active.allow_account_signup ? (
-                <button
-                  type="button"
-                  onClick={() => setAsGuest(false)}
-                  className="w-full text-sm text-text-secondary hover:text-text underline"
-                >
-                  {t('continueWithAccountInstead')}
-                </button>
-              ) : null}
+    <Shell>
+      <div className="grid gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-10 lg:gap-14">
+        <aside className="space-y-6 md:sticky md:top-8 md:self-start">
+          <Cover name={projectName || title} image={projectImage} />
+          <div className="hidden md:block">
+            <SectionLabel>{t('hostedBy')}</SectionLabel>
+            <div className="flex items-center gap-2.5">
+              <Monogram name={projectName} />
+              <span className="font-medium">{projectName}</span>
             </div>
-          ) : null}
+          </div>
+        </aside>
 
-          {step === 2 ? (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (dataValid) setStep(3);
-              }}
-              className="space-y-4"
-            >
-              <h2 className="text-base font-semibold">{t('enterYourData')}</h2>
-              {accountMode ? (
-                <p className="rounded-md bg-surface-subtle px-3 py-2.5 text-sm text-text-secondary">
-                  {t('dataFromAccountHint')}
-                </p>
-              ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input
-                  label={t('firstName')}
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  autoComplete="given-name"
-                  maxLength={120}
-                  required
-                  autoFocus={!accountMode}
-                  // Account sign-ups use the account's data; only the group is
-                  // chosen per project.
-                  disabled={accountMode}
-                />
-                <Input
-                  label={t('lastName')}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  autoComplete="family-name"
-                  maxLength={120}
-                  required
-                  disabled={accountMode}
-                />
-              </div>
-              {active.ask_email || accountMode ? (
-                <Input
-                  type="email"
-                  label={t('email')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  maxLength={200}
-                  required
-                  // The account's address is authoritative for account sign-ups.
-                  disabled={accountMode}
-                />
-              ) : null}
-              {active.ask_group ? (
-                <Select
-                  label={t('group')}
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  required
-                  disabled={active.groups.length === 0}
-                >
-                  <option value="">{t('selectGroup')}</option>
-                  {active.groups.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
-                    </option>
-                  ))}
-                </Select>
-              ) : null}
-              <div className="flex gap-2 pt-1">
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setStep(1)}>
-                  {t('back')}
-                </Button>
-                <Button type="submit" className="flex-1" disabled={!dataValid}>
-                  {t('next')}
-                </Button>
-              </div>
-              {!active.logged_in && active.allow_account_signup ? (
-                <p className="text-center text-sm text-text-secondary">
-                  <Link
-                    to="/login"
-                    state={{ from: location.pathname }}
-                    className="inline-flex items-center gap-1.5 font-medium underline"
-                  >
-                    <LogIn size={14} />
-                    {t('signInToRegister')}
-                  </Link>
-                </p>
-              ) : null}
-            </form>
-          ) : null}
-
-          {step === 3 ? (
-            <div className="space-y-4">
-              <h2 className="text-base font-semibold">{t('reviewYourData')}</h2>
-              <p className="text-sm text-text-secondary">{t('reviewHint')}</p>
-              <dl className="divide-y divide-border rounded-md border border-border text-sm">
-                <div className="flex justify-between gap-3 px-3 py-2">
-                  <dt className="text-text-secondary">{t('firstName')}</dt>
-                  <dd className="font-medium">{firstName}</dd>
-                </div>
-                <div className="flex justify-between gap-3 px-3 py-2">
-                  <dt className="text-text-secondary">{t('lastName')}</dt>
-                  <dd className="font-medium">{lastName}</dd>
-                </div>
-                {active.ask_email ? (
-                  <div className="flex justify-between gap-3 px-3 py-2">
-                    <dt className="text-text-secondary">{t('email')}</dt>
-                    <dd className="font-medium">{email || '—'}</dd>
-                  </div>
-                ) : null}
-                {active.ask_group ? (
-                  <div className="flex justify-between gap-3 px-3 py-2">
-                    <dt className="text-text-secondary">{t('group')}</dt>
-                    <dd className="font-medium">{groupName || '—'}</dd>
-                  </div>
-                ) : null}
-              </dl>
-              <p className="rounded-md bg-surface-subtle px-3 py-2.5 text-xs leading-relaxed text-text-secondary">
-                {t('privacyNotice')}
-              </p>
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={acceptPrivacy}
-                  onChange={(e) => setAcceptPrivacy(e.target.checked)}
-                  className="mt-0.5 accent-black"
-                />
-                <span>{t('acceptPrivacy')}</span>
-              </label>
-              {error ? (
-                <p className="text-sm text-danger-strong" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              <div className="flex gap-2 pt-1">
-                <Button type="button" variant="secondary" className="flex-1" onClick={() => setStep(2)}>
-                  {t('back')}
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1"
-                  disabled={!acceptPrivacy || submitting}
-                  onClick={submit}
-                >
-                  {submitting ? t('loading') : t('submitRegistration')}
-                </Button>
-              </div>
+        <div className="min-w-0 space-y-7">
+          <div className="space-y-5">
+            {left ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-1 text-xs font-semibold text-text">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                {t('registrationEndsIn').replace('{left}', left)}
+              </span>
+            ) : null}
+            <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{title}</h1>
+            <div className="space-y-3.5">
+              {closesAt ? <DeadlineFact iso={closesAt} closed={info.state === 'closed'} /> : null}
+              {projectName ? <Fact icon={Users} title={projectName} subtitle={t('projectLabel')} /> : null}
             </div>
-          ) : null}
+          </div>
 
-          {step === 4 ? (
-            <div className="py-7 text-center" role="status">
-              <CheckCircle2 size={42} className="mx-auto text-success" />
-              <h2 className="mt-4 text-lg font-semibold">{t('registrationSuccess')}</h2>
-            </div>
+          <RegistrationCard
+            label={cardLabel}
+            aside={
+              showSteps ? (
+                <StepBars step={step} />
+              ) : step === 4 ? (
+                <CheckCircle2 size={16} className="text-success" />
+              ) : null
+            }
+          >
+            {card}
+          </RegistrationCard>
+
+          {active?.description.trim() && step !== 4 ? (
+            <section>
+              <SectionLabel>{t('aboutRegistration')}</SectionLabel>
+              <Markdown source={active.description} className="space-y-3 leading-relaxed text-text-secondary" />
+            </section>
           ) : null}
-        </Card>
+        </div>
       </div>
-    </main>
+    </Shell>
   );
 };
+
+// Page frame: a soft accent glow behind the content and the app mark on top.
+const Shell = ({ children }: { children: ReactNode }) => (
+  <main className="relative min-h-full overflow-hidden">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-gradient-to-b from-accent/10 to-transparent"
+    />
+    <div
+      aria-hidden
+      className="pointer-events-none absolute -top-48 left-1/2 h-[440px] w-[680px] -translate-x-1/2 rounded-full bg-accent/15 blur-3xl"
+    />
+    <div className="relative mx-auto w-full max-w-5xl px-4 pb-16 pt-5 sm:px-6 sm:pt-6">
+      <header className="mb-8 flex items-center gap-2 text-sm font-semibold text-text-secondary sm:mb-12">
+        <AppLogo className="h-6 w-6" />
+        {config.appName}
+      </header>
+      {children}
+    </div>
+  </main>
+);
+
+// The event page's hero: the project image, else a tile in the accent color
+// with the project's monogram.
+const Cover = ({ name, image }: { name: string; image: string | null }) =>
+  image ? (
+    <img
+      src={image}
+      alt=""
+      className="aspect-[2/1] w-full rounded-2xl border border-border object-cover shadow-lg md:aspect-square"
+    />
+  ) : (
+    <div className="relative aspect-[2/1] overflow-hidden rounded-2xl bg-accent shadow-lg shadow-accent/20 md:aspect-square">
+      <div aria-hidden className="absolute inset-0 bg-gradient-to-br from-paper/30 via-transparent to-scrim/25" />
+      <div aria-hidden className="absolute -bottom-16 -right-16 h-56 w-56 rounded-full border-[36px] border-paper/15" />
+      <div aria-hidden className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-paper/10" />
+      <span className="absolute inset-0 flex items-center justify-center text-6xl font-bold tracking-tight text-paper drop-shadow-sm md:text-8xl">
+        {initials(name)}
+      </span>
+    </div>
+  );
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]!.toUpperCase())
+    .join('') || '·';
+
+const Monogram = ({ name }: { name: string }) => (
+  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-paper">
+    {initials(name).slice(0, 1)}
+  </span>
+);
+
+const SectionLabel = ({ children }: { children: ReactNode }) => (
+  <h2 className="mb-3 border-b border-border pb-2 text-sm font-semibold text-text-secondary">{children}</h2>
+);
+
+// One key fact next to an icon tile ("Anmeldung bis …", project).
+const Fact = ({
+  icon: Icon,
+  tile,
+  title,
+  subtitle,
+}: {
+  icon?: LucideIcon;
+  tile?: ReactNode;
+  title: string;
+  subtitle?: string;
+}) => (
+  <div className="flex items-center gap-3.5">
+    {tile ?? (
+      <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-surface">
+        {Icon ? <Icon size={19} className="text-text-secondary" /> : null}
+      </span>
+    )}
+    <div className="min-w-0">
+      <p className="truncate font-medium">{title}</p>
+      {subtitle ? <p className="truncate text-sm text-text-secondary">{subtitle}</p> : null}
+    </div>
+  </div>
+);
+
+// Deadline as a small calendar tile (month band + day), like an event date.
+const DeadlineFact = ({ iso, closed }: { iso: string; closed: boolean }) => {
+  const { t, lang } = useI18n();
+  const parts = formatDeadlineParts(iso, lang);
+  return (
+    <Fact
+      tile={
+        <span className="flex h-11 w-11 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-surface text-center">
+          <span className="bg-surface-muted py-px text-[10px] font-semibold uppercase leading-4 text-text-secondary">
+            {parts.month}
+          </span>
+          <span className="flex flex-1 items-center justify-center text-base font-semibold leading-none">
+            {parts.day}
+          </span>
+        </span>
+      }
+      title={(closed ? t('registrationEndedAt') : t('registrationUntil')).replace('{date}', parts.date)}
+      subtitle={t('atTime').replace('{time}', parts.time)}
+    />
+  );
+};
+
+const RegistrationCard = ({
+  label,
+  aside,
+  children,
+}: {
+  label: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) => (
+  <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+    <div className="flex items-center justify-between gap-3 border-b border-border bg-surface-subtle px-5 py-3">
+      <h2 className="text-sm font-semibold text-text-secondary">{label}</h2>
+      {aside}
+    </div>
+    <div className="p-5 sm:p-6">{children}</div>
+  </section>
+);
+
+const StepBars = ({ step }: { step: Step }) => (
+  <span className="flex items-center gap-1" aria-hidden>
+    {[1, 2, 3].map((s) => (
+      <span
+        key={s}
+        className={cn(
+          'h-1.5 rounded-full transition-all duration-200',
+          s === step ? 'w-5' : 'w-1.5',
+          s <= step ? 'bg-black' : 'bg-border-strong',
+        )}
+      />
+    ))}
+  </span>
+);
+
+const Notice = ({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: LucideIcon;
+  title: string;
+  text?: string;
+}) => (
+  <div className="py-3 text-center">
+    <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted">
+      <Icon size={22} className="text-text-secondary" />
+    </span>
+    <p className="mt-3 font-semibold">{title}</p>
+    {text ? <p className="mt-1 text-sm text-text-secondary">{text}</p> : null}
+  </div>
+);

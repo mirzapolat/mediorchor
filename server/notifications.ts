@@ -8,8 +8,8 @@
 // Event dates/times are wall-clock values; they're interpreted in the
 // server's time zone, so run the server with TZ set (e.g. Europe/Berlin).
 import { db } from './db.ts';
-import { env, mailEnabled } from './env.ts';
-import { sendMail } from './mail.ts';
+import { env } from './env.ts';
+import { mailEnabled, sendMail } from './mail.ts';
 
 type Lang = 'de' | 'en';
 
@@ -253,7 +253,7 @@ const sendWeekly = async (now: Date) => {
 let running = false;
 
 export const runNotifications = async (now = new Date()) => {
-  if (!mailEnabled || running) return;
+  if (!mailEnabled() || running) return;
   running = true;
   try {
     await sendStatusNotices(now);
@@ -266,8 +266,9 @@ export const runNotifications = async (now = new Date()) => {
   }
 };
 
+// Always scheduled: email can be set up in Admin Config at runtime, and each
+// run checks for it first.
 export const startNotifications = () => {
-  if (!mailEnabled) return;
   setTimeout(() => void runNotifications(), 30_000).unref();
   setInterval(() => void runNotifications(), INTERVAL).unref();
 };

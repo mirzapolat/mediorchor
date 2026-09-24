@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import { matchesConditions } from '@/lib/absenceConditions';
+import { isHeld, localToday } from '@/lib/eventTiming';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjectContext } from '@/layouts/projectContext';
@@ -90,12 +91,12 @@ export const MyParticipationPage = () => {
     void load();
   }, [load]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const { upcoming, past } = useMemo(
     () => ({
-      upcoming: events.filter((e) => e.date && e.date >= today),
+      upcoming: events.filter((e) => !isHeld(e.date, today)),
       // Undated Proben count as held, so they belong in the attendance list.
-      past: events.filter((e) => !e.date || e.date < today).reverse(),
+      past: events.filter((e) => isHeld(e.date, today)).reverse(),
     }),
     [events, today],
   );
@@ -117,19 +118,13 @@ export const MyParticipationPage = () => {
   }, [past, statusByEvent]);
 
   // Public labels that apply to this person, computed the same way as on the
-  // Fehlzeiten page: absent = events without an attended/excused record.
-  const matchingLabels = useMemo(() => {
-    const attended = attendance.filter((a) => a.status === 'attended').length;
-    const excused = attendance.filter((a) => a.status === 'excused').length;
-    const counts = {
-      attended,
-      excused,
-      absent: Math.max(0, events.length - attended - excused),
-    };
-    // RLS already limits participants to public labels; the extra filter keeps
-    // managers (who can read all labels) consistent with what participants see.
-    return labels.filter((l) => l.is_public && matchesConditions(counts, l.conditions));
-  }, [labels, attendance, events]);
+  // Fehlzeiten page: over held Proben only (the same tallies as `stats`).
+  // RLS already limits participants to public labels; the extra filter keeps
+  // managers (who can read all labels) consistent with what participants see.
+  const matchingLabels = useMemo(
+    () => labels.filter((l) => l.is_public && matchesConditions(stats, l.conditions)),
+    [labels, stats],
+  );
 
   const join = async (e: FormEvent) => {
     e.preventDefault();

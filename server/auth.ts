@@ -4,8 +4,8 @@ import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { db, asUser, nowIso, uuid, ApiError } from './db.ts';
-import { env, mailEnabled } from './env.ts';
-import { sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
+import { env } from './env.ts';
+import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
 import { rateLimit } from './ratelimit.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
 
@@ -301,7 +301,7 @@ export const mfaSetupRequired = (userId: string) => mfaRequiredFor(userId) && !v
 
 // Admins learn about sign-ups waiting for approval (when email works).
 const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
-  if (!mailEnabled) return;
+  if (!mailEnabled()) return;
   const admins = db
     .prepare(
       `select au.email from app_users u join auth_users au on au.id = u.id
@@ -426,7 +426,7 @@ authRoutes.post('/signup', async (c) => {
     .prepare('select id, email_confirmed_at from auth_users where email = ? collate nocase')
     .get(email) as { id: string; email_confirmed_at: string | null } | undefined;
 
-  if (!mailEnabled) {
+  if (!mailEnabled()) {
     // No mail server: accounts are confirmed right away.
     if (existing) throw new ApiError('User already registered', 422, 'user_already_exists');
     const id = await createAccount({ email, password, name, confirmed: true, approved });
@@ -518,7 +518,7 @@ authRoutes.patch('/user', async (c) => {
       if (emailTaken(email, user.id)) {
         throw new ApiError('A user with this email address has already been registered', 422, 'email_exists');
       }
-      if (mailEnabled) {
+      if (mailEnabled()) {
         await sendConfirmEmailChange(email, issueLink(c, user.id, 'email_change', email));
         emailChangePending = true;
       } else {

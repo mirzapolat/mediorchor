@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AttendanceDisplayStatus, AttendanceStatus, Event, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { isHeld, localToday } from '@/lib/eventTiming';
 import { GroupPill } from '@/components/GroupPill';
 
 // One row per Probe of the project, whether or not anything is recorded.
@@ -25,14 +26,12 @@ interface HistoryRow {
   is_guest: boolean;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 // Past (and undated) Proben: stored status, no record = absent. Today and
 // later: excused, marked present ("expected"; today: checked in = present) or
 // nothing yet ("upcoming").
 const displayStatus = (event: Event, status: AttendanceStatus | undefined): AttendanceDisplayStatus => {
-  const today = todayIso();
-  if (!event.date || event.date < today) return status ?? 'not_attended';
+  const today = localToday();
+  if (isHeld(event.date, today)) return status ?? 'not_attended';
   if (status === 'excused') return 'excused';
   if (status === 'attended') return event.date === today ? 'attended' : 'expected';
   return 'upcoming';
@@ -74,14 +73,14 @@ export const MemberDetailPage = () => {
         (r) => [r.event_id, r],
       ),
     );
-    const today = todayIso();
+    const today = localToday();
     const rows: HistoryRow[] = ((events as Event[] | null) ?? [])
       .map((event) => {
         const record = records.get(event.id);
         return {
           event,
           status: displayStatus(event, record?.status),
-          upcoming: Boolean(event.date && event.date >= today),
+          upcoming: !isHeld(event.date, today),
           is_guest: record?.is_guest ?? false,
         };
       })

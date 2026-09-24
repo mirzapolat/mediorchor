@@ -146,6 +146,8 @@ export interface RegistrationPage {
   ask_group: boolean;
   is_active: boolean;
   auto_transfer: boolean;
+  // Form sources: no registrations from this ISO timestamp on (null = open).
+  closes_at: string | null;
   source: RegistrationSource;
   webhook_mapping: WebhookMapping;
   webhook_last_payload: WebhookDelivery | null;

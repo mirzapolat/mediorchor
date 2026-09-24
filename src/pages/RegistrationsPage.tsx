@@ -12,6 +12,7 @@ import { RegistrationPageForm } from '@/components/RegistrationPageForm';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
+import { registrationState } from '@/lib/registrationDeadline';
 import type { RegistrationPage } from '@/types';
 
 export const RegistrationsPage = () => {
@@ -84,12 +85,17 @@ export const RegistrationsPage = () => {
     {
       id: 'status',
       header: t('status'),
-      accessor: (p) => (p.is_active ? 1 : 0),
+      accessor: (p) => ({ active: 2, closed: 1, inactive: 0 })[registrationState(p)],
       render: (p) =>
-        p.is_active ? (
+        registrationState(p) === 'active' ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success-strong">
             <span className="h-2 w-2 rounded-full bg-success" />
             {t('active')}
+          </span>
+        ) : registrationState(p) === 'closed' ? (
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary">
+            <span className="h-2 w-2 rounded-full bg-accent" />
+            {t('registrationClosedStatus')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary">
@@ -122,9 +128,10 @@ export const RegistrationsPage = () => {
       label: t('status'),
       options: [
         { value: 'active', label: t('active') },
+        { value: 'closed', label: t('registrationClosedStatus') },
         { value: 'inactive', label: t('registrationInactiveStatus') },
       ],
-      predicate: (p, v) => (v === 'active' ? p.is_active : !p.is_active),
+      predicate: (p, v) => registrationState(p) === v,
     },
   ]);
 

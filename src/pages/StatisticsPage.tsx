@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { FALLBACK_GROUP_COLOR, isHexColor } from '@/lib/groupColors';
 import { useProjectContext } from '@/layouts/projectContext';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { isHeld, localToday } from '@/lib/eventTiming';
 import type { AttendanceStatus, MemberStatus } from '@/types';
 
 // Series key for members whose group is empty or unknown.
@@ -58,7 +59,9 @@ export const StatisticsPage = () => {
         .eq('events.project_id', project.id),
       api.from('members').select('id, group_name, status').eq('project_id', project.id),
     ]);
-    setEvents((eventsResult.data as EventRow[] | null) ?? []);
+    // Upcoming Proben would count everyone as missing and drag the rates down.
+    const today = localToday();
+    setEvents(((eventsResult.data as EventRow[] | null) ?? []).filter((e) => isHeld(e.date, today)));
     setAttendance((attendanceResult.data as AttendanceRow[] | null) ?? []);
     setMembers((membersResult.data as MemberRow[] | null) ?? []);
     setLoading(false);

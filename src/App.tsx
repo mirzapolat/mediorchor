@@ -24,6 +24,7 @@ import { ClubRulesPage } from '@/pages/ClubRulesPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
 import { AdminConfigPage } from '@/pages/AdminConfigPage';
+import { AdminEmailPage } from '@/pages/AdminEmailPage';
 import { AccountPage } from '@/pages/AccountPage';
 import { EventsPage } from '@/pages/EventsPage';
 import { MembersPage } from '@/pages/MembersPage';
@@ -115,6 +116,7 @@ export const App = () => {
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
           <Route path="config" element={<AdminConfigPage />} />
+          <Route path="email" element={<AdminEmailPage />} />
         </Route>
 
         {/* Full-screen wizard for creating a project. */}

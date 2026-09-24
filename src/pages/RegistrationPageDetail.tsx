@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarClock,
   Check,
   ChevronDown,
   ClipboardList,
@@ -39,6 +40,7 @@ import { useProjectContext } from '@/layouts/projectContext';
 import type { Member, Registration, RegistrationPage } from '@/types';
 import { findMatchingMember } from '@/lib/memberMatching';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { formatDeadline, registrationState } from '@/lib/registrationDeadline';
 import { GroupPill } from '@/components/GroupPill';
 
 const DISTRIBUTION_OPEN_KEY = 'registrations.distributionOpen';
@@ -402,6 +404,8 @@ export const RegistrationPageDetail = () => {
     },
   ]);
 
+  const state = registrationState(page);
+
   return (
     <>
       <button
@@ -419,14 +423,30 @@ export const RegistrationPageDetail = () => {
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium',
-                page.is_active ? 'bg-success-soft text-success-strong' : 'bg-surface-muted text-text-secondary',
+                state === 'active' ? 'bg-success-soft text-success-strong' : 'bg-surface-muted text-text-secondary',
               )}
             >
               <span
-                className={cn('h-1.5 w-1.5 rounded-full', page.is_active ? 'bg-success' : 'bg-text-tertiary')}
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  state === 'active' ? 'bg-success' : state === 'closed' ? 'bg-accent' : 'bg-text-tertiary',
+                )}
               />
-              {page.is_active ? t('active') : t('registrationInactiveStatus')}
+              {state === 'active'
+                ? t('active')
+                : state === 'closed'
+                  ? t('registrationClosedStatus')
+                  : t('registrationInactiveStatus')}
             </span>
+            {page.source === 'form' && page.closes_at && (
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarClock size={14} />
+                {(state === 'closed' ? t('registrationEndedOn') : t('registrationOpenUntil')).replace(
+                  '{date}',
+                  formatDeadline(page.closes_at, lang),
+                )}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               {page.source === 'webhook' ? <Webhook size={14} /> : <FileText size={14} />}
               {page.source === 'webhook' ? t('sourceWebhook') : t('sourceForm')}

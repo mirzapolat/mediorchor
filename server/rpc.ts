@@ -6,7 +6,7 @@ import { db, authUid, ApiError, forbidden } from './db.ts';
 import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
-import { mailEnabled } from './env.ts';
+import { mailEnabled } from './mail.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -173,7 +173,7 @@ const get_public_config = () => {
     signup_requires_approval: settings.requiresApproval,
     signup_allowed_domains: settings.allowedDomains,
     // Whether the server can send email (notification settings need it).
-    mail_enabled: mailEnabled,
+    mail_enabled: mailEnabled(),
   };
 };
 
@@ -332,11 +332,15 @@ const submit_public_checkin = (args: Args) => {
   return { state: 'success', recognized: false };
 };
 
+// Past the page's deadline (closes_at is an ISO timestamp)?
+const registrationClosed = (closesAt: unknown) =>
+  typeof closesAt === 'string' && closesAt !== '' && !(Date.parse(closesAt) > Date.now());
+
 const get_public_registration = (args: Args) => {
   const page = db
     .prepare(
       `select rp.id, rp.is_active, rp.title, rp.description, rp.ask_email, rp.ask_group,
-              rp.project_id, p.name as project_name,
+              rp.closes_at, rp.project_id, p.name as project_name, p.image_url as project_image,
               p.allow_guest_signup, p.allow_account_signup
        from registration_pages rp
        join projects p on p.id = rp.project_id
@@ -346,6 +350,15 @@ const get_public_registration = (args: Args) => {
 
   if (!page) return { state: 'invalid' };
   if (!page.is_active) return { state: 'inactive', title: page.title, project_name: page.project_name };
+  if (registrationClosed(page.closes_at)) {
+    return {
+      state: 'closed',
+      title: page.title,
+      project_name: page.project_name,
+      project_image: page.project_image ?? null,
+      closes_at: page.closes_at,
+    };
+  }
 
   const groups = projectGroupNames(page.project_id);
   const requireGroup = signupGroupRequired(text(page.project_id));
@@ -375,6 +388,9 @@ const get_public_registration = (args: Args) => {
     require_group: requireGroup,
     groups,
     project_name: page.project_name,
+    // Cover of the public page (storage files are publicly readable anyway).
+    project_image: page.project_image ?? null,
+    closes_at: page.closes_at ?? null,
     allow_guest_signup: Boolean(page.allow_guest_signup),
     allow_account_signup: Boolean(page.allow_account_signup),
     logged_in: uid !== null,
@@ -397,7 +413,7 @@ const submit_public_registration = (args: Args) => {
   const page = db
     .prepare(
       `select rp.id, rp.project_id, rp.is_active, rp.ask_email, rp.ask_group, rp.auto_transfer,
-              p.allow_guest_signup, p.allow_account_signup
+              rp.closes_at, p.allow_guest_signup, p.allow_account_signup
        from registration_pages rp
        join projects p on p.id = rp.project_id
        where rp.token = ? and rp.source = 'form'`,
@@ -410,6 +426,7 @@ const submit_public_registration = (args: Args) => {
         ask_email: number;
         ask_group: number;
         auto_transfer: number;
+        closes_at: string | null;
         allow_guest_signup: number;
         allow_account_signup: number;
       }
@@ -417,6 +434,7 @@ const submit_public_registration = (args: Args) => {
 
   if (!page) return { state: 'invalid' };
   if (!page.is_active) return { state: 'inactive' };
+  if (registrationClosed(page.closes_at)) return { state: 'closed', closes_at: page.closes_at };
   if (asAccount && !page.allow_account_signup) return { state: 'not_allowed' };
   if (!asAccount && !page.allow_guest_signup) return { state: 'not_allowed' };
 

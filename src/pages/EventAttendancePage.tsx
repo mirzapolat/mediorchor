@@ -17,10 +17,12 @@ import { useEventContext } from '@/layouts/eventContext';
 import type { AttendanceStatus, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { GroupPill } from '@/components/GroupPill';
+import { isHeld } from '@/lib/eventTiming';
 
 interface Row {
   member: Member;
-  status: AttendanceStatus;
+  // null = nothing recorded for an upcoming Probe (not yet missed).
+  status: AttendanceStatus | null;
   is_guest: boolean;
 }
 
@@ -36,6 +38,8 @@ export const EventAttendancePage = () => {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const tf = useTableFilters();
+  // Until the Probe has taken place, no record means "open", not absent.
+  const held = isHeld(event.date);
 
   const load = async () => {
     const [{ data: members }, { data: attendance }] = await Promise.all([
@@ -56,7 +60,7 @@ export const EventAttendancePage = () => {
     const activeMembers = (members as Member[]) ?? [];
     const merged: Row[] = activeMembers.map((m) => {
       const a = attByMember.get(m.id);
-      return { member: m, status: a?.status ?? 'not_attended', is_guest: false };
+      return { member: m, status: a?.status ?? (held ? 'not_attended' : null), is_guest: false };
     });
 
     // Guest members only surface on the event they were added to.
@@ -176,8 +180,9 @@ export const EventAttendancePage = () => {
         { value: 'attended', label: t('attended') },
         { value: 'excused', label: t('excused') },
         { value: 'not_attended', label: t('notAttended') },
+        ...(held ? [] : [{ value: 'open', label: t('upcomingStatus') }]),
       ],
-      predicate: (r, v) => r.status === v,
+      predicate: (r, v) => (v === 'open' ? r.status === null : r.status === v),
     },
     {
       id: 'group',

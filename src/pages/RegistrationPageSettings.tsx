@@ -9,6 +9,8 @@ import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { PageSpinner } from '@/components/Spinner';
 import { Checkbox } from '@/components/RegistrationPageForm';
 import { WebhookSetup } from '@/components/WebhookSetup';
+import { DeadlineInput } from '@/components/DeadlineInput';
+import { fromLocalInput, toLocalInput } from '@/lib/registrationDeadline';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
@@ -20,6 +22,7 @@ interface FormState {
   ask_email: boolean;
   ask_group: boolean;
   auto_transfer: boolean;
+  closes_at: string; // datetime-local value, '' = none
 }
 
 const toForm = (page: RegistrationPage): FormState => ({
@@ -28,6 +31,7 @@ const toForm = (page: RegistrationPage): FormState => ({
   ask_email: page.ask_email,
   ask_group: page.ask_group,
   auto_transfer: page.auto_transfer,
+  closes_at: toLocalInput(page.closes_at),
 });
 
 // Settings of one registration page: name, public link, form options,
@@ -93,6 +97,7 @@ export const RegistrationPageSettings = () => {
         ask_email: webhook || form.ask_email,
         ask_group: webhook || form.ask_group,
         auto_transfer: form.auto_transfer,
+        closes_at: webhook ? null : fromLocalInput(form.closes_at),
       })
       .eq('id', page.id)
       .select()
@@ -164,6 +169,8 @@ export const RegistrationPageSettings = () => {
                 value={form.description}
                 onChange={(value) => update({ description: value })}
               />
+
+              <DeadlineInput value={form.closes_at} onChange={(v) => update({ closes_at: v })} />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Checkbox

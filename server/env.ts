@@ -19,6 +19,9 @@ export const env = {
   publicUrl: process.env.PUBLIC_URL?.replace(/\/+$/, '') || undefined,
   maxUploadBytes: int(process.env.MAX_UPLOAD_MB, 100) * 1024 * 1024,
   sessionDays: int(process.env.SESSION_DAYS, 30),
+  // Key for secrets stored in the database (e.g. the SMTP password). Optional:
+  // without it a random key is kept in DATA_DIR/secret.key.
+  secretKey: process.env.SECRET_KEY || undefined,
 
   // First admin, created (or promoted) at start-up when set.
   adminEmail: process.env.ADMIN_EMAIL?.trim() || undefined,
@@ -27,6 +30,7 @@ export const env = {
 
   // Optional SMTP. When configured, self sign-ups and email changes must be
   // confirmed through an emailed link; without it they apply immediately.
+  // Settings saved in Admin Config take precedence (see server/mail.ts).
   smtp: {
     host: process.env.SMTP_HOST?.trim() || undefined,
     port: int(process.env.SMTP_PORT, 587),
@@ -43,5 +47,3 @@ export const env = {
     VITE_ACCENT_COLOR: process.env.VITE_ACCENT_COLOR ?? '#efa100',
   },
 };
-
-export const mailEnabled = Boolean(env.smtp.host && env.smtp.from);

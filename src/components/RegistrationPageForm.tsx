@@ -3,10 +3,12 @@ import { FileText, Webhook } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { MarkdownEditor } from './MarkdownEditor';
+import { DeadlineInput } from './DeadlineInput';
 import { Modal } from './Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
+import { fromLocalInput, toLocalInput } from '@/lib/registrationDeadline';
 import type { RegistrationPage, RegistrationSource } from '@/types';
 
 interface FormState {
@@ -16,6 +18,7 @@ interface FormState {
   ask_email: boolean;
   ask_group: boolean;
   auto_transfer: boolean;
+  closes_at: string; // datetime-local value, '' = none
 }
 
 const blank: FormState = {
@@ -25,6 +28,7 @@ const blank: FormState = {
   ask_email: true,
   ask_group: true,
   auto_transfer: false,
+  closes_at: '',
 };
 
 export const Checkbox = ({
@@ -79,6 +83,7 @@ export const RegistrationPageForm = ({
         ask_email: page.ask_email,
         ask_group: page.ask_group,
         auto_transfer: page.auto_transfer,
+        closes_at: toLocalInput(page.closes_at),
       });
     } else {
       setForm(blank);
@@ -98,6 +103,7 @@ export const RegistrationPageForm = ({
       ask_email: webhook || form.ask_email,
       ask_group: webhook || form.ask_group,
       auto_transfer: form.auto_transfer,
+      closes_at: webhook ? null : fromLocalInput(form.closes_at),
     };
     if (page) {
       await api.from('registration_pages').update(payload).eq('id', page.id);
@@ -174,6 +180,8 @@ export const RegistrationPageForm = ({
               value={form.description}
               onChange={(value) => setForm((f) => ({ ...f, description: value }))}
             />
+
+            <DeadlineInput value={form.closes_at} onChange={(v) => setForm((f) => ({ ...f, closes_at: v }))} />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Checkbox

@@ -71,6 +71,16 @@ const pageInManagedProject = (pageId: string) =>
 // Same predicate for every operation (Postgres "for all ... using/with check").
 const all = (p: Predicate): TablePolicy => ({ select: p, insert: p, update: p, check: p, delete: p });
 
+// A registration deadline must be a full ISO timestamp with time zone (or
+// null). The public RPCs treat anything unparsable as closed.
+const validateClosesAt = (row: Record<string, unknown>) => {
+  const value = row.closes_at;
+  if (value === undefined || value === null) return;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new ApiError('Invalid registration deadline', 400);
+  }
+};
+
 // --- policies ---------------------------------------------------------------
 
 const PROTECTED_ACCOUNT_FIELDS = [
@@ -194,7 +204,10 @@ export const policies: Record<string, TablePolicy> = {
     select: (a) => or(canAccessProject(`${a}.project_id`), isProjectParticipant(`${a}.project_id`)),
   },
 
-  registration_pages: all((a) => canAccessProject(`${a}.project_id`)),
+  registration_pages: {
+    ...all((a) => canAccessProject(`${a}.project_id`)),
+    validateUpdate: (_oldRow, patch) => validateClosesAt(patch),
+  },
 
   registrations: all((a) => pageInManagedProject(`${a}.registration_page_id`)),
 

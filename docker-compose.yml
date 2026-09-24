@@ -27,6 +27,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       # Optional SMTP: enables email confirmation for sign-ups and email changes.
+      # Can also be set in the app (Admin → Email), which takes precedence.
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -34,6 +35,9 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      # Optional key for secrets stored in the database (the SMTP password).
+      # Without it a random key is kept in the data volume (secret.key).
+      SECRET_KEY: ${SECRET_KEY:-}
       # Branding, served to the browser at runtime.
       VITE_DEFAULT_LANGUAGE: ${VITE_DEFAULT_LANGUAGE:-en}
       VITE_APP_NAME: ${VITE_APP_NAME:-Anwesenheit}

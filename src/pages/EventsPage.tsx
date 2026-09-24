@@ -14,9 +14,10 @@ import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
+import { localToday } from '@/lib/eventTiming';
 import type { Event } from '@/types';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localToday;
 
 const blank = { name: '', description: '', date: '', time: '' };
 
