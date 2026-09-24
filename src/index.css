@@ -200,6 +200,73 @@ body {
   to { opacity: 1; transform: scale(1) rotate(0); }
 }
 
+/* ---------------------------------------------------------------------------
+   Sign-in screens (AuthShell): frosted glass panels. Controls inside a panel
+   get rounder corners and a softer field background; these selectors outrank
+   the components' own utility classes, so Input/Button stay unchanged.
+   --------------------------------------------------------------------------- */
+@keyframes authin {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.glass-panel {
+  background-color: rgb(var(--c-surface) / 0.7);
+  border: 1px solid rgb(var(--c-border) / 0.85);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--c-surface) / 0.9),
+    0 1px 2px rgb(var(--c-scrim) / 0.04),
+    0 18px 48px -18px rgb(var(--c-scrim) / 0.22);
+}
+
+:root[data-theme='dark'] .glass-panel {
+  background-color: rgb(var(--c-surface) / 0.62);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--c-text) / 0.07),
+    0 24px 56px -20px rgb(var(--c-scrim) / 0.7);
+}
+
+.glass-panel .rounded-md {
+  border-radius: 0.75rem;
+}
+
+.glass-panel input:not([type='checkbox']):not([type='radio']) {
+  min-height: 2.75rem;
+  background-color: rgb(var(--c-white) / 0.7);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.glass-panel input:not([type='checkbox']):not([type='radio']):focus {
+  background-color: rgb(var(--c-white));
+  box-shadow: 0 0 0 4px rgb(var(--c-black) / 0.07);
+}
+
+.glass-panel button.w-full {
+  min-height: 2.75rem;
+}
+
+/* A soft lift under primary buttons (light theme; in dark mode they're light). */
+:root:not([data-theme='dark']) .glass-panel button.bg-black:not(:disabled) {
+  box-shadow: 0 8px 18px -8px rgb(var(--c-black) / 0.5);
+}
+
+/* Background strands of the sign-in screens (FloatingPaths): each path has
+   pathLength=1, so a 0.6/0.4 dash travels once along it per cycle. */
+@keyframes floatpath {
+  0% { stroke-dashoffset: 0; opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { stroke-dashoffset: -1; opacity: 0.5; }
+}
+
+.floating-paths path {
+  stroke-dasharray: 0.6 0.4;
+  animation: floatpath 25s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* A looping animation at 0.01ms would flicker; keep the strands still. */
+  .floating-paths path { animation: none !important; stroke-dasharray: none; }
 }

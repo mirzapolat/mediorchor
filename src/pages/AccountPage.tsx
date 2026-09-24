@@ -185,8 +185,9 @@ export const AccountPage = () => {
 // Two-factor authentication: authenticator app, passkeys and (when the admin
 // allows them and email works) codes by email. Any one active method makes
 // sign-in ask for a second step. Also used by the required-2FA setup screen
-// (onEnabled continues from there).
-export const TwoFactorCard = ({ onEnabled }: { onEnabled?: () => void } = {}) => {
+// (onEnabled continues from there; plain drops the card frame to sit inside
+// that screen's own panel).
+export const TwoFactorCard = ({ onEnabled, plain }: { onEnabled?: () => void; plain?: boolean } = {}) => {
   const { t } = useI18n();
   const reauth = useReauth();
   const [factors, setFactors] = useState<MfaFactors | null>(null);
@@ -219,17 +220,20 @@ export const TwoFactorCard = ({ onEnabled }: { onEnabled?: () => void } = {}) =>
   const enabled = factors.methods.length > 0;
 
   return (
-    <Card className="space-y-4">
+    <Card className={cn('space-y-4', plain && '!border-0 !bg-transparent !p-0')}>
       <div>
-        <h2 className="text-base font-medium flex items-center gap-2">
-          {enabled ? (
-            <ShieldCheck size={18} className="text-accent" />
-          ) : (
-            <ShieldOff size={18} className="text-text-secondary" />
-          )}
-          {t('twoFactor')}
-        </h2>
-        <p className="text-sm text-text-secondary mt-1">{enabled ? t('twoFactorOnHint') : t('twoFactorOffHint')}</p>
+        {/* The setup screen has its own title. */}
+        {!plain && (
+          <h2 className="text-base font-medium flex items-center gap-2 mb-1">
+            {enabled ? (
+              <ShieldCheck size={18} className="text-accent" />
+            ) : (
+              <ShieldOff size={18} className="text-text-secondary" />
+            )}
+            {t('twoFactor')}
+          </h2>
+        )}
+        <p className="text-sm text-text-secondary">{enabled ? t('twoFactorOnHint') : t('twoFactorOffHint')}</p>
       </div>
 
       <AuthenticatorSection factors={factors} run={reauth.run} done={done} />

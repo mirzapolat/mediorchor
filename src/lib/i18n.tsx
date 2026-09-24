@@ -369,6 +369,10 @@ const dict: Dict = {
   },
   reauthPasswordPrompt: { de: 'Gib dein aktuelles Passwort ein.', en: 'Enter your current password.' },
   signInWithPasskey: { de: 'Mit Passkey anmelden', en: 'Sign in with a passkey' },
+  mfaStepSubtitle: {
+    de: 'Bestätige die Anmeldung mit deinem zweiten Faktor.',
+    en: 'Confirm your sign-in with your second factor.',
+  },
   twoFactorPrompt: {
     de: 'Gib den 6-stelligen Code aus deiner Authenticator-App ein.',
     en: 'Enter the 6-digit code from your authenticator app.',
