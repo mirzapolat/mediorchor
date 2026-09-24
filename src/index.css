@@ -27,6 +27,8 @@
      scrim             backdrop behind dialogs; black in both themes
      paper             white in both themes, for things that must stay light
                        (QR codes to scan, print-like previews)
+     tint              background glow of public pages; the accent unless a
+                       registration form sets its own color
 
    The active theme is html[data-theme="light" | "dark"], set before first
    paint by the script in index.html and kept in sync by ThemeProvider.
@@ -62,6 +64,8 @@
   --c-info-soft-strong: 227 238 255;
   --c-scrim: 0 0 0;
   --c-paper: 255 255 255;
+  /* Background tint of public pages (overridden per registration form). */
+  --c-tint: var(--c-accent);
 }
 
 :root[data-theme='dark'] {

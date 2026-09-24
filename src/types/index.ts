@@ -148,6 +148,13 @@ export interface RegistrationPage {
   auto_transfer: boolean;
   // Form sources: no registrations from this ISO timestamp on (null = open).
   closes_at: string | null;
+  // Form sources: optional cover image of the public page (/files/photos/...).
+  cover_url: string | null;
+  // Header of the public page: app branding, a custom text, or nothing.
+  header_mode: RegistrationHeaderMode;
+  header_text: string | null;
+  // Background tint of the public page (#rrggbb); null = accent color.
+  tint_color: string | null;
   source: RegistrationSource;
   webhook_mapping: WebhookMapping;
   webhook_last_payload: WebhookDelivery | null;
@@ -159,6 +166,8 @@ export interface RegistrationPage {
 // 'form': the public registration form. 'webhook': entries arrive by POST
 // from external tools (Google Forms, Power Automate, Zapier, IFTTT, …).
 export type RegistrationSource = 'form' | 'webhook';
+
+export type RegistrationHeaderMode = 'app' | 'custom' | 'none';
 
 export type WebhookTarget = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name';
 

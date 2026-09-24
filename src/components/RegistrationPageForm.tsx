@@ -4,12 +4,15 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { MarkdownEditor } from './MarkdownEditor';
 import { DeadlineInput } from './DeadlineInput';
+import { CoverInput } from './CoverInput';
+import { HeaderBrandingInput } from './HeaderBrandingInput';
+import { TintInput } from './TintInput';
 import { Modal } from './Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { fromLocalInput, toLocalInput } from '@/lib/registrationDeadline';
-import type { RegistrationPage, RegistrationSource } from '@/types';
+import type { RegistrationHeaderMode, RegistrationPage, RegistrationSource } from '@/types';
 
 interface FormState {
   source: RegistrationSource;
@@ -19,6 +22,10 @@ interface FormState {
   ask_group: boolean;
   auto_transfer: boolean;
   closes_at: string; // datetime-local value, '' = none
+  cover_url: string | null;
+  header_mode: RegistrationHeaderMode;
+  header_text: string;
+  tint_color: string | null;
 }
 
 const blank: FormState = {
@@ -29,6 +36,10 @@ const blank: FormState = {
   ask_group: true,
   auto_transfer: false,
   closes_at: '',
+  cover_url: null,
+  header_mode: 'app',
+  header_text: '',
+  tint_color: null,
 };
 
 export const Checkbox = ({
@@ -84,6 +95,10 @@ export const RegistrationPageForm = ({
         ask_group: page.ask_group,
         auto_transfer: page.auto_transfer,
         closes_at: toLocalInput(page.closes_at),
+        cover_url: page.cover_url,
+        header_mode: page.header_mode,
+        header_text: page.header_text ?? '',
+        tint_color: page.tint_color,
       });
     } else {
       setForm(blank);
@@ -104,6 +119,10 @@ export const RegistrationPageForm = ({
       ask_group: webhook || form.ask_group,
       auto_transfer: form.auto_transfer,
       closes_at: webhook ? null : fromLocalInput(form.closes_at),
+      cover_url: webhook ? null : form.cover_url,
+      header_mode: form.header_mode,
+      header_text: form.header_text.trim() || null,
+      tint_color: webhook ? null : form.tint_color,
     };
     if (page) {
       await api.from('registration_pages').update(payload).eq('id', page.id);
@@ -182,6 +201,16 @@ export const RegistrationPageForm = ({
             />
 
             <DeadlineInput value={form.closes_at} onChange={(v) => setForm((f) => ({ ...f, closes_at: v }))} />
+
+            <CoverInput value={form.cover_url} onChange={(url) => setForm((f) => ({ ...f, cover_url: url }))} />
+
+            <HeaderBrandingInput
+              mode={form.header_mode}
+              text={form.header_text}
+              onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+            />
+
+            <TintInput value={form.tint_color} onChange={(c) => setForm((f) => ({ ...f, tint_color: c }))} />
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Checkbox

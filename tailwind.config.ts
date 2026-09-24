@@ -35,6 +35,8 @@ export default {
         DEFAULT: token('accent'),
         hover: token('accent-hover'),
       },
+      // Background tint of public pages; the accent unless a page sets one.
+      tint: token('tint'),
       // Inverse pair: swaps in dark mode (see index.css).
       black: {
         DEFAULT: token('black'),

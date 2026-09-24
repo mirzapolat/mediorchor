@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Check, CheckCircle2, LockKeyhole, LogIn, Users, type LucideIcon } from 'lucide-react';
+import { Check, CheckCircle2, LockKeyhole, LogIn, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { Avatar } from '@/components/Avatar';
@@ -11,18 +11,23 @@ import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
+import { channels } from '@/lib/branding';
+import { isHexColor } from '@/lib/groupColors';
 import { cn } from '@/lib/cn';
 import { formatDeadlineParts, timeLeft } from '@/lib/registrationDeadline';
 
 type RegistrationInfo =
   | { state: 'invalid' }
-  | { state: 'inactive'; title?: string; project_name?: string }
+  | { state: 'inactive'; title?: string; project_name?: string; header?: string | null; tint?: string | null }
   | {
       state: 'closed';
       title?: string;
       project_name?: string;
       project_image?: string | null;
+      cover_url?: string | null;
       closes_at?: string | null;
+      header?: string | null;
+      tint?: string | null;
     }
   | {
       state: 'active';
@@ -33,11 +38,16 @@ type RegistrationInfo =
       groups: string[];
       project_name: string;
       project_image: string | null;
+      cover_url: string | null;
       closes_at: string | null;
+      // Text next to the app logo at the top; null = no header.
+      header: string | null;
+      // Background tint (#rrggbb); null = accent color.
+      tint: string | null;
       allow_guest_signup: boolean;
       allow_account_signup: boolean;
       logged_in: boolean;
-      me: { name: string; email: string; participating: boolean } | null;
+      me: { name: string; email: string; photo_url: string | null; participating: boolean } | null;
     };
 
 type SubmitResult = {
@@ -106,7 +116,10 @@ export const PublicRegistrationPage = () => {
         title: active.title,
         project_name: active.project_name,
         project_image: active.project_image,
+        cover_url: active.cover_url,
         closes_at: active.closes_at,
+        header: active.header,
+        tint: active.tint,
       });
     if (!(ms > 0)) {
       close();
@@ -145,14 +158,23 @@ export const PublicRegistrationPage = () => {
     if (result.state === 'success') {
       setStep(4);
     } else if (result.state === 'inactive') {
-      setInfo({ state: 'inactive', title: active?.title, project_name: active?.project_name });
+      setInfo({
+        state: 'inactive',
+        title: active?.title,
+        project_name: active?.project_name,
+        header: active?.header,
+        tint: active?.tint,
+      });
     } else if (result.state === 'closed') {
       setInfo({
         state: 'closed',
         title: active?.title,
         project_name: active?.project_name,
         project_image: active?.project_image,
+        cover_url: active?.cover_url,
         closes_at: result.closes_at ?? active?.closes_at,
+        header: active?.header,
+        tint: active?.tint,
       });
     } else if (result.state === 'invalid') {
       setInfo({ state: 'invalid' });
@@ -183,7 +205,9 @@ export const PublicRegistrationPage = () => {
 
   const title = active?.title ?? ('title' in info ? info.title! : '');
   const projectName = active?.project_name ?? ('project_name' in info ? (info.project_name ?? '') : '');
-  const projectImage = active?.project_image ?? (info.state === 'closed' ? (info.project_image ?? null) : null);
+  const closedInfo = info.state === 'closed' ? info : null;
+  const projectImage = active?.project_image ?? closedInfo?.project_image ?? null;
+  const coverUrl = active?.cover_url ?? closedInfo?.cover_url ?? null;
   const closesAt = active?.closes_at ?? (info.state === 'closed' ? (info.closes_at ?? null) : null);
   const signInLink =
     active && !active.logged_in && active.allow_account_signup ? (
@@ -216,7 +240,7 @@ export const PublicRegistrationPage = () => {
         <p className="text-text-secondary">{t('registrationWelcome')}</p>
         {accountMode && active.me ? (
           <div className="flex items-center gap-3">
-            <Avatar name={active.me.name || active.me.email} size={36} />
+            <Avatar name={active.me.name || active.me.email} photoUrl={active.me.photo_url} size={36} />
             <div className="min-w-0">
               <p className="truncate font-medium">{active.me.name || active.me.email}</p>
               <p className="truncate text-sm text-text-secondary">{active.me.email}</p>
@@ -388,31 +412,44 @@ export const PublicRegistrationPage = () => {
   const left = closesAt && info.state === 'active' ? timeLeft(closesAt, lang) : null;
 
   return (
-    <Shell>
-      <div className="grid gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-10 lg:gap-14">
-        <aside className="space-y-6 md:sticky md:top-8 md:self-start">
-          <Cover name={projectName || title} image={projectImage} />
-          <div className="hidden md:block">
-            <SectionLabel>{t('hostedBy')}</SectionLabel>
-            <div className="flex items-center gap-2.5">
-              <Monogram name={projectName} />
-              <span className="font-medium">{projectName}</span>
-            </div>
-          </div>
-        </aside>
+    <Shell header={'header' in info ? info.header : undefined} tint={'tint' in info ? info.tint : null}>
+      {/* With a cover: cover left, content right (stacked on phones). Without
+          one: a single centered column. */}
+      <div
+        className={cn(
+          coverUrl
+            ? 'grid gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-10 lg:gap-14'
+            : 'mx-auto max-w-2xl',
+        )}
+      >
+        {coverUrl ? (
+          <aside className="md:sticky md:top-8 md:self-start">
+            <img
+              src={coverUrl}
+              alt=""
+              className="aspect-[2/1] w-full rounded-2xl border border-border object-cover shadow-lg md:aspect-square"
+            />
+          </aside>
+        ) : null}
 
         <div className="min-w-0 space-y-7">
           <div className="space-y-5">
             {left ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-2.5 py-1 text-xs font-semibold text-text">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-tint/15 px-2.5 py-1 text-xs font-semibold text-text">
+                <span className="h-1.5 w-1.5 rounded-full bg-tint" />
                 {t('registrationEndsIn').replace('{left}', left)}
               </span>
             ) : null}
             <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{title}</h1>
             <div className="space-y-3.5">
               {closesAt ? <DeadlineFact iso={closesAt} closed={info.state === 'closed'} /> : null}
-              {projectName ? <Fact icon={Users} title={projectName} subtitle={t('projectLabel')} /> : null}
+              {projectName ? (
+                <Fact
+                  tile={<ProjectIcon name={projectName} image={projectImage} />}
+                  title={projectName}
+                  subtitle={t('projectLabel')}
+                />
+              ) : null}
             </div>
           </div>
 
@@ -442,59 +479,52 @@ export const PublicRegistrationPage = () => {
 };
 
 // Page frame: a soft accent glow behind the content and the app mark on top.
-const Shell = ({ children }: { children: ReactNode }) => (
-  <main className="relative min-h-full overflow-hidden">
+// `header`: text next to the app logo (undefined = the app name), null = none.
+// `tint`: color of the background glow (#rrggbb), null = the accent color.
+const Shell = ({
+  header,
+  tint,
+  children,
+}: {
+  header?: string | null;
+  tint?: string | null;
+  children: ReactNode;
+}) => (
+  <main
+    className="relative min-h-full overflow-hidden"
+    style={tint && isHexColor(tint) ? ({ '--c-tint': channels(tint) } as CSSProperties) : undefined}
+  >
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-gradient-to-b from-accent/10 to-transparent"
+      className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-gradient-to-b from-tint/10 to-transparent"
     />
     <div
       aria-hidden
-      className="pointer-events-none absolute -top-48 left-1/2 h-[440px] w-[680px] -translate-x-1/2 rounded-full bg-accent/15 blur-3xl"
+      className="pointer-events-none absolute -top-48 left-1/2 h-[440px] w-[680px] -translate-x-1/2 rounded-full bg-tint/15 blur-3xl"
     />
     <div className="relative mx-auto w-full max-w-5xl px-4 pb-16 pt-5 sm:px-6 sm:pt-6">
-      <header className="mb-8 flex items-center gap-2 text-sm font-semibold text-text-secondary sm:mb-12">
-        <AppLogo className="h-6 w-6" />
-        {config.appName}
-      </header>
+      {header === null ? (
+        <div className="h-4 sm:h-8" />
+      ) : (
+        <header className="mb-8 flex items-center justify-center gap-2 text-sm font-semibold text-text-secondary sm:mb-12">
+          <AppLogo className="h-6 w-6" />
+          {header ?? config.appName}
+        </header>
+      )}
       {children}
     </div>
   </main>
 );
 
-// The event page's hero: the project image, else a tile in the accent color
-// with the project's monogram.
-const Cover = ({ name, image }: { name: string; image: string | null }) =>
+// The project's icon as the fact tile; its initial when it has none.
+const ProjectIcon = ({ name, image }: { name: string; image: string | null }) =>
   image ? (
-    <img
-      src={image}
-      alt=""
-      className="aspect-[2/1] w-full rounded-2xl border border-border object-cover shadow-lg md:aspect-square"
-    />
+    <img src={image} alt="" className="h-11 w-11 flex-shrink-0 rounded-lg border border-border object-cover" />
   ) : (
-    <div className="relative aspect-[2/1] overflow-hidden rounded-2xl bg-accent shadow-lg shadow-accent/20 md:aspect-square">
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-br from-paper/30 via-transparent to-scrim/25" />
-      <div aria-hidden className="absolute -bottom-16 -right-16 h-56 w-56 rounded-full border-[36px] border-paper/15" />
-      <div aria-hidden className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-paper/10" />
-      <span className="absolute inset-0 flex items-center justify-center text-6xl font-bold tracking-tight text-paper drop-shadow-sm md:text-8xl">
-        {initials(name)}
-      </span>
-    </div>
+    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-accent text-base font-bold text-paper">
+      {name.trim().charAt(0).toUpperCase() || '·'}
+    </span>
   );
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]!.toUpperCase())
-    .join('') || '·';
-
-const Monogram = ({ name }: { name: string }) => (
-  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-paper">
-    {initials(name).slice(0, 1)}
-  </span>
-);
 
 const SectionLabel = ({ children }: { children: ReactNode }) => (
   <h2 className="mb-3 border-b border-border pb-2 text-sm font-semibold text-text-secondary">{children}</h2>

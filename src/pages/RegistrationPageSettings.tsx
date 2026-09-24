@@ -10,11 +10,14 @@ import { PageSpinner } from '@/components/Spinner';
 import { Checkbox } from '@/components/RegistrationPageForm';
 import { WebhookSetup } from '@/components/WebhookSetup';
 import { DeadlineInput } from '@/components/DeadlineInput';
+import { CoverInput } from '@/components/CoverInput';
+import { HeaderBrandingInput } from '@/components/HeaderBrandingInput';
+import { TintInput } from '@/components/TintInput';
 import { fromLocalInput, toLocalInput } from '@/lib/registrationDeadline';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
-import type { RegistrationPage } from '@/types';
+import type { RegistrationHeaderMode, RegistrationPage } from '@/types';
 
 interface FormState {
   title: string;
@@ -23,6 +26,10 @@ interface FormState {
   ask_group: boolean;
   auto_transfer: boolean;
   closes_at: string; // datetime-local value, '' = none
+  cover_url: string | null;
+  header_mode: RegistrationHeaderMode;
+  header_text: string;
+  tint_color: string | null;
 }
 
 const toForm = (page: RegistrationPage): FormState => ({
@@ -32,6 +39,10 @@ const toForm = (page: RegistrationPage): FormState => ({
   ask_group: page.ask_group,
   auto_transfer: page.auto_transfer,
   closes_at: toLocalInput(page.closes_at),
+  cover_url: page.cover_url,
+  header_mode: page.header_mode,
+  header_text: page.header_text ?? '',
+  tint_color: page.tint_color,
 });
 
 // Settings of one registration page: name, public link, form options,
@@ -98,6 +109,10 @@ export const RegistrationPageSettings = () => {
         ask_group: webhook || form.ask_group,
         auto_transfer: form.auto_transfer,
         closes_at: webhook ? null : fromLocalInput(form.closes_at),
+        cover_url: webhook ? null : form.cover_url,
+        header_mode: form.header_mode,
+        header_text: form.header_text.trim() || null,
+        tint_color: webhook ? null : form.tint_color,
       })
       .eq('id', page.id)
       .select()
@@ -171,6 +186,12 @@ export const RegistrationPageSettings = () => {
               />
 
               <DeadlineInput value={form.closes_at} onChange={(v) => update({ closes_at: v })} />
+
+              <CoverInput value={form.cover_url} onChange={(url) => update({ cover_url: url })} />
+
+              <HeaderBrandingInput mode={form.header_mode} text={form.header_text} onChange={update} />
+
+              <TintInput value={form.tint_color} onChange={(c) => update({ tint_color: c })} />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Checkbox

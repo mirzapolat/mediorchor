@@ -7,6 +7,7 @@ import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
+import { env } from './env.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -340,7 +341,7 @@ const get_public_registration = (args: Args) => {
   const page = db
     .prepare(
       `select rp.id, rp.is_active, rp.title, rp.description, rp.ask_email, rp.ask_group,
-              rp.closes_at, rp.project_id, p.name as project_name, p.image_url as project_image,
+              rp.closes_at, rp.cover_url, rp.header_mode, rp.header_text, rp.tint_color, rp.project_id, p.name as project_name, p.image_url as project_image,
               p.allow_guest_signup, p.allow_account_signup
        from registration_pages rp
        join projects p on p.id = rp.project_id
@@ -349,14 +350,28 @@ const get_public_registration = (args: Args) => {
     .get(text(args.p_token)) as Row | undefined;
 
   if (!page) return { state: 'invalid' };
-  if (!page.is_active) return { state: 'inactive', title: page.title, project_name: page.project_name };
+  // Header above the page: null = none, else the text next to the app logo.
+  const header =
+    page.header_mode === 'none'
+      ? null
+      : page.header_mode === 'custom' && typeof page.header_text === 'string' && page.header_text.trim()
+        ? page.header_text.trim()
+        : env.client.VITE_APP_NAME;
+  // Background tint (#rrggbb); null = the app's accent color.
+  const tint = page.tint_color ?? null;
+  if (!page.is_active) {
+    return { state: 'inactive', title: page.title, project_name: page.project_name, header, tint };
+  }
   if (registrationClosed(page.closes_at)) {
     return {
       state: 'closed',
       title: page.title,
       project_name: page.project_name,
       project_image: page.project_image ?? null,
+      cover_url: page.cover_url ?? null,
       closes_at: page.closes_at,
+      header,
+      tint,
     };
   }
 
@@ -368,14 +383,21 @@ const get_public_registration = (args: Args) => {
   if (uid) {
     const user = db
       .prepare(
-        `select u.name, au.email,
+        `select u.name, au.email, u.photo_url,
                 exists (select 1 from members m
                         where m.project_id = ? and m.user_id = u.id and m.status = 'active') as participating
          from app_users u join auth_users au on au.id = u.id
          where u.id = ?`,
       )
       .get(page.project_id, uid) as Row | undefined;
-    if (user) me = { name: user.name, email: user.email, participating: Boolean(user.participating) };
+    if (user) {
+      me = {
+        name: user.name,
+        email: user.email,
+        photo_url: user.photo_url ?? null,
+        participating: Boolean(user.participating),
+      };
+    }
   }
 
   return {
@@ -388,9 +410,12 @@ const get_public_registration = (args: Args) => {
     require_group: requireGroup,
     groups,
     project_name: page.project_name,
-    // Cover of the public page (storage files are publicly readable anyway).
+    // Project icon and the page's own cover (storage files are public anyway).
     project_image: page.project_image ?? null,
+    cover_url: page.cover_url ?? null,
     closes_at: page.closes_at ?? null,
+    header,
+    tint,
     allow_guest_signup: Boolean(page.allow_guest_signup),
     allow_account_signup: Boolean(page.allow_account_signup),
     logged_in: uid !== null,

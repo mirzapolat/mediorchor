@@ -12,7 +12,7 @@ const darken = (hex: string, amount = 0.12): string => {
 };
 
 // Theme tokens are RGB channels ("239 161 0"), see index.css.
-const channels = (hex: string): string => {
+export const channels = (hex: string): string => {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return m ? [m[1], m[2], m[3]].map((c) => parseInt(c, 16)).join(' ') : '239 161 0';
 };

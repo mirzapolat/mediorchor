@@ -343,6 +343,7 @@ const passes = (meta: TableMeta, predicate: (alias: string) => string, rowids: (
 };
 
 const insertRow = (meta: TableMeta, row: Record<string, unknown>) => {
+  policies[meta.name]?.validateInsert?.(row);
   const { columns, values } = encodeRow(meta, row);
   const sql = columns.length
     ? `insert into ${meta.name} (${columns.join(', ')}) values (${columns.map(() => '?').join(', ')})`

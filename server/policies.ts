@@ -17,6 +17,8 @@ export interface TablePolicy {
   update?: Predicate;
   check?: Predicate;
   delete?: Predicate;
+  // Extra validation of a new row's values.
+  validateInsert?: (row: Record<string, unknown>) => void;
   // Extra validation of an update against the stored row (runs per row).
   validateUpdate?: (
     oldRow: Record<string, unknown>,
@@ -78,6 +80,35 @@ const validateClosesAt = (row: Record<string, unknown>) => {
   if (value === undefined || value === null) return;
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(value) || Number.isNaN(Date.parse(value))) {
     throw new ApiError('Invalid registration deadline', 400);
+  }
+};
+
+// A registration cover must be a file uploaded to this app, never an external
+// URL (which would let visitors of the public page be tracked).
+const validateCoverUrl = (row: Record<string, unknown>) => {
+  const value = row.cover_url;
+  if (value === undefined || value === null) return;
+  if (typeof value !== 'string' || !/^\/files\/photos\/[A-Za-z0-9._\/-]+$/.test(value) || value.includes('..')) {
+    throw new ApiError('Invalid cover image', 400);
+  }
+};
+
+// Custom header of a public registration form: one short line of plain text.
+const validateHeaderText = (row: Record<string, unknown>) => {
+  const value = row.header_text;
+  if (value === undefined || value === null) return;
+  // eslint-disable-next-line no-control-regex
+  if (typeof value !== 'string' || value.length > 80 || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new ApiError('Invalid header text', 400);
+  }
+};
+
+// Background tint of a public registration form: a plain #rrggbb color.
+const validateTintColor = (row: Record<string, unknown>) => {
+  const value = row.tint_color;
+  if (value === undefined || value === null) return;
+  if (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value)) {
+    throw new ApiError('Invalid tint color', 400);
   }
 };
 
@@ -206,7 +237,18 @@ export const policies: Record<string, TablePolicy> = {
 
   registration_pages: {
     ...all((a) => canAccessProject(`${a}.project_id`)),
-    validateUpdate: (_oldRow, patch) => validateClosesAt(patch),
+    validateInsert: (row) => {
+      validateClosesAt(row);
+      validateCoverUrl(row);
+      validateHeaderText(row);
+      validateTintColor(row);
+    },
+    validateUpdate: (_oldRow, patch) => {
+      validateClosesAt(patch);
+      validateCoverUrl(patch);
+      validateHeaderText(patch);
+      validateTintColor(patch);
+    },
   },
 
   registrations: all((a) => pageInManagedProject(`${a}.registration_page_id`)),
