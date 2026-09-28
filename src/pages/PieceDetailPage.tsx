@@ -7,20 +7,17 @@ import {
   FileCode2,
   FileMusic,
   FileText,
-  Grid3x3,
   Link as LinkIcon,
   MapPin,
   Music,
   Paperclip,
   Pencil,
   Settings2,
-  ZoomIn,
-  ZoomOut,
   type LucideIcon,
 } from 'lucide-react';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
-import { HeaderAction } from '@/components/HeaderAction';
+import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
 import { PieceScore } from '@/components/PieceScore';
@@ -38,9 +35,7 @@ import { cn } from '@/lib/cn';
 import type { BarAnchor, Piece, PieceFile, PieceFileKind } from '@/types';
 
 type Tab = 'score' | 'notes' | 'files';
-type ScoreView = 'pdf' | 'grid';
 
-const ZOOMS = [1, 1.5, 2, 2.5];
 const FOLLOW_KEY = 'anwesenheit.pieces.follow';
 
 const FILE_GROUPS: Array<{ kind: PieceFileKind; label: TranslationKey; icon: LucideIcon }> = [
@@ -177,9 +172,6 @@ const SectionTitle = ({ children }: { children: string }) => (
   <h2 className="mb-3 hidden text-sm font-semibold lg:block">{children}</h2>
 );
 
-const toolButton =
-  'flex h-9 min-w-[2.25rem] items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text disabled:opacity-40';
-
 // A piece's practice page: the score with tappable bars, a player at the
 // bottom that switches voices at the same bar, loops sections and slows
 // down, plus notes and all downloads. Built phone-first: on small screens
@@ -196,9 +188,6 @@ export const PieceDetailPage = () => {
   const [files, setFiles] = useState<PieceFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('score');
-  // null until chosen: the score once bars are placed on it, else the grid.
-  const [viewChoice, setView] = useState<ScoreView | null>(null);
-  const [zoom, setZoom] = useState(1);
   // Whether the score scrolls along with playback; remembered per browser.
   const [follow, setFollowState] = useState(() => {
     try {
@@ -341,8 +330,8 @@ export const PieceDetailPage = () => {
   }
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
-  const view: ScoreView = editingAnchors ? 'pdf' : (viewChoice ?? (hasAnchors ? 'pdf' : 'grid'));
-  const showGrid = bars.length > 0 && (!score || view === 'grid');
+  // The bar grid is only the fallback for pieces without a score PDF.
+  const showGrid = bars.length > 0 && !score;
   const nothingYet = !score && bars.length === 0 && tracks.length === 0;
 
   const playerBar =
@@ -354,7 +343,7 @@ export const PieceDetailPage = () => {
         onPickingChange={setPicking}
         floating={isDesktop}
         // Only meaningful while the score with marked bars is on screen.
-        follow={score && hasAnchors && !showGrid ? { on: follow, onChange: setFollow } : undefined}
+        follow={score && hasAnchors ? { on: follow, onChange: setFollow } : undefined}
       />
     ) : null;
 
@@ -366,100 +355,49 @@ export const PieceDetailPage = () => {
 
   const setUpUrl = `/projects/${project.id}/pieces/${piece.id}/setup`;
 
-  const backLink = (
-    <button
-      onClick={() => navigate(`/projects/${project.id}/pieces`)}
-      className="mb-4 inline-flex items-center gap-2 self-start text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
-    >
-      <ArrowLeft size={16} />
-      {t('pieces')}
-    </button>
+  // Back link on the left, the managers' "⋯" menu on the right.
+  const topRow = (
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <button
+        onClick={() => navigate(`/projects/${project.id}/pieces`)}
+        className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
+      >
+        <ArrowLeft size={16} />
+        {t('pieces')}
+      </button>
+      {canManage && (
+        <OverflowMenu
+          label={t('moreActions')}
+          items={[
+            { icon: Settings2, label: t('setUp'), onSelect: () => navigate(setUpUrl) },
+            ...(score && labels.length > 0
+              ? [
+                  {
+                    icon: MapPin,
+                    label: hasAnchors ? t('editMarkers') : t('placeBars'),
+                    onSelect: () => {
+                      setTab('score');
+                      setSearchParams({ place: '1' }, { replace: true });
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
+    </div>
   );
 
   const header = (
-    <header className={cn('mb-4 flex gap-3', isDesktop ? 'flex-col' : 'items-start justify-between')}>
-      <div className="min-w-0">
-        <h1 className="text-xl font-bold sm:text-2xl">{piece.name}</h1>
-        {(piece.composer || piece.description) && (
-          <p className="mt-1 text-sm text-text-secondary">
-            {[piece.composer, piece.description].filter(Boolean).join(' · ')}
-          </p>
-        )}
-      </div>
-      {canManage &&
-        (isDesktop ? (
-          <Button variant="secondary" onClick={() => navigate(setUpUrl)} className="w-full">
-            <Settings2 size={16} />
-            {t('setUp')}
-          </Button>
-        ) : (
-          <HeaderAction icon={Settings2} label={t('setUp')} variant="secondary" onClick={() => navigate(setUpUrl)} />
-        ))}
+    <header className="mb-4 min-w-0">
+      <h1 className="text-xl font-bold sm:text-2xl">{piece.name}</h1>
+      {(piece.composer || piece.description) && (
+        <p className="mt-1 text-sm text-text-secondary">
+          {[piece.composer, piece.description].filter(Boolean).join(' · ')}
+        </p>
+      )}
     </header>
   );
-
-  // Score / bars switch, zoom and "place bars". Above the score on phones,
-  // in the side panel on desktop.
-  const toolbar =
-    !nothingYet && (score || bars.length > 0) && !editingAnchors ? (
-      <div className={cn('flex flex-wrap items-center gap-2', isDesktop ? 'mb-0' : 'mb-3')}>
-        {score && bars.length > 0 && (
-          <div className={cn('flex rounded-md border border-border bg-surface-muted p-0.5', isDesktop && 'w-full')}>
-            {(['pdf', 'grid'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                aria-pressed={view === v}
-                className={cn(
-                  'flex h-8 items-center justify-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors duration-150',
-                  isDesktop && 'flex-1',
-                  view === v ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-                )}
-              >
-                {v === 'pdf' ? <FileText size={14} /> : <Grid3x3 size={14} />}
-                {v === 'pdf' ? t('scoreView') : t('barsView')}
-              </button>
-            ))}
-          </div>
-        )}
-        {score && !showGrid && (
-          <div className="flex">
-            <button
-              type="button"
-              className={cn(toolButton, 'rounded-r-none')}
-              disabled={zoom === ZOOMS[0]}
-              onClick={() => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom) - 1)])}
-              aria-label={t('zoomOut')}
-            >
-              <ZoomOut size={15} />
-            </button>
-            <button
-              type="button"
-              className={cn(toolButton, '-ml-px rounded-l-none')}
-              disabled={zoom === ZOOMS[ZOOMS.length - 1]}
-              onClick={() => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + 1)])}
-              aria-label={t('zoomIn')}
-            >
-              <ZoomIn size={15} />
-            </button>
-          </div>
-        )}
-        {canManage && score && labels.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              setView('pdf');
-              setSearchParams({ place: '1' }, { replace: true });
-            }}
-            className={cn(toolButton, 'ml-auto')}
-          >
-            <MapPin size={15} />
-            <span className="hidden sm:inline">{t('placeBars')}</span>
-          </button>
-        )}
-      </div>
-    ) : null;
 
   const scoreContent = nothingYet ? (
     <div className="rounded-md border border-dashed border-border">
@@ -475,9 +413,7 @@ export const PieceDetailPage = () => {
     </div>
   ) : (
     <>
-      {!isDesktop && toolbar}
-
-      {score && !hasAnchors && bars.length > 0 && !editingAnchors && view === 'pdf' && (
+      {score && !hasAnchors && bars.length > 0 && !editingAnchors && (
         <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
           {canManage ? t('noMarkersManager') : t('noMarkers')}
         </p>
@@ -501,7 +437,6 @@ export const PieceDetailPage = () => {
             loopLabels={loopLabels}
             pickLabel={picking?.from != null ? (bars[picking.from]?.label ?? null) : null}
             follow={follow && player.playing}
-            zoom={zoom}
             onBarTap={tapLabel}
             editing={editingAnchors}
             onEditingDone={stopEditing}
@@ -536,9 +471,8 @@ export const PieceDetailPage = () => {
         </section>
         <aside className="sticky top-3 -mt-5 max-h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
           <div>
-            {backLink}
+            {topRow}
             {header}
-            {toolbar}
           </div>
           <div className="space-y-8 border-t border-border pt-5">{notesAndFiles}</div>
         </aside>
@@ -549,7 +483,7 @@ export const PieceDetailPage = () => {
   return (
     // Tall enough that the player sits at the bottom even on short pages.
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)]">
-      {backLink}
+      {topRow}
       {header}
 
       {/* Phone/tablet: tabs. */}

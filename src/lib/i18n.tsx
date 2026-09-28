@@ -599,8 +599,6 @@ const dict: Dict = {
   },
   cropApply: { de: 'Übernehmen', en: 'Apply' },
   zoom: { de: 'Zoom', en: 'Zoom' },
-  zoomIn: { de: 'Vergrößern', en: 'Zoom in' },
-  zoomOut: { de: 'Verkleinern', en: 'Zoom out' },
   welcomePhotoTitle: { de: 'Willkommen, {name}!', en: 'Welcome, {name}!' },
   welcomePhotoHint: {
     de: 'Füge ein Profilbild hinzu, damit dich andere in Projekten und beim Check-in erkennen.',
@@ -1086,9 +1084,11 @@ const dict: Dict = {
   addNotes: { de: 'Notizen hinzufügen', en: 'Add notes' },
   editNotes: { de: 'Notizen bearbeiten', en: 'Edit notes' },
   noFiles: { de: 'Noch keine Dateien.', en: 'No files yet.' },
-  scoreView: { de: 'Noten', en: 'Score' },
-  barsView: { de: 'Takte', en: 'Bars' },
   follow: { de: 'Mitlaufen', en: 'Follow' },
+  fitWidth: { de: 'Einpassen', en: 'Fit' },
+  zoomIn: { de: 'Vergrößern', en: 'Zoom in' },
+  zoomOut: { de: 'Verkleinern', en: 'Zoom out' },
+  moreActions: { de: 'Weitere Aktionen', en: 'More actions' },
   followHint: {
     de: 'Die Noten scrollen beim Abspielen zum aktuellen Takt mit.',
     en: 'The score scrolls along to the current bar while playing.',

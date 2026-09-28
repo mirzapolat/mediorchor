@@ -30,7 +30,6 @@ interface PieceScoreProps {
   loopLabels: Set<string> | null;
   pickLabel: string | null;
   follow: boolean;
-  zoom: number;
   onBarTap: (label: string, shiftKey: boolean) => void;
   // Marking bars (managers).
   editing: boolean;
@@ -69,7 +68,6 @@ export const PieceScore = memo(
     loopLabels,
     pickLabel,
     follow,
-    zoom,
     onBarTap,
     editing,
     onEditingDone,
@@ -187,6 +185,10 @@ export const PieceScore = memo(
     // Drawing starts right away with a mouse; on touch only after holding
     // still, so a plain swipe keeps scrolling the score.
     const startDraw = (e: ReactPointerEvent<HTMLDivElement>, page: number) => {
+      if (!e.isPrimary) {
+        stopForPinch(); // a second finger: the user is pinching, not drawing
+        return;
+      }
       if (!target || e.button > 0) return;
       const el = e.currentTarget;
       const g = { mode: 'draw' as const, label: target, page, pageEl: el, origin: null };
@@ -211,6 +213,18 @@ export const PieceScore = memo(
           navigator.vibrate?.(10);
         }, HOLD_MS),
       };
+    };
+
+    // Abandons a hold or a half-drawn frame when a pinch begins.
+    const stopForPinch = () => {
+      cancelHold();
+      const g = gesture.current;
+      gesture.current = null;
+      if (!g) return;
+      const before = { ...draftRef.current };
+      if (g.origin) before[g.label] = g.origin;
+      else delete before[g.label];
+      show(before);
     };
 
     const move = (e: ReactPointerEvent<HTMLElement>) => {
@@ -464,7 +478,7 @@ export const PieceScore = memo(
           </div>
         )}
         <Suspense fallback={<PageSpinner />}>
-          <PdfScoreView url={url} zoom={zoom} overlay={overlay} />
+          <PdfScoreView url={url} overlay={overlay} mousePan={!editing} onPinchStart={stopForPinch} />
         </Suspense>
         <ConfirmDialog
           open={resetOpen}
