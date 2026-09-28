@@ -17,6 +17,8 @@ interface PdfScoreViewProps {
   // Fired with fractional page coordinates (0..1) when a page is clicked.
   onPageClick?: (page: number, x: number, y: number) => void;
   clickCursor?: 'default' | 'crosshair';
+  // 1 = fit the container width; larger values scroll horizontally.
+  zoom?: number;
 }
 
 const PdfPage = ({
@@ -86,7 +88,7 @@ const PdfPage = ({
 
 // Renders a PDF at full container width, one page below the other, with a
 // positioned overlay per page (used to pin bar buttons onto sheet music).
-export const PdfScoreView = ({ url, overlay, onPageClick, clickCursor }: PdfScoreViewProps) => {
+export const PdfScoreView = ({ url, overlay, onPageClick, clickCursor, zoom = 1 }: PdfScoreViewProps) => {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
@@ -123,27 +125,31 @@ export const PdfScoreView = ({ url, overlay, onPageClick, clickCursor }: PdfScor
     return () => observer.disconnect();
   }, []);
 
+  const pageWidth = Math.floor(width * zoom);
+
   return (
-    <div ref={containerRef} className="space-y-3">
-      {error ? (
-        <p className="rounded-md border border-border bg-surface px-4 py-6 text-center text-sm text-text-secondary">
-          {t('pdfLoadError')}
-        </p>
-      ) : doc ? (
-        Array.from({ length: doc.numPages }, (_, i) => (
-          <PdfPage
-            key={i + 1}
-            doc={doc}
-            pageNumber={i + 1}
-            width={width}
-            overlay={overlay}
-            onPageClick={onPageClick}
-            clickCursor={clickCursor}
-          />
-        ))
-      ) : (
-        <PageSpinner />
-      )}
+    <div ref={containerRef} className="overflow-x-auto">
+      <div className="space-y-3" style={{ width: zoom !== 1 ? pageWidth : undefined }}>
+        {error ? (
+          <p className="rounded-md border border-border bg-surface px-4 py-6 text-center text-sm text-text-secondary">
+            {t('pdfLoadError')}
+          </p>
+        ) : doc ? (
+          Array.from({ length: doc.numPages }, (_, i) => (
+            <PdfPage
+              key={i + 1}
+              doc={doc}
+              pageNumber={i + 1}
+              width={pageWidth}
+              overlay={overlay}
+              onPageClick={onPageClick}
+              clickCursor={clickCursor}
+            />
+          ))
+        ) : (
+          <PageSpinner />
+        )}
+      </div>
     </div>
   );
 };

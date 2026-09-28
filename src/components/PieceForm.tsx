@@ -4,54 +4,56 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
-import type { Piece } from '@/types';
 
 interface PieceFormProps {
   open: boolean;
   projectId: string;
-  piece: Piece | null; // null → create
-  nextPosition: number; // position used for a newly created piece
+  nextPosition: number; // position used for the new piece
   onClose: () => void;
-  onSaved: () => void;
+  onCreated: (pieceId: string) => void;
 }
 
-export const PieceForm = ({ open, projectId, piece, nextPosition, onClose, onSaved }: PieceFormProps) => {
+// Creates a piece; everything else (files, notes, timing) is set up on the
+// piece's set-up page, which opens right after.
+export const PieceForm = ({ open, projectId, nextPosition, onClose, onCreated }: PieceFormProps) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [composer, setComposer] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setName(piece?.name ?? '');
-    setComposer(piece?.composer ?? '');
-  }, [open, piece]);
+    setName('');
+    setComposer('');
+    setError(null);
+  }, [open]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) return;
     setBusy(true);
-    if (piece) {
-      await api
-        .from('pieces')
-        .update({ name: trimmedName, composer: composer.trim() })
-        .eq('id', piece.id);
-    } else {
-      await api.from('pieces').insert({
+    const { data, error: dbError } = await api
+      .from('pieces')
+      .insert({
         project_id: projectId,
         name: trimmedName,
         composer: composer.trim(),
         position: nextPosition,
-      });
-    }
+      })
+      .select('id')
+      .single();
     setBusy(false);
-    onClose();
-    onSaved();
+    if (dbError || !data) {
+      setError(dbError?.message ?? t('error'));
+      return;
+    }
+    onCreated((data as { id: string }).id);
   };
 
   return (
-    <Modal open={open} title={piece ? t('editPiece') : t('newPiece')} onClose={onClose}>
+    <Modal open={open} title={t('newPiece')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <Input
           id="piece-name"
@@ -67,12 +69,13 @@ export const PieceForm = ({ open, projectId, piece, nextPosition, onClose, onSav
           value={composer}
           onChange={(e) => setComposer(e.target.value)}
         />
+        {error && <p className="text-sm text-accent">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>
             {t('cancel')}
           </Button>
           <Button type="submit" disabled={busy || !name.trim()}>
-            {piece ? t('save') : t('create')}
+            {t('createAndSetUp')}
           </Button>
         </div>
       </form>

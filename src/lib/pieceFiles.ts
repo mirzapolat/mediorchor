@@ -1,4 +1,5 @@
 import { api } from './api';
+import type { PieceFile } from '@/types';
 
 const BUCKET = 'piece-files';
 
@@ -31,4 +32,39 @@ export const pieceFileDownloadUrl = (path: string, fileName: string): string =>
 export const removePieceFiles = async (paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   await api.storage.from(BUCKET).remove(paths);
+};
+
+export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => {
+  const { data } = await api
+    .from('piece_files')
+    .select('*')
+    .eq('piece_id', pieceId)
+    .order('position')
+    .order('created_at');
+  return (data as PieceFile[] | null) ?? [];
+};
+
+// Deletes a file row together with its stored object.
+export const deletePieceFile = async (file: PieceFile): Promise<void> => {
+  await api.from('piece_files').delete().eq('id', file.id);
+  if (file.file_path) void removePieceFiles([file.file_path]);
+};
+
+// Writes the list order into `position` for rows whose position changed.
+export const persistOrder = async (
+  table: 'pieces' | 'piece_files',
+  rows: Array<{ id: string; position: number }>,
+): Promise<void> => {
+  await Promise.all(
+    rows.map((row, index) =>
+      row.position === index ? null : api.from(table).update({ position: index }).eq('id', row.id),
+    ),
+  );
+};
+
+// Deletes a piece; its file rows cascade, the stored objects are removed here.
+export const deletePiece = async (pieceId: string): Promise<void> => {
+  const files = await loadPieceFiles(pieceId);
+  await api.from('pieces').delete().eq('id', pieceId);
+  void removePieceFiles(files.map((f) => f.file_path).filter((p): p is string => !!p));
 };

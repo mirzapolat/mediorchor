@@ -298,7 +298,7 @@ export const policies: Record<string, TablePolicy> = {
     select: (a) => or(canAccessProject(`${a}.project_id`), participantCanSeePieces(`${a}.project_id`)),
   },
 
-  piece_blocks: {
+  piece_files: {
     ...all(
       (a) => `exists (select 1 from pieces _pc where _pc.id = ${a}.piece_id and ${canAccessProject('_pc.project_id')})`,
     ),

@@ -10,7 +10,7 @@ An attendance-management tool for a musical ensemble / club (orchestra, choir, b
 
 1. **Attendance tracking** — projects contain rehearsals ("events"), rehearsals have member attendance, and attendance rolls up into statistics and absence reports.
 2. **Self-service intake** — public, link-based QR check-in forms and public registration/sign-up pages that let people mark themselves present or apply to join, with or without an account.
-3. **Rehearsal material** — a per-project library of musical pieces with attached sheet music, audio, links and notes, plus a bar-by-bar practice player that maps a recording onto the score.
+3. **Rehearsal material** — a per-project library of musical pieces, each a practice workspace with score, notation file, one recording per voice, links and notes, and a bar-accurate player that follows the score.
 
 Alongside these, a separate **club-member directory** holds the association's formal membership records (postal addresses etc.), which is deliberately unrelated to project participation.
 
@@ -32,8 +32,7 @@ Everything is multilingual (German and English) and re-brandable (app name, acce
 | **Guest** | A person added ad-hoc to a single event; kept out of the regular member list. |
 | **Check-in** | A per-event public QR/link form where people mark themselves present. |
 | **Registration page** | A per-project public link where people sign up to join; submissions can later be transferred into the member list. |
-| **Piece** | A musical work inside a project, with an ordered list of content blocks. |
-| **Block** | One content item on a piece: a file, an audio recording, a link, or a Markdown text. |
+| **Piece** | A musical work inside a project: files (score PDF, notation, MIDI, recordings per voice, other files, links), notes and one bar timeline. |
 | **Club member** | A record in the association-wide member directory (name, salutation, address, contact, active/passive). Independent of projects. |
 | **Absence label** | A saved, reusable set of attendance conditions with a name, optionally shown to the matching participants themselves. |
 
@@ -161,7 +160,7 @@ The sidebar is a shared shell reused by every section:
 /projects/:id/participation          My participation          (everyone)
 /projects/:id/pieces                 Pieces                    (managers; participants if enabled)
 /projects/:id/pieces/:pid            Piece detail
-/projects/:id/pieces/:pid/practice/:bid   Bar practice view
+/projects/:id/pieces/:pid/setup      Piece set-up (managers)
 /projects/:id/events                 Events                    (managers only)
 /projects/:id/members                Members                   (managers only)
 /projects/:id/members/:mid           Member detail             (managers only)
@@ -540,54 +539,57 @@ A read-only overview for a project, covering only events that have a date.
 
 ## 14. Pieces
 
+A piece is one practice workspace: its score, notation file, MIDI, one recording per voice, other files and links, notes, and a single bar timeline shared by all recordings. Every page here is designed phone-first.
+
 ### 14.1 Piece list
 
-An ordered list of the project's musical works: name and composer. Managers can create/edit pieces (name + composer), **drag rows to reorder** them, and delete a piece (confirmation warns that all of its content is removed permanently; attached files are cleaned up from storage too). Participants get the same list read-only, but only when the project's "Show pieces to participants" toggle is on.
+The project's pieces in rehearsal order, as cards: position number, name, "composer · short description", and small indicators for what exists (score PDF, number of voice recordings, notes) with a chevron. Managers **drag cards by their grip to reorder** (mouse and touch); the list can be searched (name, composer, description) — reordering is disabled while searching. *New piece* asks for name and composer and opens the piece's set-up page right away. Participants see the list read-only, and only when the project's "Show pieces to participants" toggle is on.
 
-### 14.2 Piece detail
+### 14.2 Piece page
 
-Header shows the piece name and composer, an edit button, and an "Add block" dropdown offering the four block types. Below, a reorderable two-column table:
+Header: back link, piece name, "composer · short description", and for managers a *Set up* button.
 
-- **Name** — a type icon plus the block title (falling back to the file name).
-- **Target** — the block's primary content, rendered inline:
-  - **File** → a bordered download button with the original file name.
-  - **Audio** → an inline player (see below) with a download button.
-  - **Link** → a bordered button showing the URL that opens in a new tab. Only `http`/`https` URLs are ever rendered as clickable — anything else is neutralised.
-  - **Text** → the Markdown rendered directly in the cell.
+- **Phone/tablet**: three tabs — *Score*, *Notes*, *Files (n)*. **Desktop**: the score takes the main column; notes and files sit in a sticky side column.
+- **Score** — the first score PDF with a red marker on every placed bar (see 14.4), or a **bar grid** (every bar in playback order; bars inside repeats appear once per pass, marked "1.", "2."). A segmented control switches *Score / Bars* when both exist; the grid is shown automatically when there is no PDF or no bar is placed yet. Toolbar: zoom out/in (1×, 1.5×, 2×, 2.5×, horizontal scrolling when zoomed), *Follow* (the score scrolls to keep the playing bar in view; on by default), and for managers *Place bars*.
+- **Notes** — Markdown; managers edit inline (*Add/Edit notes*).
+- **Files** — downloads grouped as Score (PDF), Recordings, Notation file, MIDI, Other files, Links. Only http(s) links are ever rendered clickable.
+- Empty piece: an empty state; managers get a *Set up piece* button.
 
-Rows are clickable only when the block is an audio block that declares bars — those open the practice view.
+### 14.3 Player
 
-Managers can edit and delete blocks (deleting also removes the stored file) and drag to reorder.
+A bar pinned to the bottom of the screen (thumb reach on phones) whenever the piece has recordings:
 
-### 14.3 Block editor
+- **Voice chips** (horizontally scrollable) — switching voice keeps playing **at the same bar and position within the bar**, even when the recordings' lead-in or length differ.
+- **Seek bar** with bar ticks and the loop section highlighted; large touch target.
+- **Status** — current bar; when the bar is played more than once (repeats), buttons "1." / "2." jump between its passes; the active loop as a chip with a remove button.
+- **Controls** — *Loop* (tap, then tap the first and the last bar of the section; shift-click on desktop loops from the current bar to the clicked one), previous bar (back to the start of the current bar, or the previous bar when already at its start), play/pause, next bar, and speed (0.5×–1.25×, pitch preserved).
+- Tapping a bar (grid or score marker) plays from there; a score marker picks the pass closest to the current position. Seeking outside the loop ends the loop.
+- Keyboard: Space play/pause, ←/→ previous/next bar, Esc ends the loop.
+- The phone's lock screen / headset controls work (play, pause, previous/next bar, seek), showing piece and voice.
 
-Type is fixed by which menu entry was used. Per type:
+### 14.4 Bar markers on the score
 
-- **File / Audio** — a dashed drop-style file picker showing the selected/current file name, the note "A new file replaces the current one." when editing, and an optional display name (placeholder = file name). Audio pickers accept audio types only.
-- **Audio, additionally** — a "This audio file has bars" checkbox ("Enables starting playback at a specific bar on a dedicated practice page"). When ticked, three linked numeric fields appear: *number of bars*, *starts at bar*, *ends at bar*. They stay mutually consistent — changing the count or start recomputes the end; changing the end recomputes the count. Defaults: start 1, end = count. Validation requires start ≥ 1 and end ≥ start.
-- **Link** — display name (required) and URL (required). A URL without a scheme gets `https://` prepended; anything that isn't http/https is rejected with "Please enter a valid http(s) URL."
-- **Text** — display name (required) and the Markdown editor with live preview.
+Managers place markers from the score toolbar or the set-up page. A banner (sticky under the top bar) shows the bar being placed with ‹ › to change it; tapping the sheet places it and advances to the next unplaced bar; markers can be dragged; tapping a marker selects it; *Undo*, *Remove* and *Done*. Markers are keyed by the bar's label (the number printed in the score), stored as page plus fractional x/y so they scale with any width, and saved immediately. While playing, the current bar's marker grows with a halo; bars of the loop section are shown inverted.
 
-Uploaded files are stored under keys derived from the piece, using generated names rather than the original file name (so spaces, umlauts etc. never break uploads) while download links still serve the original file name. Replacing a file deletes the old object.
+### 14.5 Set-up page (managers)
 
-### 14.4 Audio player
+- **Details** — name, composer, short description; saved when a field is left.
+- **Add files** — one drop zone for any number of files. Each is recognised by its name: `.pdf` → score, `.musicxml/.mxl/.xml` → notation file, `.mid/.midi` → MIDI, audio types → recording, anything else → other file. Recordings are named after the voice found in the file name (Sopran, Alt, Tenor, Bass, Tutti, Klavier …, with a trailing number kept) and their **lead-in silence** is measured on the decoded audio. A notation file is read immediately (see 14.6). Each upload shows progress and its outcome.
+- **Bar timing** — *From notation file* (summary: bars, bars played, repeats/jumps, tempo changes, meter changes, length; *Read again*) or *Evenly spaced* (first and last bar; bars are spread evenly across each recording after its lead-in). Without a notation file a tip explains how to export MusicXML from MuseScore.
+- **Bars in the score** — "*placed*/*total*" and a button to place/edit markers.
+- **File groups** (Voices, Score, Notation file, MIDI, Other files, Links) — sortable cards with an editable name, the file name, a type selector (to correct a wrong guess) and delete. Recordings also have their lead-in (seconds) and a length check against the timeline: fine when the recording is at most 1.5 s shorter or 8 s longer (MuseScore exports end with a release tail), otherwise a warning "*n* s longer/shorter than the score". The first score PDF is the one shown. Links are added with a name and URL (`https://` is prepended when missing; anything but http/https is rejected).
+- **Delete piece** (with confirmation; stored files are removed too) and *Done*.
 
-An inline bordered player: play/pause (black round button), current time, a seekable range slider, total duration, and — on wider screens — a mute toggle and volume slider. An optional download button sits at the end. It exposes a slot for extra controls, and can hand its underlying audio element to a parent that needs to control playback.
+Uploaded files are stored under keys derived from the piece with generated names (spaces, umlauts etc. never break uploads) while downloads keep the original file name. Deleting a file or piece removes the stored objects.
 
-### 14.5 Practice view
+### 14.6 Reading bar timing from MusicXML
 
-For an audio block with bars. The recording is assumed to be **evenly divided** across its bar range, so bar *n* starts at `(n − first) × (duration ÷ number of bars)`.
+Done in the browser, for `.musicxml`/`.xml` and zipped `.mxl` (partwise; timewise is rejected with a hint).
 
-- **Header** — the block title and "*N* number of bars (first–last)". Managers additionally get: *Add / Replace score PDF*, *Anchor bars* (a toggle that becomes *Done*), and *Remove score PDF* (confirmation: "The score PDF and all bar anchors will be removed.").
-- **Player card** — the audio player extended with a **loop toggle** and a **playback-speed** selector (0.5×, 0.75×, 1×, 1.25×, 1.5×). Below it: the current bar number, the current selection, a clear-selection button, and the hint "Tap a bar to start playback there. Shift-click selects a range."
-- **Bar grid** — a responsive grid of square buttons, one per bar. Clicking a bar seeks there and starts playback; shift-clicking a later bar extends the selection into a range. The bar currently sounding is filled black and shows a **live progress fill** sweeping across it (driven by an animation frame loop so it's smooth, not the coarse timeupdate rate). Selected bars are outlined.
-- **Playback behaviour** — with a range selected, playback stops (and rewinds to the range start) at the end of the range; with loop on, it jumps back to the start of the range instead. With no end selected, playback runs to the end of the file.
-- **Score PDF** — when attached, the PDF is rendered at full container width, one page below the next, above the bar grid. Bars can be **anchored** onto the sheet music:
-  - In anchor mode, the grid selects which bar to place next (defaulting to the first bar without an anchor), and clicking a spot in the PDF pins that bar there. The banner reads "Click the spot in the PDF for bar *n*." or "All bars are anchored.", with the sub-hint "Drag moves an anchor, click removes it. Use the grid to choose the next bar."
-  - Anchors are stored as a page number plus fractional x/y coordinates, so they scale with any rendering width.
-  - Out of anchor mode, the anchored bar buttons sit directly on the score as bright red pills. Clicking one starts playback at that bar (shift-click extends the selection). The bar currently sounding grows and gets a glowing red halo so it's trackable while playing.
-  - Anchor changes save immediately; a failure shows an inline error.
-- The PDF renderer is loaded lazily, only for pages that actually show a score, and shows "The PDF could not be loaded." on failure.
+- **Bar length** is the bar's actual content (notes, `backup`, `forward`; chords and grace notes don't advance), so pickups and incomplete bars are exact; the longest part wins; an empty bar falls back to its time signature.
+- **Tempo** from `<sound tempo>` (or a metronome mark), at its position inside the bar, from any part; 120 quarter notes per minute until the first mark. Tempo follows the written order of the score.
+- **Playback order** unfolds repeats (with `times`), voltas (by pass; after a jump the last volta of a group), D.C., D.S. (by segno name), To Coda/Coda and Fine; repeats are not taken again after a jump — MuseScore's default playback.
+- The result is the list of played bars (label, start, end in seconds from bar one); a recording's lead-in is added per recording.
 
 ---
 
@@ -675,12 +677,11 @@ registration       id, page, first_name, last_name, email?, group_name?,
                    member?, transferred, account?, raw_payload? (webhook fields),
                    created_at
 
-piece              id, project, name, composer, position, created_at
-piece_block        id, piece, type (file|audio|link|text), title,
-                   url?, file_path?, file_name?, content?,
-                   has_bars, bars_start?, bars_end?,
-                   score_path?, score_name?, bar_anchors{ bar → {page, x, y} },
-                   position, created_at
+piece              id, project, name, composer, description, notes (Markdown),
+                   timeline? ({even: first, last} | {notation: bars[{label, start, end}], stats}),
+                   bar_anchors{ bar label → {page, x, y} }, position, created_at
+piece_file         id, piece, kind (score|notation|midi|audio|other|link), title,
+                   url?, file_path?, file_name?, offset_s (audio lead-in), position, created_at
 
 absence_label      id, project, name, conditions[{connector, metric, comparison, value}],
                    is_public, position, created_at

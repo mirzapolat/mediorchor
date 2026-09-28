@@ -40,7 +40,7 @@ import { EventCheckinPage } from '@/pages/EventCheckinPage';
 import { RegistrationsPage } from '@/pages/RegistrationsPage';
 import { PiecesPage } from '@/pages/PiecesPage';
 import { PieceDetailPage } from '@/pages/PieceDetailPage';
-import { PiecePracticePage } from '@/pages/PiecePracticePage';
+import { PieceSetupPage } from '@/pages/PieceSetupPage';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
 import { RegistrationPageSettings } from '@/pages/RegistrationPageSettings';
 import { GroupsPage } from '@/pages/GroupsPage';
@@ -140,9 +140,11 @@ export const App = () => {
           <Route element={<RequirePiecesAccess />}>
             <Route path="pieces" element={<PiecesPage />} />
             <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
-            <Route path="pieces/:pieceId/practice/:blockId" element={<PiecePracticePage />} />
+            {/* Old practice links point at a block; the piece page replaces them. */}
+            <Route path="pieces/:pieceId/practice/:blockId" element={<Navigate to="../.." relative="path" replace />} />
           </Route>
           <Route element={<RequireProjectManage />}>
+            <Route path="pieces/:pieceId/setup" element={<PieceSetupPage />} />
             <Route path="events" element={<EventsPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="absences" element={<AbsencesPage />} />

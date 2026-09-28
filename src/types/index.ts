@@ -200,37 +200,57 @@ export interface Piece {
   project_id: string;
   name: string;
   composer: string;
-  position: number;
-  created_at: string;
-}
-
-export type PieceBlockType = 'file' | 'audio' | 'link' | 'text';
-
-// One content block on a piece's info page. Which fields are set depends on
-// the type: file/audio use file_path + file_name, link uses url, text uses
-// content (Markdown).
-export interface PieceBlock {
-  id: string;
-  piece_id: string;
-  type: PieceBlockType;
-  title: string;
-  url: string | null;
-  file_path: string | null;
-  file_name: string | null;
-  content: string | null;
-  // Audio blocks may map the recording onto score bars (Takte); the practice
-  // page then lets playback start at any bar between bars_start and bars_end.
-  has_bars: boolean;
-  bars_start: number | null;
-  bars_end: number | null;
-  // Optional score PDF shown on the practice page; bars can be anchored onto
-  // it (keyed by bar number) so their buttons sit on the sheet music.
-  score_path: string | null;
-  score_name: string | null;
+  // Short line shown in the list; notes are Markdown shown on the piece page.
+  description: string;
+  notes: string;
+  timeline: PieceTimeline | null;
+  // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
   position: number;
   created_at: string;
 }
+
+// What a piece file is for. score = the PDF shown on the practice page,
+// notation = MusicXML the bar timeline is read from, audio = one voice track.
+export type PieceFileKind = 'score' | 'notation' | 'midi' | 'audio' | 'other' | 'link';
+
+export interface PieceFile {
+  id: string;
+  piece_id: string;
+  kind: PieceFileKind;
+  // Display name; for audio tracks the voice (Sopran, Alt, Tutti, …).
+  title: string;
+  url: string | null;
+  file_path: string | null;
+  file_name: string | null;
+  // Audio only: seconds of lead-in before the first bar.
+  offset_s: number;
+  position: number;
+  created_at: string;
+}
+
+// One bar as it is played (repeats unfolded, so a label can occur twice).
+// Times are seconds from the first bar, before the track's lead-in.
+export interface TimelineBar {
+  label: string;
+  start: number;
+  end: number;
+}
+
+// The bar timeline shared by all audio tracks of a piece: either read from a
+// notation file (exact, handles tempo/meter changes and repeats) or bars
+// spread evenly across the recording.
+export type PieceTimeline =
+  | { source: 'even'; first: number; last: number }
+  | {
+      source: 'notation';
+      bars: TimelineBar[];
+      // Number of bars in the score (without repeats) and tempo/meter changes.
+      written: number;
+      tempoChanges: number;
+      meterChanges: number;
+      repeats: number;
+    };
 
 // Position of a bar button on the score PDF: page number (1-based) and the
 // x/y position as fractions of the page size, so it scales with any width.
