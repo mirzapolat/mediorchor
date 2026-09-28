@@ -26,7 +26,8 @@ import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column } from '@/components/DataTable';
+import { DataTable, renderCell, type Column } from '@/components/DataTable';
+import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
@@ -545,6 +546,27 @@ export const RegistrationPageDetail = () => {
         filters={filters}
         query={tf.query}
         hideToolbar
+        // Phones: full name, then email, group, status and date below; while
+        // editing, the fields stacked.
+        mobileCard={(r) =>
+          editingId === r.id ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                {renderCell(columns, 'first_name', r)}
+                {renderCell(columns, 'last_name', r)}
+              </div>
+              {page.ask_email && renderCell(columns, 'email', r)}
+              {page.ask_group && renderCell(columns, 'group', r)}
+            </div>
+          ) : (
+            <MobilePerson name={`${r.first_name} ${r.last_name}`.trim()}>
+              {page.ask_email && r.email && <span className="min-w-0 break-all">{r.email}</span>}
+              {page.ask_group && r.group_name && renderCell(columns, 'group', r)}
+              {renderCell(columns, 'status', r)}
+              {renderCell(columns, 'registered', r)}
+            </MobilePerson>
+          )
+        }
         toolbar={
           <>
             <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />

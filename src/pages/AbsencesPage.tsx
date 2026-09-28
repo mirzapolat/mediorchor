@@ -15,6 +15,7 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { Input, Select } from '@/components/Input';
@@ -603,6 +604,46 @@ export const AbsencesPage = () => {
         emptyMessage={t('noAbsenceResults')}
         emptyIcon={CalendarX2}
         onVisibleRowsChange={setVisibleRows}
+        // Phones: photo and full name, email and group below, then the three
+        // counts side by side.
+        mobileCard={(row) => (
+          <>
+            <MobilePerson
+              avatar={
+                <Avatar
+                  name={`${row.member.first_name} ${row.member.last_name}`}
+                  photoUrl={row.member.photo_url}
+                  size={36}
+                />
+              }
+              name={`${row.member.first_name} ${row.member.last_name}`.trim()}
+              tags={
+                row.member.status === 'archived' ? (
+                  <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-text-tertiary">
+                    {t('archived')}
+                  </span>
+                ) : null
+              }
+            >
+              {row.member.email && <span className="min-w-0 break-all">{row.member.email}</span>}
+              {row.member.group_name && <GroupPill name={row.member.group_name} />}
+            </MobilePerson>
+            <div className="mt-3 grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  ['attended', row.counts.attended, 'text-success-strong'],
+                  ['excused', row.counts.excused, 'text-text'],
+                  ['notAttended', row.counts.absent, 'text-text'],
+                ] as const
+              ).map(([key, value, color]) => (
+                <div key={key} className="rounded-md bg-surface-muted px-2 py-1.5 text-center">
+                  <div className={cn('text-base font-semibold tabular-nums', color)}>{value}</div>
+                  <div className="truncate text-[11px] text-text-secondary">{t(key)}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       />
 
       <Modal

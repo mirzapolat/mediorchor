@@ -6,7 +6,8 @@ import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
+import { DataTable, renderCell, type Column, type FilterDef } from '@/components/DataTable';
+import { MobilePerson } from '@/components/MobilePerson';
 import { GroupPill } from '@/components/GroupPill';
 import { GroupForm } from '@/components/GroupForm';
 import { useI18n } from '@/lib/i18n';
@@ -162,6 +163,16 @@ export const GroupDetailPage = () => {
         filters={filters}
         emptyMessage={t('noMembersInGroup')}
         emptyIcon={Users}
+        // Phones: photo and full name, email and status below.
+        mobileCard={(m) => (
+          <MobilePerson
+            avatar={<Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={36} />}
+            name={`${m.first_name} ${m.last_name}`.trim()}
+          >
+            {m.email && <span className="min-w-0 break-all">{m.email}</span>}
+            {renderCell(columns, 'status', m)}
+          </MobilePerson>
+        )}
       />
 
       <GroupForm

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, type Column } from '@/components/DataTable';
+import { DataTable, MobileMeta, renderCell, type Column } from '@/components/DataTable';
 import { EmptyState } from '@/components/EmptyState';
 import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
@@ -135,6 +135,20 @@ const qrSvgToPng = (svg: SVGSVGElement) =>
     };
     image.src = objectUrl;
   });
+
+// A labelled action button for check-in cards on phones.
+const MobileActionButton = ({ onClick, children }: { onClick: () => void; children: ReactNode }) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+    className="flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-muted hover:text-text"
+  >
+    {children}
+  </button>
+);
 
 export const EventCheckinPage = () => {
   const { project, event, reloadCheckinWarnings } = useEventContext();
@@ -275,6 +289,16 @@ export const EventCheckinPage = () => {
       },
     ],
     [dateFormatter, t],
+  );
+
+  // Phones: a check-in's name with its group beside it.
+  const nameAndGroup = (row: CheckinSubmission) => (
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-base font-medium">
+        {row.first_name} {row.last_name}
+      </span>
+      <span className="flex-shrink-0">{renderCell(columns, 'group', row)}</span>
+    </div>
   );
 
   if (loading) return <PageSpinner />;
@@ -430,6 +454,29 @@ export const EventCheckinPage = () => {
               )}
               emptyMessage={t('noUnrecognizedCheckIns')}
               emptyIcon={UserX}
+              // Phones: name and group on top, the time, then the three
+              // actions as labelled buttons.
+              hideMobileActions
+              mobileCard={(row) => (
+                <>
+                  {nameAndGroup(row)}
+                  <MobileMeta>{renderCell(columns, 'submitted', row)}</MobileMeta>
+                  <div className="mt-3 grid grid-cols-3 gap-1.5">
+                    <MobileActionButton onClick={() => setAssigningSubmission(row)}>
+                      <UserRoundCheck size={15} />
+                      {t('assignCheckInShort')}
+                    </MobileActionButton>
+                    <MobileActionButton onClick={() => setCreatingFromSubmission(row)}>
+                      <Plus size={15} />
+                      {t('saveAsNewMemberShort')}
+                    </MobileActionButton>
+                    <MobileActionButton onClick={() => removeSubmission(row.id)}>
+                      <Trash2 size={15} />
+                      {t('delete')}
+                    </MobileActionButton>
+                  </div>
+                </>
+              )}
             />
           </section>
         ) : null}
@@ -446,6 +493,12 @@ export const EventCheckinPage = () => {
             getRowId={(row) => row.id}
             emptyMessage={t('noSuccessfulCheckIns')}
             emptyIcon={CheckCircle2}
+            mobileCard={(row) => (
+              <>
+                {nameAndGroup(row)}
+                <MobileMeta>{renderCell(columns, 'submitted', row)}</MobileMeta>
+              </>
+            )}
           />
         </section>
       </div>

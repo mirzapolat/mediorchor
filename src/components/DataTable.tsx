@@ -62,7 +62,27 @@ interface DataTableProps<T> {
   // the built-in search and filter controls (a custom `toolbar` still shows).
   query?: string;
   hideToolbar?: boolean;
+  // Phones: the body of a row's card (actions still go top right). Without
+  // it the first column is the title and the others labelled fields.
+  mobileCard?: (row: T) => ReactNode;
+  // Phones: leave the action icons out (the mobileCard shows its own buttons).
+  hideMobileActions?: boolean;
 }
+
+// Renders one column's cell for a row — lets a mobileCard reuse the table's
+// cell renderers instead of duplicating them.
+export const renderCell = <T,>(columns: Column<T>[], id: string, row: T): ReactNode => {
+  const c = columns.find((col) => col.id === id);
+  if (!c) return null;
+  return c.render ? c.render(row) : formatValue(c.accessor?.(row));
+};
+
+// A card's secondary line: several facts side by side, wrapping as needed.
+export const MobileMeta = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <div className={cn('mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary', className)}>
+    {children}
+  </div>
+);
 
 type SortDir = 'asc' | 'desc';
 
@@ -101,6 +121,8 @@ export function DataTable<T>({
   toolbar,
   query: controlledQuery,
   hideToolbar = false,
+  mobileCard,
+  hideMobileActions = false,
 }: DataTableProps<T>) {
   const { t } = useI18n();
   const isPhone = useMediaQuery('(max-width: 639px)');
@@ -372,10 +394,15 @@ export function DataTable<T>({
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1 break-words text-base font-medium">
-                        {primary ? cell(primary) : null}
+                      <div
+                        className={cn(
+                          'min-w-0 flex-1 break-words',
+                          !mobileCard && 'text-base font-medium',
+                        )}
+                      >
+                        {mobileCard ? mobileCard(row) : primary ? cell(primary) : null}
                       </div>
-                      {actions && (
+                      {actions && !hideMobileActions && (
                         <div
                           className="-my-1 -mr-1 flex flex-shrink-0 items-center gap-0.5"
                           onClick={(e) => e.stopPropagation()}
@@ -384,7 +411,7 @@ export function DataTable<T>({
                         </div>
                       )}
                     </div>
-                    {rest.length > 0 && (
+                    {!mobileCard && rest.length > 0 && (
                       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
                         {rest.map((c) => (
                           <div key={c.id} className="min-w-0">

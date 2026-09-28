@@ -134,6 +134,8 @@ const dict: Dict = {
   expand: { de: 'Ausklappen', en: 'Expand' },
   remove: { de: 'Entfernen', en: 'Remove' },
   reorder: { de: 'Verschieben', en: 'Reorder' },
+  assignCheckInShort: { de: 'Zuordnen', en: 'Assign' },
+  saveAsNewMemberShort: { de: 'Neu anlegen', en: 'New member' },
   selectAll: { de: 'Alle auswählen', en: 'Select all' },
   sortBy: { de: 'Sortieren nach', en: 'Sort by' },
   sortDefault: { de: 'Standard-Reihenfolge', en: 'Default order' },

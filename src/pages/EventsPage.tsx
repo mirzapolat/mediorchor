@@ -7,7 +7,7 @@ import { Input, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column } from '@/components/DataTable';
+import { DataTable, MobileMeta, renderCell, type Column } from '@/components/DataTable';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
@@ -246,6 +246,17 @@ export const EventsPage = () => {
         onClearFilters={() => setHighlightNext(false)}
         emptyMessage={t('noEvents')}
         emptyIcon={CalendarDays}
+        // Phones: name (with badges, description), then date, time and the
+        // number present on one line.
+        mobileCard={(ev) => (
+          <>
+            <div className="text-base font-medium">{renderCell(columns, 'name', ev)}</div>
+            <MobileMeta>
+              {renderCell(columns, 'when', ev)}
+              {renderCell(columns, 'present', ev)}
+            </MobileMeta>
+          </>
+        )}
         actions={(ev) => (
           <>
             <RowActionButton

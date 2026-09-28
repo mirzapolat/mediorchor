@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Plus, Tags, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Tags, Trash2, Users } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
@@ -140,6 +140,16 @@ export const GroupsPage = () => {
           onReorder={tf.query.trim() ? undefined : reorder}
           emptyMessage={t('noGroups')}
           emptyIcon={Tags}
+          // Phones: the group with its member count right beside it.
+          mobileCard={(g) => (
+            <div className="flex min-h-[2rem] items-center gap-2">
+              <GroupPill name={g.name} color={g.color} className="text-sm" />
+              <span className="inline-flex items-center gap-1 text-sm tabular-nums text-text-secondary">
+                <Users size={14} />
+                {countOf(g)}
+              </span>
+            </div>
+          )}
           actions={(g) => (
             <>
               <RowActionButton

@@ -7,7 +7,8 @@ import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, type Column } from '@/components/DataTable';
+import { DataTable, renderCell, type Column } from '@/components/DataTable';
+import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
@@ -283,6 +284,47 @@ export const UsersPage = () => {
         query={tf.query}
         hideToolbar
         emptyMessage={t('noResults')}
+        // Phones: photo, name and email, then role, project access, club
+        // and 2FA (when on) and when last seen, as compact facts.
+        mobileCard={(u) => {
+          const at = lastSeen.get(u.id);
+          const chip = 'inline-flex items-center gap-1 rounded-md bg-surface-muted px-1.5 py-0.5 text-xs font-medium';
+          return (
+            <MobilePerson
+              avatar={<Avatar name={u.name} photoUrl={u.photo_url} size={36} />}
+              name={u.name}
+              tags={
+                !u.approved && (
+                  <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent">
+                    {t('approvalPending')}
+                  </span>
+                )
+              }
+            >
+              <span className="w-full min-w-0 break-all">{u.email}</span>
+              {renderCell(columns, 'role', u)}
+              {renderCell(columns, 'access', u)}
+              {hasClubAccess(u) && (
+                <span className={chip}>
+                  <Check size={12} />
+                  {t('clubShort')}
+                </span>
+              )}
+              {hasTwoFactor(u) && (
+                <span className={chip}>
+                  <Check size={12} />
+                  {t('twoFactorShort')}
+                </span>
+              )}
+              <span className="text-xs text-text-tertiary">
+                {t('lastSeen')}:{' '}
+                {at
+                  ? new Date(at).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: '2-digit' })
+                  : t('never')}
+              </span>
+            </MobilePerson>
+          );
+        }}
       />
 
       <Modal

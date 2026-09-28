@@ -7,7 +7,7 @@ import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
-import { DataTable, type Column } from '@/components/DataTable';
+import { DataTable, renderCell, type Column } from '@/components/DataTable';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { cn } from '@/lib/cn';
@@ -110,6 +110,34 @@ export const EventAttendancePage = () => {
 
   if (loading) return <PageSpinner />;
 
+  // The three status buttons; `wide` fills the card width on phones.
+  const statusButtons = (r: Row, wide = false) => (
+    <div className={cn('flex items-center rounded-md border border-border overflow-hidden', wide ? 'w-full' : 'w-fit')}>
+      {STATUSES.map((s) => (
+        <button
+          key={s}
+          onClick={(e: MouseEvent) => {
+            e.stopPropagation();
+            void setStatus(r, s);
+          }}
+          className={cn(
+            'text-sm font-medium transition-colors duration-150 border-l border-border first:border-l-0',
+            wide ? 'h-10 flex-1 px-1' : 'px-3 py-1.5',
+            r.status === s
+              ? s === 'attended'
+                ? 'bg-success text-white'
+                : s === 'excused'
+                  ? 'bg-accent text-white'
+                  : 'bg-surface-hover text-text'
+              : 'bg-white text-text-secondary hover:bg-surface-muted',
+          )}
+        >
+          {s === 'attended' ? t('attended') : s === 'excused' ? t('excused') : t('notAttended')}
+        </button>
+      ))}
+    </div>
+  );
+
   const columns: Column<Row>[] = [
     {
       id: 'name',
@@ -144,31 +172,7 @@ export const EventAttendancePage = () => {
       header: t('attendance'),
       accessor: (r) => r.status,
       className: 'w-px whitespace-nowrap',
-      render: (r) => (
-        <div className="flex items-center rounded-md border border-border overflow-hidden w-fit">
-          {STATUSES.map((s) => (
-            <button
-              key={s}
-              onClick={(e: MouseEvent) => {
-                e.stopPropagation();
-                void setStatus(r, s);
-              }}
-              className={cn(
-                'px-3 py-1.5 text-sm font-medium transition-colors duration-150 border-l border-border first:border-l-0',
-                r.status === s
-                  ? s === 'attended'
-                    ? 'bg-success text-white'
-                    : s === 'excused'
-                      ? 'bg-accent text-white'
-                      : 'bg-surface-hover text-text'
-                  : 'bg-white text-text-secondary hover:bg-surface-muted',
-              )}
-            >
-              {s === 'attended' ? t('attended') : s === 'excused' ? t('excused') : t('notAttended')}
-            </button>
-          ))}
-        </div>
-      ),
+      render: (r) => statusButtons(r),
     },
   ];
 
@@ -216,6 +220,16 @@ export const EventAttendancePage = () => {
         query={tf.query}
         hideToolbar
         emptyMessage={t('noMembers')}
+        // Phones: name and group on top, the three status buttons below.
+        mobileCard={(r) => (
+          <>
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <div className="min-w-0 text-base font-medium">{renderCell(columns, 'name', r)}</div>
+              <div className="flex-shrink-0">{renderCell(columns, 'group', r)}</div>
+            </div>
+            <div className="mt-3">{statusButtons(r, true)}</div>
+          </>
+        )}
       />
 
       <AddPersonModal

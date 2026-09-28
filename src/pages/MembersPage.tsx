@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { MemberForm } from '@/components/MemberForm';
 import { MemberImport } from '@/components/MemberImport';
 import { DataTable, type Column } from '@/components/DataTable';
+import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
@@ -77,30 +78,41 @@ export const MembersPage = () => {
 
   if (loading) return <PageSpinner />;
 
+  // A name that differs from the linked account's shows as a dot on the
+  // photo; the details are in the tooltip (and on the member's page).
+  const memberAvatar = (m: Member, size: number) => {
+    const deviation = accountNameDeviation(m, accountNames[m.id]);
+    const hint = deviation ? `${t('nameDiffersFromAccount')}: ${deviation}` : undefined;
+    return (
+      <span className="relative flex flex-shrink-0" title={hint}>
+        <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={size} />
+        {hint ? (
+          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-surface">
+            <span className="sr-only">{hint}</span>
+          </span>
+        ) : null}
+      </span>
+    );
+  };
+
+  const archivedTag = (m: Member) =>
+    m.status === 'archived' ? (
+      <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
+        {t('archived')}
+      </span>
+    ) : null;
+
   const columns: Column<Member>[] = [
     {
       id: 'first_name',
       header: t('firstName'),
       accessor: (m) => m.first_name,
-      render: (m) => {
-        // A name that differs from the linked account's shows as a dot on the
-        // photo; the details are in the tooltip (and on the member's page).
-        const deviation = accountNameDeviation(m, accountNames[m.id]);
-        const hint = deviation ? `${t('nameDiffersFromAccount')}: ${deviation}` : undefined;
-        return (
-          <div className="flex items-center gap-2.5">
-            <span className="relative flex-shrink-0" title={hint}>
-              <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={28} />
-              {hint ? (
-                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-surface">
-                  <span className="sr-only">{hint}</span>
-                </span>
-              ) : null}
-            </span>
-            <span>{m.first_name}</span>
-          </div>
-        );
-      },
+      render: (m) => (
+        <div className="flex items-center gap-2.5">
+          {memberAvatar(m, 28)}
+          <span>{m.first_name}</span>
+        </div>
+      ),
     },
     {
       id: 'last_name',
@@ -110,11 +122,7 @@ export const MembersPage = () => {
         return (
           <div className="flex items-center gap-2.5">
             <span>{m.last_name || '—'}</span>
-            {m.status === 'archived' && (
-              <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
-                {t('archived')}
-              </span>
-            )}
+            {archivedTag(m)}
           </div>
         );
       },
@@ -188,6 +196,17 @@ export const MembersPage = () => {
         hideToolbar
         emptyMessage={t('noMembers')}
         emptyIcon={Users}
+        // Phones: photo and full name, email and group below.
+        mobileCard={(m) => (
+          <MobilePerson
+            avatar={memberAvatar(m, 36)}
+            name={`${m.first_name} ${m.last_name}`.trim()}
+            tags={archivedTag(m)}
+          >
+            {m.email && <span className="min-w-0 break-all">{m.email}</span>}
+            {m.group_name && <GroupPill name={m.group_name} />}
+          </MobilePerson>
+        )}
         actions={(m) => (
           <>
             <RowActionButton
