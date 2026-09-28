@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { Input, Select, Textarea } from '@/components/Input';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { Avatar } from '@/components/Avatar';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DeleteProjectDialog } from '@/components/DeleteProjectDialog';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
@@ -78,11 +78,6 @@ export const ProjectSettingsPage = () => {
     setSaving(false);
     setSaved(true);
     reloadProject();
-  };
-
-  const remove = async () => {
-    await api.from('projects').delete().eq('id', project.id);
-    navigate('/');
   };
 
   // Individually granted users manage the content, not the project itself.
@@ -234,7 +229,7 @@ export const ProjectSettingsPage = () => {
         <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-medium">{t('deleteProject')}</h2>
-            <p className="text-sm text-text-secondary mt-1">{t('confirmDelete')}</p>
+            <p className="text-sm text-text-secondary mt-1">{t('deleteProjectHint')}</p>
           </div>
           <Button type="button" variant="accent" className="sm:flex-shrink-0" onClick={() => setConfirmDel(true)}>
             <Trash2 size={15} />
@@ -243,14 +238,14 @@ export const ProjectSettingsPage = () => {
         </Card>
       </form>
 
-      <ConfirmDialog
-        open={confirmDel}
-        title={t('delete')}
-        message={t('confirmDelete')}
-        confirmLabel={t('delete')}
-        destructive
-        onConfirm={remove}
-        onCancel={() => setConfirmDel(false)}
+      <DeleteProjectDialog
+        project={confirmDel ? project : null}
+        onClose={() => setConfirmDel(false)}
+        onArchived={() => {
+          setConfirmDel(false);
+          reloadProject();
+        }}
+        onDeleted={() => navigate('/')}
       />
     </>
   );

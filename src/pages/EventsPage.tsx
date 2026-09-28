@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock } from 'lucide-react';
+import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock, Users } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
@@ -27,6 +27,8 @@ export const EventsPage = () => {
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [warningCounts, setWarningCounts] = useState<Record<string, number>>({});
+  // Present people per rehearsal (members and guests).
+  const [presentCounts, setPresentCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   // The next/today rehearsal is pinned + highlighted until the user resets filters.
   const [highlightNext, setHighlightNext] = useState(true);
@@ -39,7 +41,7 @@ export const EventsPage = () => {
   const [toDelete, setToDelete] = useState<Event | null>(null);
 
   const load = useCallback(async () => {
-    const [eventsResult, warningsResult] = await Promise.all([
+    const [eventsResult, warningsResult, presentResult] = await Promise.all([
       api
         .from('events')
         .select('*')
@@ -52,6 +54,11 @@ export const EventsPage = () => {
         .select('event_id, events!inner(project_id)')
         .eq('recognized', false)
         .eq('events.project_id', project.id),
+      api
+        .from('attendance')
+        .select('event_id, events!inner(project_id)')
+        .eq('status', 'attended')
+        .eq('events.project_id', project.id),
     ]);
 
     const counts: Record<string, number> = {};
@@ -60,6 +67,11 @@ export const EventsPage = () => {
     }
     setEvents((eventsResult.data as Event[]) ?? []);
     setWarningCounts(counts);
+    const present: Record<string, number> = {};
+    for (const row of (presentResult.data as Array<{ event_id: string }> | null) ?? []) {
+      present[row.event_id] = (present[row.event_id] ?? 0) + 1;
+    }
+    setPresentCounts(present);
     setLoading(false);
   }, [project.id]);
 
@@ -171,6 +183,18 @@ export const EventsPage = () => {
         ) : (
           <span className="text-text-secondary">—</span>
         ),
+    },
+    {
+      id: 'present',
+      header: t('attended'),
+      accessor: (ev) => presentCounts[ev.id] ?? 0,
+      className: 'w-px text-center whitespace-nowrap',
+      render: (ev) => (
+        <span className="inline-flex items-center gap-1.5 tabular-nums text-text-secondary">
+          <Users size={14} />
+          {presentCounts[ev.id] ?? 0}
+        </span>
+      ),
     },
   ];
 

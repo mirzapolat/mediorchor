@@ -735,6 +735,20 @@ authRoutes.post('/mfa/passkeys/remove', async (c) => {
   return c.json({ ok: true });
 });
 
+// Renaming only changes the label shown in the list, so it needs no fresh
+// sign-in (unlike adding or removing a passkey).
+authRoutes.post('/mfa/passkeys/rename', async (c) => {
+  const user = requireSession(c);
+  const { id, name } = await body(c);
+  const label = typeof name === 'string' ? name.trim().slice(0, 80) : '';
+  if (!label) throw new ApiError('Name required', 400);
+  const result = db
+    .prepare('update auth_passkeys set name = ? where id = ? and user_id = ?')
+    .run(label, String(id ?? ''), user.id);
+  if (result.changes === 0) throw new ApiError('Passkey not found', 404, 'mfa_factor_not_found');
+  return c.json({ ok: true });
+});
+
 // Email codes: enroll sends a code to the account's address, verify turns
 // them on with it. Only while the admin allows them and email works.
 authRoutes.post('/mfa/email/enroll', async (c) => {

@@ -550,26 +550,28 @@ The project's pieces in rehearsal order, as cards: position number, name, "compo
 Header: back link, piece name, "composer · short description", and for managers a *Set up* button.
 
 - **Phone/tablet**: three tabs — *Score*, *Notes*, *Files (n)*. **Desktop**: the score takes the main column; notes and files sit in a sticky side column.
-- **Score** — the first score PDF with a red marker on every placed bar (see 14.4), or a **bar grid** (every bar in playback order; bars inside repeats appear once per pass, marked "1.", "2."). A segmented control switches *Score / Bars* when both exist; the grid is shown automatically when there is no PDF or no bar is placed yet. Toolbar: zoom out/in (1×, 1.5×, 2×, 2.5×, horizontal scrolling when zoomed), *Follow* (the score scrolls to keep the playing bar in view; on by default), and for managers *Place bars*.
+- **Score** — the first score PDF with a red marker on every placed bar (see 14.4), or a **bar grid** (every bar in playback order; bars inside repeats appear once per pass, marked "1.", "2."). A segmented control switches *Score / Bars* when both exist; the grid is shown automatically when there is no PDF or no bar is placed yet. Toolbar: zoom out/in (1×, 1.5×, 2×, 2.5×, horizontal scrolling when zoomed) and for managers *Place bars*.
 - **Notes** — Markdown; managers edit inline (*Add/Edit notes*).
 - **Files** — downloads grouped as Score (PDF), Recordings, Notation file, MIDI, Other files, Links. Only http(s) links are ever rendered clickable.
 - Empty piece: an empty state; managers get a *Set up piece* button.
 
 ### 14.3 Player
 
-A bar pinned to the bottom of the screen (thumb reach on phones) whenever the piece has recordings:
+Whenever the piece has recordings: on phones and tablets a bar pinned to the bottom of the screen (thumb reach); on desktop a rounded box hovering at the bottom of the score column only (notes and files stay uncovered).
 
 - **Voice chips** (horizontally scrollable) — switching voice keeps playing **at the same bar and position within the bar**, even when the recordings' lead-in or length differ.
 - **Seek bar** with bar ticks and the loop section highlighted; large touch target.
 - **Status** — current bar; when the bar is played more than once (repeats), buttons "1." / "2." jump between its passes; the active loop as a chip with a remove button.
-- **Controls** — *Loop* (tap, then tap the first and the last bar of the section; shift-click on desktop loops from the current bar to the clicked one), previous bar (back to the start of the current bar, or the previous bar when already at its start), play/pause, next bar, and speed (0.5×–1.25×, pitch preserved).
+- **Controls** — *Loop* (tap, then tap the first and the last bar of the section; shift-click on desktop loops from the current bar to the clicked one), previous bar (back to the start of the current bar, or the previous bar when already at its start), play/pause, next bar, *Follow* (the score scrolls to keep the playing bar in view; shown while the score with marked bars is on screen; on by default and remembered per browser), and speed (0.5×–1.25×, pitch preserved).
 - Tapping a bar (grid or score marker) plays from there; a score marker picks the pass closest to the current position. Seeking outside the loop ends the loop.
 - Keyboard: Space play/pause, ←/→ previous/next bar, Esc ends the loop.
 - The phone's lock screen / headset controls work (play, pause, previous/next bar, seek), showing piece and voice.
 
-### 14.4 Bar markers on the score
+### 14.4 Bar frames on the score
 
-Managers place markers from the score toolbar or the set-up page. A banner (sticky under the top bar) shows the bar being placed with ‹ › to change it; tapping the sheet places it and advances to the next unplaced bar; markers can be dragged; tapping a marker selects it; *Undo*, *Remove* and *Done*. Markers are keyed by the bar's label (the number printed in the score), stored as page plus fractional x/y so they scale with any width, and saved immediately. While playing, the current bar's marker grows with a halo; bars of the loop section are shown inverted.
+Managers mark bars from the score toolbar or the set-up page. A banner (sticky under the top bar) shows the bar being marked with ‹ › to change it. A **frame is drawn around the bar** by dragging on the sheet — with a mouse right away, on touch after holding still briefly (a plain swipe keeps scrolling). Drawing advances to the next unmarked bar; frames can be moved by dragging, resized by the corner handle of the selected one, and tapping a frame selects it. *Undo*, *Remove* (the selected bar), *Reset all bars* (with confirmation; undo still brings them back) and *Done*. Marks are keyed by the bar's label (the number printed in the score), stored as page plus fractional x/y/width/height so they scale with any width, and saved immediately; older point marks still show as pills.
+
+Outside edit mode frames are invisible apart from a small number chip; the whole frame is tappable, highlights on hover, lights up while its bar plays, and the loop section is shown dashed.
 
 ### 14.5 Set-up page (managers)
 

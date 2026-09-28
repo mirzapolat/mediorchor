@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, UserCog } from 'lucide-react';
+import { DeleteProjectDialog } from '@/components/DeleteProjectDialog';
 import { PageHeader } from '@/components/PageHeader';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -50,13 +50,6 @@ export const ProjectsPage = () => {
       .from('projects')
       .update({ status: p.status === 'archived' ? 'active' : 'archived' })
       .eq('id', p.id);
-    await load();
-  };
-
-  const remove = async () => {
-    if (!toDelete) return;
-    await api.from('projects').delete().eq('id', toDelete.id);
-    setToDelete(null);
     await load();
   };
 
@@ -183,14 +176,17 @@ export const ProjectsPage = () => {
 
       <ProjectAccessModal project={accessFor} onClose={() => setAccessFor(null)} />
 
-      <ConfirmDialog
-        open={!!toDelete}
-        title={t('delete')}
-        message={t('confirmDelete')}
-        confirmLabel={t('delete')}
-        destructive
-        onConfirm={remove}
-        onCancel={() => setToDelete(null)}
+      <DeleteProjectDialog
+        project={toDelete}
+        onClose={() => setToDelete(null)}
+        onArchived={() => {
+          setToDelete(null);
+          void load();
+        }}
+        onDeleted={() => {
+          setToDelete(null);
+          void load();
+        }}
       />
     </>
   );

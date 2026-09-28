@@ -19,6 +19,20 @@ const dict: Dict = {
   edit: { de: 'Bearbeiten', en: 'Edit' },
   delete: { de: 'Löschen', en: 'Delete' },
   archive: { de: 'Archivieren', en: 'Archive' },
+  archiveInstead: { de: 'Stattdessen archivieren', en: 'Archive instead' },
+  deletePermanently: { de: 'Endgültig löschen', en: 'Delete permanently' },
+  deleteProjectWarning: {
+    de: '„{name}“ wird mit allen Proben, Anwesenheiten, Mitgliedern, Anmeldungen und Stücken endgültig gelöscht. Das kann nicht rückgängig gemacht werden.',
+    en: '“{name}” will be deleted permanently with all rehearsals, attendance, members, registrations and pieces. This cannot be undone.',
+  },
+  archiveInsteadHint: {
+    de: 'Möchtest du es nicht lieber archivieren? Archivierte Projekte bleiben vollständig erhalten, verschwinden aus der aktiven Liste und lassen sich jederzeit wiederherstellen.',
+    en: 'Would you rather archive it? Archived projects are kept in full, leave the active list and can be restored at any time.',
+  },
+  deleteProjectHint: {
+    de: 'Löscht das Projekt mit allen Daten endgültig. Alternativ kannst du es archivieren.',
+    en: 'Deletes the project and all of its data permanently. You can archive it instead.',
+  },
   add: { de: 'Hinzufügen', en: 'Add' },
   close: { de: 'Schließen', en: 'Close' },
   search: { de: 'Suchen', en: 'Search' },
@@ -120,6 +134,7 @@ const dict: Dict = {
   expand: { de: 'Ausklappen', en: 'Expand' },
   remove: { de: 'Entfernen', en: 'Remove' },
   reorder: { de: 'Verschieben', en: 'Reorder' },
+  rename: { de: 'Umbenennen', en: 'Rename' },
   target: { de: 'Ziel', en: 'Target' },
   bold: { de: 'Fett', en: 'Bold' },
   italic: { de: 'Kursiv', en: 'Italic' },
@@ -298,6 +313,7 @@ const dict: Dict = {
     de: '„{name}“ kann danach nicht mehr zur Anmeldung verwendet werden. Lösche den Passkey bei Bedarf auch auf dem Gerät bzw. im Passwortmanager.',
     en: '“{name}” can no longer be used to sign in. If you like, also delete it on the device or in your password manager.',
   },
+  passkeyName: { de: 'Name des Passkeys', en: 'Passkey name' },
   passkeyUnsupported: {
     de: 'Dieser Browser unterstützt keine Passkeys.',
     en: 'This browser doesn’t support passkeys.',
@@ -1099,14 +1115,22 @@ const dict: Dict = {
   // Placing bar markers on the score
   placeBars: { de: 'Takte platzieren', en: 'Place bars' },
   editMarkers: { de: 'Markierungen bearbeiten', en: 'Edit markers' },
-  placeHint: { de: 'Tippe in den Noten auf den Taktanfang', en: 'Tap the start of the bar in the score' },
+  placeHint: {
+    de: 'Zieh einen Rahmen um den Takt (am Handy: kurz halten, dann ziehen)',
+    en: 'Drag a frame around the bar (on phones: hold briefly, then drag)',
+  },
   placeAgainHint: {
-    de: 'Platziert – ziehen zum Verschieben oder neu antippen',
-    en: 'Placed — drag to move or tap again to re-place',
+    de: 'Markiert – verschieben, an der Ecke Größe ändern oder neu aufziehen',
+    en: 'Marked — move it, resize by the corner or draw it again',
   },
   allBarsPlaced: { de: 'Alle Takte platziert', en: 'All bars placed' },
   placed: { de: 'platziert', en: 'placed' },
   undo: { de: 'Rückgängig', en: 'Undo' },
+  resetMarkers: { de: 'Alle Takte zurücksetzen', en: 'Reset all bars' },
+  resetMarkersConfirm: {
+    de: 'Alle Takt-Markierungen in diesen Noten entfernen? Mit „Rückgängig“ lässt sich das wiederherstellen, solange du hier bist.',
+    en: 'Remove all bar marks from this score? “Undo” brings them back while you are still here.',
+  },
   done: { de: 'Fertig', en: 'Done' },
 
   // Piece set-up
@@ -1185,11 +1209,12 @@ const dict: Dict = {
   trackShorter: { de: '{s} s kürzer als die Noten', en: '{s} s shorter than the score' },
   markersTitle: { de: 'Takte in den Noten', en: 'Bars in the score' },
   markersHint: {
-    de: 'Markiere, wo jeder Takt im PDF steht – dann springt ein Tipp auf die Noten direkt dorthin.',
-    en: 'Mark where each bar is in the PDF — then tapping the score jumps right there.',
+    de: 'Zieh im PDF einen Rahmen um jeden Takt – dann springt ein Tipp auf die Noten direkt dorthin.',
+    en: 'Draw a frame around each bar in the PDF — then tapping the score jumps right there.',
   },
 
   // Registration pages
+  openRegistrations: { de: 'Offen', en: 'Open' },
   registration: { de: 'Anmeldungen', en: 'Registrations' },
   registrationPages: { de: 'Anmeldungen', en: 'Registrations' },
   newRegistrationPage: { de: 'Neue Quelle', en: 'New source' },

@@ -21,6 +21,8 @@ export const RegistrationsPage = () => {
   const navigate = useNavigate();
   const [pages, setPages] = useState<RegistrationPage[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  // Registrations not yet transferred into the member list.
+  const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const tf = useTableFilters();
 
@@ -37,14 +39,17 @@ export const RegistrationsPage = () => {
         .order('created_at', { ascending: false }),
       api
         .from('registrations')
-        .select('registration_page_id, registration_pages!inner(project_id)')
+        .select('registration_page_id, transferred, registration_pages!inner(project_id)')
         .eq('registration_pages.project_id', project.id),
     ]);
 
     const grouped: Record<string, number> = {};
-    for (const row of (regsResult.data as Array<{ registration_page_id: string }> | null) ?? []) {
+    const open: Record<string, number> = {};
+    for (const row of (regsResult.data as Array<{ registration_page_id: string; transferred: boolean }> | null) ?? []) {
       grouped[row.registration_page_id] = (grouped[row.registration_page_id] ?? 0) + 1;
+      if (!row.transferred) open[row.registration_page_id] = (open[row.registration_page_id] ?? 0) + 1;
     }
+    setOpenCounts(open);
     setPages((pagesResult.data as RegistrationPage[] | null) ?? []);
     setCounts(grouped);
     setLoading(false);
@@ -109,6 +114,20 @@ export const RegistrationsPage = () => {
       header: t('registrations'),
       accessor: (p) => counts[p.id] ?? 0,
       render: (p) => <span className="text-text-secondary">{counts[p.id] ?? 0}</span>,
+      className: 'w-px text-center whitespace-nowrap',
+    },
+    {
+      id: 'open',
+      header: t('openRegistrations'),
+      accessor: (p) => openCounts[p.id] ?? 0,
+      render: (p) =>
+        openCounts[p.id] ? (
+          <span className="inline-flex min-w-[1.75rem] justify-center rounded-md bg-info-soft px-2 py-0.5 text-sm font-semibold tabular-nums text-text">
+            {openCounts[p.id]}
+          </span>
+        ) : (
+          <span className="text-text-tertiary">0</span>
+        ),
       className: 'w-px text-center whitespace-nowrap',
     },
   ];

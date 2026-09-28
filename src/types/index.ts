@@ -252,12 +252,15 @@ export type PieceTimeline =
       repeats: number;
     };
 
-// Position of a bar button on the score PDF: page number (1-based) and the
-// x/y position as fractions of the page size, so it scales with any width.
+// A bar's mark on the score PDF: page number (1-based) and a frame (or, in
+// older data, a point) as fractions of the page size, so it scales with any width.
 export interface BarAnchor {
   page: number;
   x: number;
   y: number;
+  // Frame size; marks without it are points (older data).
+  w?: number;
+  h?: number;
 }
 
 // Saved absence-condition preset. `conditions` holds StoredCondition[] (see

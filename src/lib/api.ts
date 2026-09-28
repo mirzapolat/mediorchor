@@ -442,6 +442,8 @@ const auth = {
         name: input.name,
       }),
     removePasskey: async (id: string) => request<{ ok: boolean }>('POST', '/api/auth/mfa/passkeys/remove', { id }),
+    renamePasskey: async (id: string, name: string) =>
+      request<{ ok: boolean }>('POST', '/api/auth/mfa/passkeys/rename', { id, name }),
 
     // Codes by email.
     enrollEmail: async () => request<{ challenge_id: string }>('POST', '/api/auth/mfa/email/enroll', {}),

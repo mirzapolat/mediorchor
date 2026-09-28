@@ -9,7 +9,6 @@ import {
   FileText,
   Grid3x3,
   Link as LinkIcon,
-  LocateFixed,
   MapPin,
   Music,
   Paperclip,
@@ -28,6 +27,7 @@ import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Markdown } from '@/lib/markdown';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -41,6 +41,7 @@ type Tab = 'score' | 'notes' | 'files';
 type ScoreView = 'pdf' | 'grid';
 
 const ZOOMS = [1, 1.5, 2, 2.5];
+const FOLLOW_KEY = 'anwesenheit.pieces.follow';
 
 const FILE_GROUPS: Array<{ kind: PieceFileKind; label: TranslationKey; icon: LucideIcon }> = [
   { kind: 'score', label: 'fileKindScore', icon: FileText },
@@ -198,9 +199,27 @@ export const PieceDetailPage = () => {
   // null until chosen: the score once bars are placed on it, else the grid.
   const [viewChoice, setView] = useState<ScoreView | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [follow, setFollow] = useState(true);
+  // Whether the score scrolls along with playback; remembered per browser.
+  const [follow, setFollowState] = useState(() => {
+    try {
+      return localStorage.getItem(FOLLOW_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const setFollow = useCallback((on: boolean) => {
+    setFollowState(on);
+    try {
+      localStorage.setItem(FOLLOW_KEY, on ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
   const [picking, setPicking] = useState<LoopPicking>(null);
   const editingAnchors = canManage && searchParams.get('place') === '1';
+  // Desktop: the player floats over the score column instead of spanning
+  // the page bottom.
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const load = useCallback(async () => {
     const [pieceResult, pieceFiles] = await Promise.all([
@@ -326,6 +345,19 @@ export const PieceDetailPage = () => {
   const showGrid = bars.length > 0 && (!score || view === 'grid');
   const nothingYet = !score && bars.length === 0 && tracks.length === 0;
 
+  const playerBar =
+    tracks.length > 0 && !editingAnchors ? (
+      <PiecePlayerBar
+        player={player}
+        tracks={tracks}
+        picking={picking}
+        onPickingChange={setPicking}
+        floating={isDesktop}
+        // Only meaningful while the score with marked bars is on screen.
+        follow={score && hasAnchors && !showGrid ? { on: follow, onChange: setFollow } : undefined}
+      />
+    ) : null;
+
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'score', label: t('scoreTab') },
     { id: 'notes', label: t('notes') },
@@ -382,128 +414,119 @@ export const PieceDetailPage = () => {
       </div>
 
       <div className="mb-6 flex-1 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
-        <section className={cn(tab !== 'score' && 'max-lg:hidden')}>
-          {nothingYet ? (
-            <div className="rounded-md border border-dashed border-border">
-              <EmptyState icon={Music} message={canManage ? t('pieceEmptyManager') : t('pieceEmpty')} />
-              {canManage && (
-                <div className="-mt-8 flex justify-center pb-10">
-                  <Button onClick={() => navigate(`/projects/${project.id}/pieces/${piece.id}/setup`)}>
-                    <Settings2 size={16} />
-                    {t('setUpPiece')}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              {(score || bars.length > 0) && !editingAnchors && (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  {score && bars.length > 0 && (
-                    <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
-                      {(['pdf', 'grid'] as const).map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => setView(v)}
-                          aria-pressed={view === v}
-                          className={cn(
-                            'flex h-8 items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors duration-150',
-                            view === v ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-                          )}
-                        >
-                          {v === 'pdf' ? <FileText size={14} /> : <Grid3x3 size={14} />}
-                          {v === 'pdf' ? t('scoreView') : t('barsView')}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {score && !showGrid && (
-                    <>
-                      <div className="flex">
-                        <button
-                          type="button"
-                          className={cn(toolButton, 'rounded-r-none')}
-                          disabled={zoom === ZOOMS[0]}
-                          onClick={() => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom) - 1)])}
-                          aria-label={t('zoomOut')}
-                        >
-                          <ZoomOut size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          className={cn(toolButton, '-ml-px rounded-l-none')}
-                          disabled={zoom === ZOOMS[ZOOMS.length - 1]}
-                          onClick={() => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + 1)])}
-                          aria-label={t('zoomIn')}
-                        >
-                          <ZoomIn size={15} />
-                        </button>
+        <section className={cn('lg:flex lg:flex-col lg:self-stretch', tab !== 'score' && 'max-lg:hidden')}>
+          <div className="lg:flex-1">
+            {nothingYet ? (
+              <div className="rounded-md border border-dashed border-border">
+                <EmptyState icon={Music} message={canManage ? t('pieceEmptyManager') : t('pieceEmpty')} />
+                {canManage && (
+                  <div className="-mt-8 flex justify-center pb-10">
+                    <Button onClick={() => navigate(`/projects/${project.id}/pieces/${piece.id}/setup`)}>
+                      <Settings2 size={16} />
+                      {t('setUpPiece')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {(score || bars.length > 0) && !editingAnchors && (
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    {score && bars.length > 0 && (
+                      <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
+                        {(['pdf', 'grid'] as const).map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setView(v)}
+                            aria-pressed={view === v}
+                            className={cn(
+                              'flex h-8 items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors duration-150',
+                              view === v ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
+                            )}
+                          >
+                            {v === 'pdf' ? <FileText size={14} /> : <Grid3x3 size={14} />}
+                            {v === 'pdf' ? t('scoreView') : t('barsView')}
+                          </button>
+                        ))}
                       </div>
-                      {hasAnchors && tracks.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setFollow((f) => !f)}
-                          aria-pressed={follow}
-                          title={t('followHint')}
-                          className={cn(toolButton, follow && 'border-black text-text')}
-                        >
-                          <LocateFixed size={15} />
-                          <span className="hidden sm:inline">{t('follow')}</span>
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {canManage && score && labels.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setView('pdf');
-                        setSearchParams({ place: '1' }, { replace: true });
-                      }}
-                      className={cn(toolButton, 'ml-auto')}
-                    >
-                      <MapPin size={15} />
-                      <span className="hidden sm:inline">{t('placeBars')}</span>
-                    </button>
-                  )}
-                </div>
-              )}
+                    )}
+                    {score && !showGrid && (
+                      <>
+                        <div className="flex">
+                          <button
+                            type="button"
+                            className={cn(toolButton, 'rounded-r-none')}
+                            disabled={zoom === ZOOMS[0]}
+                            onClick={() => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom) - 1)])}
+                            aria-label={t('zoomOut')}
+                          >
+                            <ZoomOut size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className={cn(toolButton, '-ml-px rounded-l-none')}
+                            disabled={zoom === ZOOMS[ZOOMS.length - 1]}
+                            onClick={() => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + 1)])}
+                            aria-label={t('zoomIn')}
+                          >
+                            <ZoomIn size={15} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {canManage && score && labels.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setView('pdf');
+                          setSearchParams({ place: '1' }, { replace: true });
+                        }}
+                        className={cn(toolButton, 'ml-auto')}
+                      >
+                        <MapPin size={15} />
+                        <span className="hidden sm:inline">{t('placeBars')}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
-              {score && !hasAnchors && bars.length > 0 && !editingAnchors && view === 'pdf' && (
-                <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
-                  {canManage ? t('noMarkersManager') : t('noMarkers')}
-                </p>
-              )}
+                {score && !hasAnchors && bars.length > 0 && !editingAnchors && view === 'pdf' && (
+                  <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
+                    {canManage ? t('noMarkersManager') : t('noMarkers')}
+                  </p>
+                )}
 
-              {showGrid ? (
-                <PieceBarGrid
-                  bars={bars}
-                  currentIndex={player.currentIndex}
-                  loop={loop}
-                  pickFrom={picking?.from ?? null}
-                  onTap={tapIndex}
-                />
-              ) : (
-                score?.file_path && (
-                  <PieceScore
-                    url={pieceFileUrl(score.file_path)}
-                    labels={labels}
-                    anchors={piece.bar_anchors}
-                    currentLabel={currentBar?.label ?? null}
-                    loopLabels={loopLabels}
-                    pickLabel={picking?.from != null ? (bars[picking.from]?.label ?? null) : null}
-                    follow={follow && player.playing}
-                    zoom={zoom}
-                    onBarTap={tapLabel}
-                    editing={editingAnchors}
-                    onEditingDone={stopEditing}
-                    onAnchorsChange={saveAnchors}
+                {showGrid ? (
+                  <PieceBarGrid
+                    bars={bars}
+                    currentIndex={player.currentIndex}
+                    loop={loop}
+                    pickFrom={picking?.from ?? null}
+                    onTap={tapIndex}
                   />
-                )
-              )}
-            </>
-          )}
+                ) : (
+                  score?.file_path && (
+                    <PieceScore
+                      url={pieceFileUrl(score.file_path)}
+                      labels={labels}
+                      anchors={piece.bar_anchors}
+                      currentLabel={currentBar?.label ?? null}
+                      loopLabels={loopLabels}
+                      pickLabel={picking?.from != null ? (bars[picking.from]?.label ?? null) : null}
+                      follow={follow && player.playing}
+                      zoom={zoom}
+                      onBarTap={tapLabel}
+                      editing={editingAnchors}
+                      onEditingDone={stopEditing}
+                      onAnchorsChange={saveAnchors}
+                    />
+                  )
+                )}
+              </>
+            )}
+          </div>
+          {isDesktop && playerBar}
         </section>
 
         <aside className="space-y-8 lg:sticky lg:top-8">
@@ -518,14 +541,7 @@ export const PieceDetailPage = () => {
         </aside>
       </div>
 
-      {tracks.length > 0 && !editingAnchors && (
-        <PiecePlayerBar
-          player={player}
-          tracks={tracks}
-          picking={picking}
-          onPickingChange={setPicking}
-        />
-      )}
+      {!isDesktop && playerBar}
     </div>
   );
 };

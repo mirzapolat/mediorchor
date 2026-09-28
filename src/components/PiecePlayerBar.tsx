@@ -1,5 +1,5 @@
 import { useRef, type PointerEvent } from 'react';
-import { Pause, Play, Repeat, SkipBack, SkipForward, X } from 'lucide-react';
+import { LocateFixed, Pause, Play, Repeat, SkipBack, SkipForward, X } from 'lucide-react';
 import { PLAYBACK_RATES, type PracticePlayer } from '@/hooks/usePracticePlayer';
 import { formatTime } from '@/lib/pieceTimeline';
 import { useI18n } from '@/lib/i18n';
@@ -10,7 +10,7 @@ import type { PieceFile } from '@/types';
 export type LoopPicking = null | { from: number | null };
 
 const iconButton =
-  'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-text-secondary ' +
+  'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-text-secondary sm:h-11 sm:w-11 ' +
   'hover:bg-surface-hover hover:text-text transition-colors duration-150 disabled:opacity-40';
 
 // Seek bar with the loop section and (when they fit) bar ticks drawn in.
@@ -80,11 +80,18 @@ export const PiecePlayerBar = ({
   tracks,
   picking,
   onPickingChange,
+  floating = false,
+  follow,
 }: {
   player: PracticePlayer;
   tracks: PieceFile[];
   picking: LoopPicking;
   onPickingChange: (picking: LoopPicking) => void;
+  // Desktop: a rounded box hovering over the score column. Otherwise a bar
+  // across the bottom of the screen.
+  floating?: boolean;
+  // Toggle for the score scrolling along; hidden when there is nothing to follow.
+  follow?: { on: boolean; onChange: (on: boolean) => void };
 }) => {
   const { t } = useI18n();
   const { track, bars, currentBar, loop, playing } = player;
@@ -101,8 +108,15 @@ export const PiecePlayerBar = ({
       : null;
 
   return (
-    <div className="sticky bottom-0 z-30 -mx-4 -mb-4 mt-auto border-t border-border bg-surface/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6 lg:-mx-8 lg:-mb-8 lg:px-8">
-      <div className="mx-auto max-w-3xl space-y-2">
+    <div
+      className={cn(
+        'sticky z-30 bg-surface/95 backdrop-blur',
+        floating
+          ? 'bottom-6 mt-6 rounded-2xl border border-border px-5 py-3 shadow-xl'
+          : 'bottom-0 -mx-4 -mb-4 mt-auto border-t border-border px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-6 sm:-mb-6 sm:px-6 lg:-mx-8 lg:-mb-8 lg:px-8',
+      )}
+    >
+      <div className={cn('space-y-2', !floating && 'mx-auto max-w-3xl')}>
         {tracks.length > 1 && (
           <div
             role="tablist"
@@ -208,7 +222,7 @@ export const PiecePlayerBar = ({
             )}
           >
             <Repeat size={16} />
-            <span className="hidden min-[380px]:inline">{picking ? t('cancel') : t('loopShort')}</span>
+            <span className="hidden min-[440px]:inline">{picking ? t('cancel') : t('loopShort')}</span>
           </button>
 
           <div className="flex items-center gap-1">
@@ -239,19 +253,38 @@ export const PiecePlayerBar = ({
             </button>
           </div>
 
-          <select
-            value={player.rate}
-            onChange={(e) => player.setRate(Number(e.target.value))}
-            aria-label={t('playbackSpeed')}
-            title={t('playbackSpeed')}
-            className="h-9 w-[4.75rem] flex-shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-surface text-center text-sm font-medium tabular-nums text-text-secondary focus:border-black focus:outline-none"
-          >
-            {PLAYBACK_RATES.map((r) => (
-              <option key={r} value={r}>
-                {r}×
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            {follow && (
+              <button
+                type="button"
+                onClick={() => follow.onChange(!follow.on)}
+                aria-pressed={follow.on}
+                aria-label={t('follow')}
+                title={t('followHint')}
+                className={cn(
+                  'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150',
+                  follow.on
+                    ? 'bg-black text-white hover:bg-black-hover'
+                    : 'text-text-secondary hover:bg-surface-hover hover:text-text',
+                )}
+              >
+                <LocateFixed size={16} />
+              </button>
+            )}
+            <select
+              value={player.rate}
+              onChange={(e) => player.setRate(Number(e.target.value))}
+              aria-label={t('playbackSpeed')}
+              title={t('playbackSpeed')}
+              className="h-9 w-[4.25rem] flex-shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-surface text-center text-sm font-medium tabular-nums text-text-secondary focus:border-black focus:outline-none"
+            >
+              {PLAYBACK_RATES.map((r) => (
+                <option key={r} value={r}>
+                  {r}×
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   Mail,
   Monitor,
   Moon,
+  Pencil,
   Plus,
   ShieldCheck,
   ShieldOff,
@@ -432,7 +433,22 @@ const PasskeySection = ({ factors, run, done }: MethodSectionProps) => {
   const { t, lang } = useI18n();
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<MfaFactors['passkeys'][number] | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const supported = passkeysSupported();
+
+  const saveName = async () => {
+    const target = renaming;
+    if (!target) return;
+    const name = target.name.trim();
+    const current = factors.passkeys.find((p) => p.id === target.id)?.name ?? '';
+    if (!name || name === current) {
+      setRenaming(null);
+      return;
+    }
+    setBusy(true);
+    if (await done(await api.auth.mfa.renamePasskey(target.id, name))) setRenaming(null);
+    setBusy(false);
+  };
 
   const add = async () => {
     setBusy(true);
@@ -490,12 +506,62 @@ const PasskeySection = ({ factors, run, done }: MethodSectionProps) => {
           {factors.passkeys.map((p) => (
             <li key={p.id} className="flex items-center gap-3 px-3 py-2.5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{p.name || t('mfaMethodPasskey')}</p>
+                {renaming?.id === p.id ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void saveName();
+                    }}
+                    className="flex items-center gap-1.5"
+                  >
+                    <input
+                      autoFocus
+                      value={renaming.name}
+                      maxLength={80}
+                      aria-label={t('passkeyName')}
+                      onChange={(e) => setRenaming({ id: p.id, name: e.target.value })}
+                      onKeyDown={(e) => e.key === 'Escape' && setRenaming(null)}
+                      className="h-8 min-w-0 flex-1 rounded-md border border-border bg-white px-2 text-base focus:border-black focus:outline-none sm:text-sm"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || !renaming.name.trim()}
+                      title={t('save')}
+                      aria-label={t('save')}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text disabled:opacity-50"
+                    >
+                      <Check size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenaming(null)}
+                      title={t('cancel')}
+                      aria-label={t('cancel')}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text"
+                    >
+                      <X size={15} />
+                    </button>
+                  </form>
+                ) : (
+                  <p className="truncate text-sm font-medium">{p.name || t('mfaMethodPasskey')}</p>
+                )}
                 <p className="text-xs text-text-secondary">
                   {t('passkeyAdded')}: {date(p.created_at)}
                   {p.last_used_at ? ` · ${t('passkeyLastUsed')}: ${date(p.last_used_at)}` : ''}
                 </p>
               </div>
+              {renaming?.id !== p.id && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setRenaming({ id: p.id, name: p.name })}
+                  title={t('rename')}
+                  aria-label={`${t('rename')}: ${p.name}`}
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-50"
+                >
+                  <Pencil size={15} />
+                </button>
+              )}
               <button
                 type="button"
                 disabled={busy}
