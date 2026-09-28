@@ -18,7 +18,7 @@ import { useI18n } from '@/lib/i18n';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-const MIN_ZOOM = 1; // fit the width
+const MIN_ZOOM = 0.4; // below 1 the pages shrink and stay centred
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
 const MAX_CANVAS_PX = 4096; // keeps canvases within mobile memory limits
@@ -35,6 +35,7 @@ interface PdfScoreViewProps {
 }
 
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+const isFit = (z: number) => Math.abs(z - 1) < 0.05;
 
 // The element the page scrolls in vertically (the app's <main>).
 const verticalScroller = (el: HTMLElement): HTMLElement => {
@@ -226,7 +227,7 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
     if (!s) return;
     const next = clampZoom(s.startZoom * s.scale);
     // Snap back to "fit" when released close to it.
-    const snapped = next < 1.08 ? 1 : next;
+    const snapped = Math.abs(next - 1) < 0.08 ? 1 : next;
     anchor.current = { ...s, scale: snapped / s.startZoom };
     if (snapped === zoomRef.current) applyAnchor();
     else setZoom(snapped);
@@ -305,7 +306,7 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
         const now = Date.now();
         if (tap && now - tap.at < 320 && Math.hypot(x - tap.x, y - tap.y) < 30) {
           tap = null;
-          animateTo(zoomRef.current > 1.2 ? 1 : DOUBLE_TAP_ZOOM, x, y);
+          animateTo(isFit(zoomRef.current) ? DOUBLE_TAP_ZOOM : 1, x, y);
         } else {
           tap = { at: now, x, y };
         }
@@ -349,7 +350,7 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
 
     const onDblClick = (e: MouseEvent) => {
       if (fromTouch()) return; // handled as a double-tap
-      animateTo(zoomRef.current > 1.2 ? 1 : DOUBLE_TAP_ZOOM, e.clientX, e.clientY);
+      animateTo(isFit(zoomRef.current) ? DOUBLE_TAP_ZOOM : 1, e.clientX, e.clientY);
     };
 
     viewport.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -425,7 +426,7 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
   return (
     <div className="relative">
       {/* Zoom level + back to "fit" while zoomed (the only visible control). */}
-      {shownZoom > 1.001 && (
+      {!isFit(shownZoom) && (
         <div className="pointer-events-none sticky top-16 z-20 flex h-0 justify-end md:top-3">
           <button
             type="button"
@@ -455,7 +456,8 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
       >
         <div
           ref={contentRef}
-          className="flex flex-col pb-1"
+          // Centred when zoomed out below the full width.
+          className="mx-auto flex flex-col pb-1"
           // The gap between pages scales too, so zooming keeps its focus point.
           style={{ width: width ? Math.floor(width * zoom) : undefined, gap: 20 * zoom }}
         >
