@@ -543,7 +543,11 @@ A piece is one practice workspace: its score, notation file, MIDI, one recording
 
 ### 14.1 Piece list
 
-The project's pieces in rehearsal order, as cards: position number, name, "composer · short description", and small indicators for what exists (score PDF, number of voice recordings, notes) with a chevron. Managers **drag cards by their grip to reorder** (mouse and touch); the list can be searched (name, composer, description) — reordering is disabled while searching. *New piece* asks for name and composer and opens the piece's set-up page right away. Participants see the list read-only, and only when the project's "Show pieces to participants" toggle is on.
+The project's pieces as a concert programme, in one panel with dividers. The header subtitle gives the number of pieces and the programme length (sum of the pieces whose bar timing comes from a notation file; "at least …" when some lengths are unknown).
+
+Each row: the running-order number (large, zero-padded; kept while searching), the title, the length (when known), "*composer* · short description", and chips for what there is to practise with — Score, the voices (names on wider screens, up to four plus "+n"; on phones a single "*n* voices"), **Bar-exact** (timing read from a notation file) and Notes. For managers, a piece with neither score nor recordings shows a dashed "Not set up yet" chip instead. The whole row highlights on hover and opens the piece.
+
+Managers **drag rows by their grip to reorder** (mouse and touch); search covers name, composer, description and voice names — reordering is disabled while searching. *New piece* asks for name and composer and opens the piece's set-up page right away. An empty project shows an invitation (managers get a *New piece* button). Participants see the list read-only, and only when the project's "Show pieces to participants" toggle is on.
 
 ### 14.2 Piece page
 

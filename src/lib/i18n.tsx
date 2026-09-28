@@ -1049,6 +1049,19 @@ const dict: Dict = {
   pieceName: { de: 'Name des Stücks', en: 'Piece name' },
   composer: { de: 'Komponist', en: 'Composer' },
   noPieces: { de: 'Noch keine Stücke', en: 'No pieces yet' },
+  noPiecesManagerHint: {
+    de: 'Leg das erste Stück an – danach ziehst du Noten, MusicXML und Stimmen-Aufnahmen einfach hinein.',
+    en: 'Create the first piece — then just drop in the score, MusicXML and voice recordings.',
+  },
+  noPiecesHint: {
+    de: 'Sobald Stücke hinzugefügt werden, findest du hier Noten und Übe-Aufnahmen.',
+    en: 'Once pieces are added, you will find scores and practice recordings here.',
+  },
+  pieceSingular: { de: 'Stück', en: 'piece' },
+  minutesShort: { de: 'Min.', en: 'min' },
+  notSetUpYet: { de: 'Noch nicht eingerichtet', en: 'Not set up yet' },
+  exactBars: { de: 'Taktgenau', en: 'Bar-exact' },
+  voiceSingular: { de: 'Stimme', en: 'voice' },
   confirmDeletePiece: {
     de: 'Dieses Stück mitsamt allen Dateien und Notizen endgültig löschen? Dies kann nicht rückgängig gemacht werden.',
     en: 'Permanently delete this piece with all of its files and notes? This cannot be undone.',
