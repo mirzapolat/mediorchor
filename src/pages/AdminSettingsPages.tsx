@@ -563,6 +563,10 @@ const BrandingCard = ({ defaults }: { defaults: ServerInfo['brand_defaults'] }) 
                 </div>
               </div>
               <p className="mt-1.5 text-sm text-text-secondary">{t('brandLogoHint')}</p>
+              {/* Installed-app icons need fixed PNG sizes, so they stay the bundled logo. */}
+              <p className="mt-2 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
+                {t('brandLogoAppIconNote')}
+              </p>
               {logo && (
                 <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm">
                   <input

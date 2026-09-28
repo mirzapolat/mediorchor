@@ -142,33 +142,39 @@ export const PiecePlayerBar = ({
       )}
       <div className={cn('space-y-1.5', !floating && 'mx-auto max-w-3xl')}>
         {showTopRow && (
-          <div className="flex items-center gap-2">
+          // Voices centred; the repeat-pass switch (when shown) sits right
+          // without pushing them off centre.
+          <div className="grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2">
+            <span />
             <div
               role="tablist"
               aria-label={t('voices')}
-              className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]"
+              className="-mx-1 min-w-0 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]"
             >
-              {tracks.map((tr) => (
-                <button
-                  key={tr.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tr.id === track?.id}
-                  onClick={() => player.selectTrack(tr.id)}
-                  className={cn(
-                    'h-8 flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors duration-150',
-                    tr.id === track?.id
-                      ? 'border-black bg-black text-white'
-                      : 'border-border bg-surface/60 text-text-secondary hover:text-text',
-                  )}
-                >
-                  {tr.title || tr.file_name}
-                </button>
-              ))}
+              <div className="mx-auto flex w-max gap-1.5">
+                {tracks.length > 1 &&
+                  tracks.map((tr) => (
+                    <button
+                      key={tr.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={tr.id === track?.id}
+                      onClick={() => player.selectTrack(tr.id)}
+                      className={cn(
+                        'h-8 flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors duration-150',
+                        tr.id === track?.id
+                          ? 'border-black bg-black text-white'
+                          : 'border-border bg-surface/60 text-text-secondary hover:text-text',
+                      )}
+                    >
+                      {tr.title || tr.file_name}
+                    </button>
+                  ))}
+              </div>
             </div>
-            {sameLabel.length > 1 && currentBar && (
+            {sameLabel.length > 1 && currentBar ? (
               // The current bar is played more than once (repeat): hop between passes.
-              <div className="flex flex-shrink-0 items-center gap-1" aria-label={t('repeatPass')}>
+              <div className="flex items-center justify-end gap-1" aria-label={t('repeatPass')}>
                 {sameLabel.map((b) => (
                   <button
                     key={b.index}
@@ -186,6 +192,8 @@ export const PiecePlayerBar = ({
                   </button>
                 ))}
               </div>
+            ) : (
+              <span />
             )}
           </div>
         )}

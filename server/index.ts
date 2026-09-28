@@ -16,7 +16,7 @@ import { webhookRoutes } from './webhooks.ts';
 import { rateLimit } from './ratelimit.ts';
 import { startNotifications } from './notifications.ts';
 import { mailEnabled } from './mail.ts';
-import { brandIndexHtml, clientConfig } from './branding.ts';
+import { brandIndexHtml, clientConfig, webManifest } from './branding.ts';
 
 migrate();
 loadTableMeta();
@@ -112,6 +112,19 @@ app.get('/config.js', (c) => {
   // Branding from Admin Config (else the environment); JSON-encoded, and "<"
   // escaped so a name can't close a surrounding script tag.
   return c.body(`window.__APP_CONFIG__ = ${JSON.stringify(clientConfig()).replace(/</g, '\\u003c')};\n`);
+});
+
+// Installable-app manifest, named after the instance's branding.
+app.get('/manifest.webmanifest', (c) => {
+  c.header('Content-Type', 'application/manifest+json; charset=utf-8');
+  c.header('Cache-Control', 'no-cache');
+  return c.body(JSON.stringify(webManifest()));
+});
+
+// The service worker must never be served stale, or updates would stick.
+app.get('/sw.js', async (c, next) => {
+  await next();
+  c.res.headers.set('Cache-Control', 'no-cache');
 });
 
 // Built frontend with SPA fallback (only when dist/ exists; vite serves it in dev).

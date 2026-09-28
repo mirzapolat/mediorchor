@@ -6,6 +6,7 @@
 // Results never throw: like supabase-js they resolve to { data, error }.
 
 import { getPasskey } from '@/lib/passkeys';
+import { clearOfflineData, getResponse, putResponse } from '@/lib/offlineStore';
 
 export interface ApiError {
   message: string;
@@ -39,9 +40,19 @@ const listeners = new Set<AuthListener>();
 let currentSession: Session | null = null;
 
 const emit = (event: AuthEvent, session: Session | null) => {
+  // Offline copies belong to the signed-in person only.
+  if (event === 'SIGNED_OUT') void clearOfflineData();
   currentSession = session;
   for (const listener of listeners) listener(event, session);
 };
+
+// Requests that only read: GETs, table selects and read-only server functions
+// (named get_/can_/is_). Only these may be answered from the offline copy —
+// never a write, which must not pretend to succeed.
+const isRead = (method: string, path: string, body: unknown) =>
+  method === 'GET' ||
+  (path === '/api/db' && (body as { action?: string } | undefined)?.action === 'select') ||
+  /^\/api\/rpc\/(get_|can_|is_)/.test(path);
 
 const request = async <T>(
   method: string,
@@ -49,6 +60,8 @@ const request = async <T>(
   body?: unknown,
   headers: Record<string, string> = {},
 ): Promise<{ data: T | null; error: ApiError | null }> => {
+  // Reads are remembered so they can be answered offline (see offlineStore).
+  const offlineKey = isRead(method, path, body) ? `${method} ${path} ${JSON.stringify(body ?? null)}` : null;
   let response: Response;
   try {
     const raw = body instanceof Blob;
@@ -59,10 +72,15 @@ const request = async <T>(
       body: raw ? body : body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
+    if (offlineKey) {
+      const saved = await getResponse(offlineKey);
+      if (saved !== undefined) return { data: saved as T, error: null };
+    }
     return { data: null, error: { message: 'Network error: the server is unreachable' } };
   }
 
   const payload = await response.json().catch(() => null);
+  if (response.ok && offlineKey) void putResponse(offlineKey, payload);
   if (!response.ok) {
     const error: ApiError = {
       message: payload?.error?.message ?? response.statusText ?? 'Request failed',

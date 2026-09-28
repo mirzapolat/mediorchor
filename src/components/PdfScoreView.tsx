@@ -21,6 +21,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 const MIN_ZOOM = 0.4; // below 1 the pages shrink and stay centred
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
+// Where a score opens: a bit smaller than the column on desktop (more fits
+// on screen), the full width on phones.
+const startZoom = () =>
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 0.8 : 1;
 const MAX_CANVAS_PX = 4096; // keeps canvases within mobile memory limits
 
 interface PdfScoreViewProps {
@@ -35,7 +39,7 @@ interface PdfScoreViewProps {
 }
 
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
-const isFit = (z: number) => Math.abs(z - 1) < 0.05;
+const isAt = (z: number, target: number) => Math.abs(z - target) < 0.05;
 
 // The element the page scrolls in vertically (the app's <main>).
 const verticalScroller = (el: HTMLElement): HTMLElement => {
@@ -134,7 +138,8 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState(false);
   const [width, setWidth] = useState(0);
-  const [zoom, setZoom] = useState(1);
+  const [homeZoom] = useState(startZoom);
+  const [zoom, setZoom] = useState(homeZoom);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const [liveZoom, setLiveZoom] = useState<number | null>(null);
@@ -150,7 +155,9 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
     let cancelled = false;
     setDoc(null);
     setError(false);
-    const task = pdfjs.getDocument({ url });
+    // One plain request for the whole file (scores are small): the same
+    // request the offline file cache answers when there is no connection.
+    const task = pdfjs.getDocument({ url, disableRange: true, disableStream: true });
     task.promise
       .then((d) => {
         if (!cancelled) setDoc(d);
@@ -226,12 +233,12 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
     setLiveZoom(null);
     if (!s) return;
     const next = clampZoom(s.startZoom * s.scale);
-    // Snap back to "fit" when released close to it.
-    const snapped = Math.abs(next - 1) < 0.08 ? 1 : next;
+    // Snap back to the starting size when released close to it.
+    const snapped = Math.abs(next - homeZoom) < 0.08 ? homeZoom : next;
     anchor.current = { ...s, scale: snapped / s.startZoom };
     if (snapped === zoomRef.current) applyAnchor();
     else setZoom(snapped);
-  }, [applyAnchor]);
+  }, [applyAnchor, homeZoom]);
 
   useLayoutEffect(() => {
     applyAnchor();
@@ -306,7 +313,7 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
         const now = Date.now();
         if (tap && now - tap.at < 320 && Math.hypot(x - tap.x, y - tap.y) < 30) {
           tap = null;
-          animateTo(isFit(zoomRef.current) ? DOUBLE_TAP_ZOOM : 1, x, y);
+          animateTo(isAt(zoomRef.current, homeZoom) ? DOUBLE_TAP_ZOOM : homeZoom, x, y);
         } else {
           tap = { at: now, x, y };
         }
@@ -350,7 +357,7 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
 
     const onDblClick = (e: MouseEvent) => {
       if (fromTouch()) return; // handled as a double-tap
-      animateTo(isFit(zoomRef.current) ? DOUBLE_TAP_ZOOM : 1, e.clientX, e.clientY);
+      animateTo(isAt(zoomRef.current, homeZoom) ? DOUBLE_TAP_ZOOM : homeZoom, e.clientX, e.clientY);
     };
 
     viewport.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -374,13 +381,13 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
       viewport.removeEventListener('gestureend', onGestureEnd);
       viewport.removeEventListener('dblclick', onDblClick);
     };
-  }, [begin, update, end, animateTo]);
+  }, [begin, update, end, animateTo, homeZoom]);
 
   // ---- Mouse drag to pan a zoomed score -------------------------------------
 
   const drag = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null);
   const [grabbing, setGrabbing] = useState(false);
-  const canPan = mousePan && zoom > 1;
+  const canPan = mousePan && zoom > 1; // only when wider than the column
 
   const onPointerDown = (e: ReactPointerEvent) => {
     if (!canPan || e.pointerType !== 'mouse' || e.button !== 0) return;
@@ -426,21 +433,21 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
   return (
     <div className="relative">
       {/* Zoom level + back to "fit" while zoomed (the only visible control). */}
-      {!isFit(shownZoom) && (
+      {!isAt(shownZoom, homeZoom) && (
         <div className="pointer-events-none sticky top-16 z-20 flex h-0 justify-end md:top-3">
           <button
             type="button"
             onClick={() => {
               const v = viewportRef.current?.getBoundingClientRect();
-              if (v) animateTo(1, v.left + v.width / 2, Math.max(v.top, 0) + 80);
+              if (v) animateTo(homeZoom, v.left + v.width / 2, Math.max(v.top, 0) + 80);
             }}
             className="pointer-events-auto mr-2 mt-2 inline-flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-surface/70 px-3 text-xs font-semibold tabular-nums text-text shadow-md backdrop-blur-xl transition-colors hover:bg-surface"
-            title={t('fitWidth')}
+            title={t('resetZoom')}
           >
             {Math.round(shownZoom * 100)} %
             <span className="h-3 w-px bg-border" />
             <Minimize2 size={13} />
-            {t('fitWidth')}
+            {t('resetZoom')}
           </button>
         </div>
       )}

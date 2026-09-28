@@ -42,7 +42,10 @@ const escapeHtml = (value: string) =>
 // previews are right before any script runs.
 export const brandIndexHtml = (html: string) => {
   const b = branding();
-  let out = html.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(b.appName)}</title>`);
+  let out = html
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(b.appName)}</title>`)
+    // Name under the home-screen icon on iOS / in the OS app list.
+    .replace(/(<meta name="(?:apple-mobile-web-app-title|application-name)" content=")[^"]*"/g, `$1${escapeHtml(b.appName)}"`);
   if (b.logoUrl) {
     out = out.replace(
       /<link id="favicon"[^>]*>/,
@@ -50,4 +53,25 @@ export const brandIndexHtml = (html: string) => {
     );
   }
   return out;
+};
+
+// Web app manifest (installable app): the instance's name; the icons are the
+// bundled logo rendered as PNGs (public/icon-*.png).
+export const webManifest = () => {
+  const { appName } = branding();
+  return {
+    name: appName,
+    short_name: appName.length > 12 ? appName.slice(0, 12).trim() : appName,
+    start_url: '/',
+    scope: '/',
+    id: '/',
+    display: 'standalone',
+    background_color: '#fafafa',
+    theme_color: '#fafafa',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  };
 };

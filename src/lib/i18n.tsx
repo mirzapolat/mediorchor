@@ -1041,6 +1041,62 @@ const dict: Dict = {
   addressSection: { de: 'Adresse', en: 'Address' },
   masterData: { de: 'Stammdaten', en: 'Details' },
 
+  // All scores as ZIP
+  scoresZipTitle: { de: 'Alle Noten herunterladen', en: 'Download all scores' },
+  scoresZipName: { de: 'Noten', en: 'Scores' },
+  scoresZipLoading: { de: 'Wird gepackt…', en: 'Packing…' },
+  scoresZipMissing: {
+    de: 'Heruntergeladen – {n} PDF(s) fehlten auf dem Server und sind nicht dabei.',
+    en: 'Downloaded — {n} PDF(s) were missing on the server and are not included.',
+  },
+  scoresZipError: {
+    de: 'Herunterladen fehlgeschlagen – bitte erneut versuchen.',
+    en: 'Download failed — please try again.',
+  },
+
+  // Offline pieces
+  saveOffline: { de: 'Offline speichern', en: 'Save offline' },
+  saveOfflineHint: {
+    de: 'Alle Stücke mit Noten und Aufnahmen auf diesem Gerät speichern – zum Üben ohne Internet.',
+    en: 'Save all pieces with scores and recordings on this device — to practise without internet.',
+  },
+  savingOffline: { de: 'Speichere…', en: 'Saving…' },
+  offlineSaved: { de: 'Offline verfügbar', en: 'Available offline' },
+  offlineSavedAt: { de: 'Gespeichert am', en: 'Saved' },
+  offlineRefreshHint: {
+    de: 'Neue oder geänderte Stücke kommen erst nach „Aktualisieren“ aufs Gerät.',
+    en: 'New or changed pieces reach this device after “Refresh”.',
+  },
+  refreshOffline: { de: 'Aktualisieren', en: 'Refresh' },
+  offlineMissing: {
+    de: '{n} Datei(en) fehlten auf dem Server und sind nicht offline verfügbar.',
+    en: '{n} file(s) were missing on the server and are not available offline.',
+  },
+  removeOffline: { de: 'Entfernen', en: 'Remove' },
+  filesCount: { de: 'Dateien', en: 'files' },
+  saveOfflineError: {
+    de: 'Speichern fehlgeschlagen – prüfe die Verbindung und den freien Speicher, dann versuch es erneut.',
+    en: 'Saving failed — check the connection and free storage, then try again.',
+  },
+
+  // Installable app
+  brandLogoAppIconNote: {
+    de: 'Hinweis: Das Logo gilt für die Web-Oberfläche. Das App-Symbol der installierten App auf Handy und Desktop bleibt das Standard-Logo; der App-Name wird übernommen.',
+    en: 'Note: the logo applies to the web interface. The icon of the installed app on phones and desktops stays the default logo; the app name is applied.',
+  },
+  installApp: { de: 'App installieren', en: 'Install the app' },
+  installAppHint: {
+    de: 'Leg die App auf den Home-Bildschirm oder Desktop: startet wie eine eigene App, im Vollbild und schneller.',
+    en: 'Put the app on your home screen or desktop: it opens like its own app, full screen and faster.',
+  },
+  installAppButton: { de: 'Jetzt installieren', en: 'Install now' },
+  installIosStep1: { de: 'In Safari unten auf „Teilen“ tippen', en: 'In Safari, tap “Share”' },
+  installIosStep2: { de: '„Zum Home-Bildschirm“ wählen', en: 'Choose “Add to Home Screen”' },
+  installAppBrowserHint: {
+    de: 'Nutze im Browser-Menü „App installieren“ bzw. „Zum Dock hinzufügen“ (Safari auf dem Mac: Ablage → Zum Dock hinzufügen).',
+    en: 'Use “Install app” or “Add to Dock” in your browser’s menu (Safari on Mac: File → Add to Dock).',
+  },
+
   // Pieces (Stücke)
   pieces: { de: 'Stücke', en: 'Pieces' },
   newPiece: { de: 'Neues Stück', en: 'New piece' },
@@ -1085,10 +1141,12 @@ const dict: Dict = {
   editNotes: { de: 'Notizen bearbeiten', en: 'Edit notes' },
   noFiles: { de: 'Noch keine Dateien.', en: 'No files yet.' },
   follow: { de: 'Mitlaufen', en: 'Follow' },
-  fitWidth: { de: 'Einpassen', en: 'Fit' },
+  resetZoom: { de: 'Zurücksetzen', en: 'Reset' },
   zoomIn: { de: 'Vergrößern', en: 'Zoom in' },
   zoomOut: { de: 'Verkleinern', en: 'Zoom out' },
   moreActions: { de: 'Weitere Aktionen', en: 'More actions' },
+  fullscreen: { de: 'Vollbild', en: 'Fullscreen' },
+  exitFullscreen: { de: 'Vollbild beenden', en: 'Exit fullscreen' },
   followHint: {
     de: 'Die Noten scrollen beim Abspielen zum aktuellen Takt mit.',
     en: 'The score scrolls along to the current bar while playing.',

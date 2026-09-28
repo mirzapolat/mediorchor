@@ -8,13 +8,14 @@ import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { SortableList } from '@/components/SortableList';
 import { PieceForm } from '@/components/PieceForm';
+import { OfflineSaveButton } from '@/components/OfflineSaveButton';
+import { ScoresZipBanner } from '@/components/ScoresZipBanner';
 import { useI18n } from '@/lib/i18n';
-import { api } from '@/lib/api';
-import { persistOrder } from '@/lib/pieceFiles';
+import { loadPiecesOverview, persistOrder, type PieceOverviewFile } from '@/lib/pieceFiles';
 import { formatTime, timelineDuration } from '@/lib/pieceTimeline';
 import { useProjectContext } from '@/layouts/projectContext';
 import { cn } from '@/lib/cn';
-import type { Piece, PieceFileKind } from '@/types';
+import type { Piece } from '@/types';
 
 type Summary = { score: boolean; voices: string[] };
 
@@ -41,29 +42,23 @@ export const PiecesPage = () => {
   const navigate = useNavigate();
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [summaries, setSummaries] = useState<Record<string, Summary>>({});
+  const [overviewFiles, setOverviewFiles] = useState<PieceOverviewFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const tf = useTableFilters();
   const query = tf.query.trim().toLowerCase();
 
   const load = useCallback(async () => {
-    const [pieceResult, fileResult] = await Promise.all([
-      api.from('pieces').select('*').eq('project_id', project.id).order('position').order('created_at'),
-      api
-        .from('piece_files')
-        .select('piece_id, kind, title, file_name, position, pieces!inner(project_id)')
-        .eq('pieces.project_id', project.id)
-        .order('position'),
-    ]);
+    const overview = await loadPiecesOverview(project.id);
     const next: Record<string, Summary> = {};
-    type Row = { piece_id: string; kind: PieceFileKind; title: string; file_name: string | null };
-    for (const f of (fileResult.data as Row[] | null) ?? []) {
+    for (const f of overview.files) {
       const s = (next[f.piece_id] ??= { score: false, voices: [] });
       if (f.kind === 'score') s.score = true;
       if (f.kind === 'audio') s.voices.push(f.title || f.file_name || '—');
     }
-    setPieces((pieceResult.data as Piece[] | null) ?? []);
+    setPieces(overview.pieces);
     setSummaries(next);
+    setOverviewFiles(overview.files);
     setLoading(false);
   }, [project.id]);
 
@@ -110,6 +105,7 @@ export const PiecesPage = () => {
         actions={
           <>
             <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} />
+            {pieces.length > 0 && <OfflineSaveButton projectId={project.id} />}
             {canManage && <HeaderAction icon={Plus} label={t('newPiece')} onClick={() => setFormOpen(true)} />}
           </>
         }
@@ -134,100 +130,103 @@ export const PiecesPage = () => {
       ) : visible.length === 0 ? (
         <p className="max-w-3xl py-12 text-center text-sm text-text-secondary">{t('noResults')}</p>
       ) : (
-        <SortableList
-          variant="joined"
-          className="max-w-3xl"
-          items={visible}
-          getId={(p) => p.id}
-          // Reordering a filtered subset would scramble positions.
-          onReorder={canManage && !query ? reorder : undefined}
-          renderItem={(p) => {
-            const s = summaries[p.id];
-            const voices = s?.voices ?? [];
-            const duration = timelineDuration(p.timeline);
-            const exact = p.timeline?.source === 'notation';
-            const empty = !s?.score && voices.length === 0;
-            const number = pieces.indexOf(p) + 1;
-            return (
-              <Link
-                to={`/projects/${project.id}/pieces/${p.id}`}
-                className="group flex items-start gap-3 py-4 pl-1 pr-3 sm:gap-5 sm:px-5"
-              >
-                {/* Running order in the programme (kept while searching). */}
-                <span className="w-7 flex-shrink-0 pt-0.5 text-right text-xl font-semibold leading-none tabular-nums text-text-tertiary transition-colors duration-150 group-hover:text-text-secondary sm:w-10 sm:text-3xl">
-                  {String(number).padStart(2, '0')}
-                </span>
+        <>
+          {!query && <ScoresZipBanner projectName={project.name} pieces={pieces} files={overviewFiles} />}
+          <SortableList
+            variant="joined"
+            className="max-w-3xl"
+            items={visible}
+            getId={(p) => p.id}
+            // Reordering a filtered subset would scramble positions.
+            onReorder={canManage && !query ? reorder : undefined}
+            renderItem={(p) => {
+              const s = summaries[p.id];
+              const voices = s?.voices ?? [];
+              const duration = timelineDuration(p.timeline);
+              const exact = p.timeline?.source === 'notation';
+              const empty = !s?.score && voices.length === 0;
+              const number = pieces.indexOf(p) + 1;
+              return (
+                <Link
+                  to={`/projects/${project.id}/pieces/${p.id}`}
+                  className="group flex items-start gap-3 py-4 pl-1 pr-3 sm:gap-5 sm:px-5"
+                >
+                  {/* Running order in the programme (kept while searching). */}
+                  <span className="w-7 flex-shrink-0 pt-0.5 text-right text-xl font-semibold leading-none tabular-nums text-text-tertiary transition-colors duration-150 group-hover:text-text-secondary sm:w-10 sm:text-3xl">
+                    {String(number).padStart(2, '0')}
+                  </span>
 
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-3">
-                    <span className="min-w-0 flex-1 truncate text-base font-semibold sm:text-lg">{p.name}</span>
-                    {duration != null && (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1 text-sm tabular-nums text-text-secondary">
-                        <Timer size={13} className="text-text-tertiary" />
-                        {formatTime(duration)}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-3">
+                      <span className="min-w-0 flex-1 truncate text-base font-semibold sm:text-lg">{p.name}</span>
+                      {duration != null && (
+                        <span className="inline-flex flex-shrink-0 items-center gap-1 text-sm tabular-nums text-text-secondary">
+                          <Timer size={13} className="text-text-tertiary" />
+                          {formatTime(duration)}
+                        </span>
+                      )}
+                    </span>
+                    {(p.composer || p.description) && (
+                      <span className="mt-0.5 block text-sm text-text-secondary">
+                        {p.composer && <span className="italic">{p.composer}</span>}
+                        {p.composer && p.description && ' · '}
+                        {p.description}
+                      </span>
+                    )}
+
+                    {empty ? (
+                      canManage && (
+                        <span className="mt-2.5 inline-flex h-6 items-center rounded-full border border-dashed border-border-strong px-2.5 text-xs font-medium text-text-secondary">
+                          {t('notSetUpYet')}
+                        </span>
+                      )
+                    ) : (
+                      <span className="mt-2.5 flex flex-wrap gap-1.5">
+                        {s?.score && (
+                          <Chip>
+                            <FileText size={12} />
+                            {t('scoreTab')}
+                          </Chip>
+                        )}
+                        {/* Phones: one compact count; wider screens: the voice names. */}
+                        {voices.length > 0 && (
+                          <span className="sm:hidden">
+                            <Chip>
+                              <Headphones size={12} />
+                              {voices.length} {voices.length === 1 ? t('voiceSingular') : t('voices')}
+                            </Chip>
+                          </span>
+                        )}
+                        {voices.slice(0, MAX_VOICE_CHIPS).map((v, i) => (
+                          <span key={`${v}-${i}`} className="hidden sm:inline-flex">
+                            <Chip>{v}</Chip>
+                          </span>
+                        ))}
+                        {voices.length > MAX_VOICE_CHIPS && (
+                          <span className="hidden sm:inline-flex">
+                            <Chip>+{voices.length - MAX_VOICE_CHIPS}</Chip>
+                          </span>
+                        )}
+                        {exact && voices.length > 0 && <Chip strong>{t('exactBars')}</Chip>}
+                        {p.notes.trim() && (
+                          <Chip>
+                            <StickyNote size={12} />
+                            {t('notes')}
+                          </Chip>
+                        )}
                       </span>
                     )}
                   </span>
-                  {(p.composer || p.description) && (
-                    <span className="mt-0.5 block text-sm text-text-secondary">
-                      {p.composer && <span className="italic">{p.composer}</span>}
-                      {p.composer && p.description && ' · '}
-                      {p.description}
-                    </span>
-                  )}
 
-                  {empty ? (
-                    canManage && (
-                      <span className="mt-2.5 inline-flex h-6 items-center rounded-full border border-dashed border-border-strong px-2.5 text-xs font-medium text-text-secondary">
-                        {t('notSetUpYet')}
-                      </span>
-                    )
-                  ) : (
-                    <span className="mt-2.5 flex flex-wrap gap-1.5">
-                      {s?.score && (
-                        <Chip>
-                          <FileText size={12} />
-                          {t('scoreTab')}
-                        </Chip>
-                      )}
-                      {/* Phones: one compact count; wider screens: the voice names. */}
-                      {voices.length > 0 && (
-                        <span className="sm:hidden">
-                          <Chip>
-                            <Headphones size={12} />
-                            {voices.length} {voices.length === 1 ? t('voiceSingular') : t('voices')}
-                          </Chip>
-                        </span>
-                      )}
-                      {voices.slice(0, MAX_VOICE_CHIPS).map((v, i) => (
-                        <span key={`${v}-${i}`} className="hidden sm:inline-flex">
-                          <Chip>{v}</Chip>
-                        </span>
-                      ))}
-                      {voices.length > MAX_VOICE_CHIPS && (
-                        <span className="hidden sm:inline-flex">
-                          <Chip>+{voices.length - MAX_VOICE_CHIPS}</Chip>
-                        </span>
-                      )}
-                      {exact && voices.length > 0 && <Chip strong>{t('exactBars')}</Chip>}
-                      {p.notes.trim() && (
-                        <Chip>
-                          <StickyNote size={12} />
-                          {t('notes')}
-                        </Chip>
-                      )}
-                    </span>
-                  )}
-                </span>
-
-                <ChevronRight
-                  size={18}
-                  className="mt-1 flex-shrink-0 text-text-tertiary transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-text-secondary"
-                />
-              </Link>
-            );
-          }}
-        />
+                  <ChevronRight
+                    size={18}
+                    className="mt-1 flex-shrink-0 text-text-tertiary transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-text-secondary"
+                  />
+                </Link>
+              );
+            }}
+          />
+        </>
       )}
 
       <PieceForm

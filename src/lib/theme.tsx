@@ -28,10 +28,14 @@ const applyTheme = (theme: ResolvedTheme) => {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
-  // Browser UI (mobile address bar) matches the page background.
-  document
-    .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', getComputedStyle(root).getPropertyValue('--color-bg').trim() || '');
+  // Browser UI (mobile address bar, installed app's title bar) matches the
+  // page background. index.html has one tag per system scheme for the first
+  // paint; from here on the chosen theme decides, so the media split goes.
+  const color = getComputedStyle(root).getPropertyValue('--color-bg').trim() || '';
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.setAttribute('content', color);
+    meta.removeAttribute('media');
+  });
 };
 
 interface ThemeContextValue {

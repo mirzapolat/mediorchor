@@ -9,6 +9,8 @@ import {
   FileText,
   Link as LinkIcon,
   MapPin,
+  Maximize2,
+  Minimize2,
   Music,
   Paperclip,
   Pencil,
@@ -28,7 +30,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Markdown } from '@/lib/markdown';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
-import { loadPieceFiles, pieceFileDownloadUrl, pieceFileUrl } from '@/lib/pieceFiles';
+import { loadPiece, loadPieceFiles, pieceFileDownloadUrl, pieceFileUrl } from '@/lib/pieceFiles';
 import { timelineLabels } from '@/lib/pieceTimeline';
 import { useProjectContext } from '@/layouts/projectContext';
 import { cn } from '@/lib/cn';
@@ -211,11 +213,11 @@ export const PieceDetailPage = () => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const load = useCallback(async () => {
-    const [pieceResult, pieceFiles] = await Promise.all([
-      api.from('pieces').select('*').eq('id', pieceId).maybeSingle(),
+    const [loadedPiece, pieceFiles] = await Promise.all([
+      loadPiece(pieceId ?? ''),
       loadPieceFiles(pieceId ?? ''),
     ]);
-    setPiece((pieceResult.data as Piece | null) ?? null);
+    setPiece(loadedPiece);
     setFiles(pieceFiles);
     setLoading(false);
   }, [pieceId]);
@@ -279,7 +281,39 @@ export const PieceDetailPage = () => {
     [bars, tapIndex],
   );
 
-  // Space: play/pause, ←/→: bar back/forward, Esc: end loop.
+  // Practice fullscreen: only the score and the player. Also asks the
+  // browser for real fullscreen where allowed (not on iPhone Safari); the
+  // in-page mode works either way.
+  const [fullscreen, setFullscreen] = useState(false);
+  const enterFullscreen = useCallback(() => {
+    setFullscreen(true);
+    const root = document.documentElement;
+    if (root.requestFullscreen && !document.fullscreenElement) {
+      void root.requestFullscreen().catch(() => undefined);
+    }
+  }, []);
+  const exitFullscreen = useCallback(() => {
+    setFullscreen(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    // Leaving the browser's fullscreen (Esc, system gesture) ends the mode too.
+    const onChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    };
+  }, []);
+  const fullscreenRef = useRef(fullscreen);
+  fullscreenRef.current = fullscreen;
+  const loopActiveRef = useRef(false);
+  loopActiveRef.current = Boolean(picking || loop);
+
+  // Space: play/pause, ←/→: bar back/forward, F: fullscreen, Esc: end the
+  // loop, then leave fullscreen.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
@@ -294,14 +328,22 @@ export const PieceDetailPage = () => {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         nextBar();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        if (fullscreenRef.current) exitFullscreen();
+        else enterFullscreen();
       } else if (e.key === 'Escape') {
-        setPicking(null);
-        setLoop(null);
+        if (loopActiveRef.current) {
+          setPicking(null);
+          setLoop(null);
+        } else if (fullscreenRef.current) {
+          exitFullscreen();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggle, prevBar, nextBar, setLoop]);
+  }, [toggle, prevBar, nextBar, setLoop, enterFullscreen, exitFullscreen]);
 
   const saveAnchors = useCallback(
     (anchors: Record<string, BarAnchor>) => {
@@ -365,26 +407,39 @@ export const PieceDetailPage = () => {
         <ArrowLeft size={16} />
         {t('pieces')}
       </button>
-      {canManage && (
-        <OverflowMenu
-          label={t('moreActions')}
-          items={[
-            { icon: Settings2, label: t('setUp'), onSelect: () => navigate(setUpUrl) },
-            ...(score && labels.length > 0
-              ? [
-                  {
-                    icon: MapPin,
-                    label: hasAnchors ? t('editMarkers') : t('placeBars'),
-                    onSelect: () => {
-                      setTab('score');
-                      setSearchParams({ place: '1' }, { replace: true });
+      <div className="flex items-center gap-1">
+        {!nothingYet && (
+          <button
+            type="button"
+            onClick={enterFullscreen}
+            aria-label={t('fullscreen')}
+            title={`${t('fullscreen')} (F)`}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text"
+          >
+            <Maximize2 size={17} />
+          </button>
+        )}
+        {canManage && (
+          <OverflowMenu
+            label={t('moreActions')}
+            items={[
+              { icon: Settings2, label: t('setUp'), onSelect: () => navigate(setUpUrl) },
+              ...(score && labels.length > 0
+                ? [
+                    {
+                      icon: MapPin,
+                      label: hasAnchors ? t('editMarkers') : t('placeBars'),
+                      onSelect: () => {
+                        setTab('score');
+                        setSearchParams({ place: '1' }, { replace: true });
+                      },
                     },
-                  },
-                ]
-              : []),
-          ]}
-        />
-      )}
+                  ]
+                : []),
+            ]}
+          />
+        )}
+      </div>
     </div>
   );
 
@@ -447,6 +502,21 @@ export const PieceDetailPage = () => {
     </>
   );
 
+  const exitButton = fullscreen && (
+    <button
+      type="button"
+      onClick={exitFullscreen}
+      className="fixed left-3 top-3 z-[80] inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-surface/70 px-3.5 text-sm font-medium text-text shadow-md backdrop-blur-xl transition-colors hover:bg-surface"
+    >
+      <Minimize2 size={15} />
+      {t('exitFullscreen')}
+    </button>
+  );
+
+  // In fullscreen the page lifts above the whole app (sidebar, top bar).
+  // The wrapper is always rendered so the score isn't re-mounted.
+  const overlayClass = fullscreen ? 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-bg' : undefined;
+
   const notesAndFiles = (
     <>
       <section className={cn(tab !== 'notes' && 'max-lg:hidden')}>
@@ -464,53 +534,77 @@ export const PieceDetailPage = () => {
   // files live in a floating panel on the right (like the left sidebar).
   if (isDesktop) {
     return (
-      <div className="grid min-h-[calc(100dvh-4rem)] grid-cols-[minmax(0,1fr)_20rem] items-start gap-8">
-        <section className="flex flex-col self-stretch">
-          <div className="flex-1">{scoreContent}</div>
-          {playerBar}
-        </section>
-        <aside className="sticky top-3 -mt-5 max-h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
-          <div>
-            {topRow}
-            {header}
-          </div>
-          <div className="space-y-8 border-t border-border pt-5">{notesAndFiles}</div>
-        </aside>
+      <div className={overlayClass}>
+        {exitButton}
+        <div
+          className={cn(
+            'grid items-start gap-8',
+            fullscreen
+              ? 'mx-auto min-h-[100dvh] max-w-6xl grid-cols-1 px-8 pt-16'
+              : 'min-h-[calc(100dvh-4rem)] grid-cols-[minmax(0,1fr)_20rem]',
+          )}
+        >
+          <section className="flex flex-col self-stretch">
+            <div className="flex-1">{scoreContent}</div>
+            {playerBar}
+          </section>
+          {!fullscreen && (
+            <aside className="sticky top-3 -mt-5 max-h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
+              <div>
+                {topRow}
+                {header}
+              </div>
+              <div className="space-y-8 border-t border-border pt-5">{notesAndFiles}</div>
+            </aside>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    // Tall enough that the player sits at the bottom even on short pages.
-    <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)]">
-      {topRow}
-      {header}
+    <div className={overlayClass}>
+      {exitButton}
+      {/* Tall enough that the player sits at the bottom even on short pages. */}
+      <div
+        className={cn(
+          'flex flex-col',
+          fullscreen
+            ? 'min-h-[100dvh] px-4 pb-4 pt-14 sm:px-6 sm:pb-6'
+            : 'min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)]',
+        )}
+      >
+        {!fullscreen && topRow}
+        {!fullscreen && header}
 
-      {/* Phone/tablet: tabs. */}
-      <div role="tablist" className="mb-4 flex rounded-md border border-border bg-surface-muted p-1">
-        {tabs.map((tb) => (
-          <button
-            key={tb.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === tb.id}
-            onClick={() => setTab(tb.id)}
-            className={cn(
-              'h-9 flex-1 rounded text-sm font-medium transition-colors duration-150',
-              tab === tb.id ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-            )}
-          >
-            {tb.label}
-          </button>
-        ))}
+        {/* Phone/tablet: tabs. */}
+        {!fullscreen && (
+          <div role="tablist" className="mb-4 flex rounded-md border border-border bg-surface-muted p-1">
+            {tabs.map((tb) => (
+              <button
+                key={tb.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === tb.id}
+                onClick={() => setTab(tb.id)}
+                className={cn(
+                  'h-9 flex-1 rounded text-sm font-medium transition-colors duration-150',
+                  tab === tb.id ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
+                )}
+              >
+                {tb.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mb-6 flex-1">
+          <section className={cn(tab !== 'score' && !fullscreen && 'hidden')}>{scoreContent}</section>
+          {!fullscreen && <div className="space-y-8">{notesAndFiles}</div>}
+        </div>
+
+        {playerBar}
       </div>
-
-      <div className="mb-6 flex-1">
-        <section className={cn(tab !== 'score' && 'hidden')}>{scoreContent}</section>
-        <div className="space-y-8">{notesAndFiles}</div>
-      </div>
-
-      {playerBar}
     </div>
   );
 };

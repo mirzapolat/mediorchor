@@ -7,8 +7,10 @@ import { I18nProvider } from '@/lib/i18n';
 import { AuthProvider } from '@/hooks/useAuth';
 import { applyBranding } from '@/lib/branding';
 import { ThemeProvider } from '@/lib/theme';
+import { initPwa } from '@/lib/pwa';
 
 applyBranding();
+initPwa();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

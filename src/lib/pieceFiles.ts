@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { PieceFile } from '@/types';
+import type { Piece, PieceFile, PieceFileKind } from '@/types';
 
 const BUCKET = 'piece-files';
 
@@ -67,4 +67,39 @@ export const deletePiece = async (pieceId: string): Promise<void> => {
   const files = await loadPieceFiles(pieceId);
   await api.from('pieces').delete().eq('id', pieceId);
   void removePieceFiles(files.map((f) => f.file_path).filter((p): p is string => !!p));
+};
+
+// The loaders below are shared by the pages and the offline download, so the
+// download asks exactly the same questions the pages ask later (offline
+// answers are looked up by the exact request).
+
+export const loadPiece = async (pieceId: string): Promise<Piece | null> => {
+  const { data } = await api.from('pieces').select('*').eq('id', pieceId).maybeSingle();
+  return (data as Piece | null) ?? null;
+};
+
+export interface PieceOverviewFile {
+  piece_id: string;
+  kind: PieceFileKind;
+  title: string;
+  file_name: string | null;
+  file_path: string | null;
+}
+
+// A project's pieces in order, plus the file rows the list summarises.
+export const loadPiecesOverview = async (
+  projectId: string,
+): Promise<{ pieces: Piece[]; files: PieceOverviewFile[] }> => {
+  const [pieceResult, fileResult] = await Promise.all([
+    api.from('pieces').select('*').eq('project_id', projectId).order('position').order('created_at'),
+    api
+      .from('piece_files')
+      .select('piece_id, kind, title, file_name, file_path, position, pieces!inner(project_id)')
+      .eq('pieces.project_id', projectId)
+      .order('position'),
+  ]);
+  return {
+    pieces: (pieceResult.data as Piece[] | null) ?? [],
+    files: (fileResult.data as PieceOverviewFile[] | null) ?? [],
+  };
 };

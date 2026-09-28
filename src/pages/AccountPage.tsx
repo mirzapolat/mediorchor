@@ -4,6 +4,7 @@ import {
   Bell,
   Check,
   Copy,
+  Download,
   Fingerprint,
   KeyRound,
   Laptop,
@@ -13,6 +14,8 @@ import {
   Moon,
   Pencil,
   Plus,
+  Share,
+  SquarePlus,
   ShieldCheck,
   ShieldOff,
   Smartphone,
@@ -40,6 +43,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
 import { useTheme, type ThemePreference } from '@/lib/theme';
+import { canPromptInstall, isInstalled, isIos, promptInstall, subscribeInstall } from '@/lib/pwa';
 import { CardColumns } from '@/components/CardColumns';
 import { cn } from '@/lib/cn';
 
@@ -159,7 +163,8 @@ export const AccountPage = () => {
               const next = e.target.value as Language;
               setLang(next);
               // Emails use the account's language.
-              if (user) void api.from('app_users').update({ language: next }).eq('id', user.id);
+              // (The query only runs once awaited/then'd.)
+              if (user) void api.from('app_users').update({ language: next }).eq('id', user.id).then(() => undefined);
             }}
             className="max-w-[200px]"
           >
@@ -169,6 +174,8 @@ export const AccountPage = () => {
         </Card>
 
         <AppearanceCard />
+
+        <InstallAppCard />
 
         <NotificationsCard />
 
@@ -760,6 +767,57 @@ const DeleteAccountCard = () => {
 };
 
 // Light / dark / system, stored on this device.
+// Offers installing the app on the home screen / desktop: the browser's own
+// prompt where there is one, step-by-step instructions on iPhone/iPad, a hint
+// elsewhere. Hidden when already running as the installed app.
+const InstallAppCard = () => {
+  const { t } = useI18n();
+  const [canPrompt, setCanPrompt] = useState(canPromptInstall);
+  const [installed, setInstalled] = useState(isInstalled);
+  useEffect(
+    () =>
+      subscribeInstall(() => {
+        setCanPrompt(canPromptInstall());
+        setInstalled(isInstalled());
+      }),
+    [],
+  );
+  if (installed) return null;
+  const ios = isIos();
+
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium">{t('installApp')}</h2>
+        <p className="text-sm text-text-secondary mt-1">{t('installAppHint')}</p>
+      </div>
+      {canPrompt ? (
+        <Button
+          onClick={async () => {
+            if (await promptInstall()) setInstalled(true);
+          }}
+        >
+          <Download size={16} />
+          {t('installAppButton')}
+        </Button>
+      ) : ios ? (
+        <ol className="space-y-2 text-sm">
+          <li className="flex items-center gap-2">
+            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold">1</span>
+            {t('installIosStep1')} <Share size={15} className="flex-shrink-0 text-text-secondary" />
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold">2</span>
+            {t('installIosStep2')} <SquarePlus size={15} className="flex-shrink-0 text-text-secondary" />
+          </li>
+        </ol>
+      ) : (
+        <p className="text-sm text-text-secondary">{t('installAppBrowserHint')}</p>
+      )}
+    </Card>
+  );
+};
+
 const AppearanceCard = () => {
   const { t } = useI18n();
   const { preference, setPreference } = useTheme();
