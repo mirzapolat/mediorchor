@@ -372,7 +372,7 @@ export const PieceScore = memo(
                         ? 'cursor-pointer border-danger bg-danger/15'
                         : inLoop
                           ? 'cursor-pointer border-dashed border-danger/70 bg-danger/10'
-                          : 'cursor-pointer border-transparent hover:border-danger/50 hover:bg-danger/5',
+                          : 'cursor-pointer border-transparent [@media(hover:hover)]:hover:border-danger/50 [@media(hover:hover)]:hover:bg-danger/5',
                 )}
               >
                 <span

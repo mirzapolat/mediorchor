@@ -76,7 +76,8 @@ const PdfPage = ({
 
   return (
     <div
-      className="relative border border-border bg-white"
+      // A clearly framed sheet: strong edge plus a soft paper shadow.
+      className="relative rounded-sm border border-border-strong bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_10px_30px_-12px_rgba(0,0,0,0.22)]"
       style={{ cursor: clickCursor }}
       onClick={handleClick}
     >
@@ -129,7 +130,7 @@ export const PdfScoreView = ({ url, overlay, onPageClick, clickCursor, zoom = 1 
 
   return (
     <div ref={containerRef} className="overflow-x-auto">
-      <div className="space-y-3" style={{ width: zoom !== 1 ? pageWidth : undefined }}>
+      <div className="space-y-5 pb-1" style={{ width: zoom !== 1 ? pageWidth : undefined }}>
         {error ? (
           <p className="rounded-md border border-border bg-surface px-4 py-6 text-center text-sm text-text-secondary">
             {t('pdfLoadError')}

@@ -364,38 +364,196 @@ export const PieceDetailPage = () => {
     { id: 'files', label: `${t('files')}${files.length ? ` · ${files.length}` : ''}` },
   ];
 
+  const setUpUrl = `/projects/${project.id}/pieces/${piece.id}/setup`;
+
+  const backLink = (
+    <button
+      onClick={() => navigate(`/projects/${project.id}/pieces`)}
+      className="mb-4 inline-flex items-center gap-2 self-start text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
+    >
+      <ArrowLeft size={16} />
+      {t('pieces')}
+    </button>
+  );
+
+  const header = (
+    <header className={cn('mb-4 flex gap-3', isDesktop ? 'flex-col' : 'items-start justify-between')}>
+      <div className="min-w-0">
+        <h1 className="text-xl font-bold sm:text-2xl">{piece.name}</h1>
+        {(piece.composer || piece.description) && (
+          <p className="mt-1 text-sm text-text-secondary">
+            {[piece.composer, piece.description].filter(Boolean).join(' · ')}
+          </p>
+        )}
+      </div>
+      {canManage &&
+        (isDesktop ? (
+          <Button variant="secondary" onClick={() => navigate(setUpUrl)} className="w-full">
+            <Settings2 size={16} />
+            {t('setUp')}
+          </Button>
+        ) : (
+          <HeaderAction icon={Settings2} label={t('setUp')} variant="secondary" onClick={() => navigate(setUpUrl)} />
+        ))}
+    </header>
+  );
+
+  // Score / bars switch, zoom and "place bars". Above the score on phones,
+  // in the side panel on desktop.
+  const toolbar =
+    !nothingYet && (score || bars.length > 0) && !editingAnchors ? (
+      <div className={cn('flex flex-wrap items-center gap-2', isDesktop ? 'mb-0' : 'mb-3')}>
+        {score && bars.length > 0 && (
+          <div className={cn('flex rounded-md border border-border bg-surface-muted p-0.5', isDesktop && 'w-full')}>
+            {(['pdf', 'grid'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                aria-pressed={view === v}
+                className={cn(
+                  'flex h-8 items-center justify-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors duration-150',
+                  isDesktop && 'flex-1',
+                  view === v ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
+                )}
+              >
+                {v === 'pdf' ? <FileText size={14} /> : <Grid3x3 size={14} />}
+                {v === 'pdf' ? t('scoreView') : t('barsView')}
+              </button>
+            ))}
+          </div>
+        )}
+        {score && !showGrid && (
+          <div className="flex">
+            <button
+              type="button"
+              className={cn(toolButton, 'rounded-r-none')}
+              disabled={zoom === ZOOMS[0]}
+              onClick={() => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom) - 1)])}
+              aria-label={t('zoomOut')}
+            >
+              <ZoomOut size={15} />
+            </button>
+            <button
+              type="button"
+              className={cn(toolButton, '-ml-px rounded-l-none')}
+              disabled={zoom === ZOOMS[ZOOMS.length - 1]}
+              onClick={() => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + 1)])}
+              aria-label={t('zoomIn')}
+            >
+              <ZoomIn size={15} />
+            </button>
+          </div>
+        )}
+        {canManage && score && labels.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setView('pdf');
+              setSearchParams({ place: '1' }, { replace: true });
+            }}
+            className={cn(toolButton, 'ml-auto')}
+          >
+            <MapPin size={15} />
+            <span className="hidden sm:inline">{t('placeBars')}</span>
+          </button>
+        )}
+      </div>
+    ) : null;
+
+  const scoreContent = nothingYet ? (
+    <div className="rounded-md border border-dashed border-border">
+      <EmptyState icon={Music} message={canManage ? t('pieceEmptyManager') : t('pieceEmpty')} />
+      {canManage && (
+        <div className="-mt-8 flex justify-center pb-10">
+          <Button onClick={() => navigate(setUpUrl)}>
+            <Settings2 size={16} />
+            {t('setUpPiece')}
+          </Button>
+        </div>
+      )}
+    </div>
+  ) : (
+    <>
+      {!isDesktop && toolbar}
+
+      {score && !hasAnchors && bars.length > 0 && !editingAnchors && view === 'pdf' && (
+        <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
+          {canManage ? t('noMarkersManager') : t('noMarkers')}
+        </p>
+      )}
+
+      {showGrid ? (
+        <PieceBarGrid
+          bars={bars}
+          currentIndex={player.currentIndex}
+          loop={loop}
+          pickFrom={picking?.from ?? null}
+          onTap={tapIndex}
+        />
+      ) : (
+        score?.file_path && (
+          <PieceScore
+            url={pieceFileUrl(score.file_path)}
+            labels={labels}
+            anchors={piece.bar_anchors}
+            currentLabel={currentBar?.label ?? null}
+            loopLabels={loopLabels}
+            pickLabel={picking?.from != null ? (bars[picking.from]?.label ?? null) : null}
+            follow={follow && player.playing}
+            zoom={zoom}
+            onBarTap={tapLabel}
+            editing={editingAnchors}
+            onEditingDone={stopEditing}
+            onAnchorsChange={saveAnchors}
+          />
+        )
+      )}
+    </>
+  );
+
+  const notesAndFiles = (
+    <>
+      <section className={cn(tab !== 'notes' && 'max-lg:hidden')}>
+        <SectionTitle>{t('notes')}</SectionTitle>
+        <Notes piece={piece} canManage={canManage} onSaved={onNotesSaved} />
+      </section>
+      <section className={cn(tab !== 'files' && 'max-lg:hidden')}>
+        <SectionTitle>{t('files')}</SectionTitle>
+        <FileList files={files} />
+      </section>
+    </>
+  );
+
+  // Desktop: the score fills the main column; title, controls, notes and
+  // files live in a floating panel on the right (like the left sidebar).
+  if (isDesktop) {
+    return (
+      <div className="grid min-h-[calc(100dvh-4rem)] grid-cols-[minmax(0,1fr)_20rem] items-start gap-8">
+        <section className="flex flex-col self-stretch">
+          <div className="flex-1">{scoreContent}</div>
+          {playerBar}
+        </section>
+        <aside className="sticky top-3 -mt-5 max-h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
+          <div>
+            {backLink}
+            {header}
+            {toolbar}
+          </div>
+          <div className="space-y-8 border-t border-border pt-5">{notesAndFiles}</div>
+        </aside>
+      </div>
+    );
+  }
+
   return (
     // Tall enough that the player sits at the bottom even on short pages.
-    <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)] lg:min-h-[calc(100dvh-4rem)]">
-      <button
-        onClick={() => navigate(`/projects/${project.id}/pieces`)}
-        className="mb-4 inline-flex items-center gap-2 self-start text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
-      >
-        <ArrowLeft size={16} />
-        {t('pieces')}
-      </button>
+    <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)]">
+      {backLink}
+      {header}
 
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold sm:text-2xl">{piece.name}</h1>
-          {(piece.composer || piece.description) && (
-            <p className="mt-1 text-sm text-text-secondary">
-              {[piece.composer, piece.description].filter(Boolean).join(' · ')}
-            </p>
-          )}
-        </div>
-        {canManage && (
-          <HeaderAction
-            icon={Settings2}
-            label={t('setUp')}
-            variant="secondary"
-            onClick={() => navigate(`/projects/${project.id}/pieces/${piece.id}/setup`)}
-          />
-        )}
-      </header>
-
-      {/* Phone/tablet: tabs. Desktop: everything visible side by side. */}
-      <div role="tablist" className="mb-4 flex rounded-md border border-border bg-surface-muted p-1 lg:hidden">
+      {/* Phone/tablet: tabs. */}
+      <div role="tablist" className="mb-4 flex rounded-md border border-border bg-surface-muted p-1">
         {tabs.map((tb) => (
           <button
             key={tb.id}
@@ -413,135 +571,12 @@ export const PieceDetailPage = () => {
         ))}
       </div>
 
-      <div className="mb-6 flex-1 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
-        <section className={cn('lg:flex lg:flex-col lg:self-stretch', tab !== 'score' && 'max-lg:hidden')}>
-          <div className="lg:flex-1">
-            {nothingYet ? (
-              <div className="rounded-md border border-dashed border-border">
-                <EmptyState icon={Music} message={canManage ? t('pieceEmptyManager') : t('pieceEmpty')} />
-                {canManage && (
-                  <div className="-mt-8 flex justify-center pb-10">
-                    <Button onClick={() => navigate(`/projects/${project.id}/pieces/${piece.id}/setup`)}>
-                      <Settings2 size={16} />
-                      {t('setUpPiece')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {(score || bars.length > 0) && !editingAnchors && (
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    {score && bars.length > 0 && (
-                      <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
-                        {(['pdf', 'grid'] as const).map((v) => (
-                          <button
-                            key={v}
-                            type="button"
-                            onClick={() => setView(v)}
-                            aria-pressed={view === v}
-                            className={cn(
-                              'flex h-8 items-center gap-1.5 rounded px-2.5 text-sm font-medium transition-colors duration-150',
-                              view === v ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-                            )}
-                          >
-                            {v === 'pdf' ? <FileText size={14} /> : <Grid3x3 size={14} />}
-                            {v === 'pdf' ? t('scoreView') : t('barsView')}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {score && !showGrid && (
-                      <>
-                        <div className="flex">
-                          <button
-                            type="button"
-                            className={cn(toolButton, 'rounded-r-none')}
-                            disabled={zoom === ZOOMS[0]}
-                            onClick={() => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom) - 1)])}
-                            aria-label={t('zoomOut')}
-                          >
-                            <ZoomOut size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            className={cn(toolButton, '-ml-px rounded-l-none')}
-                            disabled={zoom === ZOOMS[ZOOMS.length - 1]}
-                            onClick={() => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + 1)])}
-                            aria-label={t('zoomIn')}
-                          >
-                            <ZoomIn size={15} />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                    {canManage && score && labels.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setView('pdf');
-                          setSearchParams({ place: '1' }, { replace: true });
-                        }}
-                        className={cn(toolButton, 'ml-auto')}
-                      >
-                        <MapPin size={15} />
-                        <span className="hidden sm:inline">{t('placeBars')}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {score && !hasAnchors && bars.length > 0 && !editingAnchors && view === 'pdf' && (
-                  <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
-                    {canManage ? t('noMarkersManager') : t('noMarkers')}
-                  </p>
-                )}
-
-                {showGrid ? (
-                  <PieceBarGrid
-                    bars={bars}
-                    currentIndex={player.currentIndex}
-                    loop={loop}
-                    pickFrom={picking?.from ?? null}
-                    onTap={tapIndex}
-                  />
-                ) : (
-                  score?.file_path && (
-                    <PieceScore
-                      url={pieceFileUrl(score.file_path)}
-                      labels={labels}
-                      anchors={piece.bar_anchors}
-                      currentLabel={currentBar?.label ?? null}
-                      loopLabels={loopLabels}
-                      pickLabel={picking?.from != null ? (bars[picking.from]?.label ?? null) : null}
-                      follow={follow && player.playing}
-                      zoom={zoom}
-                      onBarTap={tapLabel}
-                      editing={editingAnchors}
-                      onEditingDone={stopEditing}
-                      onAnchorsChange={saveAnchors}
-                    />
-                  )
-                )}
-              </>
-            )}
-          </div>
-          {isDesktop && playerBar}
-        </section>
-
-        <aside className="space-y-8 lg:sticky lg:top-8">
-          <section className={cn(tab !== 'notes' && 'max-lg:hidden')}>
-            <SectionTitle>{t('notes')}</SectionTitle>
-            <Notes piece={piece} canManage={canManage} onSaved={onNotesSaved} />
-          </section>
-          <section className={cn(tab !== 'files' && 'max-lg:hidden')}>
-            <SectionTitle>{t('files')}</SectionTitle>
-            <FileList files={files} />
-          </section>
-        </aside>
+      <div className="mb-6 flex-1">
+        <section className={cn(tab !== 'score' && 'hidden')}>{scoreContent}</section>
+        <div className="space-y-8">{notesAndFiles}</div>
       </div>
 
-      {!isDesktop && playerBar}
+      {playerBar}
     </div>
   );
 };
