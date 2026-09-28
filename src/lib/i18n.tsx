@@ -134,6 +134,9 @@ const dict: Dict = {
   expand: { de: 'Ausklappen', en: 'Expand' },
   remove: { de: 'Entfernen', en: 'Remove' },
   reorder: { de: 'Verschieben', en: 'Reorder' },
+  selectAll: { de: 'Alle auswählen', en: 'Select all' },
+  sortBy: { de: 'Sortieren nach', en: 'Sort by' },
+  sortDefault: { de: 'Standard-Reihenfolge', en: 'Default order' },
   rename: { de: 'Umbenennen', en: 'Rename' },
   target: { de: 'Ziel', en: 'Target' },
   bold: { de: 'Fett', en: 'Bold' },
@@ -1061,6 +1064,31 @@ const dict: Dict = {
     en: 'Save all pieces with scores and recordings on this device — to practise without internet.',
   },
   savingOffline: { de: 'Speichere…', en: 'Saving…' },
+  saveOfflineConfirm: { de: 'Jetzt herunterladen', en: 'Download now' },
+  saveOfflineIntro: {
+    de: 'Damit kannst du auch ohne Internet üben, z. B. im Probenraum. Das bedeutet:',
+    en: 'So you can practise without internet, e.g. in the rehearsal room. This means:',
+  },
+  saveOfflinePoint1: {
+    de: 'Alle Stücke dieses Projekts mit Noten und Aufnahmen werden auf dieses Gerät geladen – nur in diesem Browser bzw. dieser App.',
+    en: 'All pieces of this project with scores and recordings are downloaded to this device — only in this browser or app.',
+  },
+  saveOfflinePoint2: {
+    de: 'Das braucht Speicherplatz und Datenvolumen: Aufnahmen haben oft einige MB pro Stimme. Am besten im WLAN.',
+    en: 'This uses storage and data: recordings are often a few MB per voice. Best done on Wi-Fi.',
+  },
+  saveOfflinePoint3: {
+    de: 'Neue oder geänderte Stücke kommen nicht von selbst – tippe dafür später auf „Aktualisieren“.',
+    en: 'New or changed pieces don’t arrive by themselves — tap “Refresh” later.',
+  },
+  saveOfflinePoint4: {
+    de: 'Ohne Internet kannst du alles ansehen und anhören, aber nichts ändern.',
+    en: 'Without internet you can view and listen to everything, but not change anything.',
+  },
+  saveOfflinePoint5: {
+    de: 'Die Daten bleiben, bis du sie entfernst oder dich abmeldest.',
+    en: 'The data stays until you remove it or sign out.',
+  },
   offlineSaved: { de: 'Offline verfügbar', en: 'Available offline' },
   offlineSavedAt: { de: 'Gespeichert am', en: 'Saved' },
   offlineRefreshHint: {

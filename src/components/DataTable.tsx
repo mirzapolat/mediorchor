@@ -3,6 +3,7 @@ import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, X, t
 import { Input, Select } from './Input';
 import { EmptyState } from './EmptyState';
 import { useDragReorder } from '@/hooks/useDragReorder';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
@@ -14,6 +15,9 @@ export interface Column<T> {
   render?: (row: T) => ReactNode;
   sortable?: boolean; // defaults to true when an accessor is provided
   className?: string;
+  // Phones show each row as a card: the first column is its title, the
+  // others labelled fields below. 'hidden' leaves a column out there.
+  mobile?: 'hidden';
 }
 
 export interface FilterDef<T> {
@@ -74,7 +78,8 @@ const formatValue = (v: string | number | null | undefined): ReactNode =>
   v == null || v === '' ? '—' : v;
 
 // Generic sortable / searchable / filterable table that implements the design
-// system's lined-table style. Used by every "database" view in the app.
+// system's lined-table style. Used by every "database" view in the app. On
+// phones it becomes a list of cards (no sideways scrolling): see MobileRows.
 export function DataTable<T>({
   rows,
   columns,
@@ -98,6 +103,7 @@ export function DataTable<T>({
   hideToolbar = false,
 }: DataTableProps<T>) {
   const { t } = useI18n();
+  const isPhone = useMediaQuery('(max-width: 639px)');
   const reorderable = Boolean(onReorder);
   const [ownQuery, setQuery] = useState('');
   const query = controlledQuery ?? ownQuery;
@@ -244,6 +250,158 @@ export function DataTable<T>({
 
       {processed.length === 0 ? (
         <EmptyState icon={emptyIcon} message={emptyMessage} />
+      ) : isPhone ? (
+        <>
+          {/* Phones: sorting and "select all" replace the column headers. */}
+          {(selectable || (!reorderable && columns.some((c) => c.sortable ?? Boolean(c.accessor)))) && (
+            <div className="mb-2 flex items-center justify-between gap-3">
+              {selectable ? (
+                <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-black"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                    }}
+                    onChange={toggleAll}
+                  />
+                  {t('selectAll')}
+                </label>
+              ) : (
+                <span />
+              )}
+              {!reorderable && (
+                <label className="flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
+                  <ArrowUpDown size={14} className="flex-shrink-0" />
+                  <select
+                    aria-label={t('sortBy')}
+                    value={sortId ? `${sortId}:${sortDir}` : ''}
+                    onChange={(e) => {
+                      const [id, dir] = e.target.value.split(':');
+                      setSortId(id || null);
+                      if (dir) setSortDir(dir as SortDir);
+                    }}
+                    className="min-w-0 max-w-[13rem] truncate bg-transparent bg-[length:14px_14px] bg-[position:right_0_center] py-1 pr-5 text-sm font-medium text-text focus:outline-none"
+                  >
+                    <option value="">{t('sortDefault')}</option>
+                    {columns
+                      .filter((c) => c.sortable ?? Boolean(c.accessor))
+                      .flatMap((c) => [
+                        <option key={`${c.id}:asc`} value={`${c.id}:asc`}>
+                          {c.header} ↑
+                        </option>,
+                        <option key={`${c.id}:desc`} value={`${c.id}:desc`}>
+                          {c.header} ↓
+                        </option>,
+                      ])}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+          <ul className="rounded-xl border border-border bg-surface">
+            {processed.map((row, rowIndex) => {
+              const rowId = getRowId(row);
+              const highlighted = highlightRowId != null && rowId === highlightRowId;
+              const selected = selectedSet.has(rowId);
+              const dragging = reorderable && dnd.isDragging(rowId);
+              const clickable = Boolean(onRowClick) && (rowClickable?.(row) ?? true);
+              const [primary, ...others] = columns.filter((c) => c.mobile !== 'hidden');
+              // Empty fields would only add "—" noise to a small card.
+              const rest = others.filter((c) => {
+                if (!c.accessor) return true;
+                const v = c.accessor(row);
+                return v != null && v !== '';
+              });
+              const cell = (c: Column<T>) => (c.render ? c.render(row) : formatValue(c.accessor?.(row)));
+              return (
+                <li
+                  key={rowId}
+                  ref={reorderable ? (el) => dnd.setItemRef(rowId, el) : undefined}
+                  style={
+                    reorderable && dnd.dragActive
+                      ? {
+                          transform: `translateY(${dnd.shiftFor(rowIndex)}px)`,
+                          transition: dragging ? 'none' : 'transform 150ms ease',
+                          position: 'relative',
+                          zIndex: dragging ? 10 : undefined,
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    'flex items-start gap-3 border-b border-border px-3 py-3 first:rounded-t-xl last:rounded-b-xl last:border-b-0',
+                    dragging
+                      ? 'rounded-xl bg-white shadow-lg'
+                      : selected
+                        ? 'bg-info-soft'
+                        : highlighted
+                          ? 'bg-success-soft'
+                          : clickable && 'active:bg-surface-subtle',
+                    clickable && 'cursor-pointer transition-colors duration-150',
+                  )}
+                  onClick={clickable && onRowClick ? () => onRowClick(row) : undefined}
+                >
+                  {reorderable && (
+                    <button
+                      type="button"
+                      aria-label={t('reorder')}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => dnd.startDrag(e, rowId, rowIndex)}
+                      onPointerMove={dnd.moveDrag}
+                      onPointerUp={dnd.endDrag}
+                      onPointerCancel={dnd.endDrag}
+                      style={{ touchAction: 'none' }}
+                      className={cn(
+                        '-ml-1 flex h-8 w-6 flex-shrink-0 items-center justify-center rounded text-text-tertiary',
+                        processed.length < 2 && 'invisible',
+                      )}
+                    >
+                      <GripVertical size={16} />
+                    </button>
+                  )}
+                  {selectable && (
+                    <input
+                      type="checkbox"
+                      aria-label={t('status')}
+                      className="mt-1 h-4 w-4 flex-shrink-0 accent-black"
+                      checked={selected}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleRow(rowId)}
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1 break-words text-base font-medium">
+                        {primary ? cell(primary) : null}
+                      </div>
+                      {actions && (
+                        <div
+                          className="-my-1 -mr-1 flex flex-shrink-0 items-center gap-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {actions(row)}
+                        </div>
+                      )}
+                    </div>
+                    {rest.length > 0 && (
+                      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                        {rest.map((c) => (
+                          <div key={c.id} className="min-w-0">
+                            <dt className="truncate text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
+                              {c.header}
+                            </dt>
+                            <dd className="mt-0.5 min-w-0 break-words text-sm text-text">{cell(c)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       ) : (
         <div className="border border-border rounded-md overflow-x-auto bg-surface">
           <table className="w-full min-w-[640px] border-collapse">

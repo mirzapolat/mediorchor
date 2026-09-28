@@ -504,7 +504,7 @@ export const MemberImportFields = ({ imp }: { imp: MemberImportState }) => {
                 <h3 className="mb-1 text-sm font-semibold">{t('importResultPreview')}</h3>
                 <p className="mb-2 text-xs text-text-tertiary">{t('rowsSkippedHint')}</p>
                 {resultRows.length > 0 ? (
-                  <div className="overflow-hidden rounded-md border border-border">
+                  <div className="overflow-x-auto rounded-md border border-border">
                     <table className="w-full text-sm">
                       <thead className="bg-surface-muted text-text-secondary">
                         <tr>

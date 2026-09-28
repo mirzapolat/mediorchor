@@ -150,6 +150,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Installed app (see src/lib/pwa.ts): no swipe/overscroll back navigation
+   and no rubber-band bounce of the whole app. */
+html.standalone,
+html.standalone body {
+  overscroll-behavior: none;
+}
+
 /* Native select chrome differs per browser/OS; draw our own chevron instead. */
 @layer base {
   select {

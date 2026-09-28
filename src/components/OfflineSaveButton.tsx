@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { CloudDownload, CloudOff, HardDriveDownload, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { Check, CloudDownload, CloudOff, HardDriveDownload, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { Modal } from './Modal';
 import { Button } from './Button';
 import { useI18n } from '@/lib/i18n';
 import {
@@ -23,6 +24,7 @@ export const OfflineSaveButton = ({ projectId }: { projectId: string }) => {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -78,7 +80,7 @@ export const OfflineSaveButton = ({ projectId }: { projectId: string }) => {
       <Button
         variant="secondary"
         disabled={busy || (!online && !meta)}
-        onClick={() => (meta ? setOpen((v) => !v) : void save())}
+        onClick={() => (meta ? setOpen((v) => !v) : setConfirming(true))}
         aria-label={meta ? t('offlineSaved') : t('saveOffline')}
         title={meta ? `${t('offlineSaved')} · ${savedAt}` : t('saveOfflineHint')}
         className={cn('h-9 max-sm:w-9 max-sm:px-0', meta && !busy && 'text-success-strong')}
@@ -115,6 +117,41 @@ export const OfflineSaveButton = ({ projectId }: { projectId: string }) => {
           {t('saveOfflineError')}
         </p>
       )}
+
+      {/* What saving offline means, confirmed before anything is downloaded. */}
+      <Modal
+        open={confirming}
+        title={t('saveOffline')}
+        onClose={() => setConfirming(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirming(false)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                setConfirming(false);
+                void save();
+              }}
+            >
+              <CloudDownload size={16} />
+              {t('saveOfflineConfirm')}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">{t('saveOfflineIntro')}</p>
+        <ul className="space-y-2 text-sm">
+          {(['saveOfflinePoint1', 'saveOfflinePoint2', 'saveOfflinePoint3', 'saveOfflinePoint4', 'saveOfflinePoint5'] as const).map(
+            (key) => (
+              <li key={key} className="flex gap-2">
+                <Check size={16} className="mt-0.5 flex-shrink-0 text-text-tertiary" />
+                <span>{t(key)}</span>
+              </li>
+            ),
+          )}
+        </ul>
+      </Modal>
 
       {open && meta && (
         <div className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl border border-border bg-surface p-3 shadow-lg">

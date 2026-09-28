@@ -9,9 +9,30 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
+// Width of the screen-edge strip where iOS starts its "swipe back" gesture.
+const EDGE_PX = 16;
+
+// In the installed app, a swipe from the screen edge must not navigate back
+// (it's easy to trigger by accident while turning pages or scrolling). iOS
+// only lets that be stopped where the touch begins; overscroll navigation
+// elsewhere (Android, trackpads) is switched off in CSS (html.standalone).
+const blockEdgeSwipe = () => {
+  document.documentElement.classList.add('standalone');
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.touches.length !== 1) return;
+      const x = e.touches[0].clientX;
+      if (x < EDGE_PX || x > window.innerWidth - EDGE_PX) e.preventDefault();
+    },
+    { passive: false },
+  );
+};
+
 // Chrome/Edge/Android offer installation through this event; it may fire
 // before any page that shows an install button is mounted, so keep it.
 export const initPwa = () => {
+  if (isInstalled()) blockEdgeSwipe();
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e as BeforeInstallPromptEvent;
