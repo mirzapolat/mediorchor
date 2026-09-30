@@ -30,6 +30,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { useEventContext } from '@/layouts/eventContext';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import type { AttendanceStatus, CheckinSubmission, EventCheckin, Member } from '@/types';
 import { GroupPill } from '@/components/GroupPill';
 
@@ -312,6 +313,7 @@ export const EventCheckinPage = () => {
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(publicUrl);
+      track('checkin-share', { kind: 'link' });
       showCopyFeedback('link');
     } catch {
       showCopyFeedback('error');
@@ -325,6 +327,7 @@ export const EventCheckinPage = () => {
       }
       const png = await qrSvgToPng(svg);
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      track('checkin-share', { kind: 'image' });
       showCopyFeedback('image');
     } catch {
       showCopyFeedback('error');
@@ -347,7 +350,10 @@ export const EventCheckinPage = () => {
           <Button
             variant={checkin.is_active ? 'accent' : 'primary'}
             disabled={busy}
-            onClick={() => updateCheckin({ is_active: !checkin.is_active })}
+            onClick={() => {
+              if (!checkin.is_active) track('checkin-start');
+              void updateCheckin({ is_active: !checkin.is_active });
+            }}
           >
             {checkin.is_active ? <Square size={15} /> : <Play size={16} />}
             {checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
@@ -405,7 +411,13 @@ export const EventCheckinPage = () => {
             <Image size={16} />
             {t('copyQrImage')}
           </Button>
-          <Button variant="secondary" onClick={() => setFullscreenOpen(true)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              track('checkin-share', { kind: 'fullscreen' });
+              setFullscreenOpen(true);
+            }}
+          >
             <Maximize2 size={16} />
             {t('showFullscreen')}
           </Button>

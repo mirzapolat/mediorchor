@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { safeRedirectPath } from '@/lib/safePath';
+import { trackPageview } from '@/lib/analytics';
 import { PageSpinner } from '@/components/Spinner';
 import { WelcomePhotoPrompt } from '@/components/WelcomePhotoPrompt';
 import { LoginPage } from '@/pages/LoginPage';
@@ -52,6 +54,10 @@ import { MfaSetupGate } from '@/pages/MfaSetupGate';
 export const App = () => {
   const { session, loading, mfaSetupRequired } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    trackPageview(location.pathname);
+  }, [location.pathname]);
 
   if (
     location.pathname.startsWith('/check-in/') ||

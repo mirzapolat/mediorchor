@@ -3,6 +3,7 @@ import { Check, CloudDownload, CloudOff, HardDriveDownload, Loader2, RefreshCw, 
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { useI18n } from '@/lib/i18n';
+import { track } from '@/lib/analytics';
 import {
   getOfflineMeta,
   offlineSupported,
@@ -55,6 +56,7 @@ export const OfflineSaveButton = ({ projectId }: { projectId: string }) => {
     setProgress({ done: 0, total: 0 });
     try {
       setMeta(await saveProjectOffline(projectId, (done, total) => setProgress({ done, total })));
+      track('offline-save');
     } catch {
       setError(true);
     }

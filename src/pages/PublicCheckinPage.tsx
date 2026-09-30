@@ -8,6 +8,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { LegalFooter } from '@/components/LegalLinks';
 import { AppLogo } from '@/components/AppLogo';
 
@@ -89,6 +90,7 @@ export const PublicCheckinPage = () => {
 
     const result = data as SubmitResult;
     if (result.state === 'success') {
+      track('check-in', { as: accountMode ? 'account' : 'guest' });
       setSubmitted(true);
     } else if (result.state === 'stopped') {
       setInfo({

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Download, FileArchive, Loader2 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { track } from '@/lib/analytics';
 import { pieceFileUrl, type PieceOverviewFile } from '@/lib/pieceFiles';
 import { createZip, safeFileName } from '@/lib/zip';
 import { cn } from '@/lib/cn';
@@ -69,6 +70,7 @@ export const ScoresZipBanner = ({
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      track('scores-zip');
     } catch {
       setError(true);
     }

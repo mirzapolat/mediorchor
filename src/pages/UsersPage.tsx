@@ -13,6 +13,7 @@ import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { splitName } from '@/lib/accountName';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppUser } from '@/types';
@@ -78,6 +79,7 @@ export const UsersPage = () => {
       setError(error.message);
       return;
     }
+    track('account-created');
     setFormOpen(false);
     setForm(emptyForm);
     await load();

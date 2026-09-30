@@ -7,6 +7,7 @@ import { AuthHeading, AuthShell, GlassPanel } from '@/components/AuthShell';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ApiError, type MfaChallenge } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { passkeysSupported } from '@/lib/passkeys';
 import { SecondFactorForm, mfaErrorMessage } from '@/components/SecondFactorForm';
 import { safeRedirectPath } from '@/lib/safePath';
@@ -66,6 +67,9 @@ export const LoginPage = () => {
         setError(error.code === 'signup_domain_not_allowed' ? t('signupDomainNotAllowed') : error.message);
         return;
       }
+      track('sign-up', {
+        status: data.session ? 'active' : data.approvalPending ? 'approval' : 'confirm',
+      });
       // With email confirmation enabled there is no session yet; the user
       // first has to click the link in the email. With approval on, an
       // administrator has to release the account as well.
@@ -88,6 +92,7 @@ export const LoginPage = () => {
       setMfa(challenge);
       return;
     }
+    track('sign-in', { method: 'password', mfa: false });
     navigate(from ?? '/', { replace: true });
   };
 
@@ -112,6 +117,7 @@ export const LoginPage = () => {
       }
       return error;
     }
+    track('sign-in', { method: 'password', mfa: true });
     navigate(from ?? '/', { replace: true });
     return null;
   };
@@ -125,6 +131,7 @@ export const LoginPage = () => {
       setError(signInError(error));
       return;
     }
+    track('sign-in', { method: 'passkey', mfa: false });
     navigate(from ?? '/', { replace: true });
   };
 

@@ -10,6 +10,7 @@ import { Markdown } from '@/lib/markdown';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { config } from '@/lib/config';
 import { channels } from '@/lib/branding';
 import { isHexColor } from '@/lib/groupColors';
@@ -166,6 +167,7 @@ export const PublicRegistrationPage = () => {
     }
     const result = data as SubmitResult;
     if (result.state === 'success') {
+      track('registration', { as: accountMode ? 'account' : 'guest' });
       setStep(4);
     } else if (result.state === 'inactive') {
       setInfo({

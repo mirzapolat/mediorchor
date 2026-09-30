@@ -46,6 +46,7 @@ import {
   type AttendanceCounts,
 } from '@/lib/memberAttendance';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import type { AbsenceLabel, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { GroupPill } from '@/components/GroupPill';
@@ -383,6 +384,7 @@ export const AbsencesPage = () => {
 
   const baseFilename = `fehlzeiten-${filenamePart(project.name)}`;
   const downloadCsv = () => {
+    track('export', { type: 'absences-csv' });
     downloadBlob(
       new Blob([createAbsencesCsv(exportLabels, exportRows)], { type: 'text/csv;charset=utf-8' }),
       `${baseFilename}.csv`,
@@ -393,6 +395,7 @@ export const AbsencesPage = () => {
     setExportMessage('');
     try {
       downloadBlob(await createAbsencesPdf(exportLabels, exportRows), `${baseFilename}.pdf`);
+      track('export', { type: 'absences-pdf' });
     } catch {
       setExportMessage(t('exportError'));
     } finally {
@@ -402,6 +405,7 @@ export const AbsencesPage = () => {
   const copyNames = async () => {
     try {
       await navigator.clipboard.writeText(exportRows.map((row) => row.name).join('\n'));
+      track('export', { type: 'absences-names' });
       setExportMessage(t('nameListCopied'));
     } catch {
       setExportMessage(t('exportError'));

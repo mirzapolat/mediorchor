@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pieceFileUrl } from '@/lib/pieceFiles';
+import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
 import type { Piece, PieceFile } from '@/types';
 
@@ -51,6 +52,7 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
   live.current = { bars, loop, currentIndex };
   const pendingSeek = useRef<MusicalPosition | null>(null);
   const resumeAfterLoad = useRef(false);
+  const playTracked = useRef(false);
 
   // Load the selected track; continue at the same musical position.
   useEffect(() => {
@@ -97,7 +99,14 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
       checkLoop();
       setTime(audio.currentTime);
     };
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      // Once per piece visit, whether started by click, key or bar tap.
+      if (!playTracked.current) {
+        playTracked.current = true;
+        trackEvent('practice-play');
+      }
+    };
     const onPause = () => setPlaying(false);
     const onEnded = () => {
       const { bars: b, loop: l } = live.current;

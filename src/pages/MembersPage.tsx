@@ -28,6 +28,7 @@ import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { downloadBlob, filenamePart, toCsv } from '@/lib/absenceExports';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member } from '@/types';
@@ -186,7 +187,8 @@ export const MembersPage = () => {
   const download = (content: string, type: string, name: string) =>
     downloadBlob(new Blob([content], { type: `${type};charset=utf-8` }), name);
 
-  const exportCsv = () =>
+  const exportCsv = () => {
+    track('export', { type: 'members-csv' });
     download(
       toCsv([
         [t('firstName'), t('lastName'), t('group'), t('email'), t('status')],
@@ -201,14 +203,20 @@ export const MembersPage = () => {
       'text/csv',
       filename('mitglieder', 'csv'),
     );
+  };
   // One entry per line: ready to paste into a document or an email's BCC.
-  const exportNames = () =>
+  const exportNames = () => {
+    track('export', { type: 'members-names' });
     download(
       exported.map((m) => `${m.first_name} ${m.last_name}`.trim()).join('\r\n'),
       'text/plain',
       filename('namen', 'txt'),
     );
-  const exportEmails = () => download(emails.join('\r\n'), 'text/plain', filename('emails', 'txt'));
+  };
+  const exportEmails = () => {
+    track('export', { type: 'members-emails' });
+    download(emails.join('\r\n'), 'text/plain', filename('emails', 'txt'));
+  };
 
   return (
     <>

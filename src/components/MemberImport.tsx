@@ -7,6 +7,7 @@ import { FileDropzone } from './FileDropzone';
 import { ColumnMapper, MAP_TARGETS, type MapTarget } from './FieldMapper';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { sizeBucket, track } from '@/lib/analytics';
 import { parseCsv } from '@/lib/csv';
 import { splitName } from '@/lib/accountName';
 import { paletteColor } from '@/lib/groupColors';
@@ -302,6 +303,7 @@ export const useMemberImport = ({
       setError(failure.message);
       return false;
     }
+    track('member-import', { size: sizeBucket(toCreate.length + toUpdate.length) });
     return true;
   };
 

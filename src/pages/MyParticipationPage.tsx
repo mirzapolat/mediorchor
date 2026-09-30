@@ -12,6 +12,7 @@ import { cn } from '@/lib/cn';
 import { matchesConditions } from '@/lib/absenceConditions';
 import { isHeld, localToday } from '@/lib/eventTiming';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AbsenceLabel, Attendance, Event, Member } from '@/types';
@@ -141,6 +142,7 @@ export const MyParticipationPage = () => {
       setError(t('participationError'));
       return;
     }
+    track('participation', { action: 'join' });
     await load();
   };
 
@@ -156,6 +158,7 @@ export const MyParticipationPage = () => {
       setError(t('participationError'));
       return;
     }
+    track('participation', { action: 'leave' });
     await load();
   };
 
@@ -173,6 +176,7 @@ export const MyParticipationPage = () => {
       await load();
       return;
     }
+    track('participation', { action: 'group' });
     setGroupSaved(true);
   };
 

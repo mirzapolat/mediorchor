@@ -37,6 +37,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { mfaErrorMessage } from '@/components/SecondFactorForm';
 import { useI18n } from '@/lib/i18n';
 import { api, type ApiError, type DeviceSession, type MfaFactors } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { createPasskey, passkeysSupported } from '@/lib/passkeys';
 import { useReauth } from '@/hooks/useReauth';
 import { useAuth } from '@/hooks/useAuth';
@@ -471,13 +472,14 @@ const PasskeySection = ({ factors, run, done }: MethodSectionProps) => {
       setBusy(false);
       return;
     }
-    await done(
+    const added = await done(
       await api.auth.mfa.addPasskey({
         challengeId: options.data.challenge_id,
         credential: prompt.credential,
         name: describeDevice(navigator.userAgent).label ?? '',
       }),
     );
+    if (added) track('passkey-added');
     setBusy(false);
   };
 

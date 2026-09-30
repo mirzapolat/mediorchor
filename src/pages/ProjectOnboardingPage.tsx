@@ -32,6 +32,7 @@ import { useDragReorder } from '@/hooks/useDragReorder';
 import { useAuth } from '@/hooks/useAuth';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { sizeBucket, track } from '@/lib/analytics';
 import { cn } from '@/lib/cn';
 import { uploadImage } from '@/lib/uploadImage';
 import { paletteColor } from '@/lib/groupColors';
@@ -273,6 +274,7 @@ const Onboarding = () => {
         .insert(members.map((m) => ({ ...m, project_id: projectId, photo_url: null })));
       if (membersError) return fail(membersError.message);
     }
+    track('project-created', { members: members.length ? sizeBucket(members.length) : '0' });
     setProject(created);
     setSaving(false);
     return created;

@@ -4,6 +4,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { cn } from '@/lib/cn';
 import type { Registration } from '@/types';
 
@@ -72,6 +73,7 @@ export const RegistrationSelectionDialog = ({
       setError(rpcError.message);
       return;
     }
+    track('registration-transfer', { mode });
     setResult({ mode, picked: (data as { selected: Picked[] }).selected });
     onTransferred();
   };

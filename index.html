@@ -28,6 +28,17 @@
     <title>Anwesenheit</title>
     <!-- Runtime config; overwritten at container start for Docker deploys. -->
     <script src="/config.js"></script>
+    <!-- Usage analytics (self-hosted Umami, cookieless). Pageviews are sent
+         by src/lib/analytics.ts with ids and tokens stripped from the path;
+         data-domains keeps local development out of the stats. -->
+    <script
+      id="umami-script"
+      defer
+      src="https://umami.mirzapolat.com/script.js"
+      data-website-id="ca24ca25-d942-4c0b-a4a9-42d65bcbab89"
+      data-domains="app.medizinerorchester.de"
+      data-auto-track="false"
+    ></script>
   </head>
   <body>
     <div id="root"></div>

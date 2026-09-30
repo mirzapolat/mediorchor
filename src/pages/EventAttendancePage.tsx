@@ -13,6 +13,7 @@ import { HeaderAction } from '@/components/HeaderAction';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { track } from '@/lib/analytics';
 import { useEventContext } from '@/layouts/eventContext';
 import type { AttendanceStatus, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
@@ -96,6 +97,7 @@ export const EventAttendancePage = () => {
       },
       { onConflict: 'event_id,member_id' },
     );
+    track('attendance-mark', { status });
   };
 
   const counts = useMemo(

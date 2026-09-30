@@ -1,5 +1,7 @@
 // Installable app (PWA): service worker registration and the install prompt.
 
+import { track } from './analytics';
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -39,6 +41,7 @@ export const initPwa = () => {
     notify();
   });
   window.addEventListener('appinstalled', () => {
+    track('app-install');
     deferredPrompt = null;
     notify();
   });
