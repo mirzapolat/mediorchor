@@ -3,7 +3,7 @@ import { Check, Copy, RefreshCw } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
 import { ConfirmDialog } from './ConfirmDialog';
-import { MAP_TARGETS, TargetSelect, type MapTarget } from './FieldMapper';
+import { TargetSelect, WEBHOOK_TARGETS, targetMeta, type WebhookMapTarget } from './FieldMapper';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -85,7 +85,7 @@ export const WebhookSetup = ({
   };
 
   const mapping = page.webhook_mapping;
-  const targets = MAP_TARGETS.map((m) => m.target);
+  const targets = WEBHOOK_TARGETS.map((m) => m.target);
 
   // What a field feeds: an explicit choice wins over the detection the server
   // reported for the last delivery.
@@ -112,7 +112,7 @@ export const WebhookSetup = ({
     onRefresh();
   };
 
-  const assignField = (field: string, target: MapTarget | null) => {
+  const assignField = (field: string, target: WebhookMapTarget | null) => {
     const next: WebhookMapping = { ...mapping };
     for (const k of targets) if (next[k] === field) delete next[k];
     if (target) {
@@ -192,7 +192,7 @@ export const WebhookSetup = ({
                 {fieldNames.map((name) => {
                   const explicit = explicitFor(name);
                   const target = explicit ?? autoFor(name);
-                  const color = target ? MAP_TARGETS.find((m) => m.target === target)!.color : null;
+                  const color = target ? targetMeta(target).color : null;
                   return (
                     <li
                       key={name}
@@ -213,6 +213,7 @@ export const WebhookSetup = ({
                       <TargetSelect
                         value={target}
                         auto={!explicit && Boolean(target)}
+                        options={WEBHOOK_TARGETS}
                         onChange={(next) => assignField(name, next)}
                         className={cn('flex-shrink-0', busy && 'pointer-events-none opacity-60')}
                       />
@@ -234,7 +235,7 @@ export const WebhookSetup = ({
               {switchedOff.length > 0 && (
                 <span className="text-text-secondary">
                   {t('webhookSwitchedOff')}:{' '}
-                  {switchedOff.map((k) => t(MAP_TARGETS.find((m) => m.target === k)!.label)).join(', ')}
+                  {switchedOff.map((k) => t(targetMeta(k).label)).join(', ')}
                 </span>
               )}
               {hasCustomMapping && (

@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Archive, ArchiveRestore, Pencil, Trash2, Upload } from 'lucide-react';
+import {
+  Plus,
+  Users,
+  Archive,
+  ArchiveRestore,
+  ArrowDownUp,
+  AtSign,
+  FileSpreadsheet,
+  List,
+  Pencil,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
@@ -11,10 +23,12 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
+import { OverflowMenu } from '@/components/OverflowMenu';
 import { RowActionButton } from '@/components/RowActionButton';
 import { useI18n } from '@/lib/i18n';
 import { accountNameDeviation } from '@/lib/accountName';
 import { api } from '@/lib/api';
+import { downloadBlob, filenamePart, toCsv } from '@/lib/absenceExports';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
@@ -159,6 +173,43 @@ export const MembersPage = () => {
     },
   ]);
 
+  // Exports cover what the list currently shows (filters and search applied),
+  // so e.g. one group's email addresses can be exported on their own.
+  const search = (m: Member) => `${m.first_name} ${m.last_name} ${m.group_name ?? ''} ${m.email ?? ''}`;
+  const q = tf.query.trim().toLowerCase();
+  const exported = members
+    .filter((m) => filters.every((f) => !f.value || f.predicate(m, f.value)))
+    .filter((m) => !q || search(m).toLowerCase().includes(q))
+    .sort((a, b) => a.last_name.localeCompare(b.last_name) || a.first_name.localeCompare(b.first_name));
+  const emails = [...new Set(exported.map((m) => m.email?.trim()).filter((e): e is string => Boolean(e)))];
+  const filename = (kind: string, ext: string) => `${kind}-${filenamePart(project.name)}.${ext}`;
+  const download = (content: string, type: string, name: string) =>
+    downloadBlob(new Blob([content], { type: `${type};charset=utf-8` }), name);
+
+  const exportCsv = () =>
+    download(
+      toCsv([
+        [t('firstName'), t('lastName'), t('group'), t('email'), t('status')],
+        ...exported.map((m) => [
+          m.first_name,
+          m.last_name,
+          m.group_name ?? '',
+          m.email ?? '',
+          m.status === 'archived' ? t('archived') : t('active'),
+        ]),
+      ]),
+      'text/csv',
+      filename('mitglieder', 'csv'),
+    );
+  // One entry per line: ready to paste into a document or an email's BCC.
+  const exportNames = () =>
+    download(
+      exported.map((m) => `${m.first_name} ${m.last_name}`.trim()).join('\r\n'),
+      'text/plain',
+      filename('namen', 'txt'),
+    );
+  const exportEmails = () => download(emails.join('\r\n'), 'text/plain', filename('emails', 'txt'));
+
   return (
     <>
       <PageHeader
@@ -167,11 +218,31 @@ export const MembersPage = () => {
         actions={
           <>
             <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
-            <HeaderAction
-              icon={Upload}
-              label={t('importCsv')}
-              variant="secondary"
-              onClick={() => setImportOpen(true)}
+            <OverflowMenu
+              label={t('importExport')}
+              buttonIcon={ArrowDownUp}
+              items={[
+                { icon: Upload, label: t('importCsv'), onSelect: () => setImportOpen(true) },
+                {
+                  icon: FileSpreadsheet,
+                  label: t('exportCsvAll').replace('{n}', String(exported.length)),
+                  onSelect: exportCsv,
+                  disabled: exported.length === 0,
+                  separated: true,
+                },
+                {
+                  icon: List,
+                  label: t('exportNames').replace('{n}', String(exported.length)),
+                  onSelect: exportNames,
+                  disabled: exported.length === 0,
+                },
+                {
+                  icon: AtSign,
+                  label: t('exportEmails').replace('{n}', String(emails.length)),
+                  onSelect: exportEmails,
+                  disabled: emails.length === 0,
+                },
+              ]}
             />
             <HeaderAction
               icon={Plus}
@@ -190,7 +261,7 @@ export const MembersPage = () => {
         columns={columns}
         getRowId={(m) => m.id}
         onRowClick={(m) => navigate(`/projects/${project.id}/members/${m.id}`)}
-        search={(m) => `${m.first_name} ${m.last_name} ${m.group_name ?? ''} ${m.email ?? ''}`}
+        search={search}
         filters={filters}
         query={tf.query}
         hideToolbar

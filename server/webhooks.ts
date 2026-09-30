@@ -142,8 +142,9 @@ webhookRoutes.post('/registrations/:token', async (c) => {
     record(result.error);
     return c.json({ ok: false, error: result.error }, 422);
   }
-  const { firstName, lastName, email, groupName, knownGroup } = result;
+  const { firstName, lastName, email, groupName, knownGroup, note } = result;
   // Registrations with a group the project doesn't have are never auto-transferred.
+  // The note stays on the registration; it never reaches the member.
   const canTransfer = Boolean(page.auto_transfer) && knownGroup;
 
   const memberId = db.transaction(() => {
@@ -152,9 +153,19 @@ webhookRoutes.post('/registrations/:token', async (c) => {
       : null;
     db.prepare(
       `insert into registrations
-         (registration_page_id, first_name, last_name, email, group_name, member_id, transferred, raw_payload)
-       values (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(page.id, firstName, lastName, email, groupName, id, id ? 1 : 0, JSON.stringify(storedFields(fields)));
+         (registration_page_id, first_name, last_name, email, group_name, note, member_id, transferred, raw_payload)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      page.id,
+      firstName,
+      lastName,
+      email,
+      groupName,
+      note,
+      id,
+      id ? 1 : 0,
+      JSON.stringify(storedFields(fields)),
+    );
     record('ok');
     return id;
   })();

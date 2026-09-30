@@ -1,4 +1,4 @@
-import { ChevronDown, IdCard, Mail, Tags, User, UserRound, type LucideIcon } from 'lucide-react';
+import { ChevronDown, IdCard, Mail, StickyNote, Tags, User, UserRound, type LucideIcon } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
@@ -6,9 +6,15 @@ import { cn } from '@/lib/cn';
 // webhook registrations share them).
 export type MapTarget = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name';
 
-type LabelKey = 'firstName' | 'lastName' | 'fullNameField' | 'email' | 'group';
+// Webhooks can additionally fill the page's extra field, which stays on the
+// registration and is never transferred.
+export type WebhookMapTarget = MapTarget | 'note';
 
-export const MAP_TARGETS: { target: MapTarget; label: LabelKey; icon: LucideIcon; color: string }[] = [
+type LabelKey = 'firstName' | 'lastName' | 'fullNameField' | 'email' | 'group' | 'noteTarget';
+
+type TargetMeta<T> = { target: T; label: LabelKey; icon: LucideIcon; color: string };
+
+export const MAP_TARGETS: TargetMeta<MapTarget>[] = [
   { target: 'first_name', label: 'firstName', icon: User, color: '#0284c7' },
   { target: 'last_name', label: 'lastName', icon: UserRound, color: '#4f46e5' },
   { target: 'full_name', label: 'fullNameField', icon: IdCard, color: '#0d9488' },
@@ -16,21 +22,28 @@ export const MAP_TARGETS: { target: MapTarget; label: LabelKey; icon: LucideIcon
   { target: 'group_name', label: 'group', icon: Tags, color: '#9333ea' },
 ];
 
-export const targetMeta = (target: MapTarget) => MAP_TARGETS.find((m) => m.target === target)!;
+export const WEBHOOK_TARGETS: TargetMeta<WebhookMapTarget>[] = [
+  ...MAP_TARGETS,
+  { target: 'note', label: 'noteTarget', icon: StickyNote, color: '#64748b' },
+];
+
+export const targetMeta = (target: WebhookMapTarget) => WEBHOOK_TARGETS.find((m) => m.target === target)!;
 
 const NONE = '';
 
 // A chip-styled select that assigns one attribute to a column/field. `auto`
 // marks an assignment that was detected rather than chosen.
-export const TargetSelect = ({
+export const TargetSelect = <T extends WebhookMapTarget = MapTarget>({
   value,
   auto = false,
   onChange,
+  options = MAP_TARGETS as TargetMeta<T>[],
   className,
 }: {
-  value: MapTarget | null;
+  value: T | null;
   auto?: boolean;
-  onChange: (target: MapTarget | null) => void;
+  onChange: (target: T | null) => void;
+  options?: TargetMeta<T>[];
   className?: string;
 }) => {
   const { t } = useI18n();
@@ -56,12 +69,12 @@ export const TargetSelect = ({
       <ChevronDown size={13} className="pointer-events-none absolute right-2 text-text-tertiary" />
       <select
         value={value ?? NONE}
-        onChange={(e) => onChange((e.target.value || null) as MapTarget | null)}
+        onChange={(e) => onChange((e.target.value || null) as T | null)}
         className="absolute inset-0 cursor-pointer opacity-0"
         aria-label={t('mapAssign')}
       >
         <option value={NONE}>{t('mapNotUsed')}</option>
-        {MAP_TARGETS.map((m) => (
+        {options.map((m) => (
           <option key={m.target} value={m.target}>
             {t(m.label)}
           </option>

@@ -41,6 +41,8 @@ type RegistrationInfo =
       // otherwise the group is optional.
       require_group: boolean;
       groups: string[];
+      // Label of the page's optional extra field; null = not asked.
+      note_label: string | null;
       project_name: string;
       project_image: string | null;
       cover_url: string | null;
@@ -78,6 +80,7 @@ export const PublicRegistrationPage = () => {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [groupName, setGroupName] = useState('');
+  const [note, setNote] = useState('');
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);
   // Logged-in visitors may opt out of the account flow and register as guest.
   const [asGuest, setAsGuest] = useState(false);
@@ -152,6 +155,7 @@ export const PublicRegistrationPage = () => {
       p_last_name: lastName,
       p_email: email,
       p_group_name: groupName,
+      p_note: active?.note_label ? note : null,
       p_as_account: accountMode,
     });
     setSubmitting(false);
@@ -343,6 +347,14 @@ export const PublicRegistrationPage = () => {
             ))}
           </Select>
         ) : null}
+        {active.note_label ? (
+          <Input
+            label={`${active.note_label} (${t('optional')})`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={300}
+          />
+        ) : null}
         <div className="flex gap-2 pt-1">
           <Button type="button" variant="secondary" className="h-11 flex-1" onClick={() => setStep(1)}>
             {t('back')}
@@ -359,6 +371,7 @@ export const PublicRegistrationPage = () => {
       [t('lastName'), lastName],
       ...(active.ask_email || accountMode ? [[t('email'), email || '—'] as [string, string]] : []),
       ...(active.ask_group ? [[t('group'), groupName || '—'] as [string, string]] : []),
+      ...(active.note_label ? [[active.note_label, note.trim() || '—'] as [string, string]] : []),
     ];
     card = (
       <div className="space-y-4">

@@ -364,7 +364,7 @@ const get_public_registration = (args: Args) => {
   const page = db
     .prepare(
       `select rp.id, rp.is_active, rp.title, rp.description, rp.ask_email, rp.ask_group,
-              rp.closes_at, rp.cover_url, rp.header_mode, rp.header_text, rp.tint_color, rp.project_id, p.name as project_name, p.image_url as project_image,
+              rp.closes_at, rp.cover_url, rp.header_mode, rp.header_text, rp.tint_color, rp.note_label, rp.project_id, p.name as project_name, p.image_url as project_image,
               p.allow_guest_signup, p.allow_account_signup
        from registration_pages rp
        join projects p on p.id = rp.project_id
@@ -432,6 +432,9 @@ const get_public_registration = (args: Args) => {
     ask_group: Boolean(page.ask_group) || requireGroup,
     require_group: requireGroup,
     groups,
+    // Label of the page's extra field (only for sorting out registrations);
+    // null = no such field.
+    note_label: page.note_label ?? null,
     project_name: page.project_name,
     // Project icon and the page's own cover (storage files are public anyway).
     project_image: page.project_image ?? null,
@@ -451,17 +454,18 @@ const submit_public_registration = (args: Args) => {
   const lastName = trimmed(args.p_last_name);
   let email = optional(args.p_email);
   let groupName = optional(args.p_group_name);
+  let note = optional(args.p_note);
   const uid = authUid();
   const asAccount = args.p_as_account === true && uid !== null;
 
-  if (!firstName || !lastName || tooLong(firstName, 120) || tooLong(lastName, 120) || tooLong(email, 200) || tooLong(groupName, 120)) {
+  if (!firstName || !lastName || tooLong(firstName, 120) || tooLong(lastName, 120) || tooLong(email, 200) || tooLong(groupName, 120) || tooLong(note, 300)) {
     return { state: 'invalid_input' };
   }
 
   const page = db
     .prepare(
       `select rp.id, rp.project_id, rp.is_active, rp.ask_email, rp.ask_group, rp.auto_transfer,
-              rp.closes_at, p.allow_guest_signup, p.allow_account_signup
+              rp.closes_at, rp.note_label, p.allow_guest_signup, p.allow_account_signup
        from registration_pages rp
        join projects p on p.id = rp.project_id
        where rp.token = ? and rp.source = 'form'`,
@@ -475,6 +479,7 @@ const submit_public_registration = (args: Args) => {
         ask_group: number;
         auto_transfer: number;
         closes_at: string | null;
+        note_label: string | null;
         allow_guest_signup: number;
         allow_account_signup: number;
       }
@@ -494,9 +499,11 @@ const submit_public_registration = (args: Args) => {
   const group = resolveGroup(page.project_id, groupName);
   groupName = group.name;
   if (requireGroup && (!groupName || !group.known)) return { state: 'invalid_input' };
+  if (!page.note_label) note = null;
 
   // Membership only happens through the transfer, never at submission time.
   // Registrations with a group the project doesn't have wait for a manager.
+  // The note stays on the registration; it never reaches the member.
   const accountId = asAccount ? uid : null;
   const memberId = page.auto_transfer && group.known
     ? registrationToMember(page.project_id, firstName, lastName, groupName, email, accountId)
@@ -504,9 +511,9 @@ const submit_public_registration = (args: Args) => {
 
   db.prepare(
     `insert into registrations
-       (registration_page_id, first_name, last_name, email, group_name, member_id, transferred, user_id)
-     values (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(page.id, firstName, lastName, email, groupName, memberId, memberId ? 1 : 0, accountId);
+       (registration_page_id, first_name, last_name, email, group_name, note, member_id, transferred, user_id)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(page.id, firstName, lastName, email, groupName, note, memberId, memberId ? 1 : 0, accountId);
 
   return { state: 'success' };
 };
@@ -699,12 +706,12 @@ const remap_webhook_registrations = (args: Args) => {
   }
   const regs = db
     .prepare(
-      `select id, first_name, last_name, email, group_name, raw_payload
+      `select id, first_name, last_name, email, group_name, note, raw_payload
        from registrations where registration_page_id = ? and not transferred`,
     )
     .all(page.id) as Row[];
   const save = db.prepare(
-    'update registrations set first_name = ?, last_name = ?, email = ?, group_name = ? where id = ?',
+    'update registrations set first_name = ?, last_name = ?, email = ?, group_name = ?, note = ? where id = ?',
   );
 
   let updated = 0;
@@ -726,8 +733,8 @@ const remap_webhook_registrations = (args: Args) => {
       skipped++;
       continue;
     }
-    const next = [result.firstName, result.lastName, result.email, result.groupName];
-    const current = [reg.first_name, reg.last_name, reg.email ?? null, reg.group_name ?? null];
+    const next = [result.firstName, result.lastName, result.email, result.groupName, result.note];
+    const current = [reg.first_name, reg.last_name, reg.email ?? null, reg.group_name ?? null, reg.note ?? null];
     if (next.every((v, i) => v === current[i])) continue;
     save.run(...next, reg.id);
     updated++;

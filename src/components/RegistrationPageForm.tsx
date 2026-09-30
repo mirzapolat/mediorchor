@@ -7,6 +7,7 @@ import { DeadlineInput } from './DeadlineInput';
 import { CoverInput } from './CoverInput';
 import { HeaderBrandingInput } from './HeaderBrandingInput';
 import { TintInput } from './TintInput';
+import { NoteFieldInput, noteLabelToSave } from './NoteFieldInput';
 import { Modal } from './Modal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -26,6 +27,7 @@ interface FormState {
   header_mode: RegistrationHeaderMode;
   header_text: string;
   tint_color: string | null;
+  note_label: string | null; // null = no extra field
 }
 
 const blank: FormState = {
@@ -40,6 +42,7 @@ const blank: FormState = {
   header_mode: 'app',
   header_text: '',
   tint_color: null,
+  note_label: null,
 };
 
 export const Checkbox = ({
@@ -99,6 +102,7 @@ export const RegistrationPageForm = ({
         header_mode: page.header_mode,
         header_text: page.header_text ?? '',
         tint_color: page.tint_color,
+        note_label: page.note_label,
       });
     } else {
       setForm(blank);
@@ -123,6 +127,7 @@ export const RegistrationPageForm = ({
       header_mode: form.header_mode,
       header_text: form.header_text.trim() || null,
       tint_color: webhook ? null : form.tint_color,
+      note_label: noteLabelToSave(form.note_label, t('noteFieldDefault')),
     };
     if (page) {
       await api.from('registration_pages').update(payload).eq('id', page.id);
@@ -227,6 +232,12 @@ export const RegistrationPageForm = ({
             </div>
           </>
         )}
+
+        <NoteFieldInput
+          source={form.source}
+          label={form.note_label}
+          onChange={(label) => setForm((f) => ({ ...f, note_label: label }))}
+        />
 
         <Checkbox
           checked={form.auto_transfer}

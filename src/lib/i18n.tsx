@@ -634,6 +634,10 @@ const dict: Dict = {
 
   // CSV import
   importCsv: { de: 'CSV importieren', en: 'Import CSV' },
+  importExport: { de: 'Import / Export', en: 'Import / Export' },
+  exportCsvAll: { de: 'Als CSV exportieren ({n})', en: 'Export as CSV ({n})' },
+  exportNames: { de: 'Namen exportieren ({n})', en: 'Export names ({n})' },
+  exportEmails: { de: 'E-Mail-Adressen exportieren ({n})', en: 'Export email addresses ({n})' },
   importMembers: { de: 'Mitglieder importieren', en: 'Import members' },
   selectCsvFile: { de: 'CSV-Datei auswählen', en: 'Select CSV file' },
   dropzoneTitle: { de: 'Datei hierher ziehen oder klicken', en: 'Drop a file here or click to browse' },
@@ -1395,6 +1399,19 @@ const dict: Dict = {
     en: 'Markdown is supported (headings, lists, **bold**, links).',
   },
   askEmail: { de: 'E-Mail erfragen', en: 'Ask for email' },
+  noteField: { de: 'Internes Zuordnungsfeld', en: 'Internal reference field' },
+  noteFieldHint: {
+    de: 'Ein zusätzliches, optionales Feld im Formular. Es wird nur hier in den Anmeldungen angezeigt und beim Übertragen zu den Mitgliedern verworfen.',
+    en: 'An extra, optional field on the form. It is only shown here in the registrations and dropped when transferring to members.',
+  },
+  noteFieldHintWebhook: {
+    de: 'Ein Feld aus dem Webhook, das nur hier in den Anmeldungen angezeigt und beim Übertragen zu den Mitgliedern verworfen wird. Weise es unten in der Feldzuordnung „Internes Feld“ zu.',
+    en: 'A webhook field that is only shown here in the registrations and dropped when transferring to members. Assign it to “Internal field” in the field mapping below.',
+  },
+  noteFieldLabel: { de: 'Bezeichnung des Feldes', en: 'Field label' },
+  noteFieldPlaceholder: { de: 'z. B. Wer hat dich eingeladen?', en: 'e.g. Who invited you?' },
+  noteFieldDefault: { de: 'Notiz', en: 'Note' },
+  noteTarget: { de: 'Internes Feld', en: 'Internal field' },
   askGroup: { de: 'Gruppe erfragen', en: 'Ask for group' },
   askGroupProjectHint: {
     de: 'Die auswählbaren Gruppen werden in den Projekteinstellungen festgelegt.',

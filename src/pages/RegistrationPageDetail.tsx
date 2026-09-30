@@ -48,6 +48,7 @@ interface Draft {
   last_name: string;
   email: string;
   group_name: string;
+  note: string;
 }
 
 export const RegistrationPageDetail = () => {
@@ -64,7 +65,13 @@ export const RegistrationPageDetail = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft>({ first_name: '', last_name: '', email: '', group_name: '' });
+  const [draft, setDraft] = useState<Draft>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    group_name: '',
+    note: '',
+  });
   const [toDelete, setToDelete] = useState<Registration | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -115,6 +122,11 @@ export const RegistrationPageDetail = () => {
   const duplicateCount = registrations.filter(isDuplicate).length;
   const transferable = pending.filter((r) => !isBlocked(r));
   const blockedCount = pendingCount - transferable.length;
+  // The extra field is list-only: it helps sorting out registrations and is
+  // never transferred. Also shown when the page dropped the field but older
+  // registrations still carry a value.
+  const showNote = Boolean(page.note_label) || registrations.some((r) => r.note);
+  const noteLabel = page.note_label || t('noteFieldDefault');
 
   const createGroup = async (name: string) => {
     setBusy(true);
@@ -179,6 +191,7 @@ export const RegistrationPageDetail = () => {
       last_name: registration.last_name,
       email: registration.email ?? '',
       group_name: registration.group_name ?? '',
+      note: registration.note ?? '',
     });
   };
 
@@ -192,6 +205,7 @@ export const RegistrationPageDetail = () => {
         last_name: draft.last_name.trim(),
         email: draft.email.trim() || null,
         group_name: draft.group_name.trim() || null,
+        note: draft.note.trim() || null,
         // Hand edits win: the row is no longer re-mapped from its raw fields.
         raw_payload: null,
       })
@@ -290,6 +304,16 @@ export const RegistrationPageDetail = () => {
               ) : (
                 <GroupPill name={r.group_name} />
               ),
+          },
+        ]
+      : []),
+    ...(showNote
+      ? [
+          {
+            id: 'note',
+            header: noteLabel,
+            accessor: (r: Registration) => r.note,
+            render: (r: Registration) => editableCell(r, 'note', r.note),
           },
         ]
       : []),
@@ -508,7 +532,7 @@ export const RegistrationPageDetail = () => {
         rows={registrations}
         columns={columns}
         getRowId={(r) => r.id}
-        search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''}`}
+        search={(r) => `${r.first_name} ${r.last_name} ${r.email ?? ''} ${r.group_name ?? ''} ${r.note ?? ''}`}
         filters={filters}
         query={tf.query}
         hideToolbar
@@ -523,11 +547,17 @@ export const RegistrationPageDetail = () => {
               </div>
               {page.ask_email && renderCell(columns, 'email', r)}
               {page.ask_group && renderCell(columns, 'group', r)}
+              {showNote && renderCell(columns, 'note', r)}
             </div>
           ) : (
             <MobilePerson name={`${r.first_name} ${r.last_name}`.trim()}>
               {page.ask_email && r.email && <span className="min-w-0 break-all">{r.email}</span>}
               {page.ask_group && r.group_name && renderCell(columns, 'group', r)}
+              {showNote && r.note && (
+                <span className="min-w-0 break-words">
+                  {noteLabel}: {r.note}
+                </span>
+              )}
               {renderCell(columns, 'status', r)}
               {renderCell(columns, 'registered', r)}
             </MobilePerson>

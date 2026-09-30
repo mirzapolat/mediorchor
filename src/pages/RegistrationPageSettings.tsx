@@ -13,6 +13,7 @@ import { DeadlineInput } from '@/components/DeadlineInput';
 import { CoverInput } from '@/components/CoverInput';
 import { HeaderBrandingInput } from '@/components/HeaderBrandingInput';
 import { TintInput } from '@/components/TintInput';
+import { NoteFieldInput, noteLabelToSave } from '@/components/NoteFieldInput';
 import { fromLocalInput, toLocalInput } from '@/lib/registrationDeadline';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -30,6 +31,7 @@ interface FormState {
   header_mode: RegistrationHeaderMode;
   header_text: string;
   tint_color: string | null;
+  note_label: string | null; // null = no extra field
 }
 
 const toForm = (page: RegistrationPage): FormState => ({
@@ -43,6 +45,7 @@ const toForm = (page: RegistrationPage): FormState => ({
   header_mode: page.header_mode,
   header_text: page.header_text ?? '',
   tint_color: page.tint_color,
+  note_label: page.note_label,
 });
 
 // Settings of one registration page: name, public link, form options,
@@ -113,6 +116,7 @@ export const RegistrationPageSettings = () => {
         header_mode: form.header_mode,
         header_text: form.header_text.trim() || null,
         tint_color: webhook ? null : form.tint_color,
+        note_label: noteLabelToSave(form.note_label, t('noteFieldDefault')),
       })
       .eq('id', page.id)
       .select()
@@ -208,6 +212,12 @@ export const RegistrationPageSettings = () => {
               </div>
             </>
           )}
+
+          <NoteFieldInput
+            source={page.source}
+            label={form.note_label}
+            onChange={(label) => update({ note_label: label })}
+          />
 
           <Checkbox
             checked={form.auto_transfer}

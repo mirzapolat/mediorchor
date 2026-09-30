@@ -104,6 +104,16 @@ const validateHeaderText = (row: Record<string, unknown>) => {
   }
 };
 
+// Label of a registration page's extra (non-transferred) field: one short line.
+const validateNoteLabel = (row: Record<string, unknown>) => {
+  const value = row.note_label;
+  if (value === undefined || value === null) return;
+  // eslint-disable-next-line no-control-regex
+  if (typeof value !== 'string' || value.length > 80 || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new ApiError('Invalid note label', 400);
+  }
+};
+
 // Background tint of a public registration form: a plain #rrggbb color.
 const validateTintColor = (row: Record<string, unknown>) => {
   const value = row.tint_color;
@@ -280,12 +290,14 @@ export const policies: Record<string, TablePolicy> = {
       validateCoverUrl(row);
       validateHeaderText(row);
       validateTintColor(row);
+      validateNoteLabel(row);
     },
     validateUpdate: (_oldRow, patch) => {
       validateClosesAt(patch);
       validateCoverUrl(patch);
       validateHeaderText(patch);
       validateTintColor(patch);
+      validateNoteLabel(patch);
     },
   },
 

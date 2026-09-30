@@ -17,13 +17,15 @@ export interface AbsenceExportLabels {
 
 const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
 
-export const createAbsencesCsv = (labels: AbsenceExportLabels, rows: AbsenceExportRow[]) => {
-  const records = [
+// Semicolon-separated with a BOM, so Excel opens umlauts correctly.
+export const toCsv = (records: (string | number)[][]) =>
+  `\uFEFF${records.map((record) => record.map(csvCell).join(';')).join('\r\n')}`;
+
+export const createAbsencesCsv = (labels: AbsenceExportLabels, rows: AbsenceExportRow[]) =>
+  toCsv([
     [labels.name, labels.group, labels.attended, labels.excused, labels.absent],
     ...rows.map((row) => [row.name, row.group, row.attended, row.excused, row.absent]),
-  ];
-  return `\uFEFF${records.map((record) => record.map(csvCell).join(';')).join('\r\n')}`;
-};
+  ]);
 
 const truncateText = (
   text: string,
@@ -101,6 +103,15 @@ export const createAbsencesPdf = async (
 
   return document.output('blob');
 };
+
+// A project/page name as a safe, lowercase filename part.
+export const filenamePart = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'projekt';
 
 export const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);

@@ -37,6 +37,7 @@ import {
   createAbsencesCsv,
   createAbsencesPdf,
   downloadBlob,
+  filenamePart,
   type AbsenceExportLabels,
   type AbsenceExportRow,
 } from '@/lib/absenceExports';
@@ -63,13 +64,6 @@ const getResultRowId = (row: ResultRow) => row.member.id;
 const searchResultRow = (row: ResultRow) =>
   `${row.member.first_name} ${row.member.last_name} ${row.member.group_name ?? ''} ${row.member.email ?? ''}`;
 
-const filenamePart = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'projekt';
 
 let nextConditionId = 1;
 const createCondition = (): Condition => ({

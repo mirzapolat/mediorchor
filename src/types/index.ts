@@ -155,6 +155,9 @@ export interface RegistrationPage {
   header_text: string | null;
   // Background tint of the public page (#rrggbb); null = accent color.
   tint_color: string | null;
+  // Label of an extra field that only helps sorting out registrations: shown
+  // in the list, never transferred to the member. null = no such field.
+  note_label: string | null;
   source: RegistrationSource;
   webhook_mapping: WebhookMapping;
   webhook_last_payload: WebhookDelivery | null;
@@ -169,7 +172,8 @@ export type RegistrationSource = 'form' | 'webhook';
 
 export type RegistrationHeaderMode = 'app' | 'custom' | 'none';
 
-export type WebhookTarget = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name';
+// `note` feeds the page's extra field; it is never detected automatically.
+export type WebhookTarget = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name' | 'note';
 
 // Incoming field name per target; unset targets are detected automatically.
 export type WebhookMapping = Partial<Record<WebhookTarget, string>>;
@@ -186,6 +190,8 @@ export interface Registration {
   last_name: string;
   email: string | null;
   group_name: string | null;
+  // Value of the page's extra field (see RegistrationPage.note_label).
+  note: string | null;
   member_id: string | null;
   transferred: boolean;
   user_id: string | null; // set when the registration was submitted with an account

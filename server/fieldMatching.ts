@@ -3,8 +3,11 @@
 // page's field mapping changes, so both always follow the same rules.
 
 export type Fields = Record<string, string>;
-export type Target = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name';
-export const TARGETS: Target[] = ['first_name', 'last_name', 'full_name', 'email', 'group_name'];
+// `note` is the page's extra field for sorting out registrations: shown in the
+// list, never transferred to the member. It is only ever mapped explicitly.
+export type Target = 'first_name' | 'last_name' | 'full_name' | 'email' | 'group_name' | 'note';
+export const TARGETS: Target[] = ['first_name', 'last_name', 'full_name', 'email', 'group_name', 'note'];
+const EXPLICIT_ONLY: Target[] = ['note'];
 
 // Lower-case, keep letters/digits only ("E-Mail-Adresse" → "emailadresse").
 const norm = (value: string) =>
@@ -22,6 +25,7 @@ const SYNONYMS: Record<Target, string[]> = {
   full_name: ['name', 'fullname', 'vollername', 'vollstaendigername', 'deinname', 'ihrname', 'yourname'],
   email: ['email', 'emailaddress', 'emailadresse', 'mail', 'mailadresse', 'respondentemail'],
   group_name: ['group', 'gruppe', 'stimme', 'stimmgruppe', 'stimmlage', 'voice', 'instrument', 'register', 'section'],
+  note: [],
 };
 
 // A "name" field only counts as the full name when it isn't qualified.
@@ -66,7 +70,7 @@ export const matchFields = (fields: Fields, mapping: Partial<Record<Target, stri
     if (matched[target]) taken.add(matched[target]!);
   }
   for (const target of TARGETS) {
-    if (mapping[target]?.trim() || matched[target]) continue;
+    if (mapping[target]?.trim() || matched[target] || EXPLICIT_ONLY.includes(target)) continue;
     // A full name is only needed when first/last aren't both there.
     if (target === 'full_name' && matched.first_name && matched.last_name) continue;
     matched[target] = guessKey(fields, target, taken);
@@ -104,6 +108,8 @@ export type Extracted =
       groupName: string | null;
       // False when a group was given that isn't one of the project's groups.
       knownGroup: boolean;
+      // The extra field's value; kept on the registration only.
+      note: string | null;
     };
 
 // Registration values from incoming fields under a page's mapping.
@@ -123,6 +129,7 @@ export const extractRegistration = (
   }
   const email = value('email') || null;
   const rawGroup = value('group_name');
+  const note = value('note').slice(0, 300) || null;
 
   if (!firstName) return { ok: false, error: 'missing_name' };
   if (firstName.length > 120 || lastName.length > 120 || (email ?? '').length > 200 || rawGroup.length > 120) {
@@ -139,5 +146,6 @@ export const extractRegistration = (
     email,
     groupName: known ?? (rawGroup || null),
     knownGroup: !rawGroup || Boolean(known),
+    note,
   };
 };
