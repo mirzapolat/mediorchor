@@ -13,7 +13,8 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import { registrationState } from '@/lib/registrationDeadline';
-import type { RegistrationPage } from '@/types';
+import { isDuplicateRegistration } from '@/lib/memberMatching';
+import type { Member, Registration, RegistrationPage } from '@/types';
 
 export const RegistrationsPage = () => {
   const { t } = useI18n();
@@ -21,7 +22,8 @@ export const RegistrationsPage = () => {
   const navigate = useNavigate();
   const [pages, setPages] = useState<RegistrationPage[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  // Registrations not yet transferred into the member list.
+  // Registrations not yet transferred into the member list, duplicates of
+  // active members left out.
   const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const tf = useTableFilters();
@@ -31,7 +33,7 @@ export const RegistrationsPage = () => {
   const [toDelete, setToDelete] = useState<RegistrationPage | null>(null);
 
   const load = useCallback(async () => {
-    const [pagesResult, regsResult] = await Promise.all([
+    const [pagesResult, regsResult, membersResult] = await Promise.all([
       api
         .from('registration_pages')
         .select('*')
@@ -39,15 +41,19 @@ export const RegistrationsPage = () => {
         .order('created_at', { ascending: false }),
       api
         .from('registrations')
-        .select('registration_page_id, transferred, registration_pages!inner(project_id)')
+        .select(
+          'registration_page_id, first_name, last_name, email, user_id, transferred, registration_pages!inner(project_id)',
+        )
         .eq('registration_pages.project_id', project.id),
+      api.from('members').select('first_name, last_name, email, user_id, status').eq('project_id', project.id),
     ]);
 
+    const members = (membersResult.data as Member[] | null) ?? [];
     const grouped: Record<string, number> = {};
     const open: Record<string, number> = {};
-    for (const row of (regsResult.data as Array<{ registration_page_id: string; transferred: boolean }> | null) ?? []) {
+    for (const row of (regsResult.data as Registration[] | null) ?? []) {
       grouped[row.registration_page_id] = (grouped[row.registration_page_id] ?? 0) + 1;
-      if (!row.transferred) open[row.registration_page_id] = (open[row.registration_page_id] ?? 0) + 1;
+      if (!row.transferred && !isDuplicateRegistration(row, members)) open[row.registration_page_id] = (open[row.registration_page_id] ?? 0) + 1;
     }
     setOpenCounts(open);
     setPages((pagesResult.data as RegistrationPage[] | null) ?? []);

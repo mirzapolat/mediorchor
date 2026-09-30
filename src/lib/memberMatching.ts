@@ -46,3 +46,11 @@ export const findMatchingMember = <M extends PersonLike & { status: string }>(
     (norm(m.email) && norm(m.email) === norm(person.email) ? 0 : 2) + (m.status === 'active' ? 0 : 1);
   return candidates.sort((a, b) => rank(a) - rank(b))[0] ?? null;
 };
+
+// A pending registration of someone who is already an active member: nothing
+// is left to transfer, so it counts as done (a duplicate), not as open. Same
+// rule as the server's pendingRegistrations (server/rpc.ts).
+export const isDuplicateRegistration = <M extends PersonLike & { status: string }>(
+  registration: PersonLike & { transferred: boolean },
+  members: M[],
+): boolean => !registration.transferred && findMatchingMember(registration, members)?.status === 'active';

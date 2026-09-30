@@ -578,7 +578,8 @@ const transfer_registration = (args: Args) => {
 };
 
 // Pending registrations of a page the caller manages, oldest first. Rows with a
-// group the project doesn't have are left out (and counted as `blocked`).
+// group the project doesn't have are left out (and counted as `blocked`), as
+// are duplicates: people who already are an active member of the project.
 const pendingRegistrations = (pageId: string) => {
   const page = db.prepare('select project_id from registration_pages where id = ?').get(pageId) as
     | { project_id: string }
@@ -595,6 +596,14 @@ const pendingRegistrations = (pageId: string) => {
   const regs: Row[] = [];
   let blocked = 0;
   for (const reg of pending) {
+    const existing = findMatchingMember(
+      page.project_id,
+      text(reg.first_name),
+      text(reg.last_name),
+      reg.email as string | null,
+      reg.user_id as string | null,
+    );
+    if (existing?.status === 'active') continue;
     const group = resolveGroup(page.project_id, reg.group_name as string | null);
     if (group.known) regs.push({ ...reg, group_name: group.name });
     else blocked += 1;

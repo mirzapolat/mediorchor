@@ -1419,6 +1419,12 @@ const dict: Dict = {
   },
   alreadyMember: { de: 'Bereits Mitglied', en: 'Already a member' },
   alreadyMemberArchived: { de: 'Archiviertes Mitglied', en: 'Archived member' },
+  duplicateRegistration: { de: 'Duplikat', en: 'Duplicate' },
+  duplicateRegistrations: { de: 'Duplikate', en: 'Duplicates' },
+  duplicateRegistrationHint: {
+    de: '{name} ist bereits aktives Mitglied – hier ist nichts mehr zu übertragen.',
+    en: '{name} is already an active member – nothing left to transfer.',
+  },
   alreadyMemberHint: {
     de: 'Passt zu {name} – beim Übernehmen wird dieses Mitglied aktualisiert statt neu angelegt.',
     en: 'Matches {name} – transferring updates this member instead of creating a new one.',

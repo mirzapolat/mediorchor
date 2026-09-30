@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   CalendarClock,
   Check,
-  ChevronDown,
   ClipboardList,
   FileText,
   Pencil,
@@ -33,39 +32,16 @@ import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
-import { FALLBACK_GROUP_COLOR, isHexColor, paletteColor } from '@/lib/groupColors';
+import { FALLBACK_GROUP_COLOR, paletteColor } from '@/lib/groupColors';
 import { GroupDonut, type DonutSlice } from '@/components/GroupDonut';
 import { cn } from '@/lib/cn';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { Member, Registration, RegistrationPage } from '@/types';
-import { findMatchingMember } from '@/lib/memberMatching';
+import { findMatchingMember, isDuplicateRegistration } from '@/lib/memberMatching';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { formatDeadline, registrationState } from '@/lib/registrationDeadline';
 import { GroupPill } from '@/components/GroupPill';
-
-const DISTRIBUTION_OPEN_KEY = 'registrations.distributionOpen';
-
-// Thin proportional bar of the groups, the collapsed distribution's summary.
-const DistributionBar = ({ slices }: { slices: DonutSlice[] }) => {
-  const visible = slices.filter((s) => s.value > 0);
-  return (
-    <span className="flex h-2 min-w-0 max-w-sm flex-1 gap-0.5 overflow-hidden rounded-full" aria-hidden>
-      {visible.map((s) => (
-        <span
-          key={s.id}
-          className="h-full"
-          style={{
-            flexGrow: s.value,
-            ...(s.muted
-              ? { background: 'repeating-linear-gradient(45deg, #d4d4d4 0 2px, #ececec 2px 4px)' }
-              : { backgroundColor: isHexColor(s.color) ? s.color : FALLBACK_GROUP_COLOR }),
-          }}
-        />
-      ))}
-    </span>
-  );
-};
 
 interface Draft {
   first_name: string;
@@ -96,14 +72,6 @@ export const RegistrationPageDetail = () => {
   // Group filter, shared by the table's dropdown and the distribution chart.
   const [groupFilter, setGroupFilter] = useState('');
   const tf = useTableFilters();
-  const [distributionOpen, setDistributionOpen] = useState(
-    () => localStorage.getItem(DISTRIBUTION_OPEN_KEY) === '1',
-  );
-  const toggleDistribution = () =>
-    setDistributionOpen((open) => {
-      localStorage.setItem(DISTRIBUTION_OPEN_KEY, open ? '0' : '1');
-      return !open;
-    });
 
   const load = useCallback(async () => {
     const [pageResult, regsResult, membersResult] = await Promise.all([
@@ -138,9 +106,14 @@ export const RegistrationPageDetail = () => {
 
   // A group the project doesn't have blocks the transfer until it's corrected
   // or created (enforced by the server as well).
-  const isBlocked = (r: Registration) => !r.transferred && Boolean(r.group_name) && !findGroup(r.group_name);
-  const pendingCount = registrations.filter((r) => !r.transferred).length;
-  const transferable = registrations.filter((r) => !r.transferred && !isBlocked(r));
+  // Someone who already is an active member counts as done, not as open.
+  const isDuplicate = (r: Registration) => isDuplicateRegistration(r, members);
+  const isBlocked = (r: Registration) =>
+    !r.transferred && !isDuplicate(r) && Boolean(r.group_name) && !findGroup(r.group_name);
+  const pending = registrations.filter((r) => !r.transferred && !isDuplicate(r));
+  const pendingCount = pending.length;
+  const duplicateCount = registrations.filter(isDuplicate).length;
+  const transferable = pending.filter((r) => !isBlocked(r));
   const blockedCount = pendingCount - transferable.length;
 
   const createGroup = async (name: string) => {
@@ -323,10 +296,18 @@ export const RegistrationPageDetail = () => {
     {
       id: 'status',
       header: t('status'),
-      accessor: (r) => (r.transferred ? 1 : 0),
+      accessor: (r) => (r.transferred ? 2 : isDuplicate(r) ? 1 : 0),
       render: (r) => {
         const existing = r.transferred ? null : findMatchingMember(r, members);
-        return r.transferred ? (
+        return isDuplicate(r) && existing ? (
+          <span
+            title={t('duplicateRegistrationHint').replace('{name}', `${existing.first_name} ${existing.last_name}`)}
+            className="inline-flex items-center gap-1 rounded-md bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-strong"
+          >
+            <Check size={12} />
+            {t('duplicateRegistration')}
+          </span>
+        ) : r.transferred ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-strong">
             <Check size={12} />
             {t('transferred')}
@@ -400,8 +381,10 @@ export const RegistrationPageDetail = () => {
       options: [
         { value: 'pending', label: t('notTransferred') },
         { value: 'done', label: t('transferred') },
+        { value: 'duplicate', label: t('duplicateRegistration') },
       ],
-      predicate: (r, v) => (v === 'done' ? r.transferred : !r.transferred),
+      predicate: (r, v) =>
+        v === 'done' ? r.transferred : v === 'duplicate' ? isDuplicate(r) : !r.transferred && !isDuplicate(r),
     },
   ]);
 
@@ -474,10 +457,11 @@ export const RegistrationPageDetail = () => {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <Stat label={t('registrations')} value={registrations.length} />
         <Stat label={t('notTransferred')} value={pendingCount} highlight={pendingCount > 0} />
-        <Stat label={t('transferred')} value={registrations.length - pendingCount} />
+        <Stat label={t('transferred')} value={registrations.length - pendingCount - duplicateCount} />
+        <Stat label={t('duplicateRegistrations')} value={duplicateCount} />
       </div>
 
       {blockedCount > 0 && (
@@ -490,28 +474,12 @@ export const RegistrationPageDetail = () => {
       {showDistribution && (
         <Card className="mb-6 p-0">
           <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
-            <button
-              type="button"
-              aria-expanded={distributionOpen}
-              onClick={toggleDistribution}
-              className="flex min-w-0 flex-1 items-center gap-3 text-left"
-            >
-              <ChevronDown
-                size={16}
-                className={cn(
-                  'flex-shrink-0 text-text-secondary transition-transform duration-150',
-                  !distributionOpen && '-rotate-90',
-                )}
-              />
+            <div className="flex min-w-0 flex-1 items-baseline gap-3">
               <span className="flex-shrink-0 text-base font-medium">{t('groupDistribution')}</span>
-              {distributionOpen ? (
-                <span className="hidden truncate text-sm text-text-secondary sm:inline">
-                  {t('registrationGroupDistributionHint')}
-                </span>
-              ) : (
-                <DistributionBar slices={slices} />
-              )}
-            </button>
+              <span className="hidden truncate text-sm text-text-secondary sm:inline">
+                {t('registrationGroupDistributionHint')}
+              </span>
+            </div>
             {groupFilter && (
               <button
                 type="button"
@@ -523,18 +491,16 @@ export const RegistrationPageDetail = () => {
               </button>
             )}
           </div>
-          {distributionOpen && (
-            <div className="border-t border-border px-4 py-5 sm:px-6">
-              <GroupDonut
-                slices={slices}
-                layout="wide"
-                selectedId={groupFilter || null}
-                totalLabel={t('registrations')}
-                mutedSelectable
-                onSelect={(slice) => setGroupFilter((current) => (current === slice.id ? '' : slice.id))}
-              />
-            </div>
-          )}
+          <div className="border-t border-border px-4 py-5 sm:px-6">
+            <GroupDonut
+              slices={slices}
+              layout="wide"
+              selectedId={groupFilter || null}
+              totalLabel={t('registrations')}
+              mutedSelectable
+              onSelect={(slice) => setGroupFilter((current) => (current === slice.id ? '' : slice.id))}
+            />
+          </div>
         </Card>
       )}
 
@@ -624,7 +590,7 @@ export const RegistrationPageDetail = () => {
             </>
           ) : (
             <>
-              {!r.transferred ? (
+              {!r.transferred && !isDuplicate(r) ? (
                 <RowActionButton
                   label={isBlocked(r) ? t('unknownGroupBlocksTransfer') : t('transferToMembers')}
                   disabled={busy || isBlocked(r)}
