@@ -21,6 +21,7 @@ import { Button } from '@/components/Button';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
 import { Avatar } from '@/components/Avatar';
+import { MetronomeDebug } from '@/components/MetronomeDebug';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
@@ -375,6 +376,9 @@ export const PieceDetailPage = () => {
     navigate(`/projects/${project.id}/pieces`);
     return null;
   }
+
+  // Metronome debugging (append ?metronome-debug to the URL); read-only.
+  if (searchParams.has('metronome-debug')) return <MetronomeDebug piece={piece} tracks={tracks} />;
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
   const hasCredit = piece.midi_credit_name.trim() !== '';
