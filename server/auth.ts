@@ -304,7 +304,7 @@ const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
 // Email links
 // ---------------------------------------------------------------------------
 
-const baseUrl = (c: Context) => {
+export const baseUrl = (c: Context) => {
   if (env.publicUrl) return env.publicUrl;
   const url = new URL(c.req.url);
   const proto = c.req.header('x-forwarded-proto') ?? url.protocol.replace(':', '');

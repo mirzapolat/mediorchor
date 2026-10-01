@@ -33,6 +33,7 @@ import {
 import { NotationError, parseNotation } from '@/lib/musicxml';
 import {
   detectLeadIn,
+  firstBarNumber,
   formatTime,
   guessFileKind,
   guessVoice,
@@ -339,6 +340,9 @@ export const PieceSetupPage = () => {
   const score = files.find((f) => f.kind === 'score' && f.file_path);
   const labels = timelineLabels(timeline);
   const placed = labels.filter((l) => piece.bar_anchors[l]).length;
+  // Shown bar numbers: the first numbered bar plus the piece's shift.
+  const firstNumber = firstBarNumber(labels);
+  const shownStart = firstNumber == null ? null : firstNumber + (piece.bar_shift ?? 0);
   const expected = timelineDuration(timeline);
   const mode = timingMode ?? (timeline?.source ?? (notationFile ? 'notation' : 'even'));
   // Timelines read before the metronome existed carry no beats.
@@ -595,6 +599,31 @@ export const PieceSetupPage = () => {
           </div>
         )}
         {timingError && <p className="text-sm text-danger">{timingError}</p>}
+
+        {firstNumber != null && shownStart != null && (
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <Input
+              // Re-mounted when the saved value changes, so it shows that value.
+              key={shownStart}
+              id="bar-numbering-start"
+              label={t('barNumberingStart')}
+              type="number"
+              inputMode="numeric"
+              defaultValue={shownStart}
+              onBlur={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (!Number.isFinite(v) || v === shownStart) {
+                  e.target.value = String(shownStart);
+                  return;
+                }
+                void updatePiece({ bar_shift: v - firstNumber });
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              className="max-w-[10rem]"
+            />
+            <p className="text-sm text-text-secondary">{t('barNumberingHint')}</p>
+          </div>
+        )}
       </Section>
 
       {score && labels.length > 0 && (

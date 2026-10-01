@@ -31,6 +31,7 @@ import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { loadPiece, loadPieceFiles, pieceFileDownloadUrl, pieceFileUrl } from '@/lib/pieceFiles';
 import { timelineLabels } from '@/lib/pieceTimeline';
+import { ensureScorePreview } from '@/lib/scorePreview';
 import { useProjectContext } from '@/layouts/projectContext';
 import { cn } from '@/lib/cn';
 import type { BarAnchor, Piece, PieceFile, PieceFileKind } from '@/types';
@@ -191,6 +192,13 @@ export const PieceDetailPage = () => {
 
   const tracks = useMemo(() => files.filter((f) => f.kind === 'audio' && f.file_path), [files]);
   const score = files.find((f) => f.kind === 'score' && f.file_path) ?? null;
+
+  // The link-preview image of this piece (top of the score), made once by a
+  // manager's browser when missing.
+  useEffect(() => {
+    if (canManage && pieceId && score && navigator.onLine) void ensureScorePreview(pieceId, score);
+  }, [canManage, pieceId, score]);
+
   const player = usePracticePlayer(piece, tracks);
   const { bars, currentBar, loop, playBar, setLoop, toggle, prevBar, nextBar } = player;
   const timeRef = useRef(player.time);
@@ -515,6 +523,7 @@ export const PieceDetailPage = () => {
             currentLabel={currentBar?.label ?? null}
             loopLabels={loopLabels}
             pickLabel={picking?.from != null ? (bars[picking.from]?.label ?? null) : null}
+            barShift={piece.bar_shift ?? 0}
             follow={follow && player.playing}
             onBarTap={tapLabel}
             editing={editingAnchors}

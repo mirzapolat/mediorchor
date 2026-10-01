@@ -217,6 +217,8 @@ export interface Piece {
   timeline: PieceTimeline | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
+  // Added to every numeric bar label when shown (display only).
+  bar_shift: number;
   position: number;
   created_at: string;
 }

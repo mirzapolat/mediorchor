@@ -54,8 +54,8 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
   const offset = track?.offset_s ?? 0;
 
   const bars = useMemo(
-    () => resolveBars(piece?.timeline ?? null, duration, offset),
-    [piece?.timeline, duration, offset],
+    () => resolveBars(piece?.timeline ?? null, duration, offset, piece?.bar_shift ?? 0),
+    [piece?.timeline, duration, offset, piece?.bar_shift],
   );
   const currentIndex = barIndexAt(bars, time);
   const currentBar: PlayedBar | null = currentIndex >= 0 ? bars[currentIndex] : null;

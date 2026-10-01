@@ -39,11 +39,13 @@ const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 
 // Puts the name and logo into index.html, so the tab title, favicon and link
-// previews are right before any script runs.
-export const brandIndexHtml = (html: string) => {
+// previews are right before any script runs. `page` adds a page's own title
+// and link-preview tags (server/linkPreview.ts).
+export const brandIndexHtml = (html: string, page?: { title?: string; headTags: string }) => {
   const b = branding();
+  const title = page?.title ? `${page.title} · ${b.appName}` : b.appName;
   let out = html
-    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(b.appName)}</title>`)
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>${page ? `\n    ${page.headTags}` : ''}`)
     // Name under the home-screen icon on iOS / in the OS app list.
     .replace(/(<meta name="(?:apple-mobile-web-app-title|application-name)" content=")[^"]*"/g, `$1${escapeHtml(b.appName)}"`);
   if (b.logoUrl) {

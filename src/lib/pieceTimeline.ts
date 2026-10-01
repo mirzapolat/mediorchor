@@ -5,6 +5,8 @@ import type { PieceFileKind, PieceTimeline } from '@/types';
 export interface PlayedBar {
   index: number;
   label: string;
+  // The label as shown (with the piece's bar shift).
+  shown: string;
   start: number;
   end: number;
   occurrence: number; // 1-based
@@ -20,6 +22,7 @@ export const resolveBars = (
   timeline: PieceTimeline | null,
   duration: number,
   offset: number,
+  shift = 0,
 ): PlayedBar[] => {
   if (!timeline) return [];
   let raw: Array<{ label: string; start: number; end: number; beats: number[]; downbeat: boolean }>;
@@ -50,7 +53,13 @@ export const resolveBars = (
   return raw.map((b, index) => {
     const occurrence = (seen.get(b.label) ?? 0) + 1;
     seen.set(b.label, occurrence);
-    return { ...b, index, occurrence, occurrences: totals.get(b.label) ?? 1 };
+    return {
+      ...b,
+      shown: shiftBarLabel(b.label, shift),
+      index,
+      occurrence,
+      occurrences: totals.get(b.label) ?? 1,
+    };
   });
 };
 
@@ -93,6 +102,23 @@ export const timelineLabels = (timeline: PieceTimeline | null): string[] => {
     );
   }
   return uniqueLabels(timeline.bars);
+};
+
+// A bar label as shown: its number moved by the piece's bar shift ("12a"
+// with shift 36 → "48a"). Labels without a leading number stay as they are.
+export const shiftBarLabel = (label: string, shift: number): string => {
+  if (!shift) return label;
+  const m = /^(\d+)(.*)$/.exec(label);
+  return m ? `${Number(m[1]) + shift}${m[2]}` : label;
+};
+
+// Number of the first numbered bar (before any shift), or null.
+export const firstBarNumber = (labels: string[]): number | null => {
+  for (const l of labels) {
+    const m = /^(\d+)/.exec(l);
+    if (m) return Number(m[1]);
+  }
+  return null;
 };
 
 // Length of the timeline in seconds (notation only; even bars have none).

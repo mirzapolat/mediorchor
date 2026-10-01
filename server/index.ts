@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db, migrate, loadTableMeta, translateDbError, ApiError } from './db.ts';
 import { env } from './env.ts';
-import { authRoutes, withSessionUser, purgeExpired, createAccount, sessionUser, mfaSetupRequired } from './auth.ts';
+import { authRoutes, withSessionUser, purgeExpired, createAccount, sessionUser, mfaSetupRequired, baseUrl } from './auth.ts';
+import { pageMeta, previewTags } from './linkPreview.ts';
 import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
@@ -132,7 +133,14 @@ const indexHtml = path.join(env.staticDir, 'index.html');
 if (fs.existsSync(indexHtml)) {
   const spa = (c: Context) => {
     c.header('Cache-Control', 'no-store');
-    return c.html(brandIndexHtml(fs.readFileSync(indexHtml, 'utf8')));
+    const base = baseUrl(c);
+    const meta = pageMeta(c.req.path, base);
+    return c.html(
+      brandIndexHtml(fs.readFileSync(indexHtml, 'utf8'), {
+        title: meta?.title,
+        headTags: previewTags(meta, `${base}${c.req.path}`, base),
+      }),
+    );
   };
   app.get('/', spa);
   app.get('/index.html', spa);

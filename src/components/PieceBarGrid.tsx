@@ -43,7 +43,7 @@ export const PieceBarGrid = memo(
                     : 'border-border bg-surface text-text-secondary hover:border-black hover:text-text',
             )}
           >
-            {bar.label}
+            {bar.shown}
             {bar.occurrences > 1 && (
               <span
                 className={cn(

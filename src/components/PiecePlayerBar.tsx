@@ -57,7 +57,7 @@ const SeekBar = ({ player }: { player: PracticePlayer }) => {
       aria-valuemin={0}
       aria-valuemax={Math.round(duration)}
       aria-valuenow={Math.round(time)}
-      aria-valuetext={currentBar ? `${formatTime(time)}, ${t('bar')} ${currentBar.label}` : formatTime(time)}
+      aria-valuetext={currentBar ? `${formatTime(time)}, ${t('bar')} ${currentBar.shown}` : formatTime(time)}
       tabIndex={-1}
       className="relative h-7 cursor-pointer touch-none select-none"
       onPointerDown={(e) => {
@@ -93,7 +93,7 @@ const SeekBar = ({ player }: { player: PracticePlayer }) => {
           // Keep the chip inside the track at both ends.
           style={{ left: `clamp(0.875rem, ${pct(time)}, calc(100% - 0.875rem))` }}
         >
-          {currentBar.label}
+          {currentBar.shown}
           {currentBar.occurrences > 1 && (
             <sup className="ml-px text-[9px] font-medium text-white/70">{currentBar.occurrence}.</sup>
           )}
@@ -136,8 +136,8 @@ export const PiecePlayerBar = ({
   const loopLabel =
     loop && bars[loop.from] && bars[loop.to]
       ? loop.from === loop.to
-        ? bars[loop.from].label
-        : `${bars[loop.from].label}–${bars[loop.to].label}`
+        ? bars[loop.from].shown
+        : `${bars[loop.from].shown}–${bars[loop.to].shown}`
       : null;
   const showTopRow = tracks.length > 1 || (sameLabel.length > 1 && currentBar);
 

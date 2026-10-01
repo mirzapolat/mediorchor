@@ -1356,6 +1356,11 @@ const dict: Dict = {
   meterChanges: { de: 'Taktartwechsel', en: 'meter changes' },
   barsStartAt: { de: 'Erster Takt', en: 'First bar' },
   barsEndAt: { de: 'Letzter Takt', en: 'Last bar' },
+  barNumberingStart: { de: 'Taktnummerierung beginnt bei', en: 'Bar numbers start at' },
+  barNumberingHint: {
+    de: 'Ändert nur die angezeigten Taktnummern (z. B. wenn das Stück ein Ausschnitt ist). Markierungen und Zeiten bleiben erhalten – jederzeit änderbar.',
+    en: 'Only changes the bar numbers shown (e.g. when the piece is an excerpt). Markers and timing are kept — change it any time.',
+  },
   barRangeInvalid: {
     de: 'Der letzte Takt muss nach dem ersten liegen.',
     en: 'The last bar must come after the first.',

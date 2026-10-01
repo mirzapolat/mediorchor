@@ -136,7 +136,7 @@ export const MetronomeDebug = ({ piece, tracks }: { piece: Piece; tracks: PieceF
   }, [quiet, track?.file_path]);
 
   const duration = buffer?.duration ?? 0;
-  const bars = useMemo(() => resolveBars(piece.timeline, duration, offset), [piece.timeline, duration, offset]);
+  const bars = useMemo(() => resolveBars(piece.timeline, duration, offset, piece.bar_shift), [piece.timeline, duration, offset, piece.bar_shift]);
 
   // The clicks as the player computes them, then stretched around bar one
   // (speed) and moved (shift) by the sliders.
@@ -209,7 +209,7 @@ export const MetronomeDebug = ({ piece, tracks }: { piece: Piece; tracks: PieceF
     g.fillStyle = token('--c-danger');
     for (const b of bars) {
       const start = offset + (b.start - offset) / speed + shift;
-      g.fillText(b.label, Math.round(start * pxPerSec) + 3, 12);
+      g.fillText(b.shown, Math.round(start * pxPerSec) + 3, 12);
     }
     g.strokeStyle = token('--c-success');
     g.setLineDash([4, 3]);

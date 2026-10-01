@@ -13,6 +13,7 @@ import { Button } from './Button';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
+import { shiftBarLabel } from '@/lib/pieceTimeline';
 import type { BarAnchor } from '@/types';
 
 // pdf.js is heavy; load it only when a piece actually shows a score.
@@ -29,6 +30,8 @@ interface PieceScoreProps {
   currentLabel: string | null;
   loopLabels: Set<string> | null;
   pickLabel: string | null;
+  // Added to the bar numbers shown (labels stay the keys).
+  barShift: number;
   follow: boolean;
   onBarTap: (label: string, shiftKey: boolean) => void;
   // Marking bars (managers).
@@ -67,6 +70,7 @@ export const PieceScore = memo(
     currentLabel,
     loopLabels,
     pickLabel,
+    barShift,
     follow,
     onBarTap,
     editing,
@@ -440,7 +444,7 @@ export const PieceScore = memo(
                 }}
               >
                 <span className="absolute -top-2.5 left-0 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white shadow-sm sm:text-[11px]">
-                  {target}
+                  {target && shiftBarLabel(target, barShift)}
                 </span>
               </div>
             )
@@ -462,7 +466,7 @@ export const PieceScore = memo(
                   key={label}
                   type="button"
                   data-bar={label}
-                  aria-label={`${t('bar')} ${label}`}
+                  aria-label={`${t('bar')} ${shiftBarLabel(label, barShift)}`}
                   style={{ left: `${a.x * 100}%`, top: `${a.y * 100}%` }}
                   onPointerDown={(e) => editing && e.stopPropagation()}
                   onClick={(e) => {
@@ -479,7 +483,7 @@ export const PieceScore = memo(
                         : 'border-danger bg-danger text-white',
                   )}
                 >
-                  {label}
+                  {shiftBarLabel(label, barShift)}
                 </button>
               );
             }
@@ -490,7 +494,7 @@ export const PieceScore = memo(
                 data-bar={label}
                 role={editing ? undefined : 'button'}
                 tabIndex={editing ? undefined : 0}
-                aria-label={`${t('bar')} ${label}`}
+                aria-label={`${t('bar')} ${shiftBarLabel(label, barShift)}`}
                 style={{
                   left: `${a.x * 100}%`,
                   top: `${a.y * 100}%`,
@@ -545,7 +549,7 @@ export const PieceScore = memo(
                       : 'bg-danger/85 text-white',
                   )}
                 >
-                  {label}
+                  {shiftBarLabel(label, barShift)}
                 </span>
                 {isTarget && (
                   <span
@@ -579,7 +583,7 @@ export const PieceScore = memo(
               </button>
               <div className="min-w-0 flex-1 text-center">
                 <div className="text-sm font-semibold">
-                  {target ? `${t('bar')} ${target}` : t('allBarsPlaced')}
+                  {target ? `${t('bar')} ${shiftBarLabel(target, barShift)}` : t('allBarsPlaced')}
                 </div>
                 <div className="text-xs text-text-secondary">
                   {target
