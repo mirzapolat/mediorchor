@@ -219,9 +219,6 @@ export interface Piece {
   bar_anchors: Record<string, BarAnchor>;
   // Added to every numeric bar label when shown (display only).
   bar_shift: number;
-  // Seconds every metronome click is moved by (set in the metronome debug
-  // view), so the clicks line up with the recordings.
-  metronome_shift: number;
   position: number;
   created_at: string;
 }
@@ -241,8 +238,10 @@ export interface PieceFile {
   file_name: string | null;
   // Audio only: seconds of lead-in before the first bar.
   offset_s: number;
-  // Audio only: the recording already contains a metronome click.
-  has_click: boolean;
+  // Audio only: a second recording of the same track with a metronome click
+  // (same timing and lead-in), which the player can switch to.
+  click_file_path: string | null;
+  click_file_name: string | null;
   position: number;
   created_at: string;
 }
@@ -253,11 +252,6 @@ export interface TimelineBar {
   label: string;
   start: number;
   end: number;
-  // Metronome beats as seconds from the bar start, from the meter and tempo
-  // in the notation file (missing on timelines read before the metronome).
-  beats?: number[];
-  // Whether the first beat is the bar's downbeat (not in a pickup bar).
-  downbeat?: boolean;
 }
 
 // The bar timeline shared by all audio tracks of a piece: either read from a

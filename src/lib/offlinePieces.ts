@@ -71,8 +71,10 @@ export const saveProjectOffline = async (
     ...new Set(
       perPiece
         .flat()
-        .filter((f) => f.kind !== 'link' && f.file_path)
-        .map((f) => pieceFileUrl(f.file_path as string)),
+        .filter((f) => f.kind !== 'link')
+        .flatMap((f) => [f.file_path, f.click_file_path])
+        .filter((p): p is string => !!p)
+        .map(pieceFileUrl),
     ),
   ];
 

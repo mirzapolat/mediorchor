@@ -435,7 +435,7 @@ export const PieceScore = memo(
             ghost && (
               <div
                 aria-hidden
-                className="pointer-events-none absolute z-20 rounded-sm border-2 border-dashed border-danger bg-danger/10"
+                className="pointer-events-none absolute z-20 rounded-sm border-2 border-dashed border-accent bg-accent/10"
                 style={{
                   left: `${ghost.x * 100}%`,
                   top: `${ghost.y * 100}%`,
@@ -443,7 +443,7 @@ export const PieceScore = memo(
                   height: `${(ghost.h ?? 0) * 100}%`,
                 }}
               >
-                <span className="absolute -top-2.5 left-0 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white shadow-sm sm:text-[11px]">
+                <span className="absolute -top-2.5 left-0 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold tabular-nums text-white shadow-sm sm:text-[11px]">
                   {target && shiftBarLabel(target, barShift)}
                 </span>
               </div>
@@ -477,10 +477,10 @@ export const PieceScore = memo(
                   className={cn(
                     'absolute z-10 flex h-6 min-w-[1.5rem] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border px-1 text-[11px] font-semibold tabular-nums shadow-sm sm:h-7 sm:min-w-[1.75rem] sm:text-xs',
                     isCurrent || isTarget
-                      ? 'scale-125 border-2 border-white bg-danger text-white ring-4 ring-danger/40'
+                      ? 'scale-125 border-2 border-white bg-accent text-white ring-4 ring-accent/40'
                       : inLoop
-                        ? 'border-danger bg-white text-danger'
-                        : 'border-danger bg-danger text-white',
+                        ? 'border-accent bg-white text-accent'
+                        : 'border-accent bg-accent text-white',
                   )}
                 >
                   {shiftBarLabel(label, barShift)}
@@ -530,23 +530,23 @@ export const PieceScore = memo(
                   'group absolute z-10 rounded-sm border-2 transition-colors duration-150',
                   editing
                     ? isTarget
-                      ? 'cursor-move border-danger bg-danger/20'
-                      : 'cursor-move border-danger/60 bg-danger/5 hover:bg-danger/10'
+                      ? 'cursor-move border-accent bg-accent/20'
+                      : 'cursor-move border-accent/60 bg-accent/5 hover:bg-accent/10'
                     : isCurrent
-                      ? 'cursor-pointer border-danger bg-danger/20'
+                      ? 'cursor-pointer border-accent bg-accent/20'
                       : picked
-                        ? 'cursor-pointer border-danger bg-danger/15'
+                        ? 'cursor-pointer border-accent bg-accent/15'
                         : inLoop
-                          ? 'cursor-pointer border-dashed border-danger/70 bg-danger/10'
-                          : 'cursor-pointer border-transparent [@media(hover:hover)]:hover:border-danger/50 [@media(hover:hover)]:hover:bg-danger/5',
+                          ? 'cursor-pointer border-dashed border-accent/70 bg-accent/10'
+                          : 'cursor-pointer border-transparent [@media(hover:hover)]:hover:border-accent/50 [@media(hover:hover)]:hover:bg-accent/5',
                 )}
               >
                 <span
                   className={cn(
                     'pointer-events-none absolute -top-2.5 left-0 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums shadow-sm sm:text-[11px]',
                     isCurrent || isTarget || picked
-                      ? 'bg-danger text-white'
-                      : 'bg-danger/85 text-white',
+                      ? 'bg-accent text-white'
+                      : 'bg-accent/85 text-white',
                   )}
                 >
                   {shiftBarLabel(label, barShift)}
@@ -560,7 +560,7 @@ export const PieceScore = memo(
                       const pageEl = e.currentTarget.parentElement?.parentElement;
                       if (pageEl) begin(e, { mode: 'resize', label, page, pageEl, origin: a });
                     }}
-                    className="absolute -bottom-2 -right-2 h-4 w-4 cursor-nwse-resize rounded-full border-2 border-white bg-danger shadow"
+                    className="absolute -bottom-2 -right-2 h-4 w-4 cursor-nwse-resize rounded-full border-2 border-white bg-accent shadow"
                   />
                 )}
               </div>

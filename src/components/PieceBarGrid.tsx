@@ -35,7 +35,7 @@ export const PieceBarGrid = memo(
             className={cn(
               'relative flex aspect-square items-center justify-center rounded-md border text-sm font-medium tabular-nums transition-colors duration-150',
               current
-                ? 'border-black bg-black text-white'
+                ? 'border-accent bg-accent text-white'
                 : picked
                   ? 'border-danger bg-danger text-white'
                   : inLoop

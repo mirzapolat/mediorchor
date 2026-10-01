@@ -28,6 +28,7 @@ import {
   loadPieceFiles,
   persistOrder,
   pieceFileUrl,
+  removePieceFiles,
   uploadPieceFile,
 } from '@/lib/pieceFiles';
 import { NotationError, parseNotation } from '@/lib/musicxml';
@@ -37,6 +38,7 @@ import {
   formatTime,
   guessFileKind,
   guessVoice,
+  isClickRecording,
   timelineDuration,
   timelineLabels,
 } from '@/lib/pieceTimeline';
@@ -224,13 +226,38 @@ export const PieceSetupPage = () => {
     }
   };
 
+  // Sets (or with null removes) a track's recording with click; the
+  // previous one's stored object is removed.
+  const setClickRecording = async (track: PieceFile, path: string | null, fileName: string | null) => {
+    if (track.click_file_path && track.click_file_path !== path) void removePieceFiles([track.click_file_path]);
+    await updateFile(track, { click_file_path: path, click_file_name: fileName });
+  };
+
+  const uploadClickRecording = async (track: PieceFile, file: File) => {
+    const result = await uploadPieceFile(piece.id, file);
+    if (result.path) await setClickRecording(track, result.path, file.name);
+  };
+
+  // The voice track a recording with click belongs to: same voice in the
+  // file name, or the only track still without one.
+  const clickTrackFor = (fileName: string, tracksNow: PieceFile[]): PieceFile | null => {
+    const voice = guessVoice(fileName).toLowerCase();
+    const audio = tracksNow.filter((f) => f.kind === 'audio');
+    const byVoice = audio.find((f) => f.title.trim().toLowerCase() === voice);
+    if (byVoice) return byVoice;
+    const open = audio.filter((f) => !f.click_file_path);
+    return open.length === 1 ? open[0] : null;
+  };
+
   const addFiles = async (picked: File[]) => {
     // Notation first: the recordings are then checked against its bars.
-    const ordered = [...picked].sort(
-      (a, b) => Number(guessFileKind(b) === 'notation') - Number(guessFileKind(a) === 'notation'),
-    );
+    // Recordings with click last, so the tracks they belong to exist.
+    const rank = (f: File) =>
+      guessFileKind(f) === 'notation' ? 0 : guessFileKind(f) === 'audio' && isClickRecording(f.name) ? 2 : 1;
+    const ordered = [...picked].sort((a, b) => rank(a) - rank(b));
     const counts: Partial<Record<PieceFileKind, number>> = {};
     for (const f of files) counts[f.kind] = (counts[f.kind] ?? 0) + 1;
+    let tracksNow: PieceFile[] | null = null;
 
     for (const file of ordered) {
       const key = crypto.randomUUID();
@@ -239,6 +266,25 @@ export const PieceSetupPage = () => {
       setUploads((list) => [...list, { key, name: file.name, state: 'busy' }]);
 
       const kind = guessFileKind(file);
+      if (kind === 'audio' && isClickRecording(file.name)) {
+        tracksNow ??= await loadPieceFiles(piece.id);
+        const track = clickTrackFor(file.name, tracksNow);
+        if (track && !track.click_file_path) {
+          const result = await uploadPieceFile(piece.id, file);
+          if (!result.path) {
+            setItem({ state: 'error', note: result.error ?? t('uploadError') });
+            continue;
+          }
+          await api
+            .from('piece_files')
+            .update({ click_file_path: result.path, click_file_name: file.name })
+            .eq('id', track.id);
+          track.click_file_path = result.path;
+          setItem({ state: 'done', note: `${t('withMetronome')} · ${track.title || track.file_name}` });
+          continue;
+        }
+      }
+
       const [result, leadIn] = await Promise.all([
         uploadPieceFile(piece.id, file),
         kind === 'audio' ? detectLeadIn(file) : Promise.resolve(null),
@@ -345,8 +391,6 @@ export const PieceSetupPage = () => {
   const shownStart = firstNumber == null ? null : firstNumber + (piece.bar_shift ?? 0);
   const expected = timelineDuration(timeline);
   const mode = timingMode ?? (timeline?.source ?? (notationFile ? 'notation' : 'even'));
-  // Timelines read before the metronome existed carry no beats.
-  const hasBeats = timeline?.source === 'notation' && timeline.bars.some((b) => b.beats?.length);
 
   const fileRow = (f: PieceFile) => (
     <div className="space-y-2 p-3">
@@ -400,19 +444,17 @@ export const PieceSetupPage = () => {
               />
               s
             </label>
-            <label className="inline-flex items-center gap-1.5" title={t('trackHasClickHint')}>
-              <input
-                type="checkbox"
-                className="h-4 w-4 flex-shrink-0 accent-black"
-                checked={f.has_click}
-                onChange={(e) => void updateFile(f, { has_click: e.target.checked })}
-              />
-              {t('trackHasClick')}
-            </label>
             {durations[f.id] > 0 && <TrackCheck duration={durations[f.id]} expected={expected} offset={f.offset_s} />}
           </>
         )}
       </div>
+      {f.kind === 'audio' && (
+        <ClickRecording
+          track={f}
+          onUpload={(file) => uploadClickRecording(f, file)}
+          onRemove={() => setClickRecording(f, null, null)}
+        />
+      )}
     </div>
   );
 
@@ -557,11 +599,7 @@ export const PieceSetupPage = () => {
                 </Chip>
               )}
               {expected != null && <Chip>{formatTime(expected)}</Chip>}
-              {hasBeats && <Chip>{t('metronomeReady')}</Chip>}
             </div>
-            )}
-            {timeline?.source === 'notation' && !hasBeats && notationFile && (
-              <p className="text-sm text-text-secondary">{t('metronomeReread')}</p>
             )}
             {notationFile && (
               <Button variant="secondary" onClick={() => void rereadNotation()} disabled={timingBusy}>
@@ -742,6 +780,65 @@ const TrackCheck = ({
       {formatTime(duration)}
       {!ok && ` · ${t(diff > 0 ? 'trackLonger' : 'trackShorter').replace('{s}', String(Math.round(Math.abs(diff))))}`}
     </span>
+  );
+};
+
+// A track's second recording of the same MIDI with a metronome click, which
+// the player's metronome button switches to.
+const ClickRecording = ({
+  track,
+  onUpload,
+  onRemove,
+}: {
+  track: PieceFile;
+  onUpload: (file: File) => Promise<void>;
+  onRemove: () => Promise<void>;
+}) => {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex min-h-[1.75rem] flex-wrap items-center gap-x-2 gap-y-1 px-2 text-xs text-text-secondary">
+      <span className="font-medium">{t('withMetronome')}:</span>
+      {busy ? (
+        <Loader2 size={13} className="animate-spin" />
+      ) : track.click_file_path ? (
+        <>
+          <span className="min-w-0 max-w-full truncate">{track.click_file_name}</span>
+          <button
+            type="button"
+            onClick={() => void run(onRemove)}
+            aria-label={t('removeClickRecording')}
+            title={t('removeClickRecording')}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+          >
+            <X size={13} />
+          </button>
+        </>
+      ) : (
+        <label className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-border bg-surface px-2 font-medium hover:text-text focus-within:border-black">
+          <Plus size={13} />
+          {t('addClickRecording')}
+          <input
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.opus"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) void run(() => onUpload(file));
+            }}
+          />
+        </label>
+      )}
+    </div>
   );
 };
 

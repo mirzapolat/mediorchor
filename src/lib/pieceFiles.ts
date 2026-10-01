@@ -29,6 +29,22 @@ export const pieceFileUrl = (path: string): string =>
 export const pieceFileDownloadUrl = (path: string, fileName: string): string =>
   api.storage.from(BUCKET).getPublicUrl(path, { download: fileName }).data.publicUrl;
 
+// Download name of a piece file, independent of what the uploader called it:
+// "Piece – Composer – Title.ext" (empty parts left out), keeping the stored
+// file's extension. Characters file systems reject are replaced.
+export const pieceDownloadName = (
+  piece: Pick<Piece, 'name' | 'composer'>,
+  title: string,
+  storedName: string,
+): string => {
+  const ext = /\.[a-z0-9]{1,8}$/i.exec(storedName)?.[0].toLowerCase() ?? '';
+  const base = [piece.name, piece.composer, title]
+    .map((part) => part.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' – ');
+  return (base || 'Download') + ext;
+};
+
 export const removePieceFiles = async (paths: string[]): Promise<void> => {
   if (paths.length === 0) return;
   await api.storage.from(BUCKET).remove(paths);
@@ -44,10 +60,14 @@ export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => {
   return (data as PieceFile[] | null) ?? [];
 };
 
-// Deletes a file row together with its stored object.
+// Stored objects of a file row: the file and a track's recording with click.
+const storedPaths = (file: Pick<PieceFile, 'file_path' | 'click_file_path'>): string[] =>
+  [file.file_path, file.click_file_path].filter((p): p is string => !!p);
+
+// Deletes a file row together with its stored objects.
 export const deletePieceFile = async (file: PieceFile): Promise<void> => {
   await api.from('piece_files').delete().eq('id', file.id);
-  if (file.file_path) void removePieceFiles([file.file_path]);
+  void removePieceFiles(storedPaths(file));
 };
 
 // Writes the list order into `position` for rows whose position changed.
@@ -66,7 +86,7 @@ export const persistOrder = async (
 export const deletePiece = async (pieceId: string): Promise<void> => {
   const files = await loadPieceFiles(pieceId);
   await api.from('pieces').delete().eq('id', pieceId);
-  void removePieceFiles(files.map((f) => f.file_path).filter((p): p is string => !!p));
+  void removePieceFiles(files.flatMap(storedPaths));
 };
 
 // The loaders below are shared by the pages and the offline download, so the

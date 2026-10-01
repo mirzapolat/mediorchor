@@ -308,13 +308,12 @@ export const PiecePlayerBar = ({
               <button
                 type="button"
                 onClick={() => metronome.setOn(!metronome.on)}
-                disabled={metronome.trackHasClick}
-                aria-pressed={metronome.on && !metronome.trackHasClick}
+                aria-pressed={metronome.on}
                 aria-label={t('metronome')}
-                title={metronome.trackHasClick ? t('metronomeInTrack') : t('metronome')}
+                title={t('metronome')}
                 className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 disabled:opacity-40',
-                  metronome.on && !metronome.trackHasClick
+                  'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150',
+                  metronome.on
                     ? 'bg-black text-white hover:bg-black-hover'
                     : 'text-text-secondary hover:bg-surface-hover hover:text-text',
                 )}

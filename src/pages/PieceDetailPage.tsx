@@ -22,7 +22,7 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
 import { NoAccess } from '@/components/NoAccess';
 import { Avatar } from '@/components/Avatar';
-import { MetronomeDebug } from '@/components/MetronomeDebug';
+import { Modal } from '@/components/Modal';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
@@ -30,7 +30,13 @@ import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
-import { loadPiece, loadPieceFiles, pieceFileDownloadUrl, pieceFileUrl } from '@/lib/pieceFiles';
+import {
+  loadPiece,
+  loadPieceFiles,
+  pieceDownloadName,
+  pieceFileDownloadUrl,
+  pieceFileUrl,
+} from '@/lib/pieceFiles';
 import { timelineLabels } from '@/lib/pieceTimeline';
 import { ensureScorePreview } from '@/lib/scorePreview';
 import { useProjectContext } from '@/layouts/projectContext';
@@ -50,9 +56,59 @@ const FILE_GROUPS: Array<{ kind: PieceFileKind; label: TranslationKey; icon: Luc
   { kind: 'link', label: 'fileKindLink', icon: LinkIcon },
 ];
 
-// Downloads and links, grouped by what they are.
-const FileList = memo(({ files }: { files: PieceFile[] }) => {
+// Recordings that also come with a metronome click ask which one to download.
+const RecordingDownload = ({
+  piece,
+  file,
+  name,
+  onClose,
+}: {
+  piece: Piece;
+  file: PieceFile | null;
+  name: string;
+  onClose: () => void;
+}) => {
   const { t } = useI18n();
+  const options =
+    file?.file_path && file.click_file_path
+      ? [
+          {
+            label: t('withoutMetronome'),
+            href: pieceFileDownloadUrl(file.file_path, pieceDownloadName(piece, name, file.file_name ?? file.file_path)),
+          },
+          {
+            label: t('withMetronome'),
+            href: pieceFileDownloadUrl(
+              file.click_file_path,
+              pieceDownloadName(piece, `${name} (${t('withMetronome')})`, file.click_file_name ?? file.click_file_path),
+            ),
+          },
+        ]
+      : [];
+  return (
+    <Modal open={options.length > 0} title={t('downloadRecordingTitle')} onClose={onClose}>
+      <p className="text-sm text-text-secondary">{t('downloadRecordingMessage')}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((o) => (
+          <a
+            key={o.href}
+            href={o.href}
+            onClick={onClose}
+            className="flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium transition-colors duration-150 hover:bg-surface-hover"
+          >
+            <Download size={15} className="text-text-secondary" />
+            {o.label}
+          </a>
+        ))}
+      </div>
+    </Modal>
+  );
+};
+
+// Downloads and links, grouped by what they are.
+const FileList = memo(({ piece, files }: { piece: Piece; files: PieceFile[] }) => {
+  const { t } = useI18n();
+  const [choosing, setChoosing] = useState<PieceFile | null>(null);
   if (files.length === 0) {
     return <p className="text-sm text-text-secondary">{t('noFiles')}</p>;
   }
@@ -68,30 +124,35 @@ const FileList = memo(({ files }: { files: PieceFile[] }) => {
             </h3>
             <ul className="divide-y divide-border rounded-md border border-border bg-surface">
               {group.map((f) => {
+                // Uploaders' file names are never shown: the display name,
+                // or the group's name when there is none.
+                const name = f.title.trim() || (kind === 'link' ? f.url ?? '—' : t(label));
                 // Only plain web links are ever rendered as a clickable href.
                 const href =
                   kind === 'link'
                     ? /^https?:\/\//i.test(f.url ?? '')
                       ? (f.url as string)
                       : '#'
-                    : f.file_path && f.file_name
-                      ? pieceFileDownloadUrl(f.file_path, f.file_name)
+                    : f.file_path
+                      ? pieceFileDownloadUrl(f.file_path, pieceDownloadName(piece, name, f.file_name ?? f.file_path))
                       : '#';
-                const name = f.title || f.file_name || f.url || '—';
                 return (
                   <li key={f.id}>
                     <a
                       href={href}
                       {...(kind === 'link' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
+                      onClick={(e) => {
+                        if (!f.click_file_path) return;
+                        e.preventDefault();
+                        setChoosing(f);
+                      }}
                       className="flex min-h-[3rem] items-center gap-3 px-3 py-2 text-sm transition-colors duration-150 hover:bg-surface-subtle"
                     >
                       <Icon size={16} className="flex-shrink-0 text-text-secondary" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{name}</span>
-                        {name !== (f.file_name ?? f.url) && (
-                          <span className="block truncate text-xs text-text-tertiary">
-                            {f.file_name ?? f.url}
-                          </span>
+                        {kind === 'link' && name !== f.url && (
+                          <span className="block truncate text-xs text-text-tertiary">{f.url}</span>
                         )}
                       </span>
                       {kind === 'link' ? (
@@ -107,6 +168,12 @@ const FileList = memo(({ files }: { files: PieceFile[] }) => {
           </div>
         );
       })}
+      <RecordingDownload
+        piece={piece}
+        file={choosing}
+        name={choosing?.title.trim() || t('fileKindAudio')}
+        onClose={() => setChoosing(null)}
+      />
     </div>
   );
 });
@@ -384,23 +451,6 @@ export const PieceDetailPage = () => {
   // Unknown piece or no access (e.g. a shared link opened with another account).
   if (!piece) return <NoAccess />;
 
-  // Metronome placement (append ?metronome-debug to the URL); managers can
-  // save the shift for the practice view.
-  if (searchParams.has('metronome-debug'))
-    return (
-      <MetronomeDebug
-        piece={piece}
-        tracks={tracks}
-        canSave={canManage}
-        onSaved={(metronome_shift) => setPiece({ ...piece, metronome_shift })}
-        onClose={() => {
-          const next = new URLSearchParams(searchParams);
-          next.delete('metronome-debug');
-          setSearchParams(next);
-        }}
-      />
-    );
-
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
   const hasCredit = piece.midi_credit_name.trim() !== '';
   // The bar grid is only the fallback for pieces without a score PDF.
@@ -573,7 +623,7 @@ export const PieceDetailPage = () => {
       )}
       <section className={cn(tab !== 'files' && 'max-lg:hidden')}>
         <SectionTitle>{t('files')}</SectionTitle>
-        <FileList files={files} />
+        <FileList piece={piece} files={files} />
       </section>
     </>
   );

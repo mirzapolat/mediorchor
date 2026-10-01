@@ -565,7 +565,7 @@ Header: back link, piece name, "composer · short description", and for managers
 - **⋯ menu** (managers, top right) — *Set up* and *Place bars* / *Edit markers*.
 - **Fullscreen** (button next to the ⋯ menu, or the F key) — only the score and the player, above the whole app (no sidebars, header, tabs, notes or files); also asks the browser for real fullscreen where allowed (not on iPhone Safari). Left with *Exit fullscreen* (top left), Esc (after ending a loop) or F; leaving the browser's fullscreen ends it too.
 - **Notes** — Markdown; managers edit inline (*Add/Edit notes*).
-- **Files** — downloads grouped as Score (PDF), Recordings, Notation file, MIDI, Other files, Links. Only http(s) links are ever rendered clickable.
+- **Files** — downloads grouped as Score (PDF), Recordings, Notation file, MIDI, Other files, Links. Only http(s) links are ever rendered clickable. A recording that also has a version with metronome asks whether to download it with or without metronome.
 - Empty piece: an empty state; managers get a *Set up piece* button.
 
 ### 14.3 Player
@@ -575,7 +575,7 @@ Whenever the piece has recordings: on phones and tablets a bar pinned to the bot
 - **Voice chips** (centred; horizontally scrollable when many) — switching voice keeps playing **at the same bar and position within the bar**, even when the recordings' lead-in or length differ.
 - **Seek bar** with bar ticks and the loop section highlighted; large touch target.
 - **Current bar** — shown on the seek bar's thumb (with its pass, e.g. "3¹", inside repeats), so there is no separate status line. When the bar is played more than once, buttons "1." / "2." next to the voice chips jump between its passes.
-- **Controls** — *Loop* (tap, then tap the first and the last bar of the section — the instruction floats above the player; while a loop runs the button shows its range, e.g. "6–7 ✕", and tapping it ends the loop; shift-click on desktop loops from the current bar to the clicked one), previous bar (back to the start of the current bar, or the previous bar when already at its start), play/pause, next bar, *Follow* (the score scrolls to keep the playing bar in view; shown while the score with marked bars is on screen; on by default and remembered per browser), and speed (0.5×–1.25×, pitch preserved).
+- **Controls** — *Loop* (tap, then tap the first and the last bar of the section — the instruction floats above the player; while a loop runs the button shows its range, e.g. "6–7 ✕", and tapping it ends the loop; shift-click on desktop loops from the current bar to the clicked one), previous bar (back to the start of the current bar, or the previous bar when already at its start), play/pause, next bar, *Follow* (the score scrolls to keep the playing bar in view; shown while the score with marked bars is on screen; on by default and remembered per browser), *Metronome* (shown when the current voice has a recording with click: switches to that recording at the exact same moment and back; remembered per browser), and speed (0.5×–1.25×, pitch preserved).
 - Tapping a bar (grid or score marker) plays from there; a score marker picks the pass closest to the current position. Seeking outside the loop ends the loop.
 - Keyboard: Space play/pause, ←/→ previous/next bar, Esc ends the loop.
 - The phone's lock screen / headset controls work (play, pause, previous/next bar, seek), showing piece and voice.
