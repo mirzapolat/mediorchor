@@ -80,17 +80,3 @@ export const estimateBeatShift = (
   const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
   return { shift: bestStep * frame, confidence: mean > 0 ? best / mean : 0 };
 };
-
-// Measures a recording (by URL) against the beats. Decoded at a low sample
-// rate — onsets don't need more, and a whole piece stays small in memory.
-// Shifts it can't tell apart from chance (low confidence) count as none.
-export const measureRecordingShift = async (url: string, beats: number[]): Promise<number> => {
-  const Offline =
-    window.OfflineAudioContext ??
-    (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext;
-  if (!Offline || beats.length < 4) return 0;
-  const data = await (await fetch(url)).arrayBuffer();
-  const buffer = await new Offline(1, 1, 22050).decodeAudioData(data);
-  const result = estimateBeatShift(buffer, beats, 1);
-  return result && result.confidence >= 3 ? result.shift : 0;
-};
