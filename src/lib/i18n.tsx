@@ -1260,13 +1260,19 @@ const dict: Dict = {
     en: 'Drag a frame around the bar (on phones: hold briefly, then drag)',
   },
   placeAgainHint: {
-    de: 'Markiert – verschieben, an der Ecke Größe ändern oder neu aufziehen',
-    en: 'Marked — move it, resize by the corner or draw it again',
+    de: 'Neu platzieren fügt den Takt hier ein, alle folgenden rücken eins weiter – Rahmen verschieben oder an der Ecke ziehen ändert nur ihn',
+    en: 'Placing it inserts the bar here and every later one moves on — moving or resizing a frame changes only that frame',
   },
+  pickToolHint: {
+    de: 'Wähl ein Werkzeug zum Platzieren – Rahmen lassen sich verschieben und an der Ecke anpassen',
+    en: 'Pick a tool to place bars — frames can be moved and resized by their corner',
+  },
+  drawTool: { de: 'Rechteck', en: 'Rectangle' },
+  drawToolTitle: { de: 'Rahmen um den Takt ziehen', en: 'Drag a frame around the bar' },
   allBarsPlaced: { de: 'Alle Takte platziert', en: 'All bars placed' },
-  stamp: { de: 'Vorlage', en: 'Template' },
+  stamp: { de: 'Box setzen', en: 'Set box' },
   stampTitle: {
-    de: 'Rahmen in der Größe des zuletzt gezogenen mit einem Klick setzen',
+    de: 'Box in der Größe des zuletzt gezogenen Rahmens mit einem Klick setzen',
     en: 'Place frames the size of the last one drawn with one click',
   },
   stampNoTemplate: {
@@ -1279,6 +1285,10 @@ const dict: Dict = {
   },
   placed: { de: 'platziert', en: 'placed' },
   undo: { de: 'Rückgängig', en: 'Undo' },
+  removeBar: {
+    de: 'Takt entfernen – die folgenden rücken nach',
+    en: 'Remove bar — the following ones move up',
+  },
   resetMarkers: { de: 'Alle Takte zurücksetzen', en: 'Reset all bars' },
   resetMarkersConfirm: {
     de: 'Alle Takt-Markierungen in diesen Noten entfernen? Mit „Rückgängig“ lässt sich das wiederherstellen, solange du hier bist.',

@@ -7,7 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Check, ChevronLeft, ChevronRight, RotateCcw, Stamp, Trash2, Undo2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, RotateCcw, SquareDashed, Stamp, Trash2, Undo2 } from 'lucide-react';
 import { PageSpinner } from './Spinner';
 import { Button } from './Button';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -49,8 +49,12 @@ interface Gesture {
   startX: number;
   startY: number;
   origin: BarAnchor | null;
+  before: Anchors; // the marks when the gesture started
   moved: boolean;
 }
+
+// draw = drag a frame around the bar, stamp = click to set a template-sized box.
+type Tool = 'draw' | 'stamp';
 
 const MIN_SIZE = 0.01; // smaller frames count as a stray tap
 const HOLD_MS = 250; // touch: hold this long before a drag draws instead of scrolls
@@ -58,10 +62,26 @@ const HOLD_MS = 250; // touch: hold this long before a drag draws instead of scr
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 const isFrame = (a: BarAnchor) => a.w != null && a.h != null;
 
+// Marked bars always run gap-free from the first label: the frames in score
+// order sit on the first labels. Inserting or removing a frame renumbers all
+// that follow. Marks for labels the timeline no longer has are kept as is.
+const framesOf = (labels: string[], anchors: Anchors): BarAnchor[] =>
+  labels.map((l) => anchors[l]).filter((a): a is BarAnchor => !!a);
+
+const withFrames = (labels: string[], anchors: Anchors, frames: BarAnchor[]): Anchors => {
+  const known = new Set(labels);
+  const out: Anchors = Object.fromEntries(Object.entries(anchors).filter(([k]) => !known.has(k)));
+  frames.slice(0, labels.length).forEach((a, i) => {
+    out[labels[i]] = a;
+  });
+  return out;
+};
+
 // The score PDF with every marked bar as a tappable frame. While playing, the
-// current bar lights up and the page scrolls along. In edit mode a frame is
-// drawn around each bar (drag; on touch: hold briefly, then drag), frames can
-// be moved and resized by their corner, and all marks can be reset.
+// current bar lights up and the page scrolls along. In edit mode the selected
+// bar is placed with a tool (draw a frame, or set a template-sized box); if it
+// is already marked, it is inserted there and every later bar moves one on.
+// Removing a bar closes the gap. Frames can be moved and resized by their corner.
 export const PieceScore = memo(
   ({
     url,
@@ -91,7 +111,8 @@ export const PieceScore = memo(
     );
     // Stamp mode: a click places a frame the size of the last one drawn.
     const [template, setTemplate] = useState<{ w: number; h: number } | null>(null);
-    const [stamping, setStamping] = useState(false);
+    const [tool, setTool] = useState<Tool | null>('draw');
+    const stamping = tool === 'stamp';
     // Where the stamp would land under the mouse (preview).
     const [hover, setHover] = useState<{ page: number; x: number; y: number } | null>(null);
 
@@ -103,11 +124,16 @@ export const PieceScore = memo(
     useEffect(() => {
       if (!editing) return;
       history.current = [];
-      setTarget(labels.find((l) => !anchors[l]) ?? labels[0] ?? null);
+      const frames = framesOf(labels, anchors);
+      // Older marks may have gaps: close them (undo brings them back).
+      if (labels.some((l, i) => !anchors[l] !== i >= frames.length)) {
+        commit(withFrames(labels, anchors, frames), anchors);
+      }
+      setTarget(labels[Math.min(frames.length, labels.length - 1)] ?? null);
       // Until something is drawn, the template is the last frame in the score.
-      const last = [...labels].reverse().map((l) => anchors[l]).find((a) => a && isFrame(a));
+      const last = [...frames].reverse().find(isFrame);
       setTemplate(last ? { w: last.w as number, h: last.h as number } : null);
-      setStamping(false);
+      setTool('draw');
       setHover(null);
       // Only when edit mode starts.
     }, [editing]);
@@ -209,10 +235,15 @@ export const PieceScore = memo(
       onAnchorsChange(next);
     };
 
-    const nextAfter = (label: string, placed: Anchors) => {
-      const i = labels.indexOf(label);
-      return labels.slice(i + 1).find((l) => !placed[l]) ?? labels.find((l) => !placed[l]) ?? null;
+    // `frame` placed as bar `label`: if that bar is already marked, it is
+    // inserted there and the later marks move one bar on (the last drops off).
+    const placedAt = (base: Anchors, label: string, frame: BarAnchor): Anchors => {
+      const frames = framesOf(labels, base);
+      frames.splice(Math.min(labels.indexOf(label), frames.length), 0, frame);
+      return withFrames(labels, base, frames);
     };
+
+    const after = (label: string) => labels[labels.indexOf(label) + 1] ?? null;
 
     const undo = () => {
       const prev = history.current.pop();
@@ -223,9 +254,10 @@ export const PieceScore = memo(
 
     const removeTarget = () => {
       if (!target || !draftRef.current[target]) return;
-      const next = { ...draftRef.current };
-      delete next[target];
-      commit(next);
+      // The later bars move up to close the gap.
+      const frames = framesOf(labels, draftRef.current);
+      frames.splice(labels.indexOf(target), 1);
+      commit(withFrames(labels, draftRef.current, frames));
     };
 
     const resetAll = () => {
@@ -234,9 +266,11 @@ export const PieceScore = memo(
       setTarget(labels[0] ?? null);
     };
 
+    // The arrows reach every marked bar and the first free one, never past it.
     const step = (dir: -1 | 1) => {
-      const i = target ? labels.indexOf(target) : -1;
-      const n = labels[Math.min(labels.length - 1, Math.max(0, i + dir))];
+      const i = target ? labels.indexOf(target) : labels.length;
+      const last = Math.min(framesOf(labels, draftRef.current).length, labels.length - 1);
+      const n = labels[Math.min(last, Math.max(0, i + dir))];
       if (n) setTarget(n);
     };
 
@@ -256,9 +290,8 @@ export const PieceScore = memo(
     const placeStamp = (page: number, x: number, y: number) => {
       const frame = stampFrame(page, x, y);
       if (!target || !frame) return;
-      const next = { ...draftRef.current, [target]: frame };
-      commit(next);
-      setTarget(nextAfter(target, next));
+      commit(placedAt(draftRef.current, target, frame));
+      setTarget(after(target));
     };
 
     // ---- Gestures ----------------------------------------------------------
@@ -268,9 +301,12 @@ export const PieceScore = memo(
       return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) };
     };
 
-    const begin = (e: ReactPointerEvent<HTMLElement>, g: Omit<Gesture, 'startX' | 'startY' | 'moved'>) => {
+    const begin = (
+      e: ReactPointerEvent<HTMLElement>,
+      g: Omit<Gesture, 'startX' | 'startY' | 'moved' | 'before'>,
+    ) => {
       const p = pointAt(g.pageEl, e);
-      gesture.current = { ...g, startX: p.x, startY: p.y, moved: false };
+      gesture.current = { ...g, startX: p.x, startY: p.y, moved: false, before: draftRef.current };
       e.currentTarget.setPointerCapture(e.pointerId);
     };
 
@@ -286,7 +322,7 @@ export const PieceScore = memo(
         stopForPinch(); // a second finger: the user is pinching, not drawing
         return;
       }
-      if (!target || e.button > 0) return;
+      if (!target || !tool || e.button > 0) return;
       const el = e.currentTarget;
       const g = { mode: 'draw' as const, label: target, page, pageEl: el, origin: null };
       if (e.pointerType === 'mouse') {
@@ -303,7 +339,7 @@ export const PieceScore = memo(
         timer: window.setTimeout(() => {
           hold.current = null;
           const p = pointAt(el, { clientX, clientY });
-          gesture.current = { ...g, startX: p.x, startY: p.y, moved: false };
+          gesture.current = { ...g, startX: p.x, startY: p.y, moved: false, before: draftRef.current };
           try {
             el.setPointerCapture(pointerId);
           } catch {
@@ -319,11 +355,7 @@ export const PieceScore = memo(
       cancelHold();
       const g = gesture.current;
       gesture.current = null;
-      if (!g) return;
-      const before = { ...draftRef.current };
-      if (g.origin) before[g.label] = g.origin;
-      else delete before[g.label];
-      show(before);
+      if (g) show(g.before);
     };
 
     const move = (e: ReactPointerEvent<HTMLElement>) => {
@@ -360,7 +392,8 @@ export const PieceScore = memo(
       } else {
         return;
       }
-      show({ ...draftRef.current, [g.label]: frame });
+      // A new frame is previewed where it will go, later bars already moved on.
+      show(g.mode === 'draw' ? placedAt(g.before, g.label, frame) : { ...g.before, [g.label]: frame });
     };
 
     const end = (e: ReactPointerEvent<HTMLElement>) => {
@@ -376,10 +409,7 @@ export const PieceScore = memo(
         }
         return;
       }
-      // The state before the gesture: the frame's original (or no) mark.
-      const before = { ...draftRef.current };
-      if (g.origin) before[g.label] = g.origin;
-      else delete before[g.label];
+      const { before } = g;
 
       const frame = draftRef.current[g.label];
       const tooSmall = !frame || (frame.w ?? 0) < MIN_SIZE || (frame.h ?? 0) < MIN_SIZE;
@@ -401,7 +431,7 @@ export const PieceScore = memo(
       commit(draftRef.current, before);
       // Drawn or resized: its size becomes the template.
       if (g.mode !== 'move' && frame) setTemplate({ w: frame.w ?? 0, h: frame.h ?? 0 });
-      setTarget(g.mode === 'draw' ? nextAfter(g.label, draftRef.current) : g.label);
+      setTarget(g.mode === 'draw' ? after(g.label) : g.label);
     };
 
     // Mouse only: the template follows the pointer as a preview.
@@ -415,7 +445,7 @@ export const PieceScore = memo(
 
     const overlay = (page: number) => (
       <div
-        className={cn('absolute inset-0', editing && target && 'cursor-crosshair')}
+        className={cn('absolute inset-0', editing && target && tool && 'cursor-crosshair')}
         onPointerDown={editing ? (e) => startDraw(e, page) : undefined}
         onPointerMove={
           editing
@@ -587,11 +617,13 @@ export const PieceScore = memo(
                 </div>
                 <div className="text-xs text-text-secondary">
                   {target
-                    ? stamping
-                      ? t('stampHint')
+                    ? !tool
+                      ? t('pickToolHint')
                       : draft[target]
                         ? t('placeAgainHint')
-                        : t('placeHint')
+                        : stamping
+                          ? t('stampHint')
+                          : t('placeHint')
                     : `${placedCount}/${labels.length}`}
                 </div>
               </div>
@@ -604,23 +636,39 @@ export const PieceScore = memo(
                 {placedCount}/{labels.length} {t('placed')}
               </span>
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStamping((on) => !on);
-                    setHover(null);
-                  }}
-                  disabled={!template}
-                  aria-pressed={stamping}
-                  title={template ? t('stampTitle') : t('stampNoTemplate')}
-                  className={cn(
-                    'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium disabled:opacity-40',
-                    stamping ? 'border-black bg-black text-white hover:bg-black-hover' : 'border-border hover:bg-surface-muted',
-                  )}
-                >
-                  <Stamp size={15} />
-                  <span className="hidden sm:inline">{t('stamp')}</span>
-                </button>
+                {(
+                  [
+                    { id: 'draw', icon: SquareDashed, label: t('drawTool'), title: t('drawToolTitle') },
+                    {
+                      id: 'stamp',
+                      icon: Stamp,
+                      label: t('stamp'),
+                      title: template ? t('stampTitle') : t('stampNoTemplate'),
+                    },
+                  ] as const
+                ).map(({ id, icon: Icon, label, title }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      // Picking the active tool again puts it down (just select and adjust).
+                      setTool((on) => (on === id ? null : id));
+                      setHover(null);
+                    }}
+                    disabled={id === 'stamp' && !template}
+                    aria-pressed={tool === id}
+                    title={title}
+                    className={cn(
+                      'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium disabled:opacity-40',
+                      tool === id
+                        ? 'border-black bg-black text-white hover:bg-black-hover'
+                        : 'border-border hover:bg-surface-muted',
+                    )}
+                  >
+                    <Icon size={15} />
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                ))}
                 <button type="button" onClick={undo} aria-label={t('undo')} title={t('undo')} className={iconButton}>
                   <Undo2 size={15} />
                 </button>
@@ -628,8 +676,8 @@ export const PieceScore = memo(
                   type="button"
                   onClick={removeTarget}
                   disabled={!target || !draft[target]}
-                  aria-label={t('remove')}
-                  title={t('remove')}
+                  aria-label={t('removeBar')}
+                  title={t('removeBar')}
                   className={iconButton}
                 >
                   <Trash2 size={15} />
