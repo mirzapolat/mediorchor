@@ -384,8 +384,22 @@ export const PieceDetailPage = () => {
   // Unknown piece or no access (e.g. a shared link opened with another account).
   if (!piece) return <NoAccess />;
 
-  // Metronome debugging (append ?metronome-debug to the URL); read-only.
-  if (searchParams.has('metronome-debug')) return <MetronomeDebug piece={piece} tracks={tracks} />;
+  // Metronome placement (append ?metronome-debug to the URL); managers can
+  // save the shift for the practice view.
+  if (searchParams.has('metronome-debug'))
+    return (
+      <MetronomeDebug
+        piece={piece}
+        tracks={tracks}
+        canSave={canManage}
+        onSaved={(metronome_shift) => setPiece({ ...piece, metronome_shift })}
+        onClose={() => {
+          const next = new URLSearchParams(searchParams);
+          next.delete('metronome-debug');
+          setSearchParams(next);
+        }}
+      />
+    );
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
   const hasCredit = piece.midi_credit_name.trim() !== '';

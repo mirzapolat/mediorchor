@@ -219,6 +219,9 @@ export interface Piece {
   bar_anchors: Record<string, BarAnchor>;
   // Added to every numeric bar label when shown (display only).
   bar_shift: number;
+  // Seconds every metronome click is moved by (set in the metronome debug
+  // view), so the clicks line up with the recordings.
+  metronome_shift: number;
   position: number;
   created_at: string;
 }

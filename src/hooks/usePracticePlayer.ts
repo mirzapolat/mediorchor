@@ -62,7 +62,12 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
 
   // The metronome needs beats from a notation file and is off for
   // recordings that already have a click in them.
-  const clicks = useMemo(() => clicksFromBars(bars), [bars]);
+  // Moved by the piece's saved metronome shift.
+  const metronomeShift = piece?.metronome_shift ?? 0;
+  const clicks = useMemo(
+    () => clicksFromBars(bars).map((c) => ({ ...c, time: c.time + metronomeShift })),
+    [bars, metronomeShift],
+  );
   const metronomeAvailable = clicks.length > 0;
   const trackHasClick = Boolean(track?.has_click);
   const metronome = metronomeOn && metronomeAvailable && !trackHasClick;
