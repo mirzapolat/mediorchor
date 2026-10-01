@@ -48,12 +48,32 @@ export const normalizePath = (pathname: string) =>
     )
     .join('/');
 
-// Pageviews are sent by hand (data-auto-track="false") with the normalized
-// path instead of the real URL; query string and hash are left out.
+// Runs on every payload before it leaves the browser (data-before-send in
+// index.html). With auto-track off the tracker never learns about route
+// changes, so it would stamp custom events with the raw URL of the first page
+// loaded — wrong page, and a check-in or registration token in the stats.
+// The url is rebuilt here from the current route; query string and hash are
+// left out.
+type Payload = { name?: string; url?: string; referrer?: string };
+const toPath = (url: string) => {
+  try {
+    return new URL(url, window.location.origin).pathname;
+  } catch {
+    return '/';
+  }
+};
+(window as Window & { umamiBeforeSend?: unknown }).umamiBeforeSend = (_type: string, payload: Payload) => {
+  // Custom events belong to the page they happen on; pageviews bring their own url.
+  const path = payload.name || !payload.url ? window.location.pathname : toPath(payload.url);
+  const referrer = payload.referrer?.startsWith('/') ? normalizePath(toPath(payload.referrer)) : payload.referrer;
+  return { ...payload, url: normalizePath(path), referrer };
+};
+
+// Pageviews are sent by hand (data-auto-track="false") for each route.
 export const trackPageview = (pathname: string) => {
   const send = () => {
     try {
-      umami()?.track((props) => ({ ...props, url: normalizePath(pathname) }));
+      umami()?.track((props) => ({ ...props, url: pathname }));
     } catch {
       // Analytics must never break the app.
     }

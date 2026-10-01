@@ -30,14 +30,16 @@
     <script src="/config.js"></script>
     <!-- Usage analytics (self-hosted Umami, cookieless). Pageviews are sent
          by src/lib/analytics.ts with ids and tokens stripped from the path;
-         data-domains keeps local development out of the stats. -->
+         data-domains keeps local development out of the stats. async, not
+         defer: a slow analytics host must not hold back the app start. -->
     <script
       id="umami-script"
-      defer
+      async
       src="https://umami.mirzapolat.com/script.js"
       data-website-id="ca24ca25-d942-4c0b-a4a9-42d65bcbab89"
       data-domains="app.medizinerorchester.de"
       data-auto-track="false"
+      data-before-send="umamiBeforeSend"
     ></script>
   </head>
   <body>
