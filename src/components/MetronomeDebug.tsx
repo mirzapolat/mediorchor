@@ -3,6 +3,7 @@ import { Pause, Play } from 'lucide-react';
 import { pieceFileUrl } from '@/lib/pieceFiles';
 import { resolveBars, formatTime } from '@/lib/pieceTimeline';
 import { clicksFromBars, createAudioContext, runMetronome, type Click } from '@/lib/metronome';
+import { estimateBeatShift } from '@/lib/beatAlignment';
 import type { Piece, PieceFile } from '@/types';
 
 // Debug view for the metronome (piece URL + `?metronome-debug`): the
@@ -146,6 +147,13 @@ export const MetronomeDebug = ({ piece, tracks }: { piece: Piece; tracks: PieceF
         time: offset + (c.time - offset) / speed + shift,
       })),
     [bars, offset, speed, shift],
+  );
+
+  // Where the recording's note onsets say the beats belong (from the
+  // unshifted clicks, so it is the correction the clicks need).
+  const measured = useMemo(
+    () => (buffer ? estimateBeatShift(buffer, clicksFromBars(bars).map((c) => c.time)) : null),
+    [buffer, bars],
   );
 
   const pxPerSec = duration > 0 ? Math.min(zoom, MAX_CANVAS_PX / duration) : zoom;
@@ -404,6 +412,34 @@ export const MetronomeDebug = ({ piece, tracks }: { piece: Piece; tracks: PieceF
           display={`${Math.round(pxPerSec)} px/s`}
           onChange={setZoom}
         />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm">
+        <span>
+          <span className="font-medium">Aus der Aufnahme gemessen:</span>{' '}
+          {measured ? (
+            <span className="tabular-nums">
+              Klicks gehören {measured.shift >= 0 ? '+' : ''}
+              {(measured.shift * 1000).toFixed(0)} ms verschoben (Eindeutigkeit {measured.confidence.toFixed(1)}×)
+            </span>
+          ) : buffer ? (
+            'zu wenige Schläge'
+          ) : (
+            '–'
+          )}
+        </span>
+        {measured && (
+          <button
+            type="button"
+            onClick={() => {
+              setSpeed(1);
+              setShift(measured.shift);
+            }}
+            className="rounded border border-border bg-surface px-2 py-0.5 text-xs hover:bg-surface-hover"
+          >
+            Übernehmen
+          </button>
+        )}
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm tabular-nums sm:grid-cols-4">
