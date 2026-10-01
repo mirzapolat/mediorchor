@@ -1,9 +1,10 @@
-import { Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, LockKeyhole, Mail, Palette, ShieldCheck, ShieldHalf, Users } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { useAuth } from '@/hooks/useAuth';
+import { NoAccess } from '@/components/NoAccess';
 import { cn } from '@/lib/cn';
 import { FadingText } from '@/components/FadingText';
 import { useI18n } from '@/lib/i18n';
@@ -44,7 +45,7 @@ export const AdminLayout = () => {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!isAdmin) return <NoAccess standalone />;
 
   return (
     <div className="flex h-full">

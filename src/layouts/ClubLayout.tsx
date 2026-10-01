@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { FileText, ScrollText, UsersRound, type LucideIcon } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { FadingText } from '@/components/FadingText';
 import { useAuth } from '@/hooks/useAuth';
+import { NoAccess } from '@/components/NoAccess';
 
 const ClubHeader = () => {
   const { t } = useI18n();
@@ -47,7 +48,7 @@ export const ClubLayout = () => {
   const { t } = useI18n();
   const { canAccessClub } = useAuth();
 
-  if (!canAccessClub) return <Navigate to="/" replace />;
+  if (!canAccessClub) return <NoAccess />;
 
   return (
     <div className="flex h-full">

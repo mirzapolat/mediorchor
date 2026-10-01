@@ -47,6 +47,18 @@ const dict: Dict = {
   confirm: { de: 'Bestätigen', en: 'Confirm' },
   optional: { de: 'optional', en: 'optional' },
   back: { de: 'Zurück', en: 'Back' },
+  noAccessTitle: { de: 'Kein Zugriff', en: 'No access' },
+  noAccessText: {
+    de: 'Du hast keinen Zugriff auf diese Seite – oder sie existiert nicht mehr.',
+    en: 'You don’t have access to this page – or it no longer exists.',
+  },
+  noAccessSignedInAs: { de: 'Du bist angemeldet als', en: 'You’re signed in as' },
+  noAccessWrongEmail: {
+    de: 'Vielleicht bist du mit der falschen E-Mail-Adresse angemeldet?',
+    en: 'Maybe you’re signed in with the wrong email address?',
+  },
+  noAccessSwitchAccount: { de: 'Mit anderem Konto anmelden', en: 'Sign in with another account' },
+  noAccessHome: { de: 'Zur Startseite', en: 'Go to home page' },
   branding: { de: 'Branding', en: 'Branding' },
   brandingHint: {
     de: 'Name, Logo und Akzentfarbe der App – gilt überall: Seitenleiste, Login, öffentliche Seiten, Browser-Tab (Favicon) und E-Mails.',

@@ -20,6 +20,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
+import { NoAccess } from '@/components/NoAccess';
 import { Avatar } from '@/components/Avatar';
 import { MetronomeDebug } from '@/components/MetronomeDebug';
 import { PieceScore } from '@/components/PieceScore';
@@ -380,10 +381,8 @@ export const PieceDetailPage = () => {
   }, [wantsEditing, pieceId]);
 
   if (loading) return <PageSpinner />;
-  if (!piece) {
-    navigate(`/projects/${project.id}/pieces`);
-    return null;
-  }
+  // Unknown piece or no access (e.g. a shared link opened with another account).
+  if (!piece) return <NoAccess />;
 
   // Metronome debugging (append ?metronome-debug to the URL); read-only.
   if (searchParams.has('metronome-debug')) return <MetronomeDebug piece={piece} tracks={tracks} />;

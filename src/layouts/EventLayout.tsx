@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { NoAccess } from '@/components/NoAccess';
 import { CheckSquare, Settings, ArrowLeft, CalendarDays, Clock, QrCode } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
@@ -113,10 +114,7 @@ export const EventLayout = () => {
   }, [loadCheckinWarnings]);
 
   if (loading) return <PageSpinner />;
-  if (!project || !event) {
-    navigate(`/projects/${projectId}`);
-    return null;
-  }
+  if (!project || !event) return <NoAccess standalone />;
 
   const base = `/projects/${project.id}/events/${event.id}`;
 

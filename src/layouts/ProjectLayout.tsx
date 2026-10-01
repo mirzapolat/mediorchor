@@ -6,6 +6,7 @@ import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
+import { NoAccess } from '@/components/NoAccess';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -54,18 +55,14 @@ export const ProjectIndexRedirect = () => {
 // the pieces page to participants (managers always do).
 export const RequirePiecesAccess = () => {
   const ctx = useProjectContext();
-  if (!ctx.canManage && !ctx.project.allow_participant_pieces) {
-    return <Navigate to={`/projects/${ctx.project.id}/participation`} replace />;
-  }
+  if (!ctx.canManage && !ctx.project.allow_participant_pieces) return <NoAccess />;
   return <Outlet context={ctx} />;
 };
 
-// Wraps the management-only pages; participants are sent to "Meine Teilnahme".
+// Wraps the management-only pages; participants get the no-access notice.
 export const RequireProjectManage = () => {
   const ctx = useProjectContext();
-  if (!ctx.canManage) {
-    return <Navigate to={`/projects/${ctx.project.id}/participation`} replace />;
-  }
+  if (!ctx.canManage) return <NoAccess />;
   return <Outlet context={ctx} />;
 };
 
@@ -120,10 +117,7 @@ export const ProjectLayout = () => {
   }, [loadCheckinWarnings, canManage]);
 
   if (loading) return <PageSpinner />;
-  if (!project) {
-    navigate('/');
-    return null;
-  }
+  if (!project) return <NoAccess standalone />;
 
   const base = `/projects/${project.id}`;
 
