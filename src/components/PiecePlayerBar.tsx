@@ -322,19 +322,27 @@ export const PiecePlayerBar = ({
                 <MetronomeIcon />
               </button>
             )}
-            <select
-              value={player.rate}
-              onChange={(e) => player.setRate(Number(e.target.value))}
-              aria-label={t('playbackSpeed')}
+            {/* The value is drawn by a pill (selects ignore text alignment and
+                padding in some browsers); the native select lies invisibly on
+                top, so the system picker still opens. */}
+            <label
               title={t('playbackSpeed')}
-              className="h-9 w-[4.25rem] flex-shrink-0 cursor-pointer appearance-none rounded-full border border-border bg-surface/60 text-center text-sm font-medium tabular-nums text-text-secondary focus:border-black focus:outline-none"
+              className="relative flex h-9 min-w-[3.75rem] flex-shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border border-border bg-surface/60 px-3 text-sm font-medium tabular-nums text-text-secondary transition-colors duration-150 focus-within:border-black hover:text-text"
             >
-              {PLAYBACK_RATES.map((r) => (
-                <option key={r} value={r}>
-                  {r}×
-                </option>
-              ))}
-            </select>
+              {player.rate}×
+              <select
+                value={player.rate}
+                onChange={(e) => player.setRate(Number(e.target.value))}
+                aria-label={t('playbackSpeed')}
+                className="absolute inset-0 cursor-pointer appearance-none opacity-0"
+              >
+                {PLAYBACK_RATES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}×
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       </div>

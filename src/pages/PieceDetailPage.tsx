@@ -25,7 +25,7 @@ import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { loadPiece, loadPieceFiles, pieceFileDownloadUrl, pieceFileUrl } from '@/lib/pieceFiles';
@@ -162,7 +162,14 @@ export const PieceDetailPage = () => {
     }
   }, []);
   const [picking, setPicking] = useState<LoopPicking>(null);
-  const editingAnchors = canManage && searchParams.get('place') === '1';
+  // Bars are placed with a mouse or trackpad only, not on phones.
+  const canPlaceBars = useCanPlaceBars();
+  const wantsEditing = canManage && canPlaceBars && searchParams.get('place') === '1';
+  // Only one person places bars at a time: the editor opens once the lock
+  // is ours, and whoever holds it is named when it isn't.
+  const [lockHeld, setLockHeld] = useState(false);
+  const [lockedBy, setLockedBy] = useState<string | null>(null);
+  const editingAnchors = wantsEditing && lockHeld;
   // Desktop: the player floats over the score column instead of spanning
   // the page bottom.
   const isDesktop = useMediaQuery('(min-width: 1024px)');
@@ -315,6 +322,54 @@ export const PieceDetailPage = () => {
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  // Takes the bar-editing lock and keeps it alive while editing; leaving
+  // (or closing the tab) releases it. Refused → back out and say who.
+  const lockDeps = useRef({ setSearchParams, t });
+  lockDeps.current = { setSearchParams, t };
+  useEffect(() => {
+    if (!wantsEditing || !pieceId) return;
+    let cancelled = false;
+    const leave = () =>
+      lockDeps.current.setSearchParams(
+        (params) => {
+          params.delete('place');
+          return params;
+        },
+        { replace: true },
+      );
+    const take = async () => {
+      const { data, error } = await api.rpc('lock_piece_markers', { p_piece_id: pieceId });
+      if (cancelled) return;
+      const result = data as { locked: boolean; by?: string } | null;
+      if (error || !result?.locked) {
+        setLockHeld(false);
+        setLockedBy(result?.by || lockDeps.current.t('someoneElse'));
+        leave();
+        return;
+      }
+      setLockedBy(null);
+      setLockHeld(true);
+    };
+    void take();
+    const heartbeat = window.setInterval(() => void take(), 20_000);
+    const release = () =>
+      fetch('/api/rpc/unlock_piece_markers', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_piece_id: pieceId }),
+      }).catch(() => undefined);
+    window.addEventListener('pagehide', release);
+    return () => {
+      cancelled = true;
+      window.clearInterval(heartbeat);
+      window.removeEventListener('pagehide', release);
+      setLockHeld(false);
+      void release();
+    };
+  }, [wantsEditing, pieceId]);
+
   if (loading) return <PageSpinner />;
   if (!piece) {
     navigate(`/projects/${project.id}/pieces`);
@@ -376,7 +431,7 @@ export const PieceDetailPage = () => {
             label={t('moreActions')}
             items={[
               { icon: Settings2, label: t('setUp'), onSelect: () => navigate(setUpUrl) },
-              ...(score && labels.length > 0
+              ...(score && labels.length > 0 && canPlaceBars
                 ? [
                     {
                       icon: MapPin,
@@ -420,9 +475,22 @@ export const PieceDetailPage = () => {
     </div>
   ) : (
     <>
+      {lockedBy && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-text">
+          <span className="min-w-0 flex-1">{t('markersLockedBy').replace('{name}', lockedBy)}</span>
+          <button
+            type="button"
+            onClick={() => setLockedBy(null)}
+            aria-label={t('close')}
+            className="-my-0.5 flex-shrink-0 text-text-secondary hover:text-text"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {score && !hasAnchors && bars.length > 0 && !editingAnchors && (
         <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
-          {canManage ? t('noMarkersManager') : t('noMarkers')}
+          {canManage ? t(canPlaceBars ? 'noMarkersManager' : 'noMarkersManagerPhone') : t('noMarkers')}
         </p>
       )}
 
@@ -503,7 +571,7 @@ export const PieceDetailPage = () => {
             {playerBar}
           </section>
           {!fullscreen && (
-            <aside className="sticky top-3 -mt-5 max-h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
+            <aside className="sticky top-3 -mt-5 h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
               <div>
                 {topRow}
                 {header}

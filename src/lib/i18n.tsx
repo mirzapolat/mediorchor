@@ -1198,6 +1198,19 @@ const dict: Dict = {
     de: 'In diesen Noten sind noch keine Takte markiert – nutze die Ansicht „Takte“, um zu springen.',
     en: 'No bars are marked in this score yet — use the “Bars” view to jump around.',
   },
+  markersLockedBy: {
+    de: '{name} bearbeitet gerade die Takte dieses Stücks. Versuch es später noch einmal.',
+    en: '{name} is editing the bars of this piece right now. Please try again later.',
+  },
+  someoneElse: { de: 'Jemand anderes', en: 'Someone else' },
+  noMarkersManagerPhone: {
+    de: 'In diesen Noten sind noch keine Takte markiert – das geht am Computer („Takte platzieren“).',
+    en: 'No bars are marked in this score yet — place them on a computer (“Place bars”).',
+  },
+  placeBarsDesktopOnly: {
+    de: 'Takte platzieren geht nur am Computer mit Maus oder Trackpad.',
+    en: 'Placing bars only works on a computer with a mouse or trackpad.',
+  },
   noMarkersManager: {
     de: 'Markiere die Takte in den Noten („Takte platzieren“), dann kann man direkt in den Noten auf einen Takt tippen.',
     en: 'Mark the bars in the score (“Place bars”) so people can tap a bar right in the score.',
@@ -1248,8 +1261,8 @@ const dict: Dict = {
     en: 'Draw a frame first — its size becomes the template',
   },
   stampHint: {
-    de: 'Klick (am Handy: tippen) setzt den Rahmen in Vorlagengröße – Ziehen geht weiterhin',
-    en: 'Click (on phones: tap) to place a template-sized frame — dragging still works',
+    de: 'Klick (am Handy: tippen) setzt den Rahmen in Vorlagengröße – Pinch ändert die Breite, Ziehen geht weiterhin',
+    en: 'Click (on phones: tap) to place a template-sized frame — pinch changes the width, dragging still works',
   },
   placed: { de: 'platziert', en: 'placed' },
   undo: { de: 'Rückgängig', en: 'Undo' },

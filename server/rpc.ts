@@ -3,7 +3,7 @@
 // do their own authorization. Each call runs in one transaction.
 import { randomInt } from 'node:crypto';
 import { db, authUid, ApiError, forbidden } from './db.ts';
-import { canAccessProject, canManageAnyProject, isAdmin } from './policies.ts';
+import { canAccessProject, canManageAnyProject, isAdmin, markersLockedByOther } from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
@@ -889,6 +889,38 @@ const last_seen = () => {
     .all();
 };
 
+// Takes (or renews, as the heartbeat) the bar-marker editing lock of a
+// piece. Refused while someone else holds a fresh lock: their name is
+// returned so the UI can say who.
+const lock_piece_markers = (args: Args) => {
+  const uid = requireUser();
+  const piece = db.prepare('select * from pieces where id = ?').get(text(args.p_piece_id)) as
+    | Record<string, unknown>
+    | undefined;
+  if (!piece || !userCanAccessProject(piece.project_id)) throw forbidden('Access denied');
+  if (markersLockedByOther(piece, uid)) {
+    return { locked: false, by: piece.markers_locked_name ?? '' };
+  }
+  const user = db.prepare('select name, email from app_users where id = ?').get(uid) as
+    | { name: string; email: string }
+    | undefined;
+  db.prepare(
+    `update pieces set markers_locked_by = ?, markers_locked_name = ?, markers_locked_at = now_iso()
+     where id = ?`,
+  ).run(uid, user?.name || user?.email || '', text(args.p_piece_id));
+  return { locked: true };
+};
+
+// Releases the lock when the editor closes (only one's own).
+const unlock_piece_markers = (args: Args) => {
+  const uid = requireUser();
+  db.prepare(
+    `update pieces set markers_locked_by = null, markers_locked_name = null, markers_locked_at = null
+     where id = ? and markers_locked_by = ?`,
+  ).run(text(args.p_piece_id), uid);
+  return null;
+};
+
 const functions: Record<string, (args: Args) => unknown> = {
   get_public_config,
   get_legal_pages,
@@ -910,6 +942,8 @@ const functions: Record<string, (args: Args) => unknown> = {
   linked_account_names,
   two_factor_users,
   last_seen,
+  lock_piece_markers,
+  unlock_piece_markers,
 };
 
 // Public functions are rate limited by the HTTP layer.

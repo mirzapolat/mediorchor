@@ -42,65 +42,99 @@ const firstClickFrom = (clicks: Click[], time: number) => {
   return lo;
 };
 
-// Plays the clicks in time with an <audio> element: a look-ahead scheduler
-// maps recording time to the audio clock (respecting the playback speed) and
-// starts over after seeks and loop jumps. `limit` is where playback jumps
-// back (end of the loop section), so no click past it is scheduled.
-// Returns a stop function.
+// Plays the clicks in time with an <audio> element. The recording position
+// is not read off `audio.currentTime` for every click — some browsers only
+// update it in coarse steps — but carried along on the audio clock from an
+// anchor (recording time ↔ clock time, at the playback speed) and gently
+// pulled towards fresh `currentTime` readings. Seeks, loop jumps and speed
+// changes set a new anchor. `limit` is where playback jumps back (end of
+// the loop section), so no click past it is scheduled. Returns a stop
+// function.
 export const runMetronome = (
   ctx: AudioContext,
   audio: HTMLAudioElement,
   clicks: Click[],
   limit: () => number | null,
 ): (() => void) => {
-  const pending = new Set<OscillatorNode>();
+  // Scheduled ticks and when they start on the audio clock.
+  const pending = new Map<OscillatorNode, number>();
   let next = 0;
-  let last = { time: audio.currentTime, clock: ctx.currentTime };
+  let anchor = { time: audio.currentTime, clock: ctx.currentTime };
+  let lastReading = audio.currentTime;
 
-  const cancelPending = () => {
-    for (const osc of pending) {
+  const positionAt = (clock: number) => anchor.time + (clock - anchor.clock) * (audio.playbackRate || 1);
+
+  // Ticks that haven't started yet are dropped; one already sounding
+  // plays out (cutting it off would swallow the beat).
+  const cancelUpcoming = () => {
+    const clock = ctx.currentTime;
+    for (const [osc, at] of pending) {
+      if (at <= clock + 0.005) continue;
       try {
         osc.stop();
       } catch {
         /* already stopped */
       }
+      pending.delete(osc);
     }
-    pending.clear();
   };
-  const resync = (time: number) => {
-    cancelPending();
-    next = firstClickFrom(clicks, time - 0.02);
+  const reanchor = () => {
+    cancelUpcoming();
+    anchor = { time: audio.currentTime, clock: ctx.currentTime };
+    lastReading = anchor.time;
+    next = firstClickFrom(clicks, anchor.time - 0.01);
   };
-  resync(audio.currentTime);
+  reanchor();
 
   const schedule = () => {
     if (audio.paused) return;
-    const now = audio.currentTime;
     const clock = ctx.currentTime;
-    const rate = audio.playbackRate || 1;
-    // Further than expected from the last look: a seek or loop jump.
-    const expected = last.time + (clock - last.clock) * rate;
-    if (Math.abs(now - expected) > 0.25) resync(now);
-    last = { time: now, clock };
+    const reading = audio.currentTime;
+    // A fresh reading: far off means a jump the events missed; otherwise
+    // drift is pulled in slowly, so coarse readings don't cause jitter.
+    if (reading !== lastReading) {
+      lastReading = reading;
+      const error = reading - positionAt(clock);
+      if (Math.abs(error) > 0.3) {
+        reanchor();
+      } else {
+        anchor = { time: anchor.time + error * 0.1, clock: anchor.clock };
+      }
+    }
 
+    const rate = audio.playbackRate || 1;
+    const now = positionAt(clock);
     // Timers run rarely in background tabs: look further ahead there.
-    const ahead = (document.hidden ? 1.5 : 0.2) * rate;
+    const ahead = (document.hidden ? 1.5 : 0.25) * rate;
     const end = limit();
     while (next < clicks.length && clicks[next].time < now + ahead) {
       const click = clicks[next++];
       if (end != null && click.time >= end - 0.03) continue;
       const when = clock + (click.time - now) / rate;
-      if (when < clock - 0.05) continue;
-      const osc = tick(ctx, Math.max(when, clock), click.accent);
-      pending.add(osc);
+      if (when < clock - 0.03) continue; // missed (e.g. a stalled timer)
+      const at = Math.max(when, clock);
+      const osc = tick(ctx, at, click.accent);
+      pending.set(osc, at);
       osc.onended = () => pending.delete(osc);
     }
   };
 
+  // Jumps and speed changes the element reports itself.
+  const onJump = () => {
+    reanchor();
+    schedule();
+  };
+  audio.addEventListener('seeked', onJump);
+  audio.addEventListener('ratechange', onJump);
+  audio.addEventListener('playing', onJump);
+
   schedule();
   const id = window.setInterval(schedule, 25);
   return () => {
+    audio.removeEventListener('seeked', onJump);
+    audio.removeEventListener('ratechange', onJump);
+    audio.removeEventListener('playing', onJump);
     window.clearInterval(id);
-    cancelPending();
+    cancelUpcoming();
   };
 };

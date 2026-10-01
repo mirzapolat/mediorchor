@@ -40,6 +40,7 @@ import {
   timelineLabels,
 } from '@/lib/pieceTimeline';
 import { useProjectContext } from '@/layouts/projectContext';
+import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
 import type { Piece, PieceFile, PieceFileKind, PieceTimeline } from '@/types';
 
@@ -189,6 +190,7 @@ export const PieceSetupPage = () => {
   }, [load]);
 
   const tracks = files.filter((f) => f.kind === 'audio');
+  const canPlaceBars = useCanPlaceBars();
   const durations = useTrackDurations(tracks);
 
   if (loading) return <PageSpinner />;
@@ -605,10 +607,11 @@ export const PieceSetupPage = () => {
             </span>
           }
         >
-          <Button variant="secondary" onClick={() => navigate(`${back}?place=1`)}>
+          <Button variant="secondary" onClick={() => navigate(`${back}?place=1`)} disabled={!canPlaceBars}>
             <MapPin size={15} />
             {placed > 0 ? t('editMarkers') : t('placeBars')}
           </Button>
+          {!canPlaceBars && <p className="text-sm text-text-secondary">{t('placeBarsDesktopOnly')}</p>}
         </Section>
       )}
 

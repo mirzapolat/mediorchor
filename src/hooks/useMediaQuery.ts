@@ -14,3 +14,7 @@ export const useMediaQuery = (query: string) => {
   }, [query]);
   return matches;
 };
+
+// Placing bar markers needs a mouse or trackpad; on phones (and other
+// touch-only devices) it is switched off.
+export const useCanPlaceBars = () => useMediaQuery('(hover: hover) and (pointer: fine)');

@@ -108,6 +108,65 @@ export const PieceScore = memo(
       // Only when edit mode starts.
     }, [editing]);
 
+    // Trackpad pinch over the stamp preview changes the template's width
+    // (bars differ in width) instead of zooming the score. ⌘ + scroll still
+    // zooms. Listens in the capture phase, ahead of the score's own zoom.
+    const pinchLive = useRef({ stamping, template, hover });
+    pinchLive.current = { stamping, template, hover };
+    useEffect(() => {
+      const el = rootRef.current;
+      if (!el || !editing) return;
+      const active = () => {
+        const s = pinchLive.current;
+        return s.stamping && s.template && s.hover;
+      };
+      const resize = (factor: number) =>
+        setTemplate((tp) => (tp ? { ...tp, w: Math.min(1, Math.max(MIN_SIZE * 2, tp.w * factor)) } : tp));
+
+      // Chrome/Firefox: a pinch is a wheel event with ctrlKey.
+      const onWheel = (e: WheelEvent) => {
+        if (!e.ctrlKey || !active()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+        resize(Math.exp(-delta * 0.01));
+      };
+      // Safari: gesture events with a scale relative to the gesture start.
+      let lastScale = 1;
+      let pinching = false;
+      const onGestureStart = (e: Event) => {
+        if (!active()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        pinching = true;
+        lastScale = 1;
+      };
+      const onGestureChange = (e: Event) => {
+        if (!pinching) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const scale = (e as Event & { scale: number }).scale;
+        resize(scale / lastScale);
+        lastScale = scale;
+      };
+      const onGestureEnd = (e: Event) => {
+        if (!pinching) return;
+        e.preventDefault();
+        e.stopPropagation();
+        pinching = false;
+      };
+      el.addEventListener('wheel', onWheel, { capture: true, passive: false });
+      el.addEventListener('gesturestart', onGestureStart, true);
+      el.addEventListener('gesturechange', onGestureChange, true);
+      el.addEventListener('gestureend', onGestureEnd, true);
+      return () => {
+        el.removeEventListener('wheel', onWheel, { capture: true });
+        el.removeEventListener('gesturestart', onGestureStart, true);
+        el.removeEventListener('gesturechange', onGestureChange, true);
+        el.removeEventListener('gestureend', onGestureEnd, true);
+      };
+    }, [editing]);
+
     // While a touch gesture draws/moves a frame, the page must not scroll.
     useEffect(() => {
       const el = rootRef.current;

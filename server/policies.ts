@@ -162,6 +162,14 @@ const PROTECTED_ACCOUNT_FIELDS = [
   'approved', // accounts waiting for approval can't approve themselves
 ] as const;
 
+// Bar-marker editing lock on a piece (see migration 0027): held by someone
+// else while their heartbeat is fresh.
+export const MARKERS_LOCK_TTL_MS = 60_000;
+export const markersLockedByOther = (row: Record<string, unknown>, uid: string) =>
+  row.markers_locked_by != null &&
+  row.markers_locked_by !== uid &&
+  Date.parse(String(row.markers_locked_at ?? '')) > Date.now() - MARKERS_LOCK_TTL_MS;
+
 export const policies: Record<string, TablePolicy> = {
   // Users read their own profile; admins read and manage everyone. Accounts
   // are created and deleted only through the auth/admin endpoints.
@@ -309,7 +317,14 @@ export const policies: Record<string, TablePolicy> = {
     ...all((a) => canAccessProject(`${a}.project_id`)),
     select: (a) => or(canAccessProject(`${a}.project_id`), participantCanSeePieces(`${a}.project_id`)),
     // The credit photo mirrors the linked account's (database triggers).
-    validateUpdate: (oldRow, patch) => {
+    validateUpdate: (oldRow, patch, { uid }) => {
+      // The lock is taken and released through its RPCs only.
+      if (['markers_locked_by', 'markers_locked_name', 'markers_locked_at'].some((k) => k in patch)) {
+        throw new ApiError('The marker lock is managed by the server', 403, '42501');
+      }
+      if ('bar_anchors' in patch && markersLockedByOther(oldRow, uid)) {
+        throw new ApiError(`${String(oldRow.markers_locked_name ?? '')} is editing the bars`, 409, 'P0001');
+      }
       if (
         'midi_credit_photo_url' in patch &&
         normalize(patch.midi_credit_photo_url) !== normalize(oldRow.midi_credit_photo_url)
