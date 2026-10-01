@@ -15,12 +15,12 @@ export interface LoopRange {
   to: number;
 }
 
-// Where playback was, in musical terms, so it can continue at the same spot
-// on another track (whose lead-in and length may differ).
-interface MusicalPosition {
+// The bar to restart at once another track has loaded (its lead-in and
+// length may differ), and whether to keep playing.
+interface PendingSwitch {
   bar: number;
-  fraction: number;
   time: number;
+  resume: boolean;
 }
 
 // Drives practice playback for a piece: one <audio> element that switches
@@ -72,8 +72,9 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
   live.current = { bars, loop, currentIndex };
   const metronomeRef = useRef(metronomeOn);
   metronomeRef.current = metronomeOn;
-  const pendingSeek = useRef<MusicalPosition | null>(null);
-  const resumeAfterLoad = useRef(false);
+  const pendingSwitch = useRef<PendingSwitch | null>(null);
+  // Whether the current track's metadata (and so its bars) is known.
+  const metaLoaded = useRef(false);
   const playTracked = useRef(false);
 
   // Load the selected track; continue at the same musical position.
@@ -82,7 +83,9 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
     if (!audio || !track?.file_path) return;
     const src = pieceFileUrl(track.file_path);
     if (audio.src.endsWith(src)) return;
+    metaLoaded.current = false;
     audio.src = src;
+    audio.defaultPlaybackRate = rate;
     audio.playbackRate = rate;
     setDuration(0);
   }, [track?.file_path]);
@@ -101,21 +104,8 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
 
     const onMeta = () => {
       const d = Number.isFinite(audio.duration) ? audio.duration : 0;
+      metaLoaded.current = d > 0;
       setDuration(d);
-      const target = pendingSeek.current;
-      pendingSeek.current = null;
-      if (target) {
-        // Bars for the new track are only known once its duration is.
-        const nextBars = resolveBars(piece?.timeline ?? null, d, track?.offset_s ?? 0);
-        const bar = nextBars[target.bar];
-        audio.currentTime = bar
-          ? bar.start + target.fraction * (bar.end - bar.start)
-          : Math.min(target.time, d);
-      }
-      if (resumeAfterLoad.current) {
-        resumeAfterLoad.current = false;
-        void audio.play();
-      }
     };
     const onTime = () => {
       checkLoop();
@@ -255,28 +245,42 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
     seek(b[target].start);
   }, [seek]);
 
+  // Switching voices restarts the current bar on the new track, just like
+  // tapping it, so recording, bar display and metronome start in step.
   const selectTrack = useCallback(
     (id: string) => {
       const audio = audioRef.current;
       if (!audio || id === track?.id) return;
-      const { bars: b, currentIndex: i } = live.current;
-      const bar = b[i];
-      pendingSeek.current = {
-        bar: i,
-        fraction: bar ? (audio.currentTime - bar.start) / Math.max(0.001, bar.end - bar.start) : 0,
+      pendingSwitch.current = {
+        bar: live.current.currentIndex,
         time: audio.currentTime,
+        resume: !audio.paused,
       };
-      resumeAfterLoad.current = !audio.paused;
+      if (!audio.paused) wakeAudio();
       audio.pause();
       setTrackId(id);
     },
-    [track?.id],
+    [track?.id, wakeAudio],
   );
+
+  // Runs once the new track's bars (and with them the clicks) are known.
+  useEffect(() => {
+    const target = pendingSwitch.current;
+    const audio = audioRef.current;
+    if (!target || !audio || !metaLoaded.current || duration <= 0) return;
+    pendingSwitch.current = null;
+    const bar = bars[target.bar];
+    if (bar && target.resume) return playBar(target.bar);
+    seek(bar ? bar.start : Math.min(target.time, duration));
+    if (target.resume) void audio.play();
+  }, [bars, duration, playBar, seek]);
 
   const setRate = useCallback((value: number) => {
     setRateState(value);
     const audio = audioRef.current;
     if (!audio) return;
+    // A newly loaded track starts at the default rate.
+    audio.defaultPlaybackRate = value;
     audio.playbackRate = value;
     // Practice at a slower tempo keeps the pitch (default, but be explicit).
     audio.preservesPitch = true;
