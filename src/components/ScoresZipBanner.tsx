@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Download, FileArchive, Loader2 } from 'lucide-react';
+import { FileArchive } from 'lucide-react';
+import { ActionCard } from './ActionCard';
 import { useI18n } from '@/lib/i18n';
 import { track } from '@/lib/analytics';
 import { pieceFileUrl, type PieceOverviewFile } from '@/lib/pieceFiles';
 import { createZip, safeFileName } from '@/lib/zip';
-import { cn } from '@/lib/cn';
 import type { Piece } from '@/types';
 
 const isPdf = (f: PieceOverviewFile) =>
@@ -78,37 +78,23 @@ export const ScoresZipBanner = ({
   };
 
   return (
-    <button
-      type="button"
+    <ActionCard
+      icon={FileArchive}
+      title={t('scoresZipTitle')}
+      busy={progress !== null}
       onClick={() => void download()}
-      disabled={progress !== null}
-      className={cn(
-        'group mb-3 flex w-full max-w-3xl items-center gap-3 rounded-xl border border-border bg-surface px-3 py-3 text-left transition-colors duration-150 hover:bg-surface-subtle sm:gap-4 sm:px-5',
-        progress && 'cursor-progress',
-      )}
-    >
-      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted text-text-secondary transition-colors duration-150 group-hover:bg-black group-hover:text-white">
-        <FileArchive size={18} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-medium">{t('scoresZipTitle')}</span>
-        <span className={cn('block text-sm', error || missing ? 'text-danger' : 'text-text-secondary')}>
-          {error
-            ? t('scoresZipError')
-            : missing && !progress
-              ? t('scoresZipMissing').replace('{n}', String(missing))
+      statusTone={error || missing ? 'danger' : 'muted'}
+      status={
+        error
+          ? t('scoresZipError')
+          : missing && !progress
+            ? t('scoresZipMissing').replace('{n}', String(missing))
             : progress
               ? `${t('scoresZipLoading')} ${progress.done}/${progress.total}`
               : `${entries.length} ${entries.length === 1 ? 'PDF' : 'PDFs'} · ${pieceCount} ${
                   pieceCount === 1 ? t('pieceSingular') : t('pieces')
-                } · ZIP`}
-        </span>
-      </span>
-      {progress ? (
-        <Loader2 size={18} className="flex-shrink-0 animate-spin text-text-secondary" />
-      ) : (
-        <Download size={18} className="flex-shrink-0 text-text-tertiary transition-colors group-hover:text-text" />
-      )}
-    </button>
+                } · ZIP`
+      }
+    />
   );
 };

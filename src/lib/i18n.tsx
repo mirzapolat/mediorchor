@@ -1081,6 +1081,7 @@ const dict: Dict = {
     de: 'Alle Stücke mit Noten und Aufnahmen auf diesem Gerät speichern – zum Üben ohne Internet.',
     en: 'Save all pieces with scores and recordings on this device — to practise without internet.',
   },
+  saveOfflineShort: { de: 'Zum Üben ohne Internet', en: 'To practise without internet' },
   savingOffline: { de: 'Speichere…', en: 'Saving…' },
   saveOfflineConfirm: { de: 'Jetzt herunterladen', en: 'Download now' },
   saveOfflineIntro: {
