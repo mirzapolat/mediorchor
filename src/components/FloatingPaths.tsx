@@ -4,10 +4,13 @@ import { cn } from '@/lib/cn';
 // Slowly flowing line strands behind the sign-in screens. Two mirrored sets of
 // curves in the text color (so they follow light/dark mode), drawn faintly and
 // animated with CSS only (see .floating-paths in index.css).
-const STRANDS = 28;
+// Every animated strand is repainted each frame, so keep the count low: 14 per
+// side, spaced every other step of the original 28 so the spread stays the same.
+const STRANDS = 14;
 
 const strands = (position: 1 | -1) =>
-  Array.from({ length: STRANDS }, (_, i) => {
+  Array.from({ length: STRANDS }, (_, n) => {
+    const i = n * 2;
     const x = i * 5 * position;
     return {
       id: `${position}-${i}`,
@@ -24,27 +27,33 @@ const strands = (position: 1 | -1) =>
 
 const PATHS = [...strands(1), ...strands(-1)];
 
+// Built once at module level: the element never changes, so React skips it when
+// the page above re-renders (e.g. on every keystroke in the login form).
+const SVG = (
+  <svg
+    className="floating-paths pointer-events-none absolute inset-0 -z-10 h-full w-full text-text animate-[fadein_1.2s_ease-out]"
+    viewBox="0 0 696 316"
+    preserveAspectRatio="xMidYMid slice"
+    fill="none"
+    aria-hidden="true"
+  >
+    {PATHS.map((p) => (
+      <path
+        key={p.id}
+        d={p.d}
+        pathLength={1}
+        stroke="currentColor"
+        strokeWidth={p.width}
+        strokeOpacity={p.opacity}
+        style={{ animationDuration: `${p.duration}s`, animationDelay: `${p.delay}s` }}
+      />
+    ))}
+  </svg>
+);
+
 export const FloatingPaths = ({ children, className }: { children: ReactNode; className?: string }) => (
   <div className={cn('relative isolate overflow-hidden', className)}>
-    <svg
-      className="floating-paths pointer-events-none absolute inset-0 -z-10 h-full w-full text-text animate-[fadein_1.2s_ease-out]"
-      viewBox="0 0 696 316"
-      preserveAspectRatio="xMidYMid slice"
-      fill="none"
-      aria-hidden="true"
-    >
-      {PATHS.map((p) => (
-        <path
-          key={p.id}
-          d={p.d}
-          pathLength={1}
-          stroke="currentColor"
-          strokeWidth={p.width}
-          strokeOpacity={p.opacity}
-          style={{ animationDuration: `${p.duration}s`, animationDelay: `${p.delay}s` }}
-        />
-      ))}
-    </svg>
+    {SVG}
     {children}
   </div>
 );
