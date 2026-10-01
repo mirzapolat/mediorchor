@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pieceFileUrl } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
-import { clicksFromBars, createAudioContext, runMetronome } from '@/lib/metronome';
+import { adjustClicks, clicksFromBars, createAudioContext, runMetronome } from '@/lib/metronome';
 import type { Piece, PieceFile } from '@/types';
 
 export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
@@ -62,7 +62,12 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
 
   // The metronome needs beats from a notation file and is off for
   // recordings that already have a click in them.
-  const clicks = useMemo(() => clicksFromBars(bars), [bars]);
+  const speed = piece?.metronome_speed || 1;
+  const shift = piece?.metronome_shift ?? 0;
+  const clicks = useMemo(
+    () => adjustClicks(clicksFromBars(bars), offset, speed, shift),
+    [bars, offset, speed, shift],
+  );
   const metronomeAvailable = clicks.length > 0;
   const trackHasClick = Boolean(track?.has_click);
   const metronome = metronomeOn && metronomeAvailable && !trackHasClick;

@@ -378,7 +378,16 @@ export const PieceDetailPage = () => {
   }
 
   // Metronome debugging (append ?metronome-debug to the URL); read-only.
-  if (searchParams.has('metronome-debug')) return <MetronomeDebug piece={piece} tracks={tracks} />;
+  if (searchParams.has('metronome-debug')) {
+    return (
+      <MetronomeDebug
+        piece={piece}
+        tracks={tracks}
+        canApply={canManage}
+        onApplied={(patch) => setPiece((p) => (p ? { ...p, ...patch } : p))}
+      />
+    );
+  }
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
   const hasCredit = piece.midi_credit_name.trim() !== '';
