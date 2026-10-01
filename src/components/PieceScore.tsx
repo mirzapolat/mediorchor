@@ -7,7 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Check, ChevronLeft, ChevronRight, RotateCcw, Trash2, Undo2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, RotateCcw, Stamp, Trash2, Undo2 } from 'lucide-react';
 import { PageSpinner } from './Spinner';
 import { Button } from './Button';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -81,7 +81,15 @@ export const PieceScore = memo(
     const [target, setTarget] = useState<string | null>(null);
     const [resetOpen, setResetOpen] = useState(false);
     const gesture = useRef<Gesture | null>(null);
-    const hold = useRef<{ timer: number; x: number; y: number } | null>(null);
+    // A touch that may turn into drawing once held; a quick tap stamps.
+    const hold = useRef<{ timer: number; x: number; y: number; page: number; el: HTMLElement } | null>(
+      null,
+    );
+    // Stamp mode: a click places a frame the size of the last one drawn.
+    const [template, setTemplate] = useState<{ w: number; h: number } | null>(null);
+    const [stamping, setStamping] = useState(false);
+    // Where the stamp would land under the mouse (preview).
+    const [hover, setHover] = useState<{ page: number; x: number; y: number } | null>(null);
 
     useEffect(() => {
       setDraft(anchors);
@@ -92,6 +100,11 @@ export const PieceScore = memo(
       if (!editing) return;
       history.current = [];
       setTarget(labels.find((l) => !anchors[l]) ?? labels[0] ?? null);
+      // Until something is drawn, the template is the last frame in the score.
+      const last = [...labels].reverse().map((l) => anchors[l]).find((a) => a && isFrame(a));
+      setTemplate(last ? { w: last.w as number, h: last.h as number } : null);
+      setStamping(false);
+      setHover(null);
       // Only when edit mode starts.
     }, [editing]);
 
@@ -164,6 +177,27 @@ export const PieceScore = memo(
       if (n) setTarget(n);
     };
 
+    // Frame of the template's size centred on the point (so the click lands
+    // in the empty bar, not on a neighbour's frame), kept on the page.
+    const stampFrame = (page: number, x: number, y: number): BarAnchor | null =>
+      template
+        ? {
+            page,
+            x: Math.max(0, Math.min(1 - template.w, x - template.w / 2)),
+            y: Math.max(0, Math.min(1 - template.h, y - template.h / 2)),
+            w: template.w,
+            h: template.h,
+          }
+        : null;
+
+    const placeStamp = (page: number, x: number, y: number) => {
+      const frame = stampFrame(page, x, y);
+      if (!target || !frame) return;
+      const next = { ...draftRef.current, [target]: frame };
+      commit(next);
+      setTarget(nextAfter(target, next));
+    };
+
     // ---- Gestures ----------------------------------------------------------
 
     const pointAt = (pageEl: HTMLElement, e: { clientX: number; clientY: number }) => {
@@ -201,6 +235,8 @@ export const PieceScore = memo(
       hold.current = {
         x: clientX,
         y: clientY,
+        page,
+        el,
         timer: window.setTimeout(() => {
           hold.current = null;
           const p = pointAt(el, { clientX, clientY });
@@ -264,28 +300,52 @@ export const PieceScore = memo(
       show({ ...draftRef.current, [g.label]: frame });
     };
 
-    const end = () => {
+    const end = (e: ReactPointerEvent<HTMLElement>) => {
+      const tap = hold.current;
       cancelHold();
       const g = gesture.current;
       gesture.current = null;
-      if (!g) return;
+      if (!g) {
+        // Touch: let go before the hold turned into drawing — a tap stamps.
+        if (tap && stamping && e.type === 'pointerup') {
+          const p = pointAt(tap.el, e);
+          placeStamp(tap.page, p.x, p.y);
+        }
+        return;
+      }
       // The state before the gesture: the frame's original (or no) mark.
       const before = { ...draftRef.current };
       if (g.origin) before[g.label] = g.origin;
       else delete before[g.label];
 
+      const frame = draftRef.current[g.label];
+      const tooSmall = !frame || (frame.w ?? 0) < MIN_SIZE || (frame.h ?? 0) < MIN_SIZE;
+      // A click (or a tiny jitter) in stamp mode places the template.
+      if (g.mode === 'draw' && stamping && (!g.moved || tooSmall)) {
+        show(before);
+        placeStamp(g.page, g.startX, g.startY);
+        return;
+      }
       if (!g.moved) {
         show(before);
         if (g.mode !== 'draw') setTarget(g.label); // a tap on a frame selects it
         return;
       }
-      const frame = draftRef.current[g.label];
-      if (g.mode === 'draw' && (!frame || (frame.w ?? 0) < MIN_SIZE || (frame.h ?? 0) < MIN_SIZE)) {
+      if (g.mode === 'draw' && tooSmall) {
         show(before);
         return;
       }
       commit(draftRef.current, before);
+      // Drawn or resized: its size becomes the template.
+      if (g.mode !== 'move' && frame) setTemplate({ w: frame.w ?? 0, h: frame.h ?? 0 });
       setTarget(g.mode === 'draw' ? nextAfter(g.label, draftRef.current) : g.label);
+    };
+
+    // Mouse only: the template follows the pointer as a preview.
+    const trackHover = (e: ReactPointerEvent<HTMLElement>, page: number) => {
+      if (!stamping || e.pointerType !== 'mouse' || gesture.current) return;
+      const p = pointAt(e.currentTarget, e);
+      setHover({ page, x: p.x, y: p.y });
     };
 
     // ---- Rendering ---------------------------------------------------------
@@ -294,10 +354,39 @@ export const PieceScore = memo(
       <div
         className={cn('absolute inset-0', editing && target && 'cursor-crosshair')}
         onPointerDown={editing ? (e) => startDraw(e, page) : undefined}
-        onPointerMove={editing ? move : undefined}
+        onPointerMove={
+          editing
+            ? (e) => {
+                move(e);
+                trackHover(e, page);
+              }
+            : undefined
+        }
         onPointerUp={editing ? end : undefined}
         onPointerCancel={editing ? end : undefined}
+        onPointerLeave={editing ? () => setHover(null) : undefined}
       >
+        {editing && stamping && target && hover?.page === page && (() => {
+          const ghost = stampFrame(page, hover.x, hover.y);
+          return (
+            ghost && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute z-20 rounded-sm border-2 border-dashed border-danger bg-danger/10"
+                style={{
+                  left: `${ghost.x * 100}%`,
+                  top: `${ghost.y * 100}%`,
+                  width: `${(ghost.w ?? 0) * 100}%`,
+                  height: `${(ghost.h ?? 0) * 100}%`,
+                }}
+              >
+                <span className="absolute -top-2.5 left-0 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold tabular-nums text-white shadow-sm sm:text-[11px]">
+                  {target}
+                </span>
+              </div>
+            )
+          );
+        })()}
         {labels
           .filter((label) => draft[label]?.page === page)
           .map((label) => {
@@ -434,7 +523,13 @@ export const PieceScore = memo(
                   {target ? `${t('bar')} ${target}` : t('allBarsPlaced')}
                 </div>
                 <div className="text-xs text-text-secondary">
-                  {target ? (draft[target] ? t('placeAgainHint') : t('placeHint')) : `${placedCount}/${labels.length}`}
+                  {target
+                    ? stamping
+                      ? t('stampHint')
+                      : draft[target]
+                        ? t('placeAgainHint')
+                        : t('placeHint')
+                    : `${placedCount}/${labels.length}`}
                 </div>
               </div>
               <button type="button" onClick={() => step(1)} aria-label={t('nextBar')} className={cn(iconButton, 'flex-shrink-0')}>
@@ -446,6 +541,23 @@ export const PieceScore = memo(
                 {placedCount}/{labels.length} {t('placed')}
               </span>
               <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStamping((on) => !on);
+                    setHover(null);
+                  }}
+                  disabled={!template}
+                  aria-pressed={stamping}
+                  title={template ? t('stampTitle') : t('stampNoTemplate')}
+                  className={cn(
+                    'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium disabled:opacity-40',
+                    stamping ? 'border-black bg-black text-white hover:bg-black-hover' : 'border-border hover:bg-surface-muted',
+                  )}
+                >
+                  <Stamp size={15} />
+                  <span className="hidden sm:inline">{t('stamp')}</span>
+                </button>
                 <button type="button" onClick={undo} aria-label={t('undo')} title={t('undo')} className={iconButton}>
                   <Undo2 size={15} />
                 </button>

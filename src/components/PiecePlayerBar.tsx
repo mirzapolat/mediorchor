@@ -13,6 +13,25 @@ const iconButton =
   'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-text-secondary sm:h-11 sm:w-11 ' +
   'hover:bg-surface-hover hover:text-text transition-colors duration-150 disabled:opacity-40';
 
+// Lucide has no metronome; drawn in the same stroke style.
+const MetronomeIcon = ({ size = 16 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M9.5 3h5l4.5 18H5L9.5 3z" />
+    <path d="M7 15h10" />
+    <path d="M12 15l5-9" />
+  </svg>
+);
+
 // Seek bar with the loop section and (when they fit) bar ticks drawn in. The
 // thumb carries the current bar number, so no separate status line is needed.
 // Tall invisible hit area so it is easy to grab with a thumb.
@@ -108,7 +127,7 @@ export const PiecePlayerBar = ({
   follow?: { on: boolean; onChange: (on: boolean) => void };
 }) => {
   const { t } = useI18n();
-  const { track, bars, currentBar, loop, playing } = player;
+  const { track, bars, currentBar, loop, playing, metronome } = player;
   const hasBars = bars.length > 0;
 
   // Other plays of the same bar (repeats), to hop between them.
@@ -283,6 +302,24 @@ export const PiecePlayerBar = ({
                 )}
               >
                 <LocateFixed size={16} />
+              </button>
+            )}
+            {metronome.available && (
+              <button
+                type="button"
+                onClick={() => metronome.setOn(!metronome.on)}
+                disabled={metronome.trackHasClick}
+                aria-pressed={metronome.on && !metronome.trackHasClick}
+                aria-label={t('metronome')}
+                title={metronome.trackHasClick ? t('metronomeInTrack') : t('metronome')}
+                className={cn(
+                  'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 disabled:opacity-40',
+                  metronome.on && !metronome.trackHasClick
+                    ? 'bg-black text-white hover:bg-black-hover'
+                    : 'text-text-secondary hover:bg-surface-hover hover:text-text',
+                )}
+              >
+                <MetronomeIcon />
               </button>
             )}
             <select

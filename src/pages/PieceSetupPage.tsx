@@ -10,10 +10,12 @@ import {
   RefreshCw,
   Trash2,
   Upload,
+  X,
   XCircle,
 } from 'lucide-react';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
+import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -337,6 +339,8 @@ export const PieceSetupPage = () => {
   const placed = labels.filter((l) => piece.bar_anchors[l]).length;
   const expected = timelineDuration(timeline);
   const mode = timingMode ?? (timeline?.source ?? (notationFile ? 'notation' : 'even'));
+  // Timelines read before the metronome existed carry no beats.
+  const hasBeats = timeline?.source === 'notation' && timeline.bars.some((b) => b.beats?.length);
 
   const fileRow = (f: PieceFile) => (
     <div className="space-y-2 p-3">
@@ -389,6 +393,15 @@ export const PieceSetupPage = () => {
                 className="h-7 w-16 rounded-md border border-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-black focus:outline-none"
               />
               s
+            </label>
+            <label className="inline-flex items-center gap-1.5" title={t('trackHasClickHint')}>
+              <input
+                type="checkbox"
+                className="h-4 w-4 flex-shrink-0 accent-black"
+                checked={f.has_click}
+                onChange={(e) => void updateFile(f, { has_click: e.target.checked })}
+              />
+              {t('trackHasClick')}
             </label>
             {durations[f.id] > 0 && <TrackCheck duration={durations[f.id]} expected={expected} offset={f.offset_s} />}
           </>
@@ -448,6 +461,15 @@ export const PieceSetupPage = () => {
           onBlur={(e) =>
             e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
           }
+        />
+      </Section>
+
+      <Section title={t('credits')} hint={t('midiCreditHint')}>
+        <CreditPicker
+          name={piece.midi_credit_name}
+          userId={piece.midi_credit_user_id}
+          photoUrl={piece.midi_credit_photo_url}
+          onChange={(credit) => void updatePiece(credit)}
         />
       </Section>
 
@@ -529,7 +551,11 @@ export const PieceSetupPage = () => {
                 </Chip>
               )}
               {expected != null && <Chip>{formatTime(expected)}</Chip>}
+              {hasBeats && <Chip>{t('metronomeReady')}</Chip>}
             </div>
+            )}
+            {timeline?.source === 'notation' && !hasBeats && notationFile && (
+              <p className="text-sm text-text-secondary">{t('metronomeReread')}</p>
             )}
             {notationFile && (
               <Button variant="secondary" onClick={() => void rereadNotation()} disabled={timingBusy}>
@@ -684,5 +710,129 @@ const TrackCheck = ({
       {formatTime(duration)}
       {!ok && ` · ${t(diff > 0 ? 'trackLonger' : 'trackShorter').replace('{s}', String(Math.round(Math.abs(diff))))}`}
     </span>
+  );
+};
+
+interface AccountResult {
+  id: string;
+  name: string;
+  email: string;
+  photo_url: string | null;
+}
+
+type Credit = Pick<Piece, 'midi_credit_name' | 'midi_credit_user_id'>;
+
+// Who made the MIDIs: any name, or an existing account picked from the
+// search below the field (its profile photo is then shown with the credit).
+const CreditPicker = ({
+  name,
+  userId,
+  photoUrl,
+  onChange,
+}: {
+  name: string;
+  userId: string | null;
+  photoUrl: string | null;
+  onChange: (credit: Credit) => void;
+}) => {
+  const { t } = useI18n();
+  const [value, setValue] = useState(name);
+  const [linked, setLinked] = useState(userId);
+  // The piece only learns the photo of a newly picked account on reload.
+  const [photo, setPhoto] = useState(photoUrl);
+  const [results, setResults] = useState<AccountResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  // Suggest accounts while typing a name (not for the linked one as is).
+  useEffect(() => {
+    const query = value.trim();
+    if (!searching || !query) {
+      setResults([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const { data } = await api.rpc('search_accounts', { p_query: query });
+      setResults((data as AccountResult[] | null) ?? []);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [value, searching]);
+
+  const pick = (account: AccountResult) => {
+    const accountName = account.name || account.email;
+    setValue(accountName);
+    setLinked(account.id);
+    setPhoto(account.photo_url);
+    setSearching(false);
+    onChange({ midi_credit_name: accountName, midi_credit_user_id: account.id });
+  };
+
+  // Typed by hand: a plain name, no longer tied to an account.
+  const commit = () => {
+    setSearching(false);
+    const trimmed = value.trim();
+    if (trimmed === name && linked === userId) return;
+    if (linked) return; // unchanged pick
+    setPhoto(null);
+    onChange({ midi_credit_name: trimmed, midi_credit_user_id: null });
+  };
+
+  const clear = () => {
+    setValue('');
+    setLinked(null);
+    setPhoto(null);
+    setSearching(false);
+    onChange({ midi_credit_name: '', midi_credit_user_id: null });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <Avatar name={value || '?'} photoUrl={linked ? photo : null} size={36} />
+        <input
+          value={value}
+          aria-label={t('midiCreditName')}
+          placeholder={t('midiCreditPlaceholder')}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setLinked(null);
+            setSearching(true);
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className="h-10 min-w-0 flex-1 rounded-md border border-border bg-white px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={clear}
+            aria-label={t('remove')}
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+      {results.length > 0 && (
+        <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-md border border-border p-1">
+          {results.map((account) => (
+            <button
+              key={account.id}
+              type="button"
+              // Keep the field focused so its blur doesn't save the typed text first.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(account)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors duration-150 hover:bg-surface-muted"
+            >
+              <Avatar name={account.name || account.email} photoUrl={account.photo_url} size={24} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{account.name || account.email}</span>
+                <span className="block truncate text-xs text-text-secondary">{account.email}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {linked && <p className="text-xs text-text-secondary">{t('midiCreditLinked')}</p>}
+    </div>
   );
 };

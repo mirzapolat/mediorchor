@@ -208,7 +208,12 @@ export interface Piece {
   composer: string;
   // Short line shown in the list; notes are Markdown shown on the piece page.
   description: string;
-  notes: string;
+  notes: string; // no longer shown (kept so no text is lost)
+  // Who made the MIDI files: a name, optionally linked to an account whose
+  // profile photo is mirrored onto the piece (read-only).
+  midi_credit_name: string;
+  midi_credit_user_id: string | null;
+  midi_credit_photo_url: string | null;
   timeline: PieceTimeline | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
@@ -231,6 +236,8 @@ export interface PieceFile {
   file_name: string | null;
   // Audio only: seconds of lead-in before the first bar.
   offset_s: number;
+  // Audio only: the recording already contains a metronome click.
+  has_click: boolean;
   position: number;
   created_at: string;
 }
@@ -241,6 +248,11 @@ export interface TimelineBar {
   label: string;
   start: number;
   end: number;
+  // Metronome beats as seconds from the bar start, from the meter and tempo
+  // in the notation file (missing on timelines read before the metronome).
+  beats?: number[];
+  // Whether the first beat is the bar's downbeat (not in a pickup bar).
+  downbeat?: boolean;
 }
 
 // The bar timeline shared by all audio tracks of a piece: either read from a

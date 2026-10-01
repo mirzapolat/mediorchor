@@ -9,6 +9,9 @@ export interface PlayedBar {
   end: number;
   occurrence: number; // 1-based
   occurrences: number;
+  // Metronome beats in recording time (notation timelines only).
+  beats: number[];
+  downbeat: boolean;
 }
 
 // Maps the piece timeline onto a recording: `offset` is the lead-in before
@@ -19,7 +22,7 @@ export const resolveBars = (
   offset: number,
 ): PlayedBar[] => {
   if (!timeline) return [];
-  let raw: Array<{ label: string; start: number; end: number }>;
+  let raw: Array<{ label: string; start: number; end: number; beats: number[]; downbeat: boolean }>;
   if (timeline.source === 'even') {
     const count = timeline.last - timeline.first + 1;
     if (count < 1 || duration <= 0) return [];
@@ -28,9 +31,17 @@ export const resolveBars = (
       label: String(timeline.first + i),
       start: offset + i * length,
       end: offset + (i + 1) * length,
+      beats: [],
+      downbeat: false,
     }));
   } else {
-    raw = timeline.bars.map((b) => ({ label: b.label, start: offset + b.start, end: offset + b.end }));
+    raw = timeline.bars.map((b) => ({
+      label: b.label,
+      start: offset + b.start,
+      end: offset + b.end,
+      beats: (b.beats ?? []).map((s) => offset + b.start + s),
+      downbeat: b.downbeat ?? false,
+    }));
   }
 
   const totals = new Map<string, number>();

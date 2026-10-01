@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Outlet, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, Tags, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
@@ -72,6 +72,7 @@ export const RequireProjectManage = () => {
 export const ProjectLayout = () => {
   const { t } = useI18n();
   const { projectId } = useParams();
+  const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId') != null;
   const navigate = useNavigate();
   // Project settings need access to all projects, not just this one.
   const { canManageProjects } = useAuth();
@@ -166,7 +167,8 @@ export const ProjectLayout = () => {
       </Sidebar>
 
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
+        {/* A piece's practice page uses the full width: the score grows with the screen. */}
+        <div className={cn('p-4 sm:p-6 lg:p-8', !pieceOpen && 'max-w-[1400px]')}>
           <ProjectGroupsProvider projectId={project.id}>
             <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
           </ProjectGroupsProvider>

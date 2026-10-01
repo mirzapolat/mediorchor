@@ -308,6 +308,15 @@ export const policies: Record<string, TablePolicy> = {
   pieces: {
     ...all((a) => canAccessProject(`${a}.project_id`)),
     select: (a) => or(canAccessProject(`${a}.project_id`), participantCanSeePieces(`${a}.project_id`)),
+    // The credit photo mirrors the linked account's (database triggers).
+    validateUpdate: (oldRow, patch) => {
+      if (
+        'midi_credit_photo_url' in patch &&
+        normalize(patch.midi_credit_photo_url) !== normalize(oldRow.midi_credit_photo_url)
+      ) {
+        throw new ApiError('The credit photo comes from the linked account', 403, '42501');
+      }
+    },
   },
 
   piece_files: {

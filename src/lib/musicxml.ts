@@ -92,6 +92,9 @@ interface Measure {
   quarters: number; // actual length in quarter notes
   tempos: TempoEvent[];
   meter: string | null; // time signature set in this bar
+  beats: number; // time signature in effect (top part)
+  beatType: number;
+  implicit: boolean; // pickup / incomplete bar not counted in the numbering
   forward: boolean;
   backward: boolean;
   times: number; // how often a repeated section is played in total
@@ -170,7 +173,10 @@ const scanMeasure = (
         if (div > 0) state.divisions = div;
         const time = el.querySelector('time');
         if (time && !time.querySelector('senza-misura')) {
-          const beats = num(time.querySelector('beats'));
+          // Composite meters ("3+2") add up.
+          const beats = (time.querySelector('beats')?.textContent ?? '')
+            .split('+')
+            .reduce((sum, part) => sum + (parseFloat(part) || 0), 0);
           const beatType = num(time.querySelector('beat-type'));
           if (beats > 0 && beatType > 0) {
             state.beats = beats;
@@ -209,7 +215,7 @@ const scanMeasure = (
   }
   const quarters =
     maxPos > 0 ? maxPos / state.divisions : (state.beats * 4) / state.beatType;
-  return { quarters, tempos, meter };
+  return { quarters, tempos, meter, beats: state.beats, beatType: state.beatType };
 };
 
 const parseScore = (xml: string): Measure[] => {
@@ -227,6 +233,9 @@ const parseScore = (xml: string): Measure[] => {
     quarters: 0,
     tempos: [],
     meter: null,
+    beats: 4,
+    beatType: 4,
+    implicit: m.getAttribute('implicit') === 'yes',
     forward: false,
     backward: false,
     times: 2,
@@ -252,7 +261,11 @@ const parseScore = (xml: string): Measure[] => {
       for (const ev of scan.tempos) {
         if (!target.tempos.some((t) => Math.abs(t.pos - ev.pos) < 1e-6)) target.tempos.push(ev);
       }
-      if (partIndex === 0) target.meter = scan.meter;
+      if (partIndex === 0) {
+        target.meter = scan.meter;
+        target.beats = scan.beats;
+        target.beatType = scan.beatType;
+      }
     });
   });
 
@@ -309,22 +322,55 @@ const parseScore = (xml: string): Measure[] => {
 
 const DEFAULT_QPM = 120; // MuseScore's default when a score has no tempo mark
 
-// Seconds per written bar, carrying the tempo along in written order (the
-// tempo map follows the score, not the playback order).
-const measureSeconds = (measures: Measure[]): number[] => {
+// Length of one metronome beat in quarter notes: the meter's denominator,
+// or a dotted beat in compound meters (6/8, 9/8, 12/16 …) — as MuseScore
+// counts them.
+const beatQuarters = (beats: number, beatType: number) =>
+  beatType >= 8 && beats > 3 && beats % 3 === 0 ? (3 * 4) / beatType : 4 / beatType;
+
+interface MeasureTiming {
+  seconds: number;
+  beats: number[]; // seconds from the bar start
+  downbeat: boolean;
+}
+
+// Timing per written bar, carrying the tempo along in written order (the
+// tempo map follows the score, not the playback order): its length and
+// where its metronome beats fall.
+const measureTiming = (measures: Measure[]): MeasureTiming[] => {
   let qpm = DEFAULT_QPM;
-  return measures.map((m) => {
+  return measures.map((m, index) => {
     const events = [...m.tempos].sort((a, b) => a.pos - b.pos);
+    // Tempo segments of the bar: from `pos` on, `qpm` applies.
+    const segments: Array<{ pos: number; at: number; qpm: number }> = [];
     let seconds = 0;
     let pos = 0;
     for (const ev of events) {
       const until = Math.min(ev.pos, m.quarters);
+      segments.push({ pos, at: seconds, qpm });
       seconds += ((until - pos) * 60) / qpm;
       pos = Math.max(pos, until);
       qpm = ev.qpm;
     }
+    segments.push({ pos, at: seconds, qpm });
     seconds += ((m.quarters - pos) * 60) / qpm;
-    return seconds;
+
+    const timeAt = (q: number) => {
+      let seg = segments[0];
+      for (const s of segments) if (s.pos <= q + 1e-9) seg = s;
+      return seg.at + ((q - seg.pos) * 60) / seg.qpm;
+    };
+
+    // A pickup bar is the end of a full bar: its beats line up from the end.
+    const nominal = (m.beats * 4) / m.beatType;
+    const pickup = (m.implicit || index === 0) && m.quarters < nominal - 1e-6;
+    const shift = pickup ? nominal - m.quarters : 0;
+    const unit = beatQuarters(m.beats, m.beatType);
+    const beats: number[] = [];
+    for (let k = Math.ceil(shift / unit - 1e-6); k * unit - shift < m.quarters - 1e-6; k++) {
+      beats.push(round(timeAt(k * unit - shift)));
+    }
+    return { seconds, beats, downbeat: shift < 1e-6 };
   });
 };
 
@@ -412,12 +458,13 @@ const unfold = (measures: Measure[]): number[] => {
 
 export const parseNotation = async (file: Blob): Promise<NotationTimeline> => {
   const measures = parseScore(await readXmlText(file));
-  const seconds = measureSeconds(measures);
+  const timing = measureTiming(measures);
   const bars: TimelineBar[] = [];
   let t = 0;
   for (const index of unfold(measures)) {
-    const end = t + seconds[index];
-    bars.push({ label: measures[index].label, start: round(t), end: round(end) });
+    const { seconds, beats, downbeat } = timing[index];
+    const end = t + seconds;
+    bars.push({ label: measures[index].label, start: round(t), end: round(end), beats, downbeat });
     t = end;
   }
   if (bars.length === 0) throw new NotationError('empty');

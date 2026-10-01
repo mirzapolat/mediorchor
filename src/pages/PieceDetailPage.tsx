@@ -13,7 +13,6 @@ import {
   Minimize2,
   Music,
   Paperclip,
-  Pencil,
   Settings2,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,13 +20,12 @@ import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
-import { MarkdownEditor } from '@/components/MarkdownEditor';
+import { Avatar } from '@/components/Avatar';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { Markdown } from '@/lib/markdown';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { loadPiece, loadPieceFiles, pieceFileDownloadUrl, pieceFileUrl } from '@/lib/pieceFiles';
@@ -36,7 +34,7 @@ import { useProjectContext } from '@/layouts/projectContext';
 import { cn } from '@/lib/cn';
 import type { BarAnchor, Piece, PieceFile, PieceFileKind } from '@/types';
 
-type Tab = 'score' | 'notes' | 'files';
+type Tab = 'score' | 'credits' | 'files';
 
 const FOLLOW_KEY = 'anwesenheit.pieces.follow';
 
@@ -111,64 +109,21 @@ const FileList = memo(({ files }: { files: PieceFile[] }) => {
 });
 FileList.displayName = 'FileList';
 
-const Notes = memo(
-  ({ piece, canManage, onSaved }: { piece: Piece; canManage: boolean; onSaved: (notes: string) => void }) => {
-    const { t } = useI18n();
-    const [editing, setEditing] = useState(false);
-    const [value, setValue] = useState(piece.notes);
-    const [busy, setBusy] = useState(false);
-
-    const save = async () => {
-      setBusy(true);
-      const { error } = await api.from('pieces').update({ notes: value }).eq('id', piece.id);
-      setBusy(false);
-      if (!error) {
-        onSaved(value);
-        setEditing(false);
-      }
-    };
-
-    if (editing) {
-      return (
-        <div className="space-y-3">
-          <MarkdownEditor id="piece-notes" value={value} onChange={setValue} minHeight={220} />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditing(false)}>
-              {t('cancel')}
-            </Button>
-            <Button onClick={save} disabled={busy}>
-              {busy ? t('loading') : t('save')}
-            </Button>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        {piece.notes.trim() ? (
-          <Markdown source={piece.notes} className="space-y-3 leading-relaxed text-text" />
-        ) : (
-          <p className="text-sm text-text-secondary">{t('noNotes')}</p>
-        )}
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => {
-              setValue(piece.notes);
-              setEditing(true);
-            }}
-            className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text"
-          >
-            <Pencil size={14} />
-            {piece.notes.trim() ? t('editNotes') : t('addNotes')}
-          </button>
-        )}
+// Who made the MIDI files, with their profile photo. Display only:
+// nothing here links anywhere.
+const Credits = memo(({ piece }: { piece: Piece }) => {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center gap-3">
+      <Avatar name={piece.midi_credit_name} photoUrl={piece.midi_credit_photo_url} size={40} />
+      <div className="min-w-0">
+        <p className="truncate font-medium">{piece.midi_credit_name}</p>
+        <p className="text-sm text-text-secondary">{t('midiCreditRole')}</p>
       </div>
-    );
-  },
-);
-Notes.displayName = 'Notes';
+    </div>
+  );
+});
+Credits.displayName = 'Credits';
 
 const SectionTitle = ({ children }: { children: string }) => (
   <h2 className="mb-3 hidden text-sm font-semibold lg:block">{children}</h2>
@@ -360,11 +315,6 @@ export const PieceDetailPage = () => {
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const onNotesSaved = useCallback(
-    (notes: string) => setPiece((p) => (p ? { ...p, notes } : p)),
-    [],
-  );
-
   if (loading) return <PageSpinner />;
   if (!piece) {
     navigate(`/projects/${project.id}/pieces`);
@@ -372,6 +322,7 @@ export const PieceDetailPage = () => {
   }
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
+  const hasCredit = piece.midi_credit_name.trim() !== '';
   // The bar grid is only the fallback for pieces without a score PDF.
   const showGrid = bars.length > 0 && !score;
   const nothingYet = !score && bars.length === 0 && tracks.length === 0;
@@ -391,7 +342,8 @@ export const PieceDetailPage = () => {
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'score', label: t('scoreTab') },
-    { id: 'notes', label: t('notes') },
+    // Only when someone is credited.
+    ...(hasCredit ? [{ id: 'credits' as const, label: t('credits') }] : []),
     { id: 'files', label: `${t('files')}${files.length ? ` · ${files.length}` : ''}` },
   ];
 
@@ -519,10 +471,12 @@ export const PieceDetailPage = () => {
 
   const notesAndFiles = (
     <>
-      <section className={cn(tab !== 'notes' && 'max-lg:hidden')}>
-        <SectionTitle>{t('notes')}</SectionTitle>
-        <Notes piece={piece} canManage={canManage} onSaved={onNotesSaved} />
-      </section>
+      {hasCredit && (
+        <section className={cn(tab !== 'credits' && 'max-lg:hidden')}>
+          <SectionTitle>{t('credits')}</SectionTitle>
+          <Credits piece={piece} />
+        </section>
+      )}
       <section className={cn(tab !== 'files' && 'max-lg:hidden')}>
         <SectionTitle>{t('files')}</SectionTitle>
         <FileList files={files} />

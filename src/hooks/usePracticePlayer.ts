@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pieceFileUrl } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
+import { clicksFromBars, createAudioContext, runMetronome } from '@/lib/metronome';
 import type { Piece, PieceFile } from '@/types';
 
 export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
+
+const METRONOME_KEY = 'mediorchor.metronome';
 
 // A loop section in played-bar indices (inclusive).
 export interface LoopRange {
@@ -22,7 +25,8 @@ interface MusicalPosition {
 
 // Drives practice playback for a piece: one <audio> element that switches
 // between the voice tracks while keeping the position, bar-accurate jumps,
-// a loop section, playback speed, and the phone's lock-screen controls.
+// a loop section, playback speed, a metronome from the notation file, and
+// the phone's lock-screen controls.
 export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   if (audioRef.current === null && typeof Audio !== 'undefined') {
@@ -36,6 +40,15 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
   const [playing, setPlaying] = useState(false);
   const [rate, setRateState] = useState(1);
   const [loop, setLoopState] = useState<LoopRange | null>(null);
+  // Whether the metronome is wanted; remembered per browser.
+  const [metronomeOn, setMetronomeOn] = useState(() => {
+    try {
+      return localStorage.getItem(METRONOME_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const audioCtx = useRef<AudioContext | null>(null);
 
   const track = tracks.find((t) => t.id === trackId) ?? tracks[0] ?? null;
   const offset = track?.offset_s ?? 0;
@@ -47,9 +60,18 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
   const currentIndex = barIndexAt(bars, time);
   const currentBar: PlayedBar | null = currentIndex >= 0 ? bars[currentIndex] : null;
 
+  // The metronome needs beats from a notation file and is off for
+  // recordings that already have a click in them.
+  const clicks = useMemo(() => clicksFromBars(bars), [bars]);
+  const metronomeAvailable = clicks.length > 0;
+  const trackHasClick = Boolean(track?.has_click);
+  const metronome = metronomeOn && metronomeAvailable && !trackHasClick;
+
   // Latest values for the event handlers / animation loop.
   const live = useRef({ bars, loop, currentIndex });
   live.current = { bars, loop, currentIndex };
+  const metronomeRef = useRef(metronomeOn);
+  metronomeRef.current = metronomeOn;
   const pendingSeek = useRef<MusicalPosition | null>(null);
   const resumeAfterLoad = useRef(false);
   const playTracked = useRef(false);
@@ -176,16 +198,25 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
     [setLoop],
   );
 
+  // Browsers only let audio start from a user gesture: wake the
+  // metronome's audio context whenever playback is started by one.
+  const wakeAudio = useCallback(() => {
+    if (!metronomeRef.current) return;
+    audioCtx.current ??= createAudioContext();
+    void audioCtx.current?.resume();
+  }, []);
+
   const play = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    wakeAudio();
     const { bars: b, loop: l } = live.current;
     // Starting outside the loop section starts at its beginning.
     if (l && b[l.from] && (audio.currentTime < b[l.from].start || audio.currentTime >= b[l.to].end)) {
       audio.currentTime = b[l.from].start;
     }
     void audio.play();
-  }, []);
+  }, [wakeAudio]);
 
   const pause = useCallback(() => audioRef.current?.pause(), []);
 
@@ -199,9 +230,10 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
       const bar = live.current.bars[index];
       if (!bar) return;
       seek(bar.start);
+      wakeAudio();
       void audioRef.current?.play();
     },
-    [seek],
+    [seek, wakeAudio],
   );
 
   // Like a music player's "previous": back to the start of the current bar,
@@ -249,6 +281,39 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
     // Practice at a slower tempo keeps the pitch (default, but be explicit).
     audio.preservesPitch = true;
   }, []);
+
+  const setMetronome = useCallback((on: boolean) => {
+    metronomeRef.current = on;
+    setMetronomeOn(on);
+    if (on) wakeAudio();
+    try {
+      localStorage.setItem(METRONOME_KEY, on ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
+  }, [wakeAudio]);
+
+  // Clicks run alongside playback; restarted on any change of beats/track.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!metronome || !playing || !audio) return;
+    audioCtx.current ??= createAudioContext();
+    const ctx = audioCtx.current;
+    if (!ctx) return;
+    void ctx.resume();
+    return runMetronome(ctx, audio, clicks, () => {
+      const { bars: b, loop: l } = live.current;
+      return l && b[l.to] ? b[l.to].end : null;
+    });
+  }, [metronome, playing, clicks]);
+
+  useEffect(
+    () => () => {
+      void audioCtx.current?.close();
+      audioCtx.current = null;
+    },
+    [],
+  );
 
   // Lock-screen / headset controls on phones.
   useEffect(() => {
@@ -302,6 +367,13 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
     setRate,
     loop,
     setLoop,
+    metronome: {
+      on: metronomeOn,
+      setOn: setMetronome,
+      // Beats known for this piece / the current track already clicks.
+      available: metronomeAvailable,
+      trackHasClick,
+    },
   };
 };
 
