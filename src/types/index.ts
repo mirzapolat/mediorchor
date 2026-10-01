@@ -214,10 +214,6 @@ export interface Piece {
   midi_credit_name: string;
   midi_credit_user_id: string | null;
   midi_credit_photo_url: string | null;
-  // Metronome correction (debug view): clicks stretched around bar one by
-  // `metronome_speed` (1 = as notated) and moved by `metronome_shift` seconds.
-  metronome_speed: number;
-  metronome_shift: number;
   timeline: PieceTimeline | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;

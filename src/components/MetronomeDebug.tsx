@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { pieceFileUrl } from '@/lib/pieceFiles';
 import { resolveBars, formatTime } from '@/lib/pieceTimeline';
-import { adjustClicks, clicksFromBars, createAudioContext, runMetronome, type Click } from '@/lib/metronome';
-import { api } from '@/lib/api';
+import { clicksFromBars, createAudioContext, runMetronome, type Click } from '@/lib/metronome';
 import { estimateBeatShift } from '@/lib/beatAlignment';
 import type { Piece, PieceFile } from '@/types';
 
@@ -66,45 +65,15 @@ const Slider = ({
   </label>
 );
 
-// Lines are drawn this much later than the clicks actually play, to match
-// where the ticks are heard (display only).
-const DISPLAY_OFFSET_S = 0.055;
-
-export const MetronomeDebug = ({
-  piece,
-  tracks,
-  canApply,
-  onApplied,
-}: {
-  piece: Piece;
-  tracks: PieceFile[];
-  // Managers can store the sliders as the piece's metronome correction.
-  canApply: boolean;
-  onApplied: (patch: Pick<Piece, 'metronome_speed' | 'metronome_shift'>) => void;
-}) => {
+export const MetronomeDebug = ({ piece, tracks }: { piece: Piece; tracks: PieceFile[] }) => {
   const [trackId, setTrackId] = useState(tracks[0]?.id ?? '');
   const track = tracks.find((t) => t.id === trackId) ?? tracks[0] ?? null;
   const offset = track?.offset_s ?? 0;
 
   const [buffer, setBuffer] = useState<AudioBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Start from the piece's stored correction, so the sliders show (and
-  // play) what the real player uses.
-  const [speed, setSpeed] = useState(piece.metronome_speed || 1);
-  const [shift, setShift] = useState(piece.metronome_shift ?? 0);
-  const [applyState, setApplyState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const applied = speed === (piece.metronome_speed || 1) && shift === (piece.metronome_shift ?? 0);
-  const apply = async () => {
-    setApplyState('saving');
-    const patch = { metronome_speed: speed, metronome_shift: shift };
-    const { error } = await api.from('pieces').update(patch).eq('id', piece.id);
-    if (error) {
-      setApplyState('error');
-      return;
-    }
-    onApplied(patch);
-    setApplyState('saved');
-  };
+  const [speed, setSpeed] = useState(1);
+  const [shift, setShift] = useState(0);
   const [zoom, setZoom] = useState(80); // px per second
   const [clicksOn, setClicksOn] = useState(true);
   const [quiet, setQuiet] = useState(false);
@@ -172,7 +141,11 @@ export const MetronomeDebug = ({
   // The clicks as the player computes them, then stretched around bar one
   // (speed) and moved (shift) by the sliders.
   const clicks: Click[] = useMemo(
-    () => adjustClicks(clicksFromBars(bars), offset, speed, shift),
+    () =>
+      clicksFromBars(bars).map((c) => ({
+        ...c,
+        time: offset + (c.time - offset) / speed + shift,
+      })),
     [bars, offset, speed, shift],
   );
 
@@ -228,14 +201,14 @@ export const MetronomeDebug = ({
     if (!g) return;
     g.clearRect(0, 0, width, WAVE_HEIGHT);
     for (const c of clicks) {
-      const x = Math.round((c.time + DISPLAY_OFFSET_S) * pxPerSec);
+      const x = Math.round(c.time * pxPerSec);
       g.fillStyle = c.accent ? token('--c-danger') : token('--c-chart-1', 0.8);
       g.fillRect(x, 0, c.accent ? 2 : 1, WAVE_HEIGHT);
     }
     g.font = '11px system-ui, sans-serif';
     g.fillStyle = token('--c-danger');
     for (const b of bars) {
-      const start = offset + (b.start - offset) / speed + shift + DISPLAY_OFFSET_S;
+      const start = offset + (b.start - offset) / speed + shift;
       g.fillText(b.label, Math.round(start * pxPerSec) + 3, 12);
     }
     g.strokeStyle = token('--c-success');
@@ -328,8 +301,7 @@ export const MetronomeDebug = ({
       <div>
         <h1 className="text-xl font-bold">Metronom-Debug · {piece.name}</h1>
         <p className="text-sm text-text-secondary">
-          Zum Untersuchen – gespeichert wird nur über „Im Player anwenden“. Striche sind 55 ms später
-          gezeichnet, als die Klicks gestartet werden (dort sind sie zu hören). Rot: Taktanfänge (betonte Klicks), blau: übrige
+          Nur zum Untersuchen – hier wird nichts gespeichert. Rot: Taktanfänge (betonte Klicks), blau: übrige
           Schläge, grün gestrichelt: Vorlauf der Tonspur. Klick in die Wellenform springt dorthin, Leertaste
           spielt/pausiert.
         </p>
@@ -468,26 +440,6 @@ export const MetronomeDebug = ({
             Übernehmen
           </button>
         )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void apply()}
-          disabled={!canApply || applied || applyState === 'saving'}
-          className="flex h-10 items-center rounded-full bg-black px-4 text-sm font-medium text-white hover:bg-black-hover disabled:opacity-40"
-        >
-          Im Player anwenden
-        </button>
-        <span className="text-sm text-text-secondary">
-          {!canApply
-            ? 'Nur Verwalter können die Werte für das Stück speichern.'
-            : applyState === 'error'
-              ? 'Speichern fehlgeschlagen.'
-              : applied
-                ? `Aktiv im Player für alle: ${(speed * 100).toFixed(2)} %, ${shift >= 0 ? '+' : ''}${(shift * 1000).toFixed(0)} ms`
-                : 'Geschwindigkeit und Verschiebung für dieses Stück speichern – gilt für alle, die es öffnen.'}
-        </span>
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm tabular-nums sm:grid-cols-4">

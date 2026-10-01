@@ -9,13 +9,6 @@ export interface Click {
 export const clicksFromBars = (bars: PlayedBar[]): Click[] =>
   bars.flatMap((b) => b.beats.map((time, i) => ({ time, accent: i === 0 && b.downbeat })));
 
-// The piece's metronome correction: stretched around bar one (`offset`, the
-// track's lead-in) by `speed` and moved by `shift` seconds.
-export const adjustClicks = (clicks: Click[], offset: number, speed: number, shift: number): Click[] =>
-  speed === 1 && shift === 0
-    ? clicks
-    : clicks.map((c) => ({ ...c, time: offset + (c.time - offset) / speed + shift }));
-
 export const createAudioContext = (): AudioContext | null => {
   const Ctx =
     window.AudioContext ??
