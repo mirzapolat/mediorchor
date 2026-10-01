@@ -30,10 +30,10 @@ const tick = (ctx: AudioContext, at: number, accent: boolean): OscillatorNode =>
   return osc;
 };
 
-// Ticks were measured (metronome debug view) to sound ~100 ms after the
+// Ticks were measured (metronome debug view) to sound ~140 ms after the
 // moment they are scheduled for, on top of the latency the browser
 // reports, so every tick starts this much earlier.
-const EXTRA_LEAD_S = 0.1;
+const EXTRA_LEAD_S = 0.14;
 
 // First click at or after `time` (binary search).
 const firstClickFrom = (clicks: Click[], time: number) => {
