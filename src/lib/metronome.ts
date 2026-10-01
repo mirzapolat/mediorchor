@@ -30,6 +30,11 @@ const tick = (ctx: AudioContext, at: number, accent: boolean): OscillatorNode =>
   return osc;
 };
 
+// Ticks were measured (metronome debug view) to sound ~100 ms after the
+// moment they are scheduled for, on top of the latency the browser
+// reports, so every tick starts this much earlier.
+const EXTRA_LEAD_S = 0.1;
+
 // First click at or after `time` (binary search).
 const firstClickFrom = (clicks: Click[], time: number) => {
   let lo = 0;
@@ -124,7 +129,7 @@ export const runMetronome = (
 
     const rate = audio.playbackRate || 1;
     const now = positionAt(clock);
-    const lead = measureLatency();
+    const lead = measureLatency() + EXTRA_LEAD_S;
     // Timers run rarely in background tabs: look further ahead there. The
     // look-ahead also covers the latency the ticks are pulled forward by.
     const ahead = ((document.hidden ? 1.5 : 0.25) + lead) * rate;

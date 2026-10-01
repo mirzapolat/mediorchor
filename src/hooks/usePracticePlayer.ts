@@ -3,6 +3,7 @@ import { pieceFileUrl } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
 import { clicksFromBars, createAudioContext, runMetronome } from '@/lib/metronome';
+import { measureRecordingShift } from '@/lib/beatAlignment';
 import type { Piece, PieceFile } from '@/types';
 
 export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
@@ -62,10 +63,38 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
 
   // The metronome needs beats from a notation file and is off for
   // recordings that already have a click in them.
-  const clicks = useMemo(() => clicksFromBars(bars), [bars]);
-  const metronomeAvailable = clicks.length > 0;
+  const beats = useMemo(() => clicksFromBars(bars), [bars]);
+  const metronomeAvailable = beats.length > 0;
   const trackHasClick = Boolean(track?.has_click);
   const metronome = metronomeOn && metronomeAvailable && !trackHasClick;
+
+  // The clicks are laid onto the note onsets measured in the recording
+  // itself, so they fit whatever lead-in is set. Measured once per track
+  // (and timing) right when it loads, so it is ready before anyone
+  // switches the metronome on.
+  const [shifts, setShifts] = useState<Record<string, number>>({});
+  const shiftKey = track ? `${track.id}|${offset}|${beats.length}|${beats[0]?.time ?? 0}` : '';
+  useEffect(() => {
+    if (!metronomeAvailable || trackHasClick || !track?.file_path || shiftKey in shifts) return;
+    let cancelled = false;
+    const key = shiftKey;
+    void measureRecordingShift(
+      pieceFileUrl(track.file_path),
+      beats.map((c) => c.time),
+    )
+      .catch(() => 0)
+      .then((shift) => {
+        if (!cancelled) setShifts((s) => ({ ...s, [key]: shift }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [metronomeAvailable, trackHasClick, track?.file_path, shiftKey]);
+  const shift = shifts[shiftKey] ?? 0;
+  const clicks = useMemo(
+    () => (shift ? beats.map((c) => ({ ...c, time: c.time + shift })) : beats),
+    [beats, shift],
+  );
 
   // Latest values for the event handlers / animation loop.
   const live = useRef({ bars, loop, currentIndex });

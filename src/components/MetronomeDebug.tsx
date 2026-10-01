@@ -152,7 +152,7 @@ export const MetronomeDebug = ({ piece, tracks }: { piece: Piece; tracks: PieceF
   // Where the recording's note onsets say the beats belong (from the
   // unshifted clicks, so it is the correction the clicks need).
   const measured = useMemo(
-    () => (buffer ? estimateBeatShift(buffer, clicksFromBars(bars).map((c) => c.time)) : null),
+    () => (buffer ? estimateBeatShift(buffer, clicksFromBars(bars).map((c) => c.time), 1) : null),
     [buffer, bars],
   );
 
