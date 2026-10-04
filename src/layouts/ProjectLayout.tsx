@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
+import type { PieceScope } from '@/layouts/pieceScope';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { useAuth } from '@/hooks/useAuth';
 import { FadingText } from '@/components/FadingText';
@@ -52,11 +53,20 @@ export const ProjectIndexRedirect = () => {
 };
 
 // Wraps the Stücke pages: participants only get in while the project shows
-// the pieces page to participants (managers always do).
+// the pieces page to participants (managers always do). Gives the pages
+// their scope: this project's pieces, edited with the pieces permission.
 export const RequirePiecesAccess = () => {
   const ctx = useProjectContext();
+  const { hasFullPieceAccess, canEditProjectPieces } = useAuth();
   if (!ctx.canManage && !ctx.project.allow_participant_pieces) return <NoAccess />;
-  return <Outlet context={ctx} />;
+  const pieceScope: PieceScope = {
+    base: `/projects/${ctx.project.id}/pieces`,
+    projectId: ctx.project.id,
+    canEdit: hasFullPieceAccess || (ctx.canManage && canEditProjectPieces),
+    canManageProject: ctx.canManage,
+    canDelete: hasFullPieceAccess,
+  };
+  return <Outlet context={{ ...ctx, pieceScope }} />;
 };
 
 // Wraps the management-only pages; participants get the no-access notice.

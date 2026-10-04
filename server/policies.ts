@@ -6,7 +6,7 @@
 //   delete → target rows must satisfy `delete`
 //   insert → new rows must satisfy `insert`
 // A missing predicate denies the operation. auth_uid() is the calling user.
-import { ApiError } from './db.ts';
+import { ApiError, db } from './db.ts';
 import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
 import { hasSecondFactor } from './mfa.ts';
 
@@ -30,7 +30,8 @@ export interface TablePolicy {
 
 // --- helpers (formerly security-definer SQL functions) ----------------------
 
-const or = (...parts: string[]) => parts.map((p) => `(${p})`).join(' or ');
+// Wrapped as a whole, so `x and ${or(a, b)}` means `x and (a or b)`.
+const or = (...parts: string[]) => `(${parts.map((p) => `(${p})`).join(' or ')})`;
 
 export const isAdmin = () =>
   `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.is_admin)`;
@@ -61,6 +62,32 @@ export const isProjectParticipant = (pid: string) => `exists (
 const participantCanSeePieces = (pid: string) => `(${isProjectParticipant(pid)} and exists (
   select 1 from projects _pp where _pp.id = ${pid} and _pp.allow_participant_pieces
 ))`;
+
+// --- pieces (one collection shared by all projects, see migration 0032) ----
+
+// Edits every piece and opens the collection page: admins and the 'all' level.
+export const hasFullPieceAccess = () =>
+  `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.piece_access = 'all'))`;
+
+// The 'projects' level: edits pieces of projects one manages.
+const hasProjectPieceAccess = () =>
+  `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.piece_access = 'projects')`;
+
+// Reading a piece: full access, or the piece is in a project one manages or
+// takes part in (while that project shows its pieces to participants).
+export const canSeePiece = (pieceId: string) => or(
+  hasFullPieceAccess(),
+  `exists (select 1 from project_pieces _pv where _pv.piece_id = ${pieceId}
+    and ${or(canAccessProject('_pv.project_id'), participantCanSeePieces('_pv.project_id'))})`,
+);
+
+// Editing a piece's content (details, files, bar markers).
+export const canEditPiece = (pieceId: string) => or(
+  hasFullPieceAccess(),
+  `${hasProjectPieceAccess()} and exists (
+    select 1 from project_pieces _pe where _pe.piece_id = ${pieceId} and ${canAccessProject('_pe.project_id')}
+  )`,
+);
 
 export const canAccessClub = () =>
   `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_access_club))`;
@@ -159,6 +186,7 @@ const PROTECTED_ACCOUNT_FIELDS = [
   'is_admin',
   'can_manage_projects',
   'can_access_club',
+  'piece_access',
   'approved', // accounts waiting for approval can't approve themselves
 ] as const;
 
@@ -313,11 +341,23 @@ export const policies: Record<string, TablePolicy> = {
 
   club_members: all(() => canAccessClub()),
 
+  // New pieces in a project are created through create_piece (piece and
+  // project link at once); here only with full access.
   pieces: {
-    ...all((a) => canAccessProject(`${a}.project_id`)),
-    select: (a) => or(canAccessProject(`${a}.project_id`), participantCanSeePieces(`${a}.project_id`)),
-    // The credit photo mirrors the linked account's (database triggers).
+    select: (a) => canSeePiece(`${a}.id`),
+    insert: hasFullPieceAccess,
+    update: (a) => canEditPiece(`${a}.id`),
+    check: (a) => canEditPiece(`${a}.id`),
+    delete: hasFullPieceAccess,
     validateUpdate: (oldRow, patch, { uid }) => {
+      // The archive belongs to the collection page.
+      if (
+        'archived' in patch &&
+        normalize(patch.archived) !== normalize(oldRow.archived) &&
+        !(db.prepare(`select ${hasFullPieceAccess()} as v`).get() as { v: number }).v
+      ) {
+        throw new ApiError('Archiving pieces needs access to all pieces', 403, '42501');
+      }
       // The lock is taken and released through its RPCs only.
       if (['markers_locked_by', 'markers_locked_name', 'markers_locked_at'].some((k) => k in patch)) {
         throw new ApiError('The marker lock is managed by the server', 403, '42501');
@@ -335,12 +375,39 @@ export const policies: Record<string, TablePolicy> = {
   },
 
   piece_files: {
-    ...all(
-      (a) => `exists (select 1 from pieces _pc where _pc.id = ${a}.piece_id and ${canAccessProject('_pc.project_id')})`,
-    ),
+    ...all((a) => canEditPiece(`${a}.piece_id`)),
+    select: (a) => canSeePiece(`${a}.piece_id`),
+  },
+
+  // A project's pieces and their running order: managed by the project's
+  // managers. Archived pieces can't be added.
+  project_pieces: {
+    ...all((a) => canAccessProject(`${a}.project_id`)),
+    select: (a) => or(canAccessProject(`${a}.project_id`), participantCanSeePieces(`${a}.project_id`)),
+    insert: (a) =>
+      `${canAccessProject(`${a}.project_id`)} and exists (
+        select 1 from pieces _pa where _pa.id = ${a}.piece_id and not _pa.archived
+      )`,
+    validateUpdate: (oldRow, patch) => {
+      for (const field of ['project_id', 'piece_id'] as const) {
+        if (field in patch && patch[field] !== oldRow[field]) {
+          throw new ApiError('A project piece is only reordered, not moved', 403, '42501');
+        }
+      }
+    },
+  },
+
+  // A rehearsal's programme. Managers edit it; participants read it on "Meine
+  // Teilnahme" when the project shows them its pieces. Only pieces already in
+  // the event's project can be assigned.
+  event_pieces: {
+    ...all((a) => `exists (
+      select 1 from events _e join project_pieces _pp on _pp.project_id = _e.project_id
+      where _e.id = ${a}.event_id and _pp.piece_id = ${a}.piece_id and ${canAccessProject('_e.project_id')}
+    )`),
     select: (a) => `exists (
-      select 1 from pieces _pc where _pc.id = ${a}.piece_id
-        and (${canAccessProject('_pc.project_id')} or ${participantCanSeePieces('_pc.project_id')})
+      select 1 from events _e where _e.id = ${a}.event_id
+        and (${canAccessProject('_e.project_id')} or ${participantCanSeePieces('_e.project_id')})
     )`,
   },
 

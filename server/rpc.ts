@@ -3,7 +3,14 @@
 // do their own authorization. Each call runs in one transaction.
 import { randomInt } from 'node:crypto';
 import { db, authUid, ApiError, forbidden } from './db.ts';
-import { canAccessProject, canManageAnyProject, isAdmin, markersLockedByOther } from './policies.ts';
+import {
+  canAccessProject,
+  canEditPiece,
+  canManageAnyProject,
+  hasFullPieceAccess,
+  isAdmin,
+  markersLockedByOther,
+} from './policies.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
@@ -897,7 +904,7 @@ const lock_piece_markers = (args: Args) => {
   const piece = db.prepare('select * from pieces where id = ?').get(text(args.p_piece_id)) as
     | Record<string, unknown>
     | undefined;
-  if (!piece || !userCanAccessProject(piece.project_id)) throw forbidden('Access denied');
+  if (!piece || !check(canEditPiece('@id'), { id: piece.id as string })) throw forbidden('Access denied');
   if (markersLockedByOther(piece, uid)) {
     return { locked: false, by: piece.markers_locked_name ?? '' };
   }
@@ -919,6 +926,56 @@ const unlock_piece_markers = (args: Args) => {
      where id = ? and markers_locked_by = ?`,
   ).run(text(args.p_piece_id), uid);
   return null;
+};
+
+// Creates a piece in the collection. With a project it is added to that
+// project right away (end of its running order): for its managers with the
+// pieces permission. Without a project only with access to all pieces.
+const create_piece = (args: Args) => {
+  const uid = requireUser();
+  const name = trimmed(args.p_name);
+  if (!name) throw new ApiError('A piece needs a name', 400);
+  const projectId = optional(args.p_project_id);
+  const full = check(hasFullPieceAccess());
+  if (projectId) {
+    const level = (db.prepare('select piece_access from app_users where id = ?').get(uid) as
+      | { piece_access: string }
+      | undefined)?.piece_access;
+    if (!userCanAccessProject(projectId) || !(full || level === 'projects')) throw forbidden('Access denied');
+  } else if (!full) {
+    throw forbidden('Access denied');
+  }
+  const user = db.prepare('select name from app_users where id = ?').get(uid) as { name: string } | undefined;
+  // The creator is credited for the MIDIs until set otherwise; a trigger adds
+  // their profile photo.
+  const { id } = db
+    .prepare(
+      `insert into pieces (name, composer, description, midi_credit_name, midi_credit_user_id)
+       values (?, ?, ?, ?, ?) returning id`,
+    )
+    .get(name, trimmed(args.p_composer), trimmed(args.p_description), user?.name ?? '', uid) as { id: string };
+  if (projectId) {
+    db.prepare(
+      `insert into project_pieces (project_id, piece_id, position)
+       values (?, ?, (select coalesce(max(position) + 1, 0) from project_pieces where project_id = ?))`,
+    ).run(projectId, id, projectId);
+  }
+  return { id };
+};
+
+// The collection's pieces a project can still add (not archived, not in it
+// yet), for its managers' "add piece" list: names only.
+const piece_catalog = (args: Args) => {
+  requireUser();
+  const projectId = text(args.p_project_id);
+  if (!userCanAccessProject(projectId)) throw forbidden('Access denied');
+  return db
+    .prepare(
+      `select id, name, composer from pieces
+       where not archived and id not in (select piece_id from project_pieces where project_id = ?)
+       order by name collate nocase, composer collate nocase`,
+    )
+    .all(projectId);
 };
 
 const functions: Record<string, (args: Args) => unknown> = {
@@ -944,6 +1001,8 @@ const functions: Record<string, (args: Args) => unknown> = {
   last_seen,
   lock_piece_markers,
   unlock_piece_markers,
+  create_piece,
+  piece_catalog,
 };
 
 // Public functions are rate limited by the HTTP layer.

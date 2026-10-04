@@ -19,11 +19,12 @@ const dict: Dict = {
   edit: { de: 'Bearbeiten', en: 'Edit' },
   delete: { de: 'Löschen', en: 'Delete' },
   archive: { de: 'Archivieren', en: 'Archive' },
+  unarchive: { de: 'Wiederherstellen', en: 'Restore' },
   archiveInstead: { de: 'Stattdessen archivieren', en: 'Archive instead' },
   deletePermanently: { de: 'Endgültig löschen', en: 'Delete permanently' },
   deleteProjectWarning: {
-    de: '„{name}“ wird mit allen Proben, Anwesenheiten, Mitgliedern, Anmeldungen und Stücken endgültig gelöscht. Das kann nicht rückgängig gemacht werden.',
-    en: '“{name}” will be deleted permanently with all rehearsals, attendance, members, registrations and pieces. This cannot be undone.',
+    de: '„{name}“ wird mit allen Proben, Anwesenheiten, Mitgliedern und Anmeldungen endgültig gelöscht. Die Stücke bleiben in der Stückesammlung. Das kann nicht rückgängig gemacht werden.',
+    en: '“{name}” will be deleted permanently with all rehearsals, attendance, members and registrations. Its pieces stay in the piece collection. This cannot be undone.',
   },
   archiveInsteadHint: {
     de: 'Möchtest du es nicht lieber archivieren? Archivierte Projekte bleiben vollständig erhalten, verschwinden aus der aktiven Liste und lassen sich jederzeit wiederherstellen.',
@@ -1062,6 +1063,33 @@ const dict: Dict = {
   addressSection: { de: 'Adresse', en: 'Address' },
   masterData: { de: 'Stammdaten', en: 'Details' },
 
+  // A rehearsal's programme
+  program: { de: 'Programm', en: 'Programme' },
+  programNote: { de: 'Allgemeine Notiz', en: 'General note' },
+  programNotePlaceholder: { de: 'z. B. Bitte Bleistift mitbringen', en: 'e.g. Please bring a pencil' },
+  programHint: {
+    de: 'Mitglieder sehen das Programm bei der Probe unter „Meine Teilnahme“.',
+    en: 'Members see the programme with the rehearsal under “My participation”.',
+  },
+  programPieceNote: { de: 'Was wird geprobt', en: 'What to rehearse' },
+  programPieceNotePlaceholder: { de: 'Notiz, z. B. Takte 1–30', en: 'Note, e.g. bars 1–30' },
+  addPieceToProgram: { de: 'Stück hinzufügen', en: 'Add piece' },
+  removeFromProgram: { de: 'Aus dem Programm entfernen', en: 'Remove from programme' },
+  programEmpty: { de: 'Noch keine Stücke für diese Probe', en: 'No pieces for this rehearsal yet' },
+  programEmptyHint: {
+    de: 'Weise Stücke aus der Stückesammlung zu, damit Mitglieder wissen, was sie vorbereiten sollen.',
+    en: 'Assign pieces from the collection so members know what to prepare.',
+  },
+  programNoPiecesInProject: {
+    de: 'In diesem Projekt gibt es noch keine Stücke. Füge sie zuerst auf der Stücke-Seite des Projekts hinzu.',
+    en: 'This project has no pieces yet. Add them on the pieces page first.',
+  },
+  programAllAssigned: {
+    de: 'Alle Stücke sind bereits im Programm.',
+    en: 'All pieces are already in the programme.',
+  },
+  programToPrepare: { de: 'Vorbereiten', en: 'Prepare' },
+
   // All scores as ZIP
   scoresZipTitle: { de: 'Alle Noten herunterladen', en: 'Download all scores' },
   scoresZipName: { de: 'Noten', en: 'Scores' },
@@ -1069,6 +1097,12 @@ const dict: Dict = {
   scoresZipMissing: {
     de: 'Heruntergeladen – {n} PDF(s) fehlten auf dem Server und sind nicht dabei.',
     en: 'Downloaded — {n} PDF(s) were missing on the server and are not included.',
+  },
+  allFilesZipTitle: { de: 'Alle Dateien herunterladen', en: 'Download all files' },
+  allFilesZipName: { de: 'Noten, MIDI, MusicXML', en: 'Scores, MIDI, MusicXML' },
+  allFilesZipMissing: {
+    de: 'Heruntergeladen – {n} Datei(en) fehlten auf dem Server und sind nicht dabei.',
+    en: 'Downloaded — {n} file(s) were missing on the server and are not included.',
   },
   scoresZipError: {
     de: 'Herunterladen fehlgeschlagen – bitte erneut versuchen.',
@@ -1148,11 +1182,11 @@ const dict: Dict = {
   pieces: { de: 'Stücke', en: 'Pieces' },
   newPiece: { de: 'Neues Stück', en: 'New piece' },
   pieceName: { de: 'Name des Stücks', en: 'Piece name' },
-  composer: { de: 'Komponist', en: 'Composer' },
+  composer: { de: 'Komponist/Interpret', en: 'Composer/artist' },
   noPieces: { de: 'Noch keine Stücke', en: 'No pieces yet' },
   noPiecesManagerHint: {
-    de: 'Leg das erste Stück an – danach ziehst du Noten, MusicXML und Stimmen-Aufnahmen einfach hinein.',
-    en: 'Create the first piece — then just drop in the score, MusicXML and voice recordings.',
+    de: 'Füge Stücke aus der Stückesammlung hinzu oder leg ein neues an.',
+    en: 'Add pieces from the piece collection or create a new one.',
   },
   noPiecesHint: {
     de: 'Sobald Stücke hinzugefügt werden, findest du hier Noten und Übe-Aufnahmen.',
@@ -1164,11 +1198,36 @@ const dict: Dict = {
   exactBars: { de: 'Taktgenau', en: 'Bar-exact' },
   voiceSingular: { de: 'Stimme', en: 'voice' },
   confirmDeletePiece: {
-    de: 'Dieses Stück mitsamt allen Dateien und Notizen endgültig löschen? Dies kann nicht rückgängig gemacht werden.',
-    en: 'Permanently delete this piece with all of its files and notes? This cannot be undone.',
+    de: 'Dieses Stück mitsamt allen Dateien und Notizen endgültig löschen? Es verschwindet aus allen Projekten. Dies kann nicht rückgängig gemacht werden.',
+    en: 'Permanently delete this piece with all of its files and notes? It disappears from every project. This cannot be undone.',
   },
   createAndSetUp: { de: 'Erstellen & einrichten', en: 'Create & set up' },
   deletePiece: { de: 'Stück löschen', en: 'Delete piece' },
+  // Piece collection shared by all projects
+  pieceCollection: { de: 'Stückesammlung', en: 'Piece collection' },
+  addPiece: { de: 'Stück hinzufügen', en: 'Add piece' },
+  addFromCollection: { de: 'Aus der Stückesammlung', en: 'From the piece collection' },
+  collectionEmptyForProject: {
+    de: 'Alle Stücke der Sammlung sind schon in diesem Projekt.',
+    en: 'Every piece of the collection is in this project already.',
+  },
+  orCreateNew: { de: 'Oder ein neues Stück anlegen', en: 'Or create a new piece' },
+  removeFromProject: { de: 'Aus Projekt entfernen', en: 'Remove from project' },
+  confirmRemoveFromProject: {
+    de: 'Das Stück aus diesem Projekt (und seinen Probenprogrammen) entfernen? In der Stückesammlung bleibt es mit allen Dateien erhalten.',
+    en: 'Remove this piece from this project (and its rehearsal programmes)? It stays in the piece collection with all of its files.',
+  },
+  pieceLength: { de: 'Länge', en: 'Length' },
+  pieceProjects: { de: 'Projekte', en: 'Projects' },
+  noPiecesInCollection: { de: 'Noch keine Stücke in der Sammlung', en: 'No pieces in the collection yet' },
+  pieceAccess: { de: 'Stücke bearbeiten', en: 'Edit pieces' },
+  pieceAccessHint: {
+    de: 'Projektverwalter können Stücke ihrer Projekte immer hinzufügen, entfernen und sortieren. Inhalte (Dateien, Takte, Credits) bearbeiten und neue Stücke anlegen geht nur mit dieser Berechtigung.',
+    en: 'Project managers can always add, remove and order the pieces of their projects. Editing content (files, bars, credits) and creating pieces needs this permission.',
+  },
+  pieceAccessNone: { de: 'Keine', en: 'None' },
+  pieceAccessProjects: { de: 'In eigenen Projekten', en: 'In own projects' },
+  pieceAccessAll: { de: 'Alle Stücke (Stückesammlung)', en: 'All pieces (collection)' },
   error: { de: 'Etwas ist schiefgelaufen.', en: 'Something went wrong.' },
   pieceEmpty: {
     de: 'Für dieses Stück gibt es noch keine Noten oder Aufnahmen.',

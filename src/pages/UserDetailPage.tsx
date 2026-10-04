@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Clock, Crown, FolderKanban, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { Select } from '@/components/Input';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -10,7 +11,7 @@ import { UserAccessModal } from '@/components/UserAccessModal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import type { AppUser } from '@/types';
+import type { AppUser, PieceAccess } from '@/types';
 
 export const UserDetailPage = () => {
   const { t } = useI18n();
@@ -56,6 +57,12 @@ export const UserDetailPage = () => {
     const next = !user[flag];
     setUser({ ...user, [flag]: next });
     await api.from('app_users').update({ [flag]: next }).eq('id', user.id);
+    if (isSelf) await refreshUser();
+  };
+
+  const setPieceAccess = async (piece_access: PieceAccess) => {
+    setUser({ ...user, piece_access });
+    await api.from('app_users').update({ piece_access }).eq('id', user.id);
     if (isSelf) await refreshUser();
   };
 
@@ -191,6 +198,25 @@ export const UserDetailPage = () => {
               onChange={() => toggleFlag('can_access_club')}
             />
           </label>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div>
+            <p className="font-medium">{t('pieceAccess')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">{t('pieceAccessHint')}</p>
+          </div>
+          <div className="sm:w-56 sm:flex-shrink-0">
+            <Select
+              aria-label={t('pieceAccess')}
+              value={user.is_admin ? 'all' : user.piece_access}
+              disabled={user.is_admin}
+              onChange={(e) => void setPieceAccess(e.target.value as PieceAccess)}
+            >
+              <option value="none">{t('pieceAccessNone')}</option>
+              <option value="projects">{t('pieceAccessProjects')}</option>
+              <option value="all">{t('pieceAccessAll')}</option>
+            </Select>
+          </div>
         </div>
       </Card>
 

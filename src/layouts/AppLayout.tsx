@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { FolderKanban, Settings, UsersRound } from 'lucide-react';
+import { FolderKanban, Music, Settings, UsersRound } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, SidebarActionLink, useSidebar } from '@/components/Sidebar';
@@ -29,7 +29,7 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canAccessClub, isAdmin } = useAuth();
+  const { canAccessClub, isAdmin, hasFullPieceAccess } = useAuth();
 
   return (
     <div className="flex h-full">
@@ -43,6 +43,7 @@ export const AppLayout = () => {
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
+          {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
           {canAccessClub && (
             <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />
           )}

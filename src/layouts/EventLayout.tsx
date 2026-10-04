@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { NoAccess } from '@/components/NoAccess';
-import { CheckSquare, Settings, ArrowLeft, CalendarDays, Clock, QrCode } from 'lucide-react';
+import { CheckSquare, Settings, ArrowLeft, CalendarDays, Clock, ListMusic, QrCode } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
@@ -60,7 +60,8 @@ const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) =>
 };
 
 // A full sidebar layout for a single event, so opening an event feels like
-// entering it (like opening a project). Sidebar pages: Attendance, Settings.
+// entering it (like opening a project). Sidebar pages: Attendance, Programme,
+// Check-in, Settings.
 export const EventLayout = () => {
   const { t } = useI18n();
   const { projectId, eventId } = useParams();
@@ -125,6 +126,7 @@ export const EventLayout = () => {
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem to={base} end label={t('attendance')} icon={CheckSquare} />
+          <SidebarNavItem to={`${base}/program`} label={t('program')} icon={ListMusic} />
           <SidebarNavItem
             to={`${base}/check-in`}
             label={t('checkIn')}

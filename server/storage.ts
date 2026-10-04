@@ -10,20 +10,20 @@ import path from 'node:path';
 import { db, asUser, uuid, ApiError, forbidden } from './db.ts';
 import { env } from './env.ts';
 import { requireSession } from './auth.ts';
-import { canAccessProject } from './policies.ts';
+import { canEditPiece } from './policies.ts';
 
 interface Bucket {
   canWrite: (key: string) => boolean;
   canDelete: (key: string) => boolean;
 }
 
-// Piece attachment keys are "<pieceId>/<file>"; the piece must belong to a
-// project the caller manages.
+// Piece attachment keys are "<pieceId>/<file>"; the caller must be allowed to
+// edit that piece.
 const canWritePieceFile = (key: string) =>
   Boolean(
     (
       db
-        .prepare(`select exists (select 1 from pieces _pf where _pf.id = ? and ${canAccessProject('_pf.project_id')}) as v`)
+        .prepare(`select exists (select 1 from pieces _pf where _pf.id = ? and ${canEditPiece('_pf.id')}) as v`)
         .get(key.split('/')[0]) as { v: number }
     ).v,
   );

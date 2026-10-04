@@ -8,6 +8,7 @@ import {
   MapPin,
   Plus,
   RefreshCw,
+  ListMinus,
   Trash2,
   Upload,
   X,
@@ -24,6 +25,8 @@ import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
   deletePiece,
+  loadPieceInScope,
+  removePieceFromProject,
   deletePieceFile,
   loadPieceFiles,
   persistOrder,
@@ -42,7 +45,8 @@ import {
   timelineDuration,
   timelineLabels,
 } from '@/lib/pieceTimeline';
-import { useProjectContext } from '@/layouts/projectContext';
+import { usePieceScope } from '@/layouts/pieceScope';
+import { NoAccess } from '@/components/NoAccess';
 import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
 import type { Piece, PieceFile, PieceFileKind, PieceTimeline } from '@/types';
@@ -148,11 +152,11 @@ const useTrackDurations = (tracks: PieceFile[]) => {
   return durations;
 };
 
-// Set-up for one piece (managers): details, all files in one drop, voice
+// Set-up for one piece (with the pieces permission): details, all files in one drop, voice
 // tracks, where the bar timing comes from and whether the recordings match.
 export const PieceSetupPage = () => {
   const { t } = useI18n();
-  const { project } = useProjectContext();
+  const { base, projectId, canEdit, canManageProject, canDelete } = usePieceScope();
   const { pieceId } = useParams();
   const navigate = useNavigate();
 
@@ -170,23 +174,23 @@ export const PieceSetupPage = () => {
   const [timingMode, setTimingMode] = useState<'notation' | 'even' | null>(null);
   const [toDelete, setToDelete] = useState<PieceFile | null>(null);
   const [deletePieceOpen, setDeletePieceOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
-  const back = `/projects/${project.id}/pieces/${pieceId}`;
+  const back = `${base}/${pieceId}`;
 
   const load = useCallback(async () => {
-    const [pieceResult, pieceFiles] = await Promise.all([
-      api.from('pieces').select('*').eq('id', pieceId).maybeSingle(),
+    const [loaded, pieceFiles] = await Promise.all([
+      loadPieceInScope(pieceId ?? '', projectId),
       loadPieceFiles(pieceId ?? ''),
     ]);
-    const loaded = (pieceResult.data as Piece | null) ?? null;
     setPiece(loaded);
-    setFiles(pieceFiles);
+    setFiles(loaded ? pieceFiles : []);
     if (loaded?.timeline?.source === 'even') {
       setEvenFirst(String(loaded.timeline.first));
       setEvenLast(String(loaded.timeline.last));
     }
     setLoading(false);
-  }, [pieceId]);
+  }, [pieceId, projectId]);
 
   useEffect(() => {
     void load();
@@ -196,11 +200,9 @@ export const PieceSetupPage = () => {
   const canPlaceBars = useCanPlaceBars();
   const durations = useTrackDurations(tracks);
 
+  if (!canEdit) return <NoAccess />;
   if (loading) return <PageSpinner />;
-  if (!piece) {
-    navigate(`/projects/${project.id}/pieces`);
-    return null;
-  }
+  if (!piece) return <NoAccess />;
 
   const updatePiece = async (patch: Partial<Piece>) => {
     setPiece((p) => (p ? { ...p, ...patch } : p));
@@ -720,11 +722,21 @@ export const PieceSetupPage = () => {
         );
       })}
 
-      <div className="flex justify-between gap-3 pt-2">
-        <Button variant="secondary" onClick={() => setDeletePieceOpen(true)}>
-          <Trash2 size={15} />
-          {t('deletePiece')}
-        </Button>
+      <div className="flex flex-wrap justify-between gap-3 pt-2">
+        <div className="flex flex-wrap gap-2">
+          {projectId && canManageProject && (
+            <Button variant="secondary" onClick={() => setRemoveOpen(true)}>
+              <ListMinus size={15} />
+              {t('removeFromProject')}
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="secondary" onClick={() => setDeletePieceOpen(true)}>
+              <Trash2 size={15} />
+              {t('deletePiece')}
+            </Button>
+          )}
+        </div>
         <Button onClick={() => navigate(back)}>{t('done')}</Button>
       </div>
 
@@ -745,10 +757,23 @@ export const PieceSetupPage = () => {
         destructive
         onConfirm={async () => {
           await deletePiece(piece.id);
-          navigate(`/projects/${project.id}/pieces`);
+          navigate(base);
         }}
         onCancel={() => setDeletePieceOpen(false)}
       />
+      {projectId && (
+        <ConfirmDialog
+          open={removeOpen}
+          title={t('removeFromProject')}
+          message={t('confirmRemoveFromProject')}
+          confirmLabel={t('removeFromProject')}
+          onConfirm={async () => {
+            await removePieceFromProject(projectId, piece.id);
+            navigate(base);
+          }}
+          onCancel={() => setRemoveOpen(false)}
+        />
+      )}
     </div>
   );
 };

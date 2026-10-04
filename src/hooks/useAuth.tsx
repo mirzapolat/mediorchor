@@ -16,6 +16,10 @@ interface AuthContextValue {
   isAdmin: boolean;
   canManageProjects: boolean;
   canAccessClub: boolean;
+  // Edits every piece and opens the collection page (admin or 'all').
+  hasFullPieceAccess: boolean;
+  // Edits the pieces of projects one manages (or every piece).
+  canEditProjectPieces: boolean;
   // The admin requires 2FA for this account and none is set up yet: the app
   // shows only the setup until refreshSession() reports it done.
   mfaSetupRequired: boolean;
@@ -75,6 +79,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isAdmin: Boolean(user?.is_admin),
       canManageProjects: Boolean(user?.is_admin || user?.can_manage_projects),
       canAccessClub: Boolean(user?.is_admin || user?.can_access_club),
+      hasFullPieceAccess: Boolean(user?.is_admin || user?.piece_access === 'all'),
+      canEditProjectPieces: Boolean(user?.is_admin || (user && user.piece_access !== 'none')),
       mfaSetupRequired,
       refreshSession: async () => {
         const { data } = await api.auth.getSession();

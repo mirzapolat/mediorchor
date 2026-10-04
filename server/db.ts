@@ -63,10 +63,23 @@ export const migrate = () => {
   for (const file of files) {
     if (applied.has(file)) continue;
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    db.transaction(() => {
-      db.exec(sql);
-      db.prepare('insert into _migrations (name) values (?)').run(file);
-    })();
+    // A migration that rebuilds a table referenced by others starts with this
+    // line: foreign keys go off around it (they can't change inside a
+    // transaction), so dropping the old table cascades nothing, and every
+    // reference is checked before it commits.
+    const fkOff = sql.startsWith('-- migrate: foreign_keys=off');
+    if (fkOff) db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        db.exec(sql);
+        if (fkOff && (db.pragma('foreign_key_check') as unknown[]).length > 0) {
+          throw new Error(`Migration ${file} leaves broken foreign keys`);
+        }
+        db.prepare('insert into _migrations (name) values (?)').run(file);
+      })();
+    } finally {
+      if (fkOff) db.pragma('foreign_keys = ON');
+    }
     console.log(`Applied migration ${file}`);
   }
 };

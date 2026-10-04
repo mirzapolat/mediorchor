@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { Piece, PieceFile, PieceFileKind } from '@/types';
+import type { Piece, PieceFile, PieceFileKind, ProjectPiece } from '@/types';
 
 const BUCKET = 'piece-files';
 
@@ -72,7 +72,7 @@ export const deletePieceFile = async (file: PieceFile): Promise<void> => {
 
 // Writes the list order into `position` for rows whose position changed.
 export const persistOrder = async (
-  table: 'pieces' | 'piece_files',
+  table: 'project_pieces' | 'piece_files' | 'event_pieces',
   rows: Array<{ id: string; position: number }>,
 ): Promise<void> => {
   await Promise.all(
@@ -82,7 +82,40 @@ export const persistOrder = async (
   );
 };
 
-// Deletes a piece; its file rows cascade, the stored objects are removed here.
+// Creates a piece in the collection; with a project it is added to the end
+// of that project's running order. Returns the new id, or the error.
+export const createPiece = async (fields: {
+  projectId: string | null;
+  name: string;
+  composer: string;
+}): Promise<{ id: string | null; error: string | null }> => {
+  const { data, error } = await api.rpc('create_piece', {
+    p_project_id: fields.projectId,
+    p_name: fields.name,
+    p_composer: fields.composer,
+  });
+  if (error || !data) return { id: null, error: error?.message ?? 'error' };
+  return { id: (data as { id: string }).id, error: null };
+};
+
+// Collection pieces a project can still add (not archived, not in it yet).
+export const loadPieceCatalog = async (
+  projectId: string,
+): Promise<Array<Pick<Piece, 'id' | 'name' | 'composer'>>> => {
+  const { data } = await api.rpc('piece_catalog', { p_project_id: projectId });
+  return (data as Array<Pick<Piece, 'id' | 'name' | 'composer'>> | null) ?? [];
+};
+
+export const addPieceToProject = async (projectId: string, pieceId: string, position: number) =>
+  api.from('project_pieces').insert({ project_id: projectId, piece_id: pieceId, position });
+
+// Takes a piece out of a project (and its rehearsal programmes); the piece
+// stays in the collection.
+export const removePieceFromProject = async (projectId: string, pieceId: string) =>
+  api.from('project_pieces').delete().eq('project_id', projectId).eq('piece_id', pieceId);
+
+// Deletes a piece from the collection (and so from every project); its file
+// rows cascade, the stored objects are removed here.
 export const deletePiece = async (pieceId: string): Promise<void> => {
   const files = await loadPieceFiles(pieceId);
   await api.from('pieces').delete().eq('id', pieceId);
@@ -98,6 +131,28 @@ export const loadPiece = async (pieceId: string): Promise<Piece | null> => {
   return (data as Piece | null) ?? null;
 };
 
+// Whether a project uses a piece. Piece pages inside a project only open the
+// project's own pieces, even for someone who may see the piece elsewhere.
+export const isPieceInProject = async (projectId: string, pieceId: string): Promise<boolean> => {
+  const { data } = await api
+    .from('project_pieces')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('piece_id', pieceId)
+    .maybeSingle();
+  return Boolean(data);
+};
+
+// A piece as a piece page opens it: inside a project only if the project
+// uses it (null otherwise).
+export const loadPieceInScope = async (pieceId: string, projectId: string | null): Promise<Piece | null> => {
+  const [piece, inProject] = await Promise.all([
+    loadPiece(pieceId),
+    projectId ? isPieceInProject(projectId, pieceId) : Promise.resolve(true),
+  ]);
+  return inProject ? piece : null;
+};
+
 export interface PieceOverviewFile {
   piece_id: string;
   kind: PieceFileKind;
@@ -106,20 +161,33 @@ export interface PieceOverviewFile {
   file_path: string | null;
 }
 
-// A project's pieces in order, plus the file rows the list summarises.
+// A project's piece with its place in the project (`link`).
+export interface ProjectPieceItem extends Piece {
+  link: ProjectPiece;
+}
+
+// A project's pieces in its running order, plus the file rows the list
+// summarises.
 export const loadPiecesOverview = async (
   projectId: string,
-): Promise<{ pieces: Piece[]; files: PieceOverviewFile[] }> => {
-  const [pieceResult, fileResult] = await Promise.all([
-    api.from('pieces').select('*').eq('project_id', projectId).order('position').order('created_at'),
-    api
-      .from('piece_files')
-      .select('piece_id, kind, title, file_name, file_path, position, pieces!inner(project_id)')
-      .eq('pieces.project_id', projectId)
-      .order('position'),
-  ]);
-  return {
-    pieces: (pieceResult.data as Piece[] | null) ?? [],
-    files: (fileResult.data as PieceOverviewFile[] | null) ?? [],
-  };
+): Promise<{ pieces: ProjectPieceItem[]; files: PieceOverviewFile[] }> => {
+  const { data } = await api
+    .from('project_pieces')
+    .select('*, pieces(*)')
+    .eq('project_id', projectId)
+    .order('position')
+    .order('created_at');
+  const pieces = ((data as Array<ProjectPiece & { pieces: Piece | null }> | null) ?? []).flatMap(
+    ({ pieces: piece, ...link }) => (piece ? [{ ...piece, link }] : []),
+  );
+  if (pieces.length === 0) return { pieces, files: [] };
+  const { data: files } = await api
+    .from('piece_files')
+    .select('piece_id, kind, title, file_name, file_path, position')
+    .in(
+      'piece_id',
+      pieces.map((p) => p.id),
+    )
+    .order('position');
+  return { pieces, files: (files as PieceOverviewFile[] | null) ?? [] };
 };

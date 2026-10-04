@@ -4,6 +4,11 @@ import type { Language } from '@/lib/config';
 // Every account is the same kind of account; capability flags grant extra
 // rights. An account without any flag is a participant: it only sees projects
 // it participates in (via a members row linked through members.user_id).
+// Editing pieces of the shared collection: 'all' = every piece and the
+// collection page, 'projects' = pieces of projects one manages, 'none' = no
+// piece content (project managers still add, remove and order pieces).
+export type PieceAccess = 'none' | 'projects' | 'all';
+
 export interface AppUser {
   id: string;
   email: string;
@@ -11,6 +16,7 @@ export interface AppUser {
   is_admin: boolean; // full access; several accounts may hold this
   can_manage_projects: boolean; // manages every project; single projects are granted via user_projects
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
+  piece_access: PieceAccess; // editing pieces (see PieceAccess)
   photo_url: string | null; // set by the account holder, mirrored onto linked members
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
   approved: boolean; // false = self sign-up waiting for admin approval
@@ -97,6 +103,19 @@ export interface Event {
   description: string | null;
   date: string | null; // ISO date
   time: string | null; // HH:MM
+  // General note on the rehearsal's programme ("Bitte Bleistift mitbringen").
+  program_note: string;
+  created_at: string;
+}
+
+// A piece assigned to a rehearsal, in running order, with what to prepare.
+export interface EventPiece {
+  id: string;
+  event_id: string;
+  piece_id: string;
+  // What to rehearse/prepare, e.g. "T. 1–30".
+  note: string;
+  position: number;
   created_at: string;
 }
 
@@ -201,9 +220,10 @@ export interface Registration {
   created_at: string;
 }
 
+// A piece of the collection shared by all projects; projects pick pieces
+// from it (ProjectPiece).
 export interface Piece {
   id: string;
-  project_id: string;
   name: string;
   composer: string;
   // Short line shown in the list; notes are Markdown shown on the piece page.
@@ -219,6 +239,16 @@ export interface Piece {
   bar_anchors: Record<string, BarAnchor>;
   // Added to every numeric bar label when shown (display only).
   bar_shift: number;
+  // Archived pieces stay in their projects but can't be added to more.
+  archived: boolean;
+  created_at: string;
+}
+
+// A piece in a project, at its place in the project's running order.
+export interface ProjectPiece {
+  id: string;
+  project_id: string;
+  piece_id: string;
   position: number;
   created_at: string;
 }

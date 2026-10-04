@@ -3,22 +3,21 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { Input } from './Input';
 import { useI18n } from '@/lib/i18n';
-import { api } from '@/lib/api';
-import { useAuth } from '@/hooks/useAuth';
+import { createPiece } from '@/lib/pieceFiles';
 
 interface PieceFormProps {
   open: boolean;
-  projectId: string;
-  nextPosition: number; // position used for the new piece
+  // The project the new piece is added to; null on the collection page.
+  projectId: string | null;
   onClose: () => void;
   onCreated: (pieceId: string) => void;
 }
 
-// Creates a piece; everything else (files, credits, timing) is set up on the
-// piece's set-up page, which opens right after.
-export const PieceForm = ({ open, projectId, nextPosition, onClose, onCreated }: PieceFormProps) => {
+// Creates a piece in the collection (and adds it to the project, if any);
+// everything else (files, credits, timing) is set up on the piece's set-up
+// page, which opens right after. The creator is credited for the MIDIs.
+export const PieceForm = ({ open, projectId, onClose, onCreated }: PieceFormProps) => {
   const { t } = useI18n();
-  const { user } = useAuth();
   const [name, setName] = useState('');
   const [composer, setComposer] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,26 +35,13 @@ export const PieceForm = ({ open, projectId, nextPosition, onClose, onCreated }:
     const trimmedName = name.trim();
     if (!trimmedName) return;
     setBusy(true);
-    const { data, error: dbError } = await api
-      .from('pieces')
-      .insert({
-        project_id: projectId,
-        name: trimmedName,
-        composer: composer.trim(),
-        position: nextPosition,
-        // The creator is credited for the MIDIs until set otherwise; the
-        // database adds their profile photo.
-        midi_credit_name: user?.name ?? '',
-        midi_credit_user_id: user?.id ?? null,
-      })
-      .select('id')
-      .single();
+    const result = await createPiece({ projectId, name: trimmedName, composer: composer.trim() });
     setBusy(false);
-    if (dbError || !data) {
-      setError(dbError?.message ?? t('error'));
+    if (!result.id) {
+      setError(result.error ?? t('error'));
       return;
     }
-    onCreated((data as { id: string }).id);
+    onCreated(result.id);
   };
 
   return (

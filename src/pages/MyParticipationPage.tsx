@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bookmark, CalendarDays, ChevronDown, Clock, LogIn, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bookmark, CalendarDays, ChevronDown, ChevronRight, Clock, ListMusic, LogIn, LogOut } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -12,6 +13,7 @@ import { cn } from '@/lib/cn';
 import { matchesConditions } from '@/lib/absenceConditions';
 import { isHeld, localToday } from '@/lib/eventTiming';
 import { api } from '@/lib/api';
+import { loadEventPrograms, type ProgramItem } from '@/lib/eventProgram';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/hooks/useAuth';
 import { useProjectContext } from '@/layouts/projectContext';
@@ -31,6 +33,8 @@ export const MyParticipationPage = () => {
   const { user } = useAuth();
   const [member, setMember] = useState<Member | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
+  // Programmes (pieces to prepare) of the upcoming Proben.
+  const [programs, setPrograms] = useState<ProgramItem[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [labels, setLabels] = useState<AbsenceLabel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,11 +81,17 @@ export const MyParticipationPage = () => {
           .order('position')
           .order('created_at'),
       ]);
-      setEvents((ev.data as Event[]) ?? []);
+      const loadedEvents = (ev.data as Event[]) ?? [];
+      setEvents(loadedEvents);
+      // Empty when the project doesn't show its pieces to participants.
+      setPrograms(
+        await loadEventPrograms(loadedEvents.filter((e) => !isHeld(e.date, localToday())).map((e) => e.id)),
+      );
       setAttendance((att.data as Attendance[]) ?? []);
       setLabels((lab.data as AbsenceLabel[]) ?? []);
     } else {
       setEvents([]);
+      setPrograms([]);
       setAttendance([]);
       setLabels([]);
     }
@@ -262,7 +272,7 @@ export const MyParticipationPage = () => {
                           : null;
                     return (
                       <li key={e.id} className="flex items-start justify-between gap-3 py-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <p className="font-medium leading-snug break-words">{e.name}</p>
                             {i === 0 && (
@@ -275,6 +285,11 @@ export const MyParticipationPage = () => {
                           {e.description && (
                             <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                           )}
+                          <EventProgram
+                            projectId={project.id}
+                            note={e.program_note}
+                            items={programs.filter((p) => p.event_id === e.id)}
+                          />
                         </div>
                         {recorded && (
                           <span className="shrink-0">
@@ -435,6 +450,55 @@ const EventWhen = ({ date, time, lang }: { date: string | null; time: string | n
         </span>
       )}
     </p>
+  );
+};
+
+// What to prepare for a Probe: the general note and the assigned pieces, each
+// opening the piece page (also handy during the rehearsal itself).
+const EventProgram = ({
+  projectId,
+  note,
+  items,
+}: {
+  projectId: string;
+  note: string | null;
+  items: ProgramItem[];
+}) => {
+  const { t } = useI18n();
+  const pieces = items.filter((i) => i.pieces);
+  if (!note && pieces.length === 0) return null;
+  return (
+    <div className="mt-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+        <ListMusic size={13} className="shrink-0" />
+        {t('programToPrepare')}
+      </p>
+      {note && <p className="mt-1 whitespace-pre-line break-words text-sm text-text-secondary">{note}</p>}
+      {pieces.length > 0 && (
+        <ol className="mt-1.5 flex flex-col gap-1">
+          {pieces.map((item, index) => (
+            <li key={item.id}>
+              <Link
+                to={`/projects/${projectId}/pieces/${item.piece_id}`}
+                className="group -mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-surface-subtle"
+              >
+                <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold tabular-nums text-text-secondary">
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 text-sm">
+                  <span className="font-medium break-words">{item.pieces!.name}</span>
+                  {item.note && <span className="block break-words text-text-secondary">{item.note}</span>}
+                </span>
+                <ChevronRight
+                  size={16}
+                  className="mt-0.5 flex-shrink-0 text-text-tertiary transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-text-secondary"
+                />
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 };
 

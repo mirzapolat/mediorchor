@@ -31,15 +31,15 @@ import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
-  loadPiece,
   loadPieceFiles,
+  loadPieceInScope,
   pieceDownloadName,
   pieceFileDownloadUrl,
   pieceFileUrl,
 } from '@/lib/pieceFiles';
 import { timelineLabels } from '@/lib/pieceTimeline';
 import { ensureScorePreview } from '@/lib/scorePreview';
-import { useProjectContext } from '@/layouts/projectContext';
+import { usePieceScope } from '@/layouts/pieceScope';
 import { cn } from '@/lib/cn';
 import type { BarAnchor, Piece, PieceFile, PieceFileKind } from '@/types';
 
@@ -206,7 +206,7 @@ const SectionTitle = ({ children }: { children: string }) => (
 // the score.
 export const PieceDetailPage = () => {
   const { t } = useI18n();
-  const { project, canManage } = useProjectContext();
+  const { base, projectId, canEdit } = usePieceScope();
   const { pieceId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -234,7 +234,7 @@ export const PieceDetailPage = () => {
   const [picking, setPicking] = useState<LoopPicking>(null);
   // Bars are placed with a mouse or trackpad only, not on phones.
   const canPlaceBars = useCanPlaceBars();
-  const wantsEditing = canManage && canPlaceBars && searchParams.get('place') === '1';
+  const wantsEditing = canEdit && canPlaceBars && searchParams.get('place') === '1';
   // Only one person places bars at a time: the editor opens once the lock
   // is ours, and whoever holds it is named when it isn't.
   const [lockHeld, setLockHeld] = useState(false);
@@ -246,13 +246,13 @@ export const PieceDetailPage = () => {
 
   const load = useCallback(async () => {
     const [loadedPiece, pieceFiles] = await Promise.all([
-      loadPiece(pieceId ?? ''),
+      loadPieceInScope(pieceId ?? '', projectId),
       loadPieceFiles(pieceId ?? ''),
     ]);
     setPiece(loadedPiece);
-    setFiles(pieceFiles);
+    setFiles(loadedPiece ? pieceFiles : []);
     setLoading(false);
-  }, [pieceId]);
+  }, [pieceId, projectId]);
 
   useEffect(() => {
     void load();
@@ -264,8 +264,8 @@ export const PieceDetailPage = () => {
   // The link-preview image of this piece (top of the score), made once by a
   // manager's browser when missing.
   useEffect(() => {
-    if (canManage && pieceId && score && navigator.onLine) void ensureScorePreview(pieceId, score);
-  }, [canManage, pieceId, score]);
+    if (canEdit && pieceId && score && navigator.onLine) void ensureScorePreview(pieceId, score);
+  }, [canEdit, pieceId, score]);
 
   const player = usePracticePlayer(piece, tracks);
   const { bars, currentBar, loop, playBar, setLoop, toggle, prevBar, nextBar } = player;
@@ -477,13 +477,13 @@ export const PieceDetailPage = () => {
     { id: 'files', label: `${t('files')}${files.length ? ` · ${files.length}` : ''}` },
   ];
 
-  const setUpUrl = `/projects/${project.id}/pieces/${piece.id}/setup`;
+  const setUpUrl = `${base}/${piece.id}/setup`;
 
   // Back link on the left, the managers' "⋯" menu on the right.
   const topRow = (
     <div className="mb-4 flex items-center justify-between gap-3">
       <button
-        onClick={() => navigate(`/projects/${project.id}/pieces`)}
+        onClick={() => navigate(base)}
         className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
       >
         <ArrowLeft size={16} />
@@ -501,7 +501,7 @@ export const PieceDetailPage = () => {
             <Maximize2 size={17} />
           </button>
         )}
-        {canManage && (
+        {canEdit && (
           <OverflowMenu
             label={t('moreActions')}
             items={[
@@ -538,8 +538,8 @@ export const PieceDetailPage = () => {
 
   const scoreContent = nothingYet ? (
     <div className="rounded-md border border-dashed border-border">
-      <EmptyState icon={Music} message={canManage ? t('pieceEmptyManager') : t('pieceEmpty')} />
-      {canManage && (
+      <EmptyState icon={Music} message={canEdit ? t('pieceEmptyManager') : t('pieceEmpty')} />
+      {canEdit && (
         <div className="-mt-8 flex justify-center pb-10">
           <Button onClick={() => navigate(setUpUrl)}>
             <Settings2 size={16} />
@@ -565,7 +565,7 @@ export const PieceDetailPage = () => {
       )}
       {score && !hasAnchors && bars.length > 0 && !editingAnchors && (
         <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
-          {canManage ? t(canPlaceBars ? 'noMarkersManager' : 'noMarkersManagerPhone') : t('noMarkers')}
+          {canEdit ? t(canPlaceBars ? 'noMarkersManager' : 'noMarkersManagerPhone') : t('noMarkers')}
         </p>
       )}
 

@@ -38,9 +38,12 @@ import { ProjectSettingsPage } from '@/pages/ProjectSettingsPage';
 import { MyParticipationPage } from '@/pages/MyParticipationPage';
 import { EventAttendancePage } from '@/pages/EventAttendancePage';
 import { EventSettingsPage } from '@/pages/EventSettingsPage';
+import { EventProgramPage } from '@/pages/EventProgramPage';
 import { EventCheckinPage } from '@/pages/EventCheckinPage';
 import { RegistrationsPage } from '@/pages/RegistrationsPage';
 import { PiecesPage } from '@/pages/PiecesPage';
+import { GlobalPiecesPage } from '@/pages/GlobalPiecesPage';
+import { GlobalPiecesLayout } from '@/layouts/GlobalPiecesLayout';
 import { PieceDetailPage } from '@/pages/PieceDetailPage';
 import { PieceSetupPage } from '@/pages/PieceSetupPage';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
@@ -111,6 +114,13 @@ export const App = () => {
             <Route path="account" element={<AccountPage />} />
           </Route>
 
+          {/* The piece collection shared by all projects. */}
+          <Route path="pieces" element={<GlobalPiecesLayout />}>
+            <Route index element={<GlobalPiecesPage />} />
+            <Route path=":pieceId" element={<PieceDetailPage />} />
+            <Route path=":pieceId/setup" element={<PieceSetupPage />} />
+          </Route>
+
           {/* Club members section — owns a second (nested) sidebar. */}
           <Route path="club" element={<ClubLayout />}>
             <Route index element={<Navigate to="members" replace />} />
@@ -148,9 +158,10 @@ export const App = () => {
             <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
             {/* Old practice links point at a block; the piece page replaces them. */}
             <Route path="pieces/:pieceId/practice/:blockId" element={<Navigate to="../.." relative="path" replace />} />
+            {/* Needs the pieces permission; the page checks it. */}
+            <Route path="pieces/:pieceId/setup" element={<PieceSetupPage />} />
           </Route>
           <Route element={<RequireProjectManage />}>
-            <Route path="pieces/:pieceId/setup" element={<PieceSetupPage />} />
             <Route path="events" element={<EventsPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="absences" element={<AbsencesPage />} />
@@ -168,6 +179,7 @@ export const App = () => {
         {/* Inside a single event — its own sidebar layout (management only) */}
         <Route path="projects/:projectId/events/:eventId" element={<EventLayout />}>
           <Route index element={<EventAttendancePage />} />
+          <Route path="program" element={<EventProgramPage />} />
           <Route path="check-in" element={<EventCheckinPage />} />
           <Route path="settings" element={<EventSettingsPage />} />
         </Route>

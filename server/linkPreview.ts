@@ -26,8 +26,10 @@ const pieceMeta = (base: string, projectId: string, pieceId: string): PageMeta |
   const piece = db
     .prepare(
       `select p.name, p.composer, p.description, pr.name as project
-       from pieces p join projects pr on pr.id = p.project_id
-       where p.id = ? and p.project_id = ?`,
+       from pieces p
+       join project_pieces pp on pp.piece_id = p.id
+       join projects pr on pr.id = pp.project_id
+       where p.id = ? and pp.project_id = ?`,
     )
     .get(pieceId, projectId) as { name: string; composer: string; description: string; project: string } | undefined;
   if (!piece) return null;
@@ -54,7 +56,10 @@ const piecesMeta = (projectId: string): PageMeta | null => {
   const project = db.prepare('select name from projects where id = ?').get(projectId) as { name: string } | undefined;
   if (!project) return null;
   const pieces = db
-    .prepare('select name, composer from pieces where project_id = ? order by position, created_at')
+    .prepare(
+      `select p.name, p.composer from project_pieces pp join pieces p on p.id = pp.piece_id
+       where pp.project_id = ? order by pp.position, pp.created_at`,
+    )
     .all(projectId) as Array<{ name: string; composer: string }>;
   const list = pieces.map((p) => (p.composer.trim() ? `${p.name} (${p.composer.trim()})` : p.name));
   const shown = list.slice(0, 6).join(', ') + (list.length > 6 ? ', …' : '');
