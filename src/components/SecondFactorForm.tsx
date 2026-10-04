@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Fingerprint, KeyRound, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -41,14 +41,19 @@ export const mfaErrorMessage = (error: ApiError, t: (key: TranslationKey) => str
 // Answers a second-factor challenge (sign-in or re-confirmation) with one of
 // its methods: authenticator code, passkey, emailed code or (for accounts
 // without 2FA) the password. onSubmit returns the error to show, or null.
+// With `autoPasskey` the passkey prompt opens by itself when passkey is the
+// first method (right after the password at sign-in); the button stays as a
+// retry if the browser blocks the prompt or it is closed.
 export const SecondFactorForm = ({
   challenge,
   onSubmit,
   submitLabel,
+  autoPasskey = false,
 }: {
   challenge: MfaChallenge;
   onSubmit: (proof: MfaProof) => Promise<ApiError | null>;
   submitLabel: string;
+  autoPasskey?: boolean;
 }) => {
   const { t } = useI18n();
   const methods = ORDER.filter(
@@ -107,6 +112,15 @@ export const SecondFactorForm = ({
     }
     await submit({ method: 'passkey', credential: prompt.credential });
   };
+
+  // Once per challenge (effects run twice in development).
+  const autoStarted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoPasskey || method !== 'passkey' || autoStarted.current === challenge.challenge_id) return;
+    autoStarted.current = challenge.challenge_id;
+    void confirmWithPasskey();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPasskey, challenge.challenge_id]);
 
   const formRef = useRef<HTMLFormElement>(null);
 

@@ -1037,6 +1037,30 @@ const dict: Dict = {
     en: 'Participants see the pieces page with scores, audio and the practice view.',
   },
 
+  // Previews of planned sections
+  notAvailableYet: { de: 'Noch nicht verfügbar', en: 'Not available yet' },
+  featureNotImplemented: { de: 'Diese Funktion ist noch nicht umgesetzt.', en: 'This feature is not built yet.' },
+  clubPreviewIntro: {
+    de: 'Hier könnte der Verein in Zukunft irgendwann vielleicht verwaltet werden:',
+    en: 'Some day, the club could perhaps be managed here:',
+  },
+  clubPreviewMembers: { de: 'Mitgliederverwaltung', en: 'Member management' },
+  clubPreviewApplications: { de: 'Mitgliedsanträge', en: 'Membership applications' },
+  clubPreviewRules: { de: 'Satzungen speichern', en: 'Storing the statutes' },
+  newsletter: { de: 'Newsletter (Beta)', en: 'Newsletter (beta)' },
+  newsletterPreviewIntro: {
+    de: 'Theoretisch ließen sich Newsletter künftig direkt von hier aus versenden:',
+    en: 'In theory, newsletters could be sent right from here in future:',
+  },
+  newsletterPreviewProject: {
+    de: 'automatisch an alle Teilnehmenden eines Projekts',
+    en: 'automatically to everyone in a project',
+  },
+  newsletterPreviewEveryone: {
+    de: 'oder an alle, die jemals an einem Projekt mitgemacht haben',
+    en: 'or to everyone who ever took part in a project',
+  },
+
   // Club (Verein) section with the association's member directory
   club: { de: 'Verein (Beta)', en: 'Club (beta)' },
   membershipApplications: { de: 'Mitgliedsanträge', en: 'Membership applications' },

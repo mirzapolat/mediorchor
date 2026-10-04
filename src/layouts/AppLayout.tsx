@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
-import { FolderKanban, Music, Settings, UsersRound } from 'lucide-react';
+import { FolderKanban, Mail, Music, Settings, UsersRound } from 'lucide-react';
+import { CLUB_ENABLED } from '@/lib/features';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, SidebarActionLink, useSidebar } from '@/components/Sidebar';
@@ -44,9 +45,11 @@ export const AppLayout = () => {
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
           {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
-          {canAccessClub && (
+          {/* While the club is a preview, only admins see its notice. */}
+          {(CLUB_ENABLED ? canAccessClub : isAdmin) && (
             <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />
           )}
+          {isAdmin && <SidebarNavItem to="/newsletter" label={t('newsletter')} icon={Mail} />}
         </div>
 
         <SidebarFooter />

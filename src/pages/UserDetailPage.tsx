@@ -11,6 +11,7 @@ import { UserAccessModal } from '@/components/UserAccessModal';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { CLUB_ENABLED } from '@/lib/features';
 import type { AppUser, PieceAccess } from '@/types';
 
 export const UserDetailPage = () => {
@@ -184,21 +185,24 @@ export const UserDetailPage = () => {
           </Button>
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-          <div>
-            <p className="font-medium">{t('clubAccess')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{t('clubAccessHint')}</p>
+        {/* The club section is only a preview for now (see lib/features). */}
+        {CLUB_ENABLED && (
+          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+            <div>
+              <p className="font-medium">{t('clubAccess')}</p>
+              <p className="text-sm text-text-secondary mt-0.5">{t('clubAccessHint')}</p>
+            </div>
+            <label className="inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-black disabled:opacity-50"
+                checked={user.is_admin || user.can_access_club}
+                disabled={user.is_admin}
+                onChange={() => toggleFlag('can_access_club')}
+              />
+            </label>
           </div>
-          <label className="inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-black disabled:opacity-50"
-              checked={user.is_admin || user.can_access_club}
-              disabled={user.is_admin}
-              onChange={() => toggleFlag('can_access_club')}
-            />
-          </label>
-        </div>
+        )}
 
         <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div>

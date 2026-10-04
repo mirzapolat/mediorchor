@@ -175,7 +175,7 @@ export const LoginPage = () => {
 
             {mfa ? (
               <div className="space-y-4">
-                <SecondFactorForm challenge={mfa} submitLabel={t('signIn')} onSubmit={completeSignIn} />
+                <SecondFactorForm challenge={mfa} submitLabel={t('signIn')} onSubmit={completeSignIn} autoPasskey />
                 <button
                   type="button"
                   onClick={() => switchMode('signin')}

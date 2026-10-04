@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Mail, UsersRound } from 'lucide-react';
+import { NoAccess } from '@/components/NoAccess';
 import { useAuth } from '@/hooks/useAuth';
 import { safeRedirectPath } from '@/lib/safePath';
 import { trackPageview } from '@/lib/analytics';
@@ -9,6 +11,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { PaddedPage } from '@/layouts/PaddedPage';
 import { ClubLayout } from '@/layouts/ClubLayout';
+import { FeaturePreviewPage } from '@/pages/FeaturePreviewPage';
+import { CLUB_ENABLED } from '@/lib/features';
 import {
   ProjectLayout,
   ProjectIndexRedirect,
@@ -53,6 +57,12 @@ import { GroupDetailPage } from '@/pages/GroupDetailPage';
 import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
+
+// Admin-only routes; everyone else gets the no-access notice.
+const RequireAdmin = () => {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <Outlet /> : <NoAccess />;
+};
 
 export const App = () => {
   const { session, loading, mfaSetupRequired } = useAuth();
@@ -121,14 +131,46 @@ export const App = () => {
             <Route path=":pieceId/setup" element={<PieceSetupPage />} />
           </Route>
 
-          {/* Club members section — owns a second (nested) sidebar. */}
-          <Route path="club" element={<ClubLayout />}>
-            <Route index element={<Navigate to="members" replace />} />
-            <Route path="members" element={<ClubMembersPage />} />
-            <Route path="members/:memberId" element={<ClubMemberDetailPage />} />
-            <Route path="applications" element={<ClubApplicationsPage />} />
-            <Route path="rules" element={<ClubRulesPage />} />
+          {/* Planned sections, shown as a notice to admins for now. */}
+          <Route element={<RequireAdmin />}>
+            <Route element={<PaddedPage />}>
+              {!CLUB_ENABLED && (
+                <Route
+                  path="club/*"
+                  element={
+                    <FeaturePreviewPage
+                      title="club"
+                      icon={UsersRound}
+                      intro="clubPreviewIntro"
+                      ideas={['clubPreviewMembers', 'clubPreviewApplications', 'clubPreviewRules']}
+                    />
+                  }
+                />
+              )}
+              <Route
+                path="newsletter"
+                element={
+                  <FeaturePreviewPage
+                    title="newsletter"
+                    icon={Mail}
+                    intro="newsletterPreviewIntro"
+                    ideas={['newsletterPreviewProject', 'newsletterPreviewEveryone']}
+                  />
+                }
+              />
+            </Route>
           </Route>
+
+          {/* Club members section — owns a second (nested) sidebar. */}
+          {CLUB_ENABLED && (
+            <Route path="club" element={<ClubLayout />}>
+              <Route index element={<Navigate to="members" replace />} />
+              <Route path="members" element={<ClubMembersPage />} />
+              <Route path="members/:memberId" element={<ClubMemberDetailPage />} />
+              <Route path="applications" element={<ClubApplicationsPage />} />
+              <Route path="rules" element={<ClubRulesPage />} />
+            </Route>
+          )}
         </Route>
 
         {/* Admin-only administration — isolated in its own sidebar layout. */}
