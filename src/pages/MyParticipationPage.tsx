@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Bookmark, CalendarDays, ChevronDown, ChevronRight, Clock, ListMusic, LogIn, LogOut } from 'lucide-react';
+import { Bookmark, CalendarDays, ChevronDown, ChevronRight, Clock, ListMusic, LogIn, LogOut, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -133,9 +133,15 @@ export const MyParticipationPage = () => {
   // RLS already limits participants to public labels; the extra filter keeps
   // managers (who can read all labels) consistent with what participants see.
   const matchingLabels = useMemo(
-    () => labels.filter((l) => l.is_public && matchesConditions(stats, l.conditions)),
+    () =>
+      labels.filter((l) => l.kind !== 'audition' && l.is_public && matchesConditions(stats, l.conditions)),
     [labels, stats],
   );
+  // The project's audition rule, shown to everyone as "must / needn't yet".
+  const audition = useMemo(() => {
+    const rule = labels.find((l) => l.kind === 'audition');
+    return rule ? matchesConditions(stats, rule.conditions) : null;
+  }, [labels, stats]);
 
   const join = async (e: FormEvent) => {
     e.preventDefault();
@@ -317,6 +323,17 @@ export const MyParticipationPage = () => {
                 <Stat value={stats.excused} label={t('excused')} className="text-accent" />
                 <Stat value={stats.absent} label={t('notAttended')} className="text-text-secondary" />
               </div>
+            )}
+            {audition !== null && (
+              <p
+                className={cn(
+                  'mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
+                  audition ? 'border border-accent text-accent' : 'bg-success-soft-strong text-success-strong',
+                )}
+              >
+                <Mic size={15} className="shrink-0" />
+                {audition ? t('mustAudition') : t('noAuditionYet')}
+              </p>
             )}
             {matchingLabels.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">

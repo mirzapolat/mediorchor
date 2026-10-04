@@ -22,7 +22,6 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
 import { NoAccess } from '@/components/NoAccess';
 import { Avatar } from '@/components/Avatar';
-import { Modal } from '@/components/Modal';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
@@ -31,8 +30,12 @@ import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
+  loadPieceCredits,
   loadPieceFiles,
   loadPieceInScope,
+  loadPieceTracks,
+  pieceScoreFile,
+  playerTracks,
   pieceDownloadName,
   pieceFileDownloadUrl,
   pieceFileUrl,
@@ -41,7 +44,7 @@ import { timelineLabels } from '@/lib/pieceTimeline';
 import { ensureScorePreview } from '@/lib/scorePreview';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { cn } from '@/lib/cn';
-import type { BarAnchor, Piece, PieceFile, PieceFileKind } from '@/types';
+import type { BarAnchor, Piece, PieceCredit, PieceFile, PieceFileKind, PieceTrack } from '@/types';
 
 type Tab = 'score' | 'credits' | 'files';
 
@@ -56,59 +59,9 @@ const FILE_GROUPS: Array<{ kind: PieceFileKind; label: TranslationKey; icon: Luc
   { kind: 'link', label: 'fileKindLink', icon: LinkIcon },
 ];
 
-// Recordings that also come with a metronome click ask which one to download.
-const RecordingDownload = ({
-  piece,
-  file,
-  name,
-  onClose,
-}: {
-  piece: Piece;
-  file: PieceFile | null;
-  name: string;
-  onClose: () => void;
-}) => {
-  const { t } = useI18n();
-  const options =
-    file?.file_path && file.click_file_path
-      ? [
-          {
-            label: t('withoutMetronome'),
-            href: pieceFileDownloadUrl(file.file_path, pieceDownloadName(piece, name, file.file_name ?? file.file_path)),
-          },
-          {
-            label: t('withMetronome'),
-            href: pieceFileDownloadUrl(
-              file.click_file_path,
-              pieceDownloadName(piece, `${name} (${t('withMetronome')})`, file.click_file_name ?? file.click_file_path),
-            ),
-          },
-        ]
-      : [];
-  return (
-    <Modal open={options.length > 0} title={t('downloadRecordingTitle')} onClose={onClose}>
-      <p className="text-sm text-text-secondary">{t('downloadRecordingMessage')}</p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {options.map((o) => (
-          <a
-            key={o.href}
-            href={o.href}
-            onClick={onClose}
-            className="flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium transition-colors duration-150 hover:bg-surface-hover"
-          >
-            <Download size={15} className="text-text-secondary" />
-            {o.label}
-          </a>
-        ))}
-      </div>
-    </Modal>
-  );
-};
-
 // Downloads and links, grouped by what they are.
 const FileList = memo(({ piece, files }: { piece: Piece; files: PieceFile[] }) => {
   const { t } = useI18n();
-  const [choosing, setChoosing] = useState<PieceFile | null>(null);
   if (files.length === 0) {
     return <p className="text-sm text-text-secondary">{t('noFiles')}</p>;
   }
@@ -141,11 +94,6 @@ const FileList = memo(({ piece, files }: { piece: Piece; files: PieceFile[] }) =
                     <a
                       href={href}
                       {...(kind === 'link' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
-                      onClick={(e) => {
-                        if (!f.click_file_path) return;
-                        e.preventDefault();
-                        setChoosing(f);
-                      }}
                       className="flex min-h-[3rem] items-center gap-3 px-3 py-2 text-sm transition-colors duration-150 hover:bg-surface-subtle"
                     >
                       <Icon size={16} className="flex-shrink-0 text-text-secondary" />
@@ -168,29 +116,27 @@ const FileList = memo(({ piece, files }: { piece: Piece; files: PieceFile[] }) =
           </div>
         );
       })}
-      <RecordingDownload
-        piece={piece}
-        file={choosing}
-        name={choosing?.title.trim() || t('fileKindAudio')}
-        onClose={() => setChoosing(null)}
-      />
     </div>
   );
 });
 FileList.displayName = 'FileList';
 
-// Who made the MIDI files, with their profile photo. Display only:
-// nothing here links anywhere.
-const Credits = memo(({ piece }: { piece: Piece }) => {
+// Who worked on the piece, with their profile photo and role ("made the
+// MIDIs" unless set otherwise). Display only: nothing here links anywhere.
+const Credits = memo(({ credits }: { credits: PieceCredit[] }) => {
   const { t } = useI18n();
   return (
-    <div className="flex items-center gap-3">
-      <Avatar name={piece.midi_credit_name} photoUrl={piece.midi_credit_photo_url} size={40} />
-      <div className="min-w-0">
-        <p className="truncate font-medium">{piece.midi_credit_name}</p>
-        <p className="text-sm text-text-secondary">{t('midiCreditRole')}</p>
-      </div>
-    </div>
+    <ul className="space-y-3">
+      {credits.map((c) => (
+        <li key={c.id} className="flex items-center gap-3">
+          <Avatar name={c.name} photoUrl={c.photo_url} size={40} />
+          <div className="min-w-0">
+            <p className="truncate font-medium">{c.name}</p>
+            <p className="text-sm text-text-secondary">{c.role.trim() || t('midiCreditRole')}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 });
 Credits.displayName = 'Credits';
@@ -213,6 +159,8 @@ export const PieceDetailPage = () => {
 
   const [piece, setPiece] = useState<Piece | null>(null);
   const [files, setFiles] = useState<PieceFile[]>([]);
+  const [voiceRows, setVoiceRows] = useState<PieceTrack[]>([]);
+  const [credits, setCredits] = useState<PieceCredit[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('score');
   // Whether the score scrolls along with playback; remembered per browser.
@@ -245,12 +193,16 @@ export const PieceDetailPage = () => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const load = useCallback(async () => {
-    const [loadedPiece, pieceFiles] = await Promise.all([
+    const [loadedPiece, pieceFiles, pieceTracks, pieceCredits] = await Promise.all([
       loadPieceInScope(pieceId ?? '', projectId),
       loadPieceFiles(pieceId ?? ''),
+      loadPieceTracks(pieceId ?? ''),
+      loadPieceCredits(pieceId ?? ''),
     ]);
     setPiece(loadedPiece);
     setFiles(loadedPiece ? pieceFiles : []);
+    setVoiceRows(loadedPiece ? pieceTracks : []);
+    setCredits(loadedPiece ? pieceCredits.filter((c) => c.name.trim()) : []);
     setLoading(false);
   }, [pieceId, projectId]);
 
@@ -258,8 +210,8 @@ export const PieceDetailPage = () => {
     void load();
   }, [load]);
 
-  const tracks = useMemo(() => files.filter((f) => f.kind === 'audio' && f.file_path), [files]);
-  const score = files.find((f) => f.kind === 'score' && f.file_path) ?? null;
+  const tracks = useMemo(() => playerTracks(voiceRows, files), [voiceRows, files]);
+  const score = useMemo(() => (piece ? pieceScoreFile(piece, files) : null), [piece, files]);
 
   // The link-preview image of this piece (top of the score), made once by a
   // manager's browser when missing.
@@ -452,7 +404,7 @@ export const PieceDetailPage = () => {
   if (!piece) return <NoAccess />;
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
-  const hasCredit = piece.midi_credit_name.trim() !== '';
+  const hasCredit = credits.length > 0;
   // The bar grid is only the fallback for pieces without a score PDF.
   const showGrid = bars.length > 0 && !score;
   const nothingYet = !score && bars.length === 0 && tracks.length === 0;
@@ -618,7 +570,7 @@ export const PieceDetailPage = () => {
       {hasCredit && (
         <section className={cn(tab !== 'credits' && 'max-lg:hidden')}>
           <SectionTitle>{t('credits')}</SectionTitle>
-          <Credits piece={piece} />
+          <Credits credits={credits} />
         </section>
       )}
       <section className={cn(tab !== 'files' && 'max-lg:hidden')}>

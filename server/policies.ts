@@ -379,6 +379,26 @@ export const policies: Record<string, TablePolicy> = {
     select: (a) => canSeePiece(`${a}.piece_id`),
   },
 
+  // A piece's voices (pointing at its recordings) and its credits.
+  piece_tracks: {
+    ...all((a) => canEditPiece(`${a}.piece_id`)),
+    select: (a) => canSeePiece(`${a}.piece_id`),
+  },
+
+  piece_credits: {
+    ...all((a) => canEditPiece(`${a}.piece_id`)),
+    select: (a) => canSeePiece(`${a}.piece_id`),
+    // The photo mirrors the linked account's (database triggers).
+    validateInsert: (row) => {
+      if (row.photo_url != null) throw new ApiError('Credit photos come from the linked account', 403, '42501');
+    },
+    validateUpdate: (oldRow, patch) => {
+      if ('photo_url' in patch && normalize(patch.photo_url) !== normalize(oldRow.photo_url)) {
+        throw new ApiError('Credit photos come from the linked account', 403, '42501');
+      }
+    },
+  },
+
   // A project's pieces and their running order: managed by the project's
   // managers. Archived pieces can't be added.
   project_pieces: {
@@ -414,7 +434,11 @@ export const policies: Record<string, TablePolicy> = {
   absence_labels: {
     ...all((a) => canAccessProject(`${a}.project_id`)),
     select: (a) =>
-      or(canAccessProject(`${a}.project_id`), `${a}.is_public and ${isProjectParticipant(`${a}.project_id`)}`),
+      or(
+        canAccessProject(`${a}.project_id`),
+        // The audition rule is always shown to participants.
+        `(${a}.is_public or ${a}.kind = 'audition') and ${isProjectParticipant(`${a}.project_id`)}`,
+      ),
   },
 };
 

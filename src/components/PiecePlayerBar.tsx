@@ -4,7 +4,7 @@ import { PLAYBACK_RATES, type PracticePlayer } from '@/hooks/usePracticePlayer';
 import { formatTime } from '@/lib/pieceTimeline';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
-import type { PieceFile } from '@/types';
+import type { PlayerTrack } from '@/lib/pieceFiles';
 
 // Loop-section picking: waiting for the first bar, or for the last one.
 export type LoopPicking = null | { from: number | null };
@@ -117,7 +117,7 @@ export const PiecePlayerBar = ({
   follow,
 }: {
   player: PracticePlayer;
-  tracks: PieceFile[];
+  tracks: PlayerTrack[];
   picking: LoopPicking;
   onPickingChange: (picking: LoopPicking) => void;
   // Desktop: a rounded box hovering over the score column. Otherwise a bar
@@ -186,7 +186,7 @@ export const PiecePlayerBar = ({
                           : 'border-border bg-surface/60 text-text-secondary hover:text-text',
                       )}
                     >
-                      {tr.title || tr.file_name}
+                      {tr.title || t('fileKindAudio')}
                     </button>
                   ))}
               </div>

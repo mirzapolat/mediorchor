@@ -13,8 +13,8 @@ import { PieceForm } from '@/components/PieceForm';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { deletePiece } from '@/lib/pieceFiles';
-import { formatTime, timelineDuration } from '@/lib/pieceTimeline';
-import type { Piece } from '@/types';
+import { formatTime, pieceDuration } from '@/lib/pieceTimeline';
+import type { Piece, PieceCredit } from '@/types';
 
 // The collection of all pieces, shared by every project (dashboard tab
 // "Stücke", admins and the 'all' pieces permission): create, edit, archive
@@ -23,14 +23,19 @@ export const GlobalPiecesPage = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [credits, setCredits] = useState<PieceCredit[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Piece | null>(null);
   const tf = useTableFilters({ status: 'active' });
 
   const load = useCallback(async () => {
-    const { data } = await api.from('pieces').select('*').order('name');
-    setPieces((data as Piece[] | null) ?? []);
+    const [pieceResult, creditResult] = await Promise.all([
+      api.from('pieces').select('*').order('name'),
+      api.from('piece_credits').select('*').order('position').order('created_at'),
+    ]);
+    setPieces((pieceResult.data as Piece[] | null) ?? []);
+    setCredits((creditResult.data as PieceCredit[] | null) ?? []);
     setLoading(false);
   }, []);
 
@@ -50,6 +55,12 @@ export const GlobalPiecesPage = () => {
   };
 
   if (loading) return <PageSpinner />;
+
+  const creditsOf = (p: Piece) => credits.filter((c) => c.piece_id === p.id && c.name.trim());
+  const creditNames = (p: Piece) =>
+    creditsOf(p)
+      .map((c) => c.name)
+      .join(', ');
 
   const columns: Column<Piece>[] = [
     {
@@ -88,27 +99,33 @@ export const GlobalPiecesPage = () => {
     {
       id: 'length',
       header: t('pieceLength'),
-      accessor: (p) => timelineDuration(p.timeline),
+      accessor: (p) => pieceDuration(p),
       className: 'w-px whitespace-nowrap tabular-nums',
       render: (p) => {
-        const d = timelineDuration(p.timeline);
+        const d = pieceDuration(p);
         return d != null ? formatTime(d) : <span className="text-text-tertiary">—</span>;
       },
     },
     {
       id: 'credits',
       header: t('credits'),
-      accessor: (p) => p.midi_credit_name,
+      accessor: (p) => creditNames(p),
       mobile: 'hidden',
-      render: (p) =>
-        p.midi_credit_name ? (
+      render: (p) => {
+        const list = creditsOf(p);
+        return list.length > 0 ? (
           <span className="inline-flex min-w-0 items-center gap-2">
-            <Avatar name={p.midi_credit_name} photoUrl={p.midi_credit_photo_url} size={22} />
-            <span className="truncate text-sm">{p.midi_credit_name}</span>
+            <span className="flex flex-shrink-0 -space-x-1.5">
+              {list.slice(0, 3).map((c) => (
+                <Avatar key={c.id} name={c.name} photoUrl={c.photo_url} size={22} />
+              ))}
+            </span>
+            <span className="truncate text-sm">{creditNames(p)}</span>
           </span>
         ) : (
           <span className="text-text-tertiary">—</span>
-        ),
+        );
+      },
     },
   ];
 
@@ -143,7 +160,7 @@ export const GlobalPiecesPage = () => {
         columns={columns}
         getRowId={(p) => p.id}
         onRowClick={(p) => navigate(`/pieces/${p.id}`)}
-        search={(p) => `${p.name} ${p.composer} ${p.description} ${p.midi_credit_name}`}
+        search={(p) => `${p.name} ${p.composer} ${p.description} ${creditNames(p)}`}
         filters={filters}
         query={tf.query}
         hideToolbar

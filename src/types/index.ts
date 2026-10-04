@@ -229,12 +229,13 @@ export interface Piece {
   // Short line shown in the list; notes are Markdown shown on the piece page.
   description: string;
   notes: string; // no longer shown (kept so no text is lost)
-  // Who made the MIDI files: a name, optionally linked to an account whose
-  // profile photo is mirrored onto the piece (read-only).
-  midi_credit_name: string;
-  midi_credit_user_id: string | null;
-  midi_credit_photo_url: string | null;
   timeline: PieceTimeline | null;
+  // Length in seconds: set from the MusicXML, editable; null = unknown.
+  duration_s: number | null;
+  // The score PDF shown on the piece page and the MusicXML its bars are
+  // read from, both picked from the piece's files.
+  score_file_id: string | null;
+  notation_file_id: string | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
   // Added to every numeric bar label when shown (display only).
@@ -266,12 +267,37 @@ export interface PieceFile {
   url: string | null;
   file_path: string | null;
   file_name: string | null;
-  // Audio only: seconds of lead-in before the first bar.
+  // Audio only: lead-in silence measured at upload (a voice using the
+  // recording starts with it).
   offset_s: number;
-  // Audio only: a second recording of the same track with a metronome click
-  // (same timing and lead-in), which the player can switch to.
-  click_file_path: string | null;
-  click_file_name: string | null;
+  position: number;
+  created_at: string;
+}
+
+// A voice of a piece (Sopran, Alt, Tutti, …): one uploaded recording
+// without and optionally one with metronome click, same timing.
+export interface PieceTrack {
+  id: string;
+  piece_id: string;
+  title: string;
+  file_id: string | null;
+  click_file_id: string | null;
+  // Seconds of lead-in before the first bar (both recordings).
+  offset_s: number;
+  position: number;
+  created_at: string;
+}
+
+// Someone credited on a piece, optionally linked to an account (whose
+// profile photo is mirrored here, read-only).
+export interface PieceCredit {
+  id: string;
+  piece_id: string;
+  name: string;
+  user_id: string | null;
+  photo_url: string | null;
+  // What they did; empty = made the MIDIs.
+  role: string;
   position: number;
   created_at: string;
 }
@@ -319,6 +345,9 @@ export interface AbsenceLabel {
   name: string;
   conditions: import('@/lib/absenceConditions').StoredCondition[];
   is_public: boolean;
+  // 'audition': the project's audition rule (at most one; always shown to
+  // participants as "you must / needn't audition yet").
+  kind: 'tag' | 'audition';
   position: number;
   created_at: string;
 }

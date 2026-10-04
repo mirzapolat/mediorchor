@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pieceFileUrl } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
-import type { Piece, PieceFile } from '@/types';
+import type { Piece } from '@/types';
+import type { PlayerTrack } from '@/lib/pieceFiles';
 
 export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
 
@@ -28,7 +29,7 @@ interface PendingSwitch {
 // between the voice tracks while keeping the position, bar-accurate jumps,
 // a loop section, playback speed, the recording with or without metronome
 // click, and the phone's lock-screen controls.
-export const usePracticePlayer = (piece: Piece | null, tracks: PieceFile[]) => {
+export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   if (audioRef.current === null && typeof Audio !== 'undefined') {
     audioRef.current = new Audio();

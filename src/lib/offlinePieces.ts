@@ -3,7 +3,14 @@
 // notation file and recording into the offline file cache, which the service
 // worker serves when there is no connection.
 
-import { loadPieceFiles, loadPieceInScope, loadPiecesOverview, pieceFileUrl } from './pieceFiles';
+import {
+  loadPieceCredits,
+  loadPieceFiles,
+  loadPieceInScope,
+  loadPiecesOverview,
+  loadPieceTracks,
+  pieceFileUrl,
+} from './pieceFiles';
 import { OFFLINE_FILES_CACHE, OFFLINE_META_PREFIX } from './offlineStore';
 // The PDF renderer is loaded on demand; fetch it now (the service worker
 // keeps build files), or an offline piece page couldn't show its score.
@@ -63,7 +70,13 @@ export const saveProjectOffline = async (
   const { pieces } = await loadPiecesOverview(projectId);
   const perPiece = await Promise.all(
     pieces.map(async (p) => {
-      const [, files] = await Promise.all([loadPieceInScope(p.id, projectId), loadPieceFiles(p.id)]);
+      // Every request the piece page makes, so it answers offline.
+      const [, files] = await Promise.all([
+        loadPieceInScope(p.id, projectId),
+        loadPieceFiles(p.id),
+        loadPieceTracks(p.id),
+        loadPieceCredits(p.id),
+      ]);
       return files;
     }),
   );
@@ -72,7 +85,7 @@ export const saveProjectOffline = async (
       perPiece
         .flat()
         .filter((f) => f.kind !== 'link')
-        .flatMap((f) => [f.file_path, f.click_file_path])
+        .map((f) => f.file_path)
         .filter((p): p is string => !!p)
         .map(pieceFileUrl),
     ),

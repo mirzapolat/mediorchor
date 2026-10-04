@@ -11,6 +11,7 @@ const isPdf = (f: PieceOverviewFile) =>
   Boolean(f.file_path) && (f.kind === 'score' || /\.pdf$/i.test(f.file_name ?? ''));
 const isMidi = (f: PieceOverviewFile) =>
   Boolean(f.file_path) && (f.kind === 'midi' || /\.midi?$/i.test(f.file_name ?? ''));
+const isAudio = (f: PieceOverviewFile) => Boolean(f.file_path) && f.kind === 'audio';
 const isMusicXml = (f: PieceOverviewFile) =>
   Boolean(f.file_path) && (f.kind === 'notation' || /\.(musicxml|mxl|xml)$/i.test(f.file_name ?? ''));
 
@@ -131,8 +132,9 @@ export const ScoresZipBanner = ({
   );
 };
 
-// Scores, MIDIs and MusicXML of every piece as one ZIP, one folder per kind
-// ("Noten/", "MIDI/", "MusicXML/"). Only shown when there is more than PDFs.
+// Scores, MIDIs, MusicXML and recordings (with and without metronome) of
+// every piece as one ZIP, one folder per kind ("Noten/", "MIDI/",
+// "MusicXML/", "Aufnahmen/"). Only shown when there is more than PDFs.
 export const AllFilesZipBanner = ({
   projectName,
   pieces,
@@ -158,13 +160,22 @@ export const AllFilesZipBanner = ({
     '.musicxml',
     'MusicXML/',
   );
-  if (midis.length === 0 && xmls.length === 0) return null;
-  const entries = [...pdfs, ...midis, ...xmls];
+  // Recordings are named by their voice ("01 Ave – Sopran (Mit Metronom).mp3").
+  const audios = entriesFor(
+    pieces,
+    files,
+    (f) => !isPdf(f) && isAudio(f),
+    '.mp3',
+    `${safeFileName(t('recordingsFolder'))}/`,
+  );
+  if (midis.length === 0 && xmls.length === 0 && audios.length === 0) return null;
+  const entries = [...pdfs, ...midis, ...xmls, ...audios];
 
   const counts = [
     pdfs.length ? `${pdfs.length} PDF` : null,
     midis.length ? `${midis.length} MIDI` : null,
     xmls.length ? `${xmls.length} MusicXML` : null,
+    audios.length ? `${audios.length} ${t('recordingsShort')}` : null,
   ]
     .filter(Boolean)
     .join(' · ');

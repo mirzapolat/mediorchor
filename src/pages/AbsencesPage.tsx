@@ -9,6 +9,7 @@ import {
   GripVertical,
   Plus,
   Settings2,
+  Mic,
   Trash2,
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
@@ -165,15 +166,23 @@ const LabelSettingsModal = ({
                   <GripVertical size={16} />
                 </button>
                 <span className="flex-1 truncate font-medium">{label.name}</span>
-                <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-black"
-                    checked={label.is_public}
-                    onChange={() => togglePublic(label)}
-                  />
-                  {t('publicLabel')}
-                </label>
+                {label.kind === 'audition' ? (
+                  // Always shown to participants, so there is nothing to toggle.
+                  <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
+                    <Mic size={14} />
+                    {t('auditionRule')}
+                  </span>
+                ) : (
+                  <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-black"
+                      checked={label.is_public}
+                      onChange={() => togglePublic(label)}
+                    />
+                    {t('publicLabel')}
+                  </label>
+                )}
                 <button
                   type="button"
                   aria-label={t('delete')}
@@ -207,6 +216,7 @@ export const AbsencesPage = () => {
   const [saveOpen, setSaveOpen] = useState(false);
   const [labelName, setLabelName] = useState('');
   const [labelPublic, setLabelPublic] = useState(false);
+  const [labelKind, setLabelKind] = useState<AbsenceLabel['kind']>('tag');
   const [savingLabel, setSavingLabel] = useState(false);
   const [labelSettingsOpen, setLabelSettingsOpen] = useState(false);
   const tf = useTableFilters({ status: 'active' });
@@ -358,27 +368,42 @@ export const AbsencesPage = () => {
     setConditions(label.conditions.map((c) => ({ ...c, id: `condition-${nextConditionId++}` })));
   };
 
+  // The project's audition rule, if it has one (at most one).
+  const auditionLabel = labels.find((l) => l.kind === 'audition') ?? null;
+
   const saveLabel = async (e: FormEvent) => {
     e.preventDefault();
     setSavingLabel(true);
-    const { data } = await api
-      .from('absence_labels')
-      .insert({
-        project_id: project.id,
-        name: labelName.trim(),
-        conditions: toStoredConditions(conditions),
-        is_public: labelPublic,
-        position: labels.length,
-      })
-      .select('*')
-      .single();
+    const fields = { name: labelName.trim(), conditions: toStoredConditions(conditions) };
+    // A new audition rule replaces the existing one.
+    const { data } =
+      labelKind === 'audition' && auditionLabel
+        ? await api.from('absence_labels').update(fields).eq('id', auditionLabel.id).select('*').single()
+        : await api
+            .from('absence_labels')
+            .insert({
+              ...fields,
+              project_id: project.id,
+              kind: labelKind,
+              // The audition rule is always shown to participants.
+              is_public: labelKind === 'audition' || labelPublic,
+              position: labels.length,
+            })
+            .select('*')
+            .single();
     setSavingLabel(false);
     setSaveOpen(false);
     setLabelName('');
     setLabelPublic(false);
+    setLabelKind('tag');
     if (data) {
-      setLabels((current) => [...current, data as AbsenceLabel]);
-      setActiveLabelId((data as AbsenceLabel).id);
+      const saved = data as AbsenceLabel;
+      setLabels((current) =>
+        current.some((l) => l.id === saved.id)
+          ? current.map((l) => (l.id === saved.id ? saved : l))
+          : [...current, saved],
+      );
+      setActiveLabelId(saved.id);
     }
   };
 
@@ -435,7 +460,7 @@ export const AbsencesPage = () => {
                 : 'border-border text-text-secondary hover:text-text hover:bg-surface-muted',
             )}
           >
-            <Bookmark size={13} />
+            {label.kind === 'audition' ? <Mic size={13} /> : <Bookmark size={13} />}
             {label.name}
           </button>
         ))}
@@ -668,6 +693,32 @@ export const AbsencesPage = () => {
             required
             autoFocus
           />
+          <div role="radiogroup" aria-label={t('labelKind')} className="space-y-2">
+            {(['tag', 'audition'] as const).map((kind) => (
+              <label key={kind} className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="radio"
+                  name="label-kind"
+                  className="mt-0.5 h-4 w-4 accent-black"
+                  checked={labelKind === kind}
+                  onChange={() => setLabelKind(kind)}
+                />
+                <span>
+                  <span className="block text-sm font-medium">
+                    {kind === 'tag' ? t('labelKindTag') : t('auditionRule')}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-text-secondary">
+                    {kind === 'tag'
+                      ? t('labelKindTagHint')
+                      : auditionLabel
+                        ? t('auditionRuleReplaces').replace('{name}', auditionLabel.name)
+                        : t('auditionRuleHint')}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {labelKind === 'tag' && (
           <label className="flex cursor-pointer items-start gap-3">
             <input
               type="checkbox"
@@ -682,6 +733,7 @@ export const AbsencesPage = () => {
               </span>
             </span>
           </label>
+          )}
         </form>
       </Modal>
 

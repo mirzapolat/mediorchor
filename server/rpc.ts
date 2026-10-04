@@ -946,14 +946,12 @@ const create_piece = (args: Args) => {
     throw forbidden('Access denied');
   }
   const user = db.prepare('select name from app_users where id = ?').get(uid) as { name: string } | undefined;
+  const { id } = db
+    .prepare('insert into pieces (name, composer, description) values (?, ?, ?) returning id')
+    .get(name, trimmed(args.p_composer), trimmed(args.p_description)) as { id: string };
   // The creator is credited for the MIDIs until set otherwise; a trigger adds
   // their profile photo.
-  const { id } = db
-    .prepare(
-      `insert into pieces (name, composer, description, midi_credit_name, midi_credit_user_id)
-       values (?, ?, ?, ?, ?) returning id`,
-    )
-    .get(name, trimmed(args.p_composer), trimmed(args.p_description), user?.name ?? '', uid) as { id: string };
+  db.prepare('insert into piece_credits (piece_id, name, user_id) values (?, ?, ?)').run(id, user?.name ?? '', uid);
   if (projectId) {
     db.prepare(
       `insert into project_pieces (project_id, piece_id, position)

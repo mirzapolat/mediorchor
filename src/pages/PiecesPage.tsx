@@ -20,7 +20,7 @@ import {
   type PieceOverviewFile,
   type ProjectPieceItem,
 } from '@/lib/pieceFiles';
-import { formatTime, timelineDuration } from '@/lib/pieceTimeline';
+import { formatTime, pieceDuration } from '@/lib/pieceTimeline';
 import { useProjectContext } from '@/layouts/projectContext';
 import { usePieceScope } from '@/layouts/pieceScope';
 
@@ -79,7 +79,7 @@ export const PiecesPage = () => {
     : pieces;
 
   // Programme length from the pieces whose bar timing is known.
-  const durations = pieces.map((p) => timelineDuration(p.timeline));
+  const durations = pieces.map((p) => pieceDuration(p));
   const known = durations.filter((d): d is number => d != null);
   const total = known.reduce((a, b) => a + b, 0);
   const subtitle =
@@ -125,7 +125,7 @@ export const PiecesPage = () => {
           )}
         </div>
       ) : (
-        <div className="grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
           {visible.length === 0 ? (
             <p className="py-12 text-center text-sm text-text-secondary">{t('noResults')}</p>
           ) : (
@@ -136,7 +136,7 @@ export const PiecesPage = () => {
               // Reordering a filtered subset would scramble positions.
               onReorder={canManage && !query ? reorder : undefined}
               renderItem={(p) => {
-                const duration = timelineDuration(p.timeline);
+                const duration = pieceDuration(p);
                 // Running order in the programme (kept while searching).
                 const number = pieces.indexOf(p) + 1;
                 return (

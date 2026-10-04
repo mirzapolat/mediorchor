@@ -25,13 +25,14 @@ import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
   deletePiece,
-  loadPieceInScope,
-  removePieceFromProject,
   deletePieceFile,
+  loadPieceCredits,
   loadPieceFiles,
+  loadPieceInScope,
+  loadPieceTracks,
   persistOrder,
   pieceFileUrl,
-  removePieceFiles,
+  removePieceFromProject,
   uploadPieceFile,
 } from '@/lib/pieceFiles';
 import { NotationError, parseNotation } from '@/lib/musicxml';
@@ -49,7 +50,7 @@ import { usePieceScope } from '@/layouts/pieceScope';
 import { NoAccess } from '@/components/NoAccess';
 import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
-import type { Piece, PieceFile, PieceFileKind, PieceTimeline } from '@/types';
+import type { Piece, PieceCredit, PieceFile, PieceFileKind, PieceTimeline, PieceTrack } from '@/types';
 
 interface UploadItem {
   key: string;
@@ -65,6 +66,9 @@ const KIND_OPTIONS: Array<{ kind: Exclude<PieceFileKind, 'link'>; label: Transla
   { kind: 'midi', label: 'fileKindMidi' },
   { kind: 'other', label: 'fileKindOther' },
 ];
+
+const selectClasses =
+  'h-9 min-w-0 rounded-md border border-border bg-surface px-2 text-base focus:border-black focus:outline-none sm:text-sm';
 
 const Section = ({
   title,
@@ -132,18 +136,17 @@ const MultiDropzone = ({ onFiles }: { onFiles: (files: File[]) => void }) => {
 };
 
 // Loads each recording's length (metadata only) to compare with the bars.
-const useTrackDurations = (tracks: PieceFile[]) => {
+const useRecordingDurations = (recordings: PieceFile[]) => {
   const [durations, setDurations] = useState<Record<string, number>>({});
-  const key = tracks.map((t) => t.file_path).join('|');
+  const key = recordings.map((f) => f.file_path).join('|');
   useEffect(() => {
-    const audios = tracks
-      .filter((t) => t.file_path)
-      .map((track) => {
+    const audios = recordings
+      .filter((f) => f.file_path)
+      .map((file) => {
         const audio = new Audio();
         audio.preload = 'metadata';
-        audio.onloadedmetadata = () =>
-          setDurations((d) => ({ ...d, [track.id]: audio.duration }));
-        audio.src = pieceFileUrl(track.file_path as string);
+        audio.onloadedmetadata = () => setDurations((d) => ({ ...d, [file.id]: audio.duration }));
+        audio.src = pieceFileUrl(file.file_path as string);
         return audio;
       });
     return () => audios.forEach((a) => a.removeAttribute('src'));
@@ -152,8 +155,19 @@ const useTrackDurations = (tracks: PieceFile[]) => {
   return durations;
 };
 
-// Set-up for one piece (with the pieces permission): details, all files in one drop, voice
-// tracks, where the bar timing comes from and whether the recordings match.
+// "3:25" (or plain seconds) → seconds; '' → null; undefined when unreadable.
+const parseDuration = (value: string): number | null | undefined => {
+  const v = value.trim();
+  if (!v) return null;
+  const m = /^(\d+):([0-5]?\d)$/.exec(v);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  return /^\d+(\.\d+)?$/.test(v) ? Number(v) : undefined;
+};
+
+// Set-up for one piece (with the pieces permission), top to bottom: details,
+// credits, one drop for all files (listed below it), the bar timing, the
+// voices (picking their recordings from the uploaded files), and the score
+// PDF, MusicXML and links.
 export const PieceSetupPage = () => {
   const { t } = useI18n();
   const { base, projectId, canEdit, canManageProject, canDelete } = usePieceScope();
@@ -162,43 +176,54 @@ export const PieceSetupPage = () => {
 
   const [piece, setPiece] = useState<Piece | null>(null);
   const [files, setFiles] = useState<PieceFile[]>([]);
+  const [tracks, setTracks] = useState<PieceTrack[]>([]);
+  const [credits, setCredits] = useState<PieceCredit[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [evenFirst, setEvenFirst] = useState('1');
-  const [evenLast, setEvenLast] = useState('');
+  const [barCount, setBarCount] = useState('');
   const [timingBusy, setTimingBusy] = useState(false);
   const [timingError, setTimingError] = useState<string | null>(null);
   const [timingMode, setTimingMode] = useState<'notation' | 'even' | null>(null);
+  const [durationError, setDurationError] = useState(false);
   const [toDelete, setToDelete] = useState<PieceFile | null>(null);
   const [deletePieceOpen, setDeletePieceOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
 
   const back = `${base}/${pieceId}`;
 
-  const load = useCallback(async () => {
-    const [loaded, pieceFiles] = await Promise.all([
-      loadPieceInScope(pieceId ?? '', projectId),
+  const reloadParts = useCallback(async () => {
+    const [pieceFiles, pieceTracks, pieceCredits] = await Promise.all([
       loadPieceFiles(pieceId ?? ''),
+      loadPieceTracks(pieceId ?? ''),
+      loadPieceCredits(pieceId ?? ''),
     ]);
+    setFiles(pieceFiles);
+    setTracks(pieceTracks);
+    setCredits(pieceCredits);
+  }, [pieceId]);
+
+  const load = useCallback(async () => {
+    const loaded = await loadPieceInScope(pieceId ?? '', projectId);
     setPiece(loaded);
-    setFiles(loaded ? pieceFiles : []);
-    if (loaded?.timeline?.source === 'even') {
-      setEvenFirst(String(loaded.timeline.first));
-      setEvenLast(String(loaded.timeline.last));
+    if (loaded) {
+      await reloadParts();
+      if (loaded.timeline?.source === 'even') {
+        setBarCount(String(loaded.timeline.last - loaded.timeline.first + 1));
+      }
     }
     setLoading(false);
-  }, [pieceId, projectId]);
+  }, [pieceId, projectId, reloadParts]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const tracks = files.filter((f) => f.kind === 'audio');
+  const recordings = files.filter((f) => f.kind === 'audio' && f.file_path);
   const canPlaceBars = useCanPlaceBars();
-  const durations = useTrackDurations(tracks);
+  const durations = useRecordingDurations(recordings);
 
   if (!canEdit) return <NoAccess />;
   if (loading) return <PageSpinner />;
@@ -214,52 +239,49 @@ export const PieceSetupPage = () => {
     await api.from('piece_files').update(patch).eq('id', file.id);
   };
 
-  const setTimeline = async (timeline: PieceTimeline | null) => updatePiece({ timeline });
+  const updateTrack = async (track: PieceTrack, patch: Partial<PieceTrack>) => {
+    setTracks((ts) => ts.map((x) => (x.id === track.id ? { ...x, ...patch } : x)));
+    await api.from('piece_tracks').update(patch).eq('id', track.id);
+  };
 
+  const updateCredit = async (credit: PieceCredit, patch: Partial<PieceCredit>) => {
+    setCredits((cs) => cs.map((c) => (c.id === credit.id ? { ...c, ...patch } : c)));
+    await api.from('piece_credits').update(patch).eq('id', credit.id);
+    // A linked account brings its photo (set by the database).
+    if ('user_id' in patch) setCredits(await loadPieceCredits(piece.id));
+  };
+
+  // Reads the bars from a MusicXML; the piece's length follows them.
   const readNotation = async (blob: Blob): Promise<string | null> => {
     try {
-      await setTimeline(await parseNotation(blob));
+      const timeline: PieceTimeline = await parseNotation(blob);
+      await updatePiece({ timeline, duration_s: timelineDuration(timeline) });
       setTimingError(null);
       return null;
     } catch (e) {
-      const message = e instanceof NotationError && e.message === 'timewise' ? t('notationTimewise') : t('notationUnreadable');
+      const message =
+        e instanceof NotationError && e.message === 'timewise' ? t('notationTimewise') : t('notationUnreadable');
       setTimingError(message);
       return message;
     }
   };
 
-  // Sets (or with null removes) a track's recording with click; the
-  // previous one's stored object is removed.
-  const setClickRecording = async (track: PieceFile, path: string | null, fileName: string | null) => {
-    if (track.click_file_path && track.click_file_path !== path) void removePieceFiles([track.click_file_path]);
-    await updateFile(track, { click_file_path: path, click_file_name: fileName });
-  };
-
-  const uploadClickRecording = async (track: PieceFile, file: File) => {
-    const result = await uploadPieceFile(piece.id, file);
-    if (result.path) await setClickRecording(track, result.path, file.name);
-  };
-
-  // The voice track a recording with click belongs to: same voice in the
-  // file name, or the only track still without one.
-  const clickTrackFor = (fileName: string, tracksNow: PieceFile[]): PieceFile | null => {
-    const voice = guessVoice(fileName).toLowerCase();
-    const audio = tracksNow.filter((f) => f.kind === 'audio');
-    const byVoice = audio.find((f) => f.title.trim().toLowerCase() === voice);
-    if (byVoice) return byVoice;
-    const open = audio.filter((f) => !f.click_file_path);
-    return open.length === 1 ? open[0] : null;
-  };
+  const notationFiles = files.filter((f) => f.kind === 'notation' && f.file_path);
+  const scoreFiles = files.filter((f) => (f.kind === 'score' || /\.pdf$/i.test(f.file_name ?? '')) && f.file_path);
+  const notationFile = notationFiles.find((f) => f.id === piece.notation_file_id) ?? null;
 
   const addFiles = async (picked: File[]) => {
-    // Notation first: the recordings are then checked against its bars.
-    // Recordings with click last, so the tracks they belong to exist.
+    // Notation first (its bars then check the recordings); recordings with
+    // click last, so the voices they belong to exist.
     const rank = (f: File) =>
       guessFileKind(f) === 'notation' ? 0 : guessFileKind(f) === 'audio' && isClickRecording(f.name) ? 2 : 1;
     const ordered = [...picked].sort((a, b) => rank(a) - rank(b));
     const counts: Partial<Record<PieceFileKind, number>> = {};
     for (const f of files) counts[f.kind] = (counts[f.kind] ?? 0) + 1;
-    let tracksNow: PieceFile[] | null = null;
+    // Local copies, updated as files land (state updates come later).
+    const voices = [...tracks];
+    let scoreId = piece.score_file_id;
+    let notationId = piece.notation_file_id;
 
     for (const file of ordered) {
       const key = crypto.randomUUID();
@@ -268,25 +290,7 @@ export const PieceSetupPage = () => {
       setUploads((list) => [...list, { key, name: file.name, state: 'busy' }]);
 
       const kind = guessFileKind(file);
-      if (kind === 'audio' && isClickRecording(file.name)) {
-        tracksNow ??= await loadPieceFiles(piece.id);
-        const track = clickTrackFor(file.name, tracksNow);
-        if (track && !track.click_file_path) {
-          const result = await uploadPieceFile(piece.id, file);
-          if (!result.path) {
-            setItem({ state: 'error', note: result.error ?? t('uploadError') });
-            continue;
-          }
-          await api
-            .from('piece_files')
-            .update({ click_file_path: result.path, click_file_name: file.name })
-            .eq('id', track.id);
-          track.click_file_path = result.path;
-          setItem({ state: 'done', note: `${t('withMetronome')} · ${track.title || track.file_name}` });
-          continue;
-        }
-      }
-
+      const withClick = kind === 'audio' && isClickRecording(file.name);
       const [result, leadIn] = await Promise.all([
         uploadPieceFile(piece.id, file),
         kind === 'audio' ? detectLeadIn(file) : Promise.resolve(null),
@@ -297,21 +301,58 @@ export const PieceSetupPage = () => {
       }
       const position = counts[kind] ?? 0;
       counts[kind] = position + 1;
-      const { error } = await api.from('piece_files').insert({
-        piece_id: piece.id,
-        kind,
-        title: kind === 'audio' ? guessVoice(file.name) : file.name.replace(/\.[^.]+$/, ''),
-        file_path: result.path,
-        file_name: file.name,
-        offset_s: leadIn ?? 0,
-        position,
-      });
-      if (error) {
-        setItem({ state: 'error', note: error.message });
+      const voice = kind === 'audio' ? guessVoice(file.name) : '';
+      const { data, error } = await api
+        .from('piece_files')
+        .insert({
+          piece_id: piece.id,
+          kind,
+          title:
+            kind === 'audio'
+              ? withClick
+                ? `${voice} (${t('withMetronome')})`
+                : voice
+              : file.name.replace(/\.[^.]+$/, ''),
+          file_path: result.path,
+          file_name: file.name,
+          offset_s: leadIn ?? 0,
+          position,
+        })
+        .select('id')
+        .single();
+      if (error || !data) {
+        setItem({ state: 'error', note: error?.message ?? t('uploadError') });
         continue;
       }
-      let note: string | undefined = t(KIND_OPTIONS.find((k) => k.kind === kind)!.label);
-      if (kind === 'notation') {
+      const fileId = (data as { id: string }).id;
+      let note: string = t(KIND_OPTIONS.find((k) => k.kind === kind)!.label);
+
+      if (kind === 'audio' && !withClick) {
+        // A new voice with this recording (the voice from the file name).
+        const { data: track } = await api
+          .from('piece_tracks')
+          .insert({ piece_id: piece.id, title: voice, file_id: fileId, offset_s: leadIn ?? 0, position: voices.length })
+          .select('*')
+          .single();
+        if (track) voices.push(track as PieceTrack);
+        note = `${t('voiceName')} · ${voice}`;
+      } else if (withClick) {
+        // Joins the voice of the same name, or the only one still without.
+        const name = voice.toLowerCase();
+        const open = voices.filter((v) => !v.click_file_id);
+        const target =
+          open.find((v) => v.title.trim().toLowerCase() === name) ?? (open.length === 1 ? open[0] : undefined);
+        if (target) {
+          target.click_file_id = fileId;
+          await api.from('piece_tracks').update({ click_file_id: fileId }).eq('id', target.id);
+          note = `${t('withMetronome')} · ${target.title}`;
+        }
+      } else if (kind === 'score' && !scoreId) {
+        scoreId = fileId;
+        await updatePiece({ score_file_id: fileId });
+      } else if (kind === 'notation' && !notationId) {
+        notationId = fileId;
+        await updatePiece({ notation_file_id: fileId });
         const problem = await readNotation(file);
         if (problem) {
           setItem({ state: 'error', note: problem });
@@ -321,32 +362,27 @@ export const PieceSetupPage = () => {
       }
       setItem({ state: 'done', note });
     }
-    setFiles(await loadPieceFiles(piece.id));
+    await reloadParts();
   };
 
-  const reorderKind = (kind: PieceFileKind) => (next: PieceFile[]) => {
-    setFiles((fs) => [...fs.filter((f) => f.kind !== kind), ...next.map((f, i) => ({ ...f, position: i }))]);
-    void persistOrder('piece_files', next);
-  };
-
-  const rereadNotation = async () => {
-    const notation = files.find((f) => f.kind === 'notation' && f.file_path);
-    if (!notation?.file_path) return;
+  const rereadNotation = async (file: PieceFile | null = notationFile) => {
+    if (!file?.file_path) return;
     setTimingBusy(true);
-    const response = await fetch(pieceFileUrl(notation.file_path));
+    const response = await fetch(pieceFileUrl(file.file_path));
     await readNotation(await response.blob());
     setTimingBusy(false);
   };
 
   const saveEven = async () => {
-    const first = parseInt(evenFirst, 10);
-    const last = parseInt(evenLast, 10);
-    if (!(first >= 0 && last >= first)) {
+    const count = parseInt(barCount, 10);
+    if (!(count >= 1)) {
       setTimingError(t('barRangeInvalid'));
       return;
     }
     setTimingError(null);
-    await setTimeline({ source: 'even', first, last });
+    // Keeps the first bar's number; the numbering below shifts it.
+    const first = piece.timeline?.source === 'even' ? piece.timeline.first : 1;
+    await updatePiece({ timeline: { source: 'even', first, last: first + count - 1 } });
   };
 
   const addLink = async () => {
@@ -376,98 +412,61 @@ export const PieceSetupPage = () => {
     setFiles(await loadPieceFiles(piece.id));
   };
 
+  // Voices and the piece lose a deleted file by themselves (database).
   const removeFile = async () => {
     if (!toDelete) return;
     await deletePieceFile(toDelete);
     setToDelete(null);
-    setFiles(await loadPieceFiles(piece.id));
+    const fresh = await loadPieceInScope(piece.id, projectId);
+    if (fresh) setPiece(fresh);
+    await reloadParts();
+  };
+
+  const addVoice = async () => {
+    const { data } = await api
+      .from('piece_tracks')
+      .insert({ piece_id: piece.id, title: '', position: tracks.length })
+      .select('*')
+      .single();
+    if (data) setTracks((ts) => [...ts, data as PieceTrack]);
+  };
+
+  const removeVoice = async (track: PieceTrack) => {
+    setTracks((ts) => ts.filter((x) => x.id !== track.id));
+    await api.from('piece_tracks').delete().eq('id', track.id);
+  };
+
+  const reorderVoices = (next: PieceTrack[]) => {
+    setTracks(next.map((x, i) => ({ ...x, position: i })));
+    void persistOrder('piece_tracks', next);
+  };
+
+  const addCredit = async () => {
+    const { data } = await api
+      .from('piece_credits')
+      .insert({ piece_id: piece.id, name: '', position: credits.length })
+      .select('*')
+      .single();
+    if (data) setCredits((cs) => [...cs, data as PieceCredit]);
+  };
+
+  const removeCredit = async (credit: PieceCredit) => {
+    setCredits((cs) => cs.filter((c) => c.id !== credit.id));
+    await api.from('piece_credits').delete().eq('id', credit.id);
   };
 
   const timeline = piece.timeline;
-  const notationFile = files.find((f) => f.kind === 'notation' && f.file_path);
-  const score = files.find((f) => f.kind === 'score' && f.file_path);
+  const score = scoreFiles.find((f) => f.id === piece.score_file_id) ?? null;
   const labels = timelineLabels(timeline);
   const placed = labels.filter((l) => piece.bar_anchors[l]).length;
   // Shown bar numbers: the first numbered bar plus the piece's shift.
   const firstNumber = firstBarNumber(labels);
   const shownStart = firstNumber == null ? null : firstNumber + (piece.bar_shift ?? 0);
   const expected = timelineDuration(timeline);
-  const mode = timingMode ?? (timeline?.source ?? (notationFile ? 'notation' : 'even'));
-
-  const fileRow = (f: PieceFile) => (
-    <div className="space-y-2 p-3">
-      <div className="flex items-center gap-2">
-        <input
-          defaultValue={f.title}
-          aria-label={f.kind === 'audio' ? t('voiceName') : t('displayName')}
-          placeholder={f.file_name ?? ''}
-          onBlur={(e) => e.target.value !== f.title && void updateFile(f, { title: e.target.value.trim() })}
-          className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
-        />
-        <button
-          type="button"
-          onClick={() => setToDelete(f)}
-          aria-label={t('delete')}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-        >
-          <Trash2 size={15} />
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2 text-xs text-text-secondary">
-        <span className="min-w-0 max-w-full truncate">{f.kind === 'link' ? f.url : f.file_name}</span>
-        {f.kind !== 'link' && (
-          <select
-            value={f.kind}
-            aria-label={t('fileKind')}
-            onChange={(e) => void updateFile(f, { kind: e.target.value as PieceFileKind })}
-            className="h-7 rounded-md border border-border bg-surface px-1.5 text-xs text-text-secondary focus:border-black focus:outline-none"
-          >
-            {KIND_OPTIONS.map((k) => (
-              <option key={k.kind} value={k.kind}>
-                {t(k.label)}
-              </option>
-            ))}
-          </select>
-        )}
-        {f.kind === 'audio' && (
-          <>
-            <label className="inline-flex items-center gap-1.5">
-              {t('leadIn')}
-              <input
-                type="number"
-                step={0.01}
-                min={0}
-                defaultValue={f.offset_s}
-                onBlur={(e) => {
-                  const v = Math.max(0, parseFloat(e.target.value) || 0);
-                  if (v !== f.offset_s) void updateFile(f, { offset_s: v });
-                }}
-                className="h-7 w-16 rounded-md border border-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-black focus:outline-none"
-              />
-              s
-            </label>
-            {durations[f.id] > 0 && <TrackCheck duration={durations[f.id]} expected={expected} offset={f.offset_s} />}
-          </>
-        )}
-      </div>
-      {f.kind === 'audio' && (
-        <ClickRecording
-          track={f}
-          onUpload={(file) => uploadClickRecording(f, file)}
-          onRemove={() => setClickRecording(f, null, null)}
-        />
-      )}
-    </div>
-  );
-
-  const groups: Array<{ kind: PieceFileKind; title: TranslationKey; hint?: TranslationKey }> = [
-    { kind: 'audio', title: 'voicesTitle', hint: 'voicesHint' },
-    { kind: 'score', title: 'fileKindScore', hint: 'scoresHint' },
-    { kind: 'notation', title: 'fileKindNotation' },
-    { kind: 'midi', title: 'fileKindMidi' },
-    { kind: 'other', title: 'fileKindOther' },
-    { kind: 'link', title: 'fileKindLink' },
-  ];
+  const mode = timingMode ?? timeline?.source ?? (notationFile ? 'notation' : 'even');
+  const uploadedFiles = files.filter((f) => f.kind !== 'link');
+  const links = files.filter((f) => f.kind === 'link');
+  const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-10">
@@ -512,15 +511,51 @@ export const PieceSetupPage = () => {
             e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
           }
         />
+        <div className="space-y-1.5">
+          <Input
+            // Re-mounted when the saved value changes (e.g. read from the MusicXML).
+            key={piece.duration_s ?? 'none'}
+            id="piece-duration"
+            label={t('pieceLength')}
+            placeholder="m:ss"
+            inputMode="numeric"
+            defaultValue={piece.duration_s != null ? formatTime(piece.duration_s) : ''}
+            onBlur={(e) => {
+              const v = parseDuration(e.target.value);
+              if (v === undefined) {
+                setDurationError(true);
+                return;
+              }
+              setDurationError(false);
+              if (v !== piece.duration_s) void updatePiece({ duration_s: v });
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            className="max-w-[10rem]"
+          />
+          <p className={cn('text-sm', durationError ? 'text-danger' : 'text-text-secondary')}>
+            {durationError ? t('durationInvalid') : t('durationHint')}
+          </p>
+        </div>
       </Section>
 
-      <Section title={t('credits')} hint={t('midiCreditHint')}>
-        <CreditPicker
-          name={piece.midi_credit_name}
-          userId={piece.midi_credit_user_id}
-          photoUrl={piece.midi_credit_photo_url}
-          onChange={(credit) => void updatePiece(credit)}
-        />
+      <Section title={t('credits')} hint={t('creditsHint')}>
+        {credits.length > 0 && (
+          <ul className="space-y-3">
+            {credits.map((c) => (
+              <li key={c.id}>
+                <CreditRow
+                  credit={c}
+                  onChange={(patch) => void updateCredit(c, patch)}
+                  onRemove={() => void removeCredit(c)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button variant="secondary" onClick={() => void addCredit()}>
+          <Plus size={15} />
+          {t('addCredit')}
+        </Button>
       </Section>
 
       <Section title={t('addFiles')}>
@@ -546,6 +581,53 @@ export const PieceSetupPage = () => {
             ))}
           </ul>
         )}
+        <div className="space-y-2 border-t border-border pt-4">
+          <h3 className="text-sm font-semibold">
+            {t('uploadedFiles')}
+            {uploadedFiles.length > 0 && <span className="font-normal text-text-secondary"> · {uploadedFiles.length}</span>}
+          </h3>
+          {uploadedFiles.length === 0 ? (
+            <p className="text-sm text-text-secondary">{t('noFiles')}</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-md border border-border">
+              {uploadedFiles.map((f) => (
+                <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      defaultValue={f.title}
+                      aria-label={t('displayName')}
+                      placeholder={f.file_name ?? ''}
+                      onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
+                      className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                    />
+                    <p className="truncate px-1.5 text-xs text-text-tertiary">{f.file_name}</p>
+                  </div>
+                  <select
+                    value={f.kind}
+                    aria-label={t('fileKind')}
+                    onChange={(e) => void updateFile(f, { kind: e.target.value as PieceFileKind })}
+                    className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-1.5 text-xs text-text-secondary focus:border-black focus:outline-none"
+                  >
+                    {KIND_OPTIONS.map((k) => (
+                      <option key={k.kind} value={k.kind}>
+                        {t(k.label)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setToDelete(f)}
+                    aria-label={t('delete')}
+                    title={t('delete')}
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </Section>
 
       <Section title={t('timingTitle')} hint={t('timingHint')}>
@@ -576,32 +658,32 @@ export const PieceSetupPage = () => {
         {mode === 'notation' ? (
           <div className="space-y-3">
             {timeline?.source === 'notation' && (
-            <div className="flex flex-wrap gap-1.5">
-              <Chip>
-                {timeline.written} {t('bars')}
-              </Chip>
-              {timeline.bars.length !== timeline.written && (
+              <div className="flex flex-wrap gap-1.5">
                 <Chip>
-                  {timeline.bars.length} {t('barsPlayed')}
+                  {timeline.written} {t('bars')}
                 </Chip>
-              )}
-              {timeline.repeats > 0 && (
-                <Chip>
-                  {timeline.repeats} {t('repeatsCount')}
-                </Chip>
-              )}
-              {timeline.tempoChanges > 0 && (
-                <Chip>
-                  {timeline.tempoChanges} {t('tempoChanges')}
-                </Chip>
-              )}
-              {timeline.meterChanges > 0 && (
-                <Chip>
-                  {timeline.meterChanges} {t('meterChanges')}
-                </Chip>
-              )}
-              {expected != null && <Chip>{formatTime(expected)}</Chip>}
-            </div>
+                {timeline.bars.length !== timeline.written && (
+                  <Chip>
+                    {timeline.bars.length} {t('barsPlayed')}
+                  </Chip>
+                )}
+                {timeline.repeats > 0 && (
+                  <Chip>
+                    {timeline.repeats} {t('repeatsCount')}
+                  </Chip>
+                )}
+                {timeline.tempoChanges > 0 && (
+                  <Chip>
+                    {timeline.tempoChanges} {t('tempoChanges')}
+                  </Chip>
+                )}
+                {timeline.meterChanges > 0 && (
+                  <Chip>
+                    {timeline.meterChanges} {t('meterChanges')}
+                  </Chip>
+                )}
+                {expected != null && <Chip>{formatTime(expected)}</Chip>}
+              </div>
             )}
             {notationFile && (
               <Button variant="secondary" onClick={() => void rereadNotation()} disabled={timingBusy}>
@@ -613,29 +695,21 @@ export const PieceSetupPage = () => {
         ) : (
           <div className="space-y-3">
             {!notationFile && <p className="text-sm text-text-secondary">{t('notationTip')}</p>}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-end gap-3">
               <Input
-                id="even-first"
-                label={t('barsStartAt')}
+                id="bar-count"
+                label={t('barCount')}
                 type="number"
                 inputMode="numeric"
-                min={0}
-                value={evenFirst}
-                onChange={(e) => setEvenFirst(e.target.value)}
+                min={1}
+                value={barCount}
+                onChange={(e) => setBarCount(e.target.value)}
+                className="max-w-[10rem]"
               />
-              <Input
-                id="even-last"
-                label={t('barsEndAt')}
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={evenLast}
-                onChange={(e) => setEvenLast(e.target.value)}
-              />
+              <Button onClick={() => void saveEven()} disabled={!barCount} className="h-10">
+                {t('save')}
+              </Button>
             </div>
-            <Button onClick={() => void saveEven()} disabled={!evenLast}>
-              {t('save')}
-            </Button>
           </div>
         )}
         {timingError && <p className="text-sm text-danger">{timingError}</p>}
@@ -684,43 +758,191 @@ export const PieceSetupPage = () => {
         </Section>
       )}
 
-      {groups.map(({ kind, title, hint }) => {
-        const group = files.filter((f) => f.kind === kind);
-        if (group.length === 0 && kind !== 'link') return null;
-        return (
-          <Section key={kind} title={t(title)} hint={hint ? t(hint) : undefined}>
-            {group.length > 0 && (
-              <SortableList items={group} getId={(f) => f.id} onReorder={reorderKind(kind)} renderItem={fileRow} />
-            )}
-            {kind === 'link' && (
-              <div className="space-y-2">
-                <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
-                  <input
-                    value={linkTitle}
-                    onChange={(e) => setLinkTitle(e.target.value)}
-                    placeholder={t('displayName')}
-                    aria-label={t('displayName')}
-                    className="h-10 rounded-md border border-border bg-white px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-                  />
-                  <input
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    placeholder="https://"
-                    aria-label={t('linkUrl')}
-                    inputMode="url"
-                    className="h-10 rounded-md border border-border bg-white px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-                  />
-                  <Button variant="secondary" onClick={() => void addLink()} disabled={!linkUrl.trim()} className="h-10">
-                    <Plus size={15} />
-                    {t('add')}
-                  </Button>
+      <Section title={t('voicesTitle')} hint={t('voicesPickHint')}>
+        {recordings.length === 0 && <p className="text-sm text-text-secondary">{t('voicesNoRecordings')}</p>}
+        {tracks.length > 0 && (
+          <SortableList
+            items={tracks}
+            getId={(x) => x.id}
+            onReorder={reorderVoices}
+            renderItem={(track) => {
+              const without = recordings.find((f) => f.id === track.file_id);
+              return (
+                <div className="space-y-2 p-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      defaultValue={track.title}
+                      aria-label={t('voiceName')}
+                      placeholder={t('voiceName')}
+                      onBlur={(e) =>
+                        e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })
+                      }
+                      className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void removeVoice(track)}
+                      aria-label={t('removeVoice')}
+                      title={t('removeVoice')}
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                  <div className="grid gap-2 px-2 sm:grid-cols-2">
+                    {(['file_id', 'click_file_id'] as const).map((field) => (
+                      <label key={field} className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-secondary">
+                        {field === 'file_id' ? t('withoutMetronome') : t('withMetronome')}
+                        <select
+                          value={track[field] ?? ''}
+                          onChange={(e) => {
+                            const id = e.target.value || null;
+                            const patch: Partial<PieceTrack> = { [field]: id };
+                            // A first recording brings its measured lead-in.
+                            const picked = recordings.find((f) => f.id === id);
+                            if (field === 'file_id' && picked && track.offset_s === 0 && picked.offset_s > 0) {
+                              patch.offset_s = picked.offset_s;
+                            }
+                            void updateTrack(track, patch);
+                          }}
+                          className={selectClasses}
+                        >
+                          <option value="">{t('noRecording')}</option>
+                          {recordings.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {fileLabel(f)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2 text-xs text-text-secondary">
+                    <label className="inline-flex items-center gap-1.5">
+                      {t('leadIn')}
+                      <input
+                        key={track.offset_s}
+                        type="number"
+                        step={0.01}
+                        min={0}
+                        defaultValue={track.offset_s}
+                        onBlur={(e) => {
+                          const v = Math.max(0, parseFloat(e.target.value) || 0);
+                          if (v !== track.offset_s) void updateTrack(track, { offset_s: v });
+                        }}
+                        className="h-7 w-16 rounded-md border border-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-black focus:outline-none"
+                      />
+                      s
+                    </label>
+                    {without && durations[without.id] > 0 && (
+                      <TrackCheck duration={durations[without.id]} expected={expected} offset={track.offset_s} />
+                    )}
+                  </div>
                 </div>
-                {linkError && <p className="text-sm text-danger">{linkError}</p>}
-              </div>
-            )}
-          </Section>
-        );
-      })}
+              );
+            }}
+          />
+        )}
+        <Button variant="secondary" onClick={() => void addVoice()}>
+          <Plus size={15} />
+          {t('addVoice')}
+        </Button>
+      </Section>
+
+      <Section title={t('miscTitle')}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
+            {t('scoreFileLabel')}
+            <select
+              value={piece.score_file_id ?? ''}
+              onChange={(e) => void updatePiece({ score_file_id: e.target.value || null })}
+              className={cn(selectClasses, 'h-10')}
+            >
+              <option value="">{t('noFileSelected')}</option>
+              {scoreFiles.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {fileLabel(f)}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-text-secondary">{t('scoreFileHint')}</span>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
+            {t('notationFileLabel')}
+            <select
+              value={piece.notation_file_id ?? ''}
+              onChange={(e) => {
+                const id = e.target.value || null;
+                void updatePiece({ notation_file_id: id });
+                // The bars follow the chosen file while they come from one.
+                const picked = notationFiles.find((f) => f.id === id) ?? null;
+                if (picked && mode === 'notation') void rereadNotation(picked);
+              }}
+              className={cn(selectClasses, 'h-10')}
+            >
+              <option value="">{t('noFileSelected')}</option>
+              {notationFiles.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {fileLabel(f)}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-text-secondary">{t('notationFileHint')}</span>
+          </label>
+        </div>
+
+        <div className="space-y-2 border-t border-border pt-4">
+          <h3 className="text-sm font-semibold">{t('fileKindLink')}</h3>
+          {links.length > 0 && (
+            <ul className="divide-y divide-border rounded-md border border-border">
+              {links.map((f) => (
+                <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      defaultValue={f.title}
+                      aria-label={t('displayName')}
+                      onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
+                      className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                    />
+                    <p className="truncate px-1.5 text-xs text-text-tertiary">{f.url}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setToDelete(f)}
+                    aria-label={t('delete')}
+                    title={t('delete')}
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+            <input
+              value={linkTitle}
+              onChange={(e) => setLinkTitle(e.target.value)}
+              placeholder={t('displayName')}
+              aria-label={t('displayName')}
+              className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+            />
+            <input
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://"
+              aria-label={t('linkUrl')}
+              inputMode="url"
+              className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+            />
+            <Button variant="secondary" onClick={() => void addLink()} disabled={!linkUrl.trim()} className="h-10">
+              <Plus size={15} />
+              {t('add')}
+            </Button>
+          </div>
+          {linkError && <p className="text-sm text-danger">{linkError}</p>}
+        </div>
+      </Section>
 
       <div className="flex flex-wrap justify-between gap-3 pt-2">
         <div className="flex flex-wrap gap-2">
@@ -743,7 +965,7 @@ export const PieceSetupPage = () => {
       <ConfirmDialog
         open={!!toDelete}
         title={t('delete')}
-        message={t('confirmDelete')}
+        message={toDelete?.kind === 'audio' ? t('confirmDeleteRecording') : t('confirmDelete')}
         confirmLabel={t('delete')}
         destructive
         onConfirm={removeFile}
@@ -808,65 +1030,6 @@ const TrackCheck = ({
   );
 };
 
-// A track's second recording of the same MIDI with a metronome click, which
-// the player's metronome button switches to.
-const ClickRecording = ({
-  track,
-  onUpload,
-  onRemove,
-}: {
-  track: PieceFile;
-  onUpload: (file: File) => Promise<void>;
-  onRemove: () => Promise<void>;
-}) => {
-  const { t } = useI18n();
-  const [busy, setBusy] = useState(false);
-  const run = async (action: () => Promise<void>) => {
-    setBusy(true);
-    try {
-      await action();
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="flex min-h-[1.75rem] flex-wrap items-center gap-x-2 gap-y-1 px-2 text-xs text-text-secondary">
-      <span className="font-medium">{t('withMetronome')}:</span>
-      {busy ? (
-        <Loader2 size={13} className="animate-spin" />
-      ) : track.click_file_path ? (
-        <>
-          <span className="min-w-0 max-w-full truncate">{track.click_file_name}</span>
-          <button
-            type="button"
-            onClick={() => void run(onRemove)}
-            aria-label={t('removeClickRecording')}
-            title={t('removeClickRecording')}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-          >
-            <X size={13} />
-          </button>
-        </>
-      ) : (
-        <label className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-border bg-surface px-2 font-medium hover:text-text focus-within:border-black">
-          <Plus size={13} />
-          {t('addClickRecording')}
-          <input
-            type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.oga,.flac,.opus"
-            className="sr-only"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (file) void run(() => onUpload(file));
-            }}
-          />
-        </label>
-      )}
-    </div>
-  );
-};
-
 interface AccountResult {
   id: string;
   name: string;
@@ -874,26 +1037,21 @@ interface AccountResult {
   photo_url: string | null;
 }
 
-type Credit = Pick<Piece, 'midi_credit_name' | 'midi_credit_user_id'>;
-
-// Who made the MIDIs: any name, or an existing account picked from the
-// search below the field (its profile photo is then shown with the credit).
-const CreditPicker = ({
-  name,
-  userId,
-  photoUrl,
+// One credited person: any name, or an existing account picked from the
+// search below the field (its profile photo is then shown), plus what they
+// did ("made the MIDIs" when left empty).
+const CreditRow = ({
+  credit,
   onChange,
+  onRemove,
 }: {
-  name: string;
-  userId: string | null;
-  photoUrl: string | null;
-  onChange: (credit: Credit) => void;
+  credit: PieceCredit;
+  onChange: (patch: Partial<PieceCredit>) => void;
+  onRemove: () => void;
 }) => {
   const { t } = useI18n();
-  const [value, setValue] = useState(name);
-  const [linked, setLinked] = useState(userId);
-  // The piece only learns the photo of a newly picked account on reload.
-  const [photo, setPhoto] = useState(photoUrl);
+  const [value, setValue] = useState(credit.name);
+  const [linked, setLinked] = useState(credit.user_id);
   const [results, setResults] = useState<AccountResult[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -915,56 +1073,55 @@ const CreditPicker = ({
     const accountName = account.name || account.email;
     setValue(accountName);
     setLinked(account.id);
-    setPhoto(account.photo_url);
     setSearching(false);
-    onChange({ midi_credit_name: accountName, midi_credit_user_id: account.id });
+    onChange({ name: accountName, user_id: account.id });
   };
 
   // Typed by hand: a plain name, no longer tied to an account.
   const commit = () => {
     setSearching(false);
     const trimmed = value.trim();
-    if (trimmed === name && linked === userId) return;
     if (linked) return; // unchanged pick
-    setPhoto(null);
-    onChange({ midi_credit_name: trimmed, midi_credit_user_id: null });
-  };
-
-  const clear = () => {
-    setValue('');
-    setLinked(null);
-    setPhoto(null);
-    setSearching(false);
-    onChange({ midi_credit_name: '', midi_credit_user_id: null });
+    if (trimmed === credit.name && credit.user_id === null) return;
+    onChange({ name: trimmed, user_id: null });
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 rounded-md border border-border p-3">
       <div className="flex items-center gap-3">
-        <Avatar name={value || '?'} photoUrl={linked ? photo : null} size={36} />
-        <input
-          value={value}
-          aria-label={t('midiCreditName')}
-          placeholder={t('midiCreditPlaceholder')}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setLinked(null);
-            setSearching(true);
-          }}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className="h-10 min-w-0 flex-1 rounded-md border border-border bg-white px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={clear}
-            aria-label={t('remove')}
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-          >
-            <X size={15} />
-          </button>
-        )}
+        <Avatar name={value || '?'} photoUrl={linked ? credit.photo_url : null} size={36} />
+        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+          <input
+            value={value}
+            aria-label={t('midiCreditName')}
+            placeholder={t('midiCreditPlaceholder')}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setLinked(null);
+              setSearching(true);
+            }}
+            onBlur={commit}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            className="h-10 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+          />
+          <input
+            defaultValue={credit.role}
+            aria-label={t('creditRole')}
+            placeholder={t('midiCreditRole')}
+            onBlur={(e) => e.target.value.trim() !== credit.role && onChange({ role: e.target.value.trim() })}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            className="h-10 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t('remove')}
+          title={t('remove')}
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+        >
+          <X size={15} />
+        </button>
       </div>
       {results.length > 0 && (
         <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-md border border-border p-1">

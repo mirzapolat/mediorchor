@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { Piece, PieceFile, PieceFileKind, ProjectPiece } from '@/types';
+import type { Piece, PieceCredit, PieceFile, PieceFileKind, PieceTrack, ProjectPiece } from '@/types';
 
 const BUCKET = 'piece-files';
 
@@ -60,9 +60,60 @@ export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => {
   return (data as PieceFile[] | null) ?? [];
 };
 
-// Stored objects of a file row: the file and a track's recording with click.
-const storedPaths = (file: Pick<PieceFile, 'file_path' | 'click_file_path'>): string[] =>
-  [file.file_path, file.click_file_path].filter((p): p is string => !!p);
+// Stored object of a file row (links have none).
+const storedPaths = (file: Pick<PieceFile, 'file_path'>): string[] => (file.file_path ? [file.file_path] : []);
+
+export const loadPieceTracks = async (pieceId: string): Promise<PieceTrack[]> => {
+  const { data } = await api
+    .from('piece_tracks')
+    .select('*')
+    .eq('piece_id', pieceId)
+    .order('position')
+    .order('created_at');
+  return (data as PieceTrack[] | null) ?? [];
+};
+
+export const loadPieceCredits = async (pieceId: string): Promise<PieceCredit[]> => {
+  const { data } = await api
+    .from('piece_credits')
+    .select('*')
+    .eq('piece_id', pieceId)
+    .order('position')
+    .order('created_at');
+  return (data as PieceCredit[] | null) ?? [];
+};
+
+// A voice as the player plays it: its recordings resolved to stored files.
+export interface PlayerTrack {
+  id: string;
+  title: string;
+  file_path: string;
+  click_file_path: string | null;
+  offset_s: number;
+}
+
+// The playable voices (those with a recording without click), in order.
+export const playerTracks = (tracks: PieceTrack[], files: PieceFile[]): PlayerTrack[] =>
+  tracks.flatMap((track) => {
+    const file = files.find((f) => f.id === track.file_id);
+    if (!file?.file_path) return [];
+    const click = files.find((f) => f.id === track.click_file_id);
+    return [
+      {
+        id: track.id,
+        title: track.title,
+        file_path: file.file_path,
+        click_file_path: click?.file_path ?? null,
+        offset_s: track.offset_s,
+      },
+    ];
+  });
+
+// The score PDF shown on the piece page: the picked one, else the first.
+export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: PieceFile[]): PieceFile | null =>
+  files.find((f) => f.id === piece.score_file_id && f.file_path) ??
+  files.find((f) => f.kind === 'score' && f.file_path) ??
+  null;
 
 // Deletes a file row together with its stored objects.
 export const deletePieceFile = async (file: PieceFile): Promise<void> => {
@@ -72,7 +123,7 @@ export const deletePieceFile = async (file: PieceFile): Promise<void> => {
 
 // Writes the list order into `position` for rows whose position changed.
 export const persistOrder = async (
-  table: 'project_pieces' | 'piece_files' | 'event_pieces',
+  table: 'project_pieces' | 'piece_files' | 'piece_tracks' | 'event_pieces',
   rows: Array<{ id: string; position: number }>,
 ): Promise<void> => {
   await Promise.all(

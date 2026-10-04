@@ -118,6 +118,11 @@ export const firstBarNumber = (labels: string[]): number | null => {
 export const timelineDuration = (timeline: PieceTimeline | null): number | null =>
   timeline?.source === 'notation' ? (timeline.bars[timeline.bars.length - 1]?.end ?? 0) : null;
 
+// A piece's length: its own (set from the MusicXML or by hand), else what
+// its bar timeline says.
+export const pieceDuration = (piece: { duration_s: number | null; timeline: PieceTimeline | null }): number | null =>
+  piece.duration_s ?? timelineDuration(piece.timeline);
+
 // Which role an uploaded file most likely plays, from its name/type.
 export const guessFileKind = (file: File): PieceFileKind => {
   const name = file.name.toLowerCase();
