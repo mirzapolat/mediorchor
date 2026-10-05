@@ -30,7 +30,7 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canAccessClub, isAdmin, hasFullPieceAccess, canManageProjects } = useAuth();
+  const { canAccessClub, isAdmin, hasFullPieceAccess } = useAuth();
 
   return (
     <div className="flex h-full">
@@ -45,7 +45,7 @@ export const AppLayout = () => {
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
           {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
-          {canManageProjects && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}
+          {isAdmin && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}
           {/* While the club is a preview, only admins see its notice. */}
           {(CLUB_ENABLED ? canAccessClub : isAdmin) && (
             <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />

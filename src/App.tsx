@@ -56,6 +56,7 @@ import { RegistrationPageSettings } from '@/pages/RegistrationPageSettings';
 import { GroupsPage } from '@/pages/GroupsPage';
 import { GroupDetailPage } from '@/pages/GroupDetailPage';
 import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
+import { PublicCalendarPage } from '@/pages/PublicCalendarPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
 
@@ -76,6 +77,7 @@ export const App = () => {
   if (
     location.pathname.startsWith('/check-in/') ||
     location.pathname.startsWith('/register/') ||
+    location.pathname.startsWith('/cal/') ||
     location.pathname === '/impressum' ||
     location.pathname === '/datenschutz'
   ) {
@@ -83,6 +85,7 @@ export const App = () => {
       <Routes>
         <Route path="/check-in/:token" element={<PublicCheckinPage />} />
         <Route path="/register/:token" element={<PublicRegistrationPage />} />
+        <Route path="/cal/:token" element={<PublicCalendarPage />} />
         <Route path="/impressum" element={<LegalPage kind="imprint" />} />
         <Route path="/datenschutz" element={<LegalPage kind="privacy" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

@@ -118,10 +118,24 @@ export interface Calendar {
   id: string;
   name: string;
   color: string; // #rrggbb
-  feed_token: string;
+  reminder_minutes: number | null; // default reminder in subscribed apps; null = none
   position: number;
   created_at: string;
 }
+
+// A subscription link of a calendar; the token is the credential for its
+// iCal feed and public web view (/cal/<token>).
+export interface CalendarLink {
+  id: string;
+  calendar_id: string;
+  name: string;
+  token: string;
+  show_details: boolean; // false = no location, notes or links
+  last_fetched_at: string | null;
+  created_at: string;
+}
+
+export type CalendarRepeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface CalendarProject {
   id: string;
@@ -135,8 +149,30 @@ export interface CalendarEvent {
   id: string;
   calendar_id: string;
   name: string;
-  date: string; // ISO date
+  date: string; // ISO date (first day)
+  end_date: string | null; // last day of a multi-day event
   start_time: string | null; // HH:MM; none = all day
+  end_time: string | null;
+  location: string | null;
+  notes: string | null;
+  link: string | null;
+  repeat: CalendarRepeat;
+  repeat_interval: number; // every n days/weeks/months/years
+  repeat_until: string | null; // last possible start (inclusive)
+  created_at: string;
+}
+
+// One occurrence of a repeating manual event, keyed by the first day it
+// originally falls on: cancelled, or replaced by these values.
+export interface CalendarEventException {
+  id: string;
+  event_id: string;
+  occurrence_date: string;
+  cancelled: boolean;
+  name: string;
+  date: string;
+  end_date: string | null;
+  start_time: string | null;
   end_time: string | null;
   location: string | null;
   notes: string | null;

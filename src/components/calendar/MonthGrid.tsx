@@ -1,21 +1,30 @@
-import { useRef, type TouchEvent, type WheelEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type TouchEvent, type WheelEvent } from 'react';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { localToday } from '@/lib/eventTiming';
 import { fromISODate, monthGrid, monthKey, weekdayNames, type CalendarEntry } from '@/lib/calendar';
 
 const MAX_CHIPS = 3;
+// Fill mode (px): a cell's padding plus its day number row, one chip with
+// its gap, and the "+n more" line.
+const CELL_CHROME = 40;
+const CHIP_HEIGHT = 26;
+const MORE_LINE = 22;
 
 // Notion-style month view: six Monday-first weeks, each day listing its
 // entries as coloured chips (dots on phones). Clicking a day opens it.
-// Horizontal swipes / trackpad scrolls page through the months.
+// Horizontal swipes / trackpad scrolls page through the months. With `fill`
+// the weeks stretch to the parent's height and each day shows as many chips
+// as fit.
 export const MonthGrid = ({
+  fill = false,
   month,
   entriesByDate,
   colorOf,
   onOpenDay,
   onPage,
 }: {
+  fill?: boolean;
   month: string; // any date in the shown month
   entriesByDate: Map<string, CalendarEntry[]>;
   colorOf: (entry: CalendarEntry) => string;
@@ -27,6 +36,26 @@ export const MonthGrid = ({
   const days = monthGrid(month);
   const shownMonth = monthKey(month);
   const dateLocale = lang === 'de' ? 'de-DE' : 'en-GB';
+
+  const weeks = useRef<HTMLDivElement>(null);
+  // How many chips fit when all are shown, and when a "+n more" line follows.
+  const [fit, setFit] = useState({ all: MAX_CHIPS, withMore: MAX_CHIPS });
+  useLayoutEffect(() => {
+    const el = weeks.current;
+    if (!fill || !el) {
+      setFit({ all: MAX_CHIPS, withMore: MAX_CHIPS });
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      const room = el.clientHeight / 6 - CELL_CHROME;
+      setFit({
+        all: Math.max(1, Math.floor(room / CHIP_HEIGHT)),
+        withMore: Math.max(1, Math.floor((room - MORE_LINE) / CHIP_HEIGHT)),
+      });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fill]);
 
   // Swipe (touch) and sideways trackpad scrolling page months; a cooldown
   // keeps one gesture from skipping several months.
@@ -55,7 +84,12 @@ export const MonthGrid = ({
   };
 
   return (
-    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel} className="select-none">
+    <div
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onWheel={onWheel}
+      className={cn('select-none', fill && 'flex min-h-0 flex-1 flex-col')}
+    >
       <div className="grid grid-cols-7 border-b border-border">
         {weekdayNames(lang).map((name, i) => (
           <div
@@ -66,13 +100,14 @@ export const MonthGrid = ({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      <div ref={weeks} className={cn('grid grid-cols-7', fill && 'min-h-0 flex-1 grid-rows-6')}>
         {days.map((iso, i) => {
           const entries = entriesByDate.get(iso) ?? [];
           const inMonth = monthKey(iso) === shownMonth;
           const isToday = iso === today;
           const weekend = i % 7 >= 5;
-          const hidden = entries.length - MAX_CHIPS;
+          const limit = entries.length <= fit.all ? entries.length : fit.withMore;
+          const hidden = entries.length - limit;
           const date = fromISODate(iso);
           return (
             <button
@@ -83,7 +118,8 @@ export const MonthGrid = ({
                 entries.length ? ` · ${entries.length} ${t('calendarEntries')}` : ''
               }`}
               className={cn(
-                'flex min-h-[3.75rem] flex-col items-stretch gap-1 border-border p-1 text-left transition-colors duration-100 sm:min-h-[7.25rem] sm:p-1.5',
+                'flex flex-col items-stretch gap-1 overflow-hidden border-border p-1 text-left transition-colors duration-100 sm:p-1.5',
+                fill ? 'min-h-0' : 'min-h-[3.75rem] sm:min-h-[7.25rem]',
                 i % 7 !== 6 && 'border-r',
                 i < 35 && 'border-b',
                 weekend || !inMonth ? 'bg-surface-subtle' : 'bg-surface',
@@ -117,7 +153,7 @@ export const MonthGrid = ({
               )}
 
               <span className="hidden min-w-0 flex-col gap-0.5 sm:flex">
-                {entries.slice(0, MAX_CHIPS).map((entry) => (
+                {entries.slice(0, limit).map((entry) => (
                   <EntryChip key={entry.key} entry={entry} color={colorOf(entry)} muted={!inMonth} />
                 ))}
                 {hidden > 0 && (

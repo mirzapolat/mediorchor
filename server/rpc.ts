@@ -16,6 +16,7 @@ import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
 import { email2faAvailable, usersWithSecondFactor } from './mfa.ts';
 import { branding } from './branding.ts';
+import { loadCalendarByToken } from './calendarFeed.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -384,6 +385,31 @@ const submit_public_checkin = (args: Args) => {
     ).run(checkin.event_id, firstName, lastName, groupName, checkin.attendance_status);
   }
   return { state: 'success', recognized: false };
+};
+
+// Public web view of a calendar link (/cal/<token>): the same entries and
+// detail level as its iCal feed.
+const get_public_calendar = (args: Args) => {
+  const loaded = loadCalendarByToken(trimmed(args.p_token));
+  if (!loaded) return { state: 'invalid' };
+  const { link, rehearsals, events, exceptions } = loaded;
+  return {
+    state: 'ok',
+    calendar: { id: link.calendar_id, name: link.calendar_name, color: link.calendar_color },
+    rehearsals: rehearsals.map((r) => ({
+      id: r.id,
+      project_id: r.project_id,
+      project_name: r.project_name,
+      name: r.name,
+      date: r.date,
+      time: r.time,
+      end_time: r.end_time,
+      location: r.location,
+      description: r.description,
+    })),
+    events: events.map(({ sequence: _s, modified_at: _m, ...e }) => e),
+    exceptions: exceptions.map(({ sequence: _s, modified_at: _m, ...x }) => ({ ...x, cancelled: Boolean(x.cancelled) })),
+  };
 };
 
 // Past the page's deadline (closes_at is an ISO timestamp)?
@@ -1032,6 +1058,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   get_public_config,
   get_legal_pages,
   get_public_checkin,
+  get_public_calendar,
   submit_public_checkin,
   get_public_registration,
   submit_public_registration,

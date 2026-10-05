@@ -40,7 +40,8 @@ app.use('/api/*', async (c, next) => {
     if (origin && host && new URL(origin).host !== host) throw new ApiError('Cross-origin request blocked', 403);
   }
   await next();
-  c.res.headers.set('Cache-Control', 'no-store');
+  // The calendar feed may be kept and revalidated by its ETag.
+  c.res.headers.set('Cache-Control', c.req.path.startsWith('/api/calendar-feed/') ? 'no-cache' : 'no-store');
 });
 
 // With "require 2FA" on, a privileged account without a second factor may only
@@ -51,6 +52,7 @@ const PUBLIC_FUNCTIONS = new Set([
   'submit_public_checkin',
   'get_public_registration',
   'submit_public_registration',
+  'get_public_calendar',
 ]);
 const enforceMfaSetup = async (c: Context, next: () => Promise<void>) => {
   const isPublicRpc = c.req.path.startsWith('/api/rpc/') && PUBLIC_FUNCTIONS.has(c.req.path.slice('/api/rpc/'.length));

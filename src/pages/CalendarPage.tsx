@@ -1,23 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  ArrowUpRight,
   CalendarPlus,
   CalendarRange,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  EyeOff,
-  FolderKanban,
   Link2,
+  NotebookPen,
   Pencil,
   Plus,
   Trash2,
+  X,
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { Avatar } from '@/components/Avatar';
 import { HeaderAction } from '@/components/HeaderAction';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -28,8 +30,10 @@ import {
   CalendarEventModal,
   CalendarFormModal,
   DayPreviewModal,
-  SubscribeModal,
+  type OccurrenceTarget,
 } from '@/components/calendar/CalendarModals';
+import { Modal } from '@/components/Modal';
+import { CalendarLinksModal } from '@/components/calendar/CalendarLinksModal';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -39,7 +43,6 @@ import {
   addMonths,
   buildEntries,
   formatMonth,
-  fromISODate,
   groupByDate,
   loadCalendarData,
   monthKey,
@@ -65,14 +68,36 @@ const writeHidden = (hidden: Set<string>) => {
   }
 };
 
-const emptyData: CalendarData = { calendars: [], calendarProjects: [], calendarEvents: [], projects: [], rehearsals: [] };
+const emptyData: CalendarData = {
+  calendars: [],
+  calendarProjects: [],
+  calendarEvents: [],
+  calendarEventExceptions: [],
+  projects: [],
+  rehearsals: [],
+};
+
+// Clicking a project (or a calendar's manual events) in the list narrows the
+// grid to just those entries; clicking it again shows everything.
+type Focus = { kind: 'project'; projectId: string } | { kind: 'manual'; calendarId: string };
+
+const sameFocus = (a: Focus | null, b: Focus) =>
+  a !== null &&
+  (a.kind === 'project'
+    ? b.kind === 'project' && a.projectId === b.projectId
+    : b.kind === 'manual' && a.calendarId === b.calendarId);
+
+// Desktop: the month grid fills the window below its top edge.
+const DESKTOP = '(min-width: 1024px)';
+const MIN_GRID_HEIGHT = 560;
+const BOTTOM_GAP = 32;
 
 // Kalender (dashboard tab): calendars on the left — each collects the
-// rehearsals of its projects plus events of its own — and a month grid of
-// the shown calendars on the right. For those with access to all projects.
+// rehearsals of its projects plus manual events of its own — and a month grid
+// of the shown calendars on the right. Admins only.
 export const CalendarPage = () => {
-  const { canManageProjects } = useAuth();
-  if (!canManageProjects) return <NoAccess />;
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <NoAccess />;
   return <CalendarView />;
 };
 
@@ -84,6 +109,9 @@ const CalendarView = () => {
   const [month, setMonth] = useState(() => `${monthKey(localToday())}-01`);
   const [hidden, setHidden] = useState(readHidden);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const gridBox = useRef<HTMLDivElement>(null);
+  const [gridHeight, setGridHeight] = useState<number | null>(null);
 
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [calendarForm, setCalendarForm] = useState<{ open: boolean; calendar: Calendar | null }>({
@@ -93,9 +121,12 @@ const CalendarView = () => {
   const [eventForm, setEventForm] = useState<{
     open: boolean;
     event: CalendarEvent | null;
+    occurrence?: OccurrenceTarget | null;
     calendarId: string | null;
     date: string | null;
   }>({ open: false, event: null, calendarId: null, date: null });
+  // A repeating event picked in the day view: edit this occurrence or all?
+  const [scopeFor, setScopeFor] = useState<Extract<CalendarEntry, { kind: 'event' }> | null>(null);
   const [subscribeId, setSubscribeId] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<Calendar | null>(null);
 
@@ -108,11 +139,42 @@ const CalendarView = () => {
     void load();
   }, [load]);
 
+  // Desktop: size the grid to the space left in the window.
+  useLayoutEffect(() => {
+    const box = gridBox.current;
+    const main = box?.closest('main');
+    if (!box || !main) return;
+    const media = window.matchMedia(DESKTOP);
+    const update = () => {
+      if (!media.matches) {
+        setGridHeight(null);
+        return;
+      }
+      const top = box.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+      setGridHeight(Math.max(MIN_GRID_HEIGHT, Math.floor(main.clientHeight - top - BOTTOM_GAP)));
+    };
+    update();
+    window.addEventListener('resize', update);
+    media.addEventListener('change', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      media.removeEventListener('change', update);
+    };
+  }, [loading]);
+
   const shown = useMemo(
     () => new Set(data.calendars.filter((c) => !hidden.has(c.id)).map((c) => c.id)),
     [data.calendars, hidden],
   );
-  const entries = useMemo(() => buildEntries(data, shown), [data, shown]);
+  const entries = useMemo(() => {
+    const all = buildEntries(data, shown);
+    if (!focus) return all;
+    return all.filter((entry) =>
+      focus.kind === 'project'
+        ? entry.kind === 'rehearsal' && entry.project.id === focus.projectId
+        : entry.kind === 'event' && entry.event.calendar_id === focus.calendarId,
+    );
+  }, [data, shown, focus]);
   const entriesByDate = useMemo(() => groupByDate(entries), [entries]);
   const colorById = useMemo(() => new Map(data.calendars.map((c) => [c.id, c.color])), [data.calendars]);
   const colorOf = useCallback(
@@ -129,6 +191,12 @@ const CalendarView = () => {
       return next;
     });
 
+  // Focusing something in a hidden calendar shows that calendar again.
+  const toggleFocus = (next: Focus, calendarId: string) => {
+    setFocus((current) => (sameFocus(current, next) ? null : next));
+    if (hidden.has(calendarId)) toggleHidden(calendarId);
+  };
+
   const toggleExpanded = (id: string) =>
     setExpanded((current) => {
       const next = new Set(current);
@@ -143,6 +211,7 @@ const CalendarView = () => {
   const removeCalendar = async () => {
     if (!toDelete) return;
     await api.from('calendars').delete().eq('id', toDelete.id);
+    if (focus?.kind === 'manual' && focus.calendarId === toDelete.id) setFocus(null);
     setToDelete(null);
     await load();
   };
@@ -157,6 +226,11 @@ const CalendarView = () => {
   const today = localToday();
   const showingToday = monthKey(month) === monthKey(today);
   const subscribing = data.calendars.find((c) => c.id === subscribeId) ?? null;
+  const focusLabel = !focus
+    ? null
+    : focus.kind === 'project'
+      ? (data.projects.find((p) => p.id === focus.projectId)?.name ?? '')
+      : `${t('manualEvents')} · ${data.calendars.find((c) => c.id === focus.calendarId)?.name ?? ''}`;
 
   return (
     <>
@@ -174,8 +248,11 @@ const CalendarView = () => {
       />
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        {/* Left: the calendars, each unfolding into its projects and events. */}
-        <Card className="w-full !p-0 lg:sticky lg:top-6 lg:w-80 lg:flex-shrink-0">
+        {/* Left: the calendars, each unfolding into its projects and manual events. */}
+        <Card
+          className="w-full !p-0 lg:w-80 lg:flex-shrink-0 lg:overflow-y-auto"
+          style={gridHeight ? { maxHeight: gridHeight } : undefined}
+        >
           <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold">{t('calendarList')}</h2>
             <button
@@ -207,13 +284,14 @@ const CalendarView = () => {
                   data={data}
                   expanded={expanded.has(calendar.id)}
                   visible={!hidden.has(calendar.id)}
+                  focus={focus}
                   onToggleExpanded={() => toggleExpanded(calendar.id)}
                   onToggleVisible={() => toggleHidden(calendar.id)}
+                  onFocus={(next) => toggleFocus(next, calendar.id)}
                   onEdit={() => setCalendarForm({ open: true, calendar })}
                   onSubscribe={() => setSubscribeId(calendar.id)}
                   onDelete={() => setToDelete(calendar)}
                   onAddEvent={() => addEvent(calendar.id, null)}
-                  onEditEvent={(event) => setEventForm({ open: true, event, calendarId: null, date: null })}
                   onOpenProject={(projectId) => navigate(`/projects/${projectId}/events`)}
                 />
               ))}
@@ -221,8 +299,12 @@ const CalendarView = () => {
           )}
         </Card>
 
-        {/* Right: the month grid. */}
-        <Card className="min-w-0 flex-1 overflow-hidden !p-0">
+        {/* Right: the month grid; on desktop it fills the window. */}
+        <div
+          ref={gridBox}
+          className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-surface"
+          style={gridHeight ? { height: gridHeight } : undefined}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
             <div className="flex items-center gap-1">
               <h2 className="mr-2 text-lg font-semibold capitalize sm:min-w-[11rem]">{formatMonth(month, lang)}</h2>
@@ -245,7 +327,18 @@ const CalendarView = () => {
                 <ChevronRight size={18} />
               </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {focusLabel !== null && (
+                <button
+                  type="button"
+                  onClick={() => setFocus(null)}
+                  title={t('clearCalendarFilter')}
+                  className="inline-flex h-9 max-w-[16rem] items-center gap-1.5 rounded-md border border-border bg-surface-muted pl-3 pr-2 text-sm font-medium hover:bg-surface-hover"
+                >
+                  <span className="min-w-0 truncate">{focusLabel}</span>
+                  <X size={14} className="flex-shrink-0 text-text-secondary" />
+                </button>
+              )}
               <Button
                 variant="secondary"
                 className="!h-9 !py-0"
@@ -258,13 +351,14 @@ const CalendarView = () => {
             </div>
           </div>
           <MonthGrid
+            fill={gridHeight !== null}
             month={month}
             entriesByDate={entriesByDate}
             colorOf={colorOf}
             onOpenDay={setOpenDay}
             onPage={(offset) => setMonth((m) => addMonths(m, offset))}
           />
-        </Card>
+        </div>
       </div>
 
       <DayPreviewModal
@@ -276,11 +370,12 @@ const CalendarView = () => {
         onClose={() => setOpenDay(null)}
         onAdd={(date) => {
           setOpenDay(null);
-          addEvent(null, date);
+          addEvent(focus?.kind === 'manual' ? focus.calendarId : null, date);
         }}
-        onEdit={(event) => {
+        onEdit={(entry) => {
           setOpenDay(null);
-          setEventForm({ open: true, event, calendarId: null, date: null });
+          if (entry.event.repeat !== 'none') setScopeFor(entry);
+          else setEventForm({ open: true, event: entry.event, calendarId: null, date: null });
         }}
         onOpenRehearsal={(projectId, eventId) => navigate(`/projects/${projectId}/events/${eventId}`)}
       />
@@ -296,13 +391,54 @@ const CalendarView = () => {
       <CalendarEventModal
         open={eventForm.open}
         event={eventForm.event}
+        occurrence={eventForm.occurrence ?? null}
         defaults={{ calendarId: eventForm.calendarId, date: eventForm.date }}
         calendars={data.calendars}
         onClose={() => setEventForm({ open: false, event: null, calendarId: null, date: null })}
         onSaved={load}
       />
 
-      <SubscribeModal calendar={subscribing} onClose={() => setSubscribeId(null)} onRenewed={load} />
+      <Modal
+        open={scopeFor !== null}
+        title={t('editRepeatingEvent')}
+        onClose={() => setScopeFor(null)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setScopeFor(null)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (scopeFor) setEventForm({ open: true, event: scopeFor.event, calendarId: null, date: null });
+                setScopeFor(null);
+              }}
+            >
+              {t('allOccurrences')}
+            </Button>
+            <Button
+              onClick={() => {
+                if (scopeFor) {
+                  setEventForm({
+                    open: true,
+                    event: scopeFor.event,
+                    occurrence: { date: scopeFor.occurrence, exception: scopeFor.exception },
+                    calendarId: null,
+                    date: null,
+                  });
+                }
+                setScopeFor(null);
+              }}
+            >
+              {t('thisOccurrence')}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">{t('editRepeatingEventHint')}</p>
+      </Modal>
+
+      <CalendarLinksModal calendar={subscribing} onClose={() => setSubscribeId(null)} />
 
       <ConfirmDialog
         open={!!toDelete}
@@ -317,78 +453,127 @@ const CalendarView = () => {
   );
 };
 
-// Upcoming own events listed in a calendar's "Events" entry before "show all".
-const EVENTS_PREVIEW = 5;
+// One row under a calendar: a project, or the calendar's manual events shown
+// like one. Clicking it filters the grid; the trailing action shows on hover.
+const SourceRow = ({
+  icon,
+  label,
+  meta,
+  active,
+  onClick,
+  action,
+}: {
+  icon: ReactNode;
+  label: string;
+  meta?: string;
+  active: boolean;
+  onClick: () => void;
+  action: ReactNode;
+}) => (
+  <div
+    className={cn(
+      'group/row flex items-center gap-1 rounded-md pr-1',
+      active ? 'bg-surface-hover' : 'hover:bg-surface-muted',
+    )}
+  >
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2 text-left text-sm"
+    >
+      {icon}
+      <span className={cn('min-w-0 flex-1 truncate', active && 'font-semibold')}>{label}</span>
+      {meta && <span className="flex-shrink-0 text-xs text-text-tertiary">{meta}</span>}
+    </button>
+    <span className="flex flex-shrink-0 items-center opacity-0 focus-within:opacity-100 group-hover/row:opacity-100 max-lg:opacity-100">
+      {action}
+    </span>
+  </div>
+);
+
+const RowAction = ({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    title={label}
+    className="flex h-6 w-6 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+  >
+    {children}
+  </button>
+);
 
 const CalendarListItem = ({
   calendar,
   data,
   expanded,
   visible,
+  focus,
   onToggleExpanded,
   onToggleVisible,
+  onFocus,
   onEdit,
   onSubscribe,
   onDelete,
   onAddEvent,
-  onEditEvent,
   onOpenProject,
 }: {
   calendar: Calendar;
   data: CalendarData;
   expanded: boolean;
   visible: boolean;
+  focus: Focus | null;
   onToggleExpanded: () => void;
   onToggleVisible: () => void;
+  onFocus: (focus: Focus) => void;
   onEdit: () => void;
   onSubscribe: () => void;
   onDelete: () => void;
   onAddEvent: () => void;
-  onEditEvent: (event: CalendarEvent) => void;
   onOpenProject: (projectId: string) => void;
 }) => {
-  const { t, lang } = useI18n();
-  const [showAllEvents, setShowAllEvents] = useState(false);
+  const { t } = useI18n();
   const today = localToday();
 
   const projectIds = new Set(
     data.calendarProjects.filter((cp) => cp.calendar_id === calendar.id).map((cp) => cp.project_id),
   );
   const projects = data.projects.filter((p) => projectIds.has(p.id));
-  const ownEvents = data.calendarEvents.filter((e) => e.calendar_id === calendar.id);
-  const upcoming = ownEvents.filter((e) => e.date >= today);
-  const listedEvents = showAllEvents ? ownEvents : upcoming.slice(0, EVENTS_PREVIEW);
+  const upcomingManual = data.calendarEvents.filter((e) => e.calendar_id === calendar.id && e.date >= today).length;
+  const manualFocus: Focus = { kind: 'manual', calendarId: calendar.id };
 
   return (
     <li>
-      <div className="group flex items-center gap-1 rounded-md pr-1 hover:bg-surface-muted">
+      <div className="flex items-center gap-1 rounded-md pr-1 hover:bg-surface-muted">
+        {/* A checkbox in the calendar's colour shows or hides it, like Google Calendar. */}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={visible}
+          onClick={onToggleVisible}
+          aria-label={`${t('showCalendar')}: ${calendar.name}`}
+          title={visible ? t('hideCalendar') : t('showCalendar')}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md hover:bg-surface-hover"
+        >
+          <span
+            className="flex h-4 w-4 items-center justify-center rounded-[4px] border-2"
+            style={{ borderColor: calendar.color, backgroundColor: visible ? calendar.color : 'transparent' }}
+          >
+            {visible && <Check size={11} strokeWidth={3.5} className="text-white" />}
+          </span>
+        </button>
         <button
           type="button"
           onClick={onToggleExpanded}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-2 text-left text-sm font-medium"
+          className="flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left text-sm font-medium"
         >
+          <span className={cn('min-w-0 truncate', !visible && 'text-text-tertiary')}>{calendar.name}</span>
           <ChevronDown
             size={15}
             className={cn('flex-shrink-0 text-text-tertiary transition-transform duration-150', !expanded && '-rotate-90')}
           />
-          <span
-            className={cn('h-3 w-3 flex-shrink-0 rounded-[4px]', !visible && 'opacity-30')}
-            style={{ backgroundColor: calendar.color }}
-          />
-          <span className={cn('min-w-0 truncate', !visible && 'text-text-tertiary')}>{calendar.name}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onToggleVisible}
-          aria-label={visible ? t('hideCalendar') : t('showCalendar')}
-          title={visible ? t('hideCalendar') : t('showCalendar')}
-          className={cn(
-            'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text',
-            visible && 'opacity-0 focus:opacity-100 group-hover:opacity-100 max-lg:opacity-100',
-          )}
-        >
-          {visible ? <Eye size={15} /> : <EyeOff size={15} />}
         </button>
         <OverflowMenu
           label={t('moreActions')}
@@ -401,11 +586,45 @@ const CalendarListItem = ({
       </div>
 
       {expanded && (
-        <div className="mb-2 ml-[1.15rem] border-l border-border pl-3">
-          <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-            {t('projects')}
-          </p>
-          {projects.length === 0 ? (
+        <div className="mb-2 ml-4 space-y-0.5 border-l border-border pl-2">
+          {projects.map((p) => {
+            const projectFocus: Focus = { kind: 'project', projectId: p.id };
+            return (
+              <SourceRow
+                key={p.id}
+                icon={<Avatar name={p.name} photoUrl={p.image_url} size={20} square />}
+                label={p.name}
+                meta={p.status === 'archived' ? t('archived') : undefined}
+                active={sameFocus(focus, projectFocus)}
+                onClick={() => onFocus(projectFocus)}
+                action={
+                  <RowAction label={t('openProject')} onClick={() => onOpenProject(p.id)}>
+                    <ArrowUpRight size={14} />
+                  </RowAction>
+                }
+              />
+            );
+          })}
+
+          {/* Manual events, shown like a project of their own. */}
+          <SourceRow
+            icon={
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-[5px] bg-surface-muted text-text-secondary">
+                <NotebookPen size={12} />
+              </span>
+            }
+            label={t('manualEvents')}
+            meta={upcomingManual > 0 ? String(upcomingManual) : undefined}
+            active={sameFocus(focus, manualFocus)}
+            onClick={() => onFocus(manualFocus)}
+            action={
+              <RowAction label={t('addCalendarEvent')} onClick={onAddEvent}>
+                <Plus size={14} />
+              </RowAction>
+            }
+          />
+
+          {projects.length === 0 && (
             <button
               type="button"
               onClick={onEdit}
@@ -413,70 +632,7 @@ const CalendarListItem = ({
             >
               {t('assignProjects')}
             </button>
-          ) : (
-            projects.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onOpenProject(p.id)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-muted"
-              >
-                <FolderKanban size={14} className="flex-shrink-0 text-text-tertiary" />
-                <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                {p.status === 'archived' && <span className="text-xs text-text-tertiary">{t('archived')}</span>}
-              </button>
-            ))
           )}
-
-          <div className="flex items-center justify-between gap-2 px-2 pb-1 pt-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
-              {t('calendarEventsEntry')}
-            </p>
-            <button
-              type="button"
-              onClick={onAddEvent}
-              aria-label={t('addCalendarEvent')}
-              title={t('addCalendarEvent')}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-          {listedEvents.length === 0 && (
-            <p className="px-2 py-1.5 text-sm text-text-tertiary">
-              {ownEvents.length === 0 ? t('noCalendarEvents') : t('noUpcomingCalendarEvents')}
-            </p>
-          )}
-          {listedEvents.map((event) => (
-            <button
-              key={event.id}
-              type="button"
-              onClick={() => onEditEvent(event)}
-              className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-muted"
-            >
-              <span className="w-11 flex-shrink-0 text-xs tabular-nums text-text-secondary">
-                {fromISODate(event.date).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
-                  day: '2-digit',
-                  month: '2-digit',
-                })}
-              </span>
-              <span className={cn('min-w-0 flex-1 truncate', event.date < today && 'text-text-tertiary')}>
-                {event.name}
-              </span>
-              {event.start_time && (
-                <span className="flex-shrink-0 text-xs tabular-nums text-text-tertiary">{event.start_time}</span>
-              )}
-            </button>
-          ))}
-          {ownEvents.length > listedEvents.length || showAllEvents ? (
-            <button
-              type="button"
-              onClick={() => setShowAllEvents((v) => !v)}
-              className="px-2 py-1 text-xs font-medium text-text-secondary hover:text-text"
-            >
-              {showAllEvents ? t('showLess') : `${t('showAllEvents')} (${ownEvents.length})`}
-            </button>
-          ) : null}
         </div>
       )}
     </li>

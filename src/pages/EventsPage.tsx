@@ -140,8 +140,8 @@ export const EventsPage = () => {
       accessor: (ev) => ev.name,
       render: (ev) => (
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="truncate">{ev.name}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="min-w-0 break-words">{ev.name}</span>
             {highlightRowId === ev.id ? (
               <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-success-soft-strong px-2 py-0.5 text-xs font-semibold text-success-strong">
                 {ev.date === today() ? t('todayRehearsal') : t('nextRehearsal')}
@@ -192,9 +192,9 @@ export const EventsPage = () => {
       accessor: (ev) => ev.location,
       render: (ev) =>
         ev.location ? (
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-text-secondary">
-            <MapPin size={14} className="flex-shrink-0" />
-            <span className="truncate">{ev.location}</span>
+          <span className="inline-flex min-w-0 items-start gap-1.5 text-text-secondary">
+            <MapPin size={14} className="mt-[3px] flex-shrink-0" />
+            <span className="break-words">{ev.location}</span>
           </span>
         ) : (
           <span className="text-text-secondary">—</span>

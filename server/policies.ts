@@ -188,6 +188,17 @@ const validateBranding = (row: Record<string, unknown>) => {
 
 // --- policies ---------------------------------------------------------------
 
+// A manual event's last day and repeat end can't lie before its first day.
+const validateCalendarDates = (row: Record<string, unknown>) => {
+  for (const field of ['end_date', 'repeat_until']) {
+    const value = row[field];
+    if (value === undefined || value === null || value === '') continue;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value < String(row.date ?? '')) {
+      throw new ApiError('End dates must not lie before the start date', 400, '23514');
+    }
+  }
+};
+
 const PROTECTED_ACCOUNT_FIELDS = [
   'id',
   'email',
@@ -315,16 +326,40 @@ export const policies: Record<string, TablePolicy> = {
 
   event_checkins: all((a) => eventInManagedProject(`${a}.event_id`)),
 
-  // Kalender (dashboard tab): for those with access to all projects, since a
-  // calendar can take in any project's rehearsals.
-  calendars: all(canManageProjects),
-  calendar_projects: all(canManageProjects),
+  // Kalender (dashboard tab): admins only.
+  calendars: all(isAdmin),
+  calendar_projects: all(isAdmin),
   calendar_events: {
-    ...all(canManageProjects),
+    ...all(isAdmin),
     // The link is rendered as <a href> and put into the iCal feed.
-    validateInsert: (row) => validateCalendarLink(row.link),
-    validateUpdate: (_old, patch) => {
+    validateInsert: (row) => {
+      validateCalendarLink(row.link);
+      validateCalendarDates(row);
+    },
+    validateUpdate: (old, patch) => {
       if ('link' in patch) validateCalendarLink(patch.link);
+      validateCalendarDates({ ...old, ...patch });
+    },
+  },
+  // Single occurrences of repeating manual events (see migration 0037).
+  calendar_event_exceptions: {
+    ...all(isAdmin),
+    validateInsert: (row) => {
+      validateCalendarLink(row.link);
+      validateCalendarDates(row);
+    },
+    validateUpdate: (old, patch) => {
+      if ('link' in patch) validateCalendarLink(patch.link);
+      validateCalendarDates({ ...old, ...patch });
+    },
+  },
+  // Subscription links (token = credential, see migration 0037).
+  calendar_links: {
+    ...all(isAdmin),
+    validateInsert: (row) => {
+      if (typeof row.name !== 'string' || !row.name.trim() || row.name.length > 80) {
+        throw new ApiError('Invalid link name', 400, '23514');
+      }
     },
   },
 

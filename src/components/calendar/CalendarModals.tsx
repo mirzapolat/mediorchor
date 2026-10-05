@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  Bell,
   Check,
   Clock,
-  Copy,
   ExternalLink,
   MapPin,
   Pencil,
   Plus,
-  RefreshCw,
+  Repeat,
   Search,
   StickyNote,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { Button } from '@/components/Button';
@@ -21,8 +22,8 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { GROUP_PALETTE, paletteColor } from '@/lib/groupColors';
-import { feedUrls, formatDay, timeRange, type CalendarData, type CalendarEntry } from '@/lib/calendar';
-import type { Calendar, CalendarEvent } from '@/types';
+import { formatDay, shiftedEnd, timeRange, type CalendarData, type CalendarEntry } from '@/lib/calendar';
+import type { Calendar, CalendarEvent, CalendarEventException, CalendarRepeat } from '@/types';
 
 // --- Day preview -----------------------------------------------------------------
 
@@ -38,6 +39,7 @@ export const DayPreviewModal = ({
   onAdd,
   onEdit,
   onOpenRehearsal,
+  readOnly = false,
 }: {
   date: string | null;
   entries: CalendarEntry[];
@@ -46,8 +48,10 @@ export const DayPreviewModal = ({
   canAdd: boolean;
   onClose: () => void;
   onAdd: (date: string) => void;
-  onEdit: (event: CalendarEvent) => void;
+  onEdit: (entry: Extract<CalendarEntry, { kind: 'event' }>) => void;
   onOpenRehearsal: (projectId: string, eventId: string) => void;
+  // Public web view: nothing to edit or open.
+  readOnly?: boolean;
 }) => {
   const { t, lang } = useI18n();
   const calendarName = new Map(calendars.map((c) => [c.id, c.name]));
@@ -62,7 +66,7 @@ export const DayPreviewModal = ({
           <Button variant="secondary" onClick={onClose}>
             {t('close')}
           </Button>
-          {canAdd && date && (
+          {canAdd && !readOnly && date && (
             <Button onClick={() => onAdd(date)}>
               <Plus size={16} />
               {t('addCalendarEvent')}
@@ -88,15 +92,23 @@ export const DayPreviewModal = ({
                     <p className="flex items-center gap-1.5 text-sm text-text-secondary">
                       <Clock size={13} className="flex-shrink-0" />
                       <span className="tabular-nums">{time ?? t('allDay')}</span>
+                      {entry.span && (
+                        <span className="text-text-tertiary">
+                          · {t('dayOfDays').replace('{day}', String(entry.span.day)).replace('{days}', String(entry.span.days))}
+                        </span>
+                      )}
+                      {entry.kind === 'event' && entry.event.repeat !== 'none' && (
+                        <Repeat size={13} className="flex-shrink-0 text-text-tertiary" aria-label={t('repeats')} />
+                      )}
                     </p>
                     <p className="mt-0.5 font-semibold leading-snug break-words">{entry.name}</p>
                     <p className="mt-0.5 text-xs text-text-tertiary">
                       {entry.kind === 'rehearsal'
                         ? `${t('rehearsal')} · ${entry.project.name}`
-                        : `${t('calendarEventsEntry')} · ${calendarName.get(entry.event.calendar_id) ?? ''}`}
+                        : `${t('manualEvents')} · ${calendarName.get(entry.event.calendar_id) ?? ''}`}
                     </p>
                   </div>
-                  {entry.kind === 'rehearsal' ? (
+                  {readOnly ? null : entry.kind === 'rehearsal' ? (
                     <Button
                       variant="secondary"
                       className="flex-shrink-0 !px-3 !py-1.5 text-xs"
@@ -107,7 +119,7 @@ export const DayPreviewModal = ({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => onEdit(entry.event)}
+                      onClick={() => onEdit(entry)}
                       aria-label={t('edit')}
                       title={t('edit')}
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text"
@@ -154,6 +166,17 @@ export const DayPreviewModal = ({
 
 // --- Calendar: create / edit, with its projects ----------------------------------
 
+// Default reminder choices, in minutes before the start.
+const REMINDER_OPTIONS = [0, 10, 30, 60, 120, 1440, 2880, 10080];
+
+const reminderLabel = (minutes: number, t: (key: string) => string) => {
+  if (minutes === 0) return t('reminderAtStart');
+  if (minutes < 60) return t('reminderMinutes').replace('{n}', String(minutes));
+  if (minutes < 1440) return t(minutes === 60 ? 'reminderHour' : 'reminderHours').replace('{n}', String(minutes / 60));
+  if (minutes < 10080) return t(minutes === 1440 ? 'reminderDay' : 'reminderDays').replace('{n}', String(minutes / 1440));
+  return t('reminderWeek');
+};
+
 export const CalendarFormModal = ({
   open,
   calendar,
@@ -170,6 +193,7 @@ export const CalendarFormModal = ({
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [color, setColor] = useState(GROUP_PALETTE[0]);
+  const [reminder, setReminder] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [saving, setSaving] = useState(false);
@@ -184,6 +208,7 @@ export const CalendarFormModal = ({
     if (!open) return;
     setName(calendar?.name ?? '');
     setColor(calendar?.color ?? paletteColor(data.calendars.length));
+    setReminder(calendar?.reminder_minutes == null ? '' : String(calendar.reminder_minutes));
     setSelected(new Set(assigned));
     setQuery('');
     setError('');
@@ -216,13 +241,17 @@ export const CalendarFormModal = ({
     setSaving(true);
     setError('');
     let id = calendar?.id;
+    const reminder_minutes = reminder === '' ? null : Number(reminder);
     if (calendar) {
-      const { error: updateError } = await api.from('calendars').update({ name: name.trim(), color }).eq('id', calendar.id);
+      const { error: updateError } = await api
+        .from('calendars')
+        .update({ name: name.trim(), color, reminder_minutes })
+        .eq('id', calendar.id);
       if (updateError) return fail(updateError.message);
     } else {
       const { data: created, error: insertError } = await api
         .from('calendars')
-        .insert({ name: name.trim(), color, position: data.calendars.length })
+        .insert({ name: name.trim(), color, reminder_minutes, position: data.calendars.length })
         .select()
         .single();
       if (insertError || !created) return fail(insertError?.message ?? '');
@@ -300,6 +329,21 @@ export const CalendarFormModal = ({
         </div>
 
         <div>
+          <Select label={t('calendarReminder')} value={reminder} onChange={(e) => setReminder(e.target.value)}>
+            <option value="">{t('reminderNone')}</option>
+            {REMINDER_OPTIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {reminderLabel(minutes, t)}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-text-tertiary">
+            <Bell size={13} className="mt-px flex-shrink-0" />
+            {t('calendarReminderHint')}
+          </p>
+        </div>
+
+        <div>
           <div className="mb-2 flex items-baseline justify-between gap-3">
             <p className="text-sm font-medium">{t('projects')}</p>
             <p className="text-xs text-text-tertiary">{t('selectedCount').replace('{n}', String(selected.size))}</p>
@@ -348,11 +392,32 @@ export const CalendarFormModal = ({
 
 // --- Event: create / edit ----------------------------------------------------------
 
-const blankEvent = { name: '', date: '', start_time: '', end_time: '', location: '', link: '', notes: '' };
+const blankEvent = {
+  name: '',
+  date: '',
+  end_date: '',
+  start_time: '',
+  end_time: '',
+  location: '',
+  link: '',
+  notes: '',
+  repeat: 'none' as CalendarRepeat,
+  repeat_interval: '1',
+  repeat_until: '',
+};
+
+const REPEATS: CalendarRepeat[] = ['none', 'daily', 'weekly', 'monthly', 'yearly'];
+
+// One occurrence of a repeating event, edited on its own ("only this one").
+export interface OccurrenceTarget {
+  date: string; // the first day it originally falls on
+  exception: CalendarEventException | null;
+}
 
 export const CalendarEventModal = ({
   open,
   event,
+  occurrence = null,
   defaults,
   calendars,
   onClose,
@@ -360,6 +425,8 @@ export const CalendarEventModal = ({
 }: {
   open: boolean;
   event: CalendarEvent | null;
+  // Set: edit only this occurrence of `event` (a repeating one).
+  occurrence?: OccurrenceTarget | null;
   defaults: { calendarId: string | null; date: string | null };
   calendars: Calendar[];
   onClose: () => void;
@@ -371,14 +438,38 @@ export const CalendarEventModal = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const single = Boolean(event && occurrence);
+  const exception = occurrence?.exception ?? null;
 
   useEffect(() => {
     if (!open) return;
+    // One occurrence starts from its own change, else from the series moved
+    // to that day.
+    const source =
+      event && occurrence
+        ? (exception ?? { ...event, date: occurrence.date, end_date: shiftedEnd(event, occurrence.date) })
+        : null;
     setForm(
-      event
+      source
+        ? {
+            ...blankEvent,
+            name: source.name,
+            date: source.date,
+            end_date: source.end_date ?? '',
+            start_time: source.start_time ?? '',
+            end_time: source.end_time ?? '',
+            location: source.location ?? '',
+            link: source.link ?? '',
+            notes: source.notes ?? '',
+          }
+        : event
         ? {
             name: event.name,
             date: event.date,
+            end_date: event.end_date ?? '',
+            repeat: event.repeat ?? 'none',
+            repeat_interval: String(event.repeat_interval ?? 1),
+            repeat_until: event.repeat_until ?? '',
             start_time: event.start_time ?? '',
             end_time: event.end_time ?? '',
             location: event.location ?? '',
@@ -390,7 +481,7 @@ export const CalendarEventModal = ({
     setCalendarId(event?.calendar_id ?? defaults.calendarId ?? calendars[0]?.id ?? '');
     setError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, event?.id]);
+  }, [open, event?.id, occurrence?.date]);
 
   const update = (patch: Partial<typeof blankEvent>) => setForm((f) => ({ ...f, ...patch }));
 
@@ -401,10 +492,41 @@ export const CalendarEventModal = ({
     const link = rawLink && !/^https?:\/\//i.test(rawLink) ? `https://${rawLink}` : rawLink;
     setSaving(true);
     setError('');
+    const interval = Math.min(99, Math.max(1, Math.round(Number(form.repeat_interval)) || 1));
+    if (event && occurrence) {
+      const values = {
+        cancelled: false,
+        name: form.name.trim(),
+        date: form.date,
+        end_date: form.end_date && form.end_date > form.date ? form.end_date : null,
+        start_time: form.start_time || null,
+        end_time: form.start_time && form.end_time ? form.end_time : null,
+        location: form.location.trim() || null,
+        link: link || null,
+        notes: form.notes.trim() || null,
+      };
+      const { error: saveError } = exception
+        ? await api.from('calendar_event_exceptions').update(values).eq('id', exception.id)
+        : await api
+            .from('calendar_event_exceptions')
+            .insert({ event_id: event.id, occurrence_date: occurrence.date, ...values });
+      setSaving(false);
+      if (saveError) {
+        setError(saveError.message || t('saveFailed'));
+        return;
+      }
+      onSaved();
+      onClose();
+      return;
+    }
     const payload = {
       calendar_id: calendarId,
       name: form.name.trim(),
       date: form.date,
+      end_date: form.end_date && form.end_date > form.date ? form.end_date : null,
+      repeat: form.repeat,
+      repeat_interval: form.repeat === 'none' ? 1 : interval,
+      repeat_until: form.repeat !== 'none' && form.repeat_until >= form.date ? form.repeat_until : null,
       start_time: form.start_time || null,
       end_time: form.start_time && form.end_time ? form.end_time : null,
       location: form.location.trim() || null,
@@ -419,6 +541,17 @@ export const CalendarEventModal = ({
       setError(saveError.message || t('saveFailed'));
       return;
     }
+    // A series that now falls on other days drops its single changes: they
+    // were tied to dates it no longer has.
+    if (
+      event &&
+      event.repeat !== 'none' &&
+      (payload.date !== event.date ||
+        payload.repeat !== event.repeat ||
+        payload.repeat_interval !== event.repeat_interval)
+    ) {
+      await api.from('calendar_event_exceptions').delete().eq('event_id', event.id);
+    }
     onSaved();
     onClose();
   };
@@ -426,7 +559,36 @@ export const CalendarEventModal = ({
   const remove = async () => {
     if (!event) return;
     setConfirmDelete(false);
-    await api.from('calendar_events').delete().eq('id', event.id);
+    if (occurrence) {
+      // Cancelling one occurrence keeps the series.
+      if (exception) {
+        await api.from('calendar_event_exceptions').update({ cancelled: true }).eq('id', exception.id);
+      } else {
+        await api.from('calendar_event_exceptions').insert({
+          event_id: event.id,
+          occurrence_date: occurrence.date,
+          cancelled: true,
+          name: event.name,
+          date: occurrence.date,
+          end_date: shiftedEnd(event, occurrence.date),
+          start_time: event.start_time,
+          end_time: event.end_time,
+          location: event.location,
+          notes: event.notes,
+          link: event.link,
+        });
+      }
+    } else {
+      await api.from('calendar_events').delete().eq('id', event.id);
+    }
+    onSaved();
+    onClose();
+  };
+
+  // Back to what the series says for this day.
+  const resetOccurrence = async () => {
+    if (!exception) return;
+    await api.from('calendar_event_exceptions').delete().eq('id', exception.id);
     onSaved();
     onClose();
   };
@@ -435,16 +597,24 @@ export const CalendarEventModal = ({
     <>
       <Modal
         open={open}
-        title={event ? t('editCalendarEvent') : t('addCalendarEvent')}
+        title={single ? t('editOccurrence') : event ? t('editCalendarEvent') : t('addCalendarEvent')}
         onClose={onClose}
         size="lg"
         footer={
           <>
             {event && (
-              <Button variant="secondary" className="mr-auto" onClick={() => setConfirmDelete(true)}>
-                <Trash2 size={15} />
-                {t('delete')}
-              </Button>
+              <div className="mr-auto flex gap-2">
+                <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 size={15} />
+                  {single ? t('cancelOccurrence') : t('delete')}
+                </Button>
+                {single && exception && (
+                  <Button variant="secondary" onClick={() => void resetOccurrence()}>
+                    <Undo2 size={15} />
+                    {t('resetOccurrence')}
+                  </Button>
+                )}
+              </div>
             )}
             <Button variant="secondary" onClick={onClose}>
               {t('cancel')}
@@ -452,7 +622,13 @@ export const CalendarEventModal = ({
             <Button
               type="submit"
               form="calendar-event-form"
-              disabled={saving || !form.name.trim() || !form.date || !calendarId}
+              disabled={
+                saving ||
+                !form.name.trim() ||
+                !form.date ||
+                !calendarId ||
+                Boolean(form.end_date && form.end_date < form.date)
+              }
             >
               {saving ? t('loading') : event ? t('save') : t('create')}
             </Button>
@@ -460,13 +636,20 @@ export const CalendarEventModal = ({
         }
       >
         <form id="calendar-event-form" onSubmit={save} className="space-y-4">
-          <Select label={t('calendar')} value={calendarId} onChange={(e) => setCalendarId(e.target.value)} required>
-            {calendars.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          {single ? (
+            <p className="flex items-start gap-2 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
+              <Repeat size={15} className="mt-0.5 flex-shrink-0" />
+              {t('editOccurrenceHint')}
+            </p>
+          ) : (
+            <Select label={t('calendar')} value={calendarId} onChange={(e) => setCalendarId(e.target.value)} required>
+              {calendars.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          )}
           <Input
             label={t('name')}
             value={form.name}
@@ -476,7 +659,17 @@ export const CalendarEventModal = ({
             required
             autoFocus
           />
-          <DatePicker label={t('date')} value={form.date || null} onChange={(date) => update({ date })} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <DatePicker label={t('date')} value={form.date || null} onChange={(date) => update({ date })} />
+            <DatePicker
+              label={`${t('endDate')} (${t('optional')})`}
+              value={form.end_date || null}
+              onChange={(end_date) => update({ end_date })}
+            />
+          </div>
+          {form.end_date && form.date && form.end_date < form.date && (
+            <p className="-mt-2 text-xs text-danger-strong">{t('endDateBeforeStart')}</p>
+          )}
           <div>
             <div className="grid grid-cols-2 gap-3">
               <Input
@@ -495,6 +688,43 @@ export const CalendarEventModal = ({
             </div>
             <p className="mt-1.5 text-xs text-text-tertiary">{t('calendarEventTimeHint')}</p>
           </div>
+          {!single && (
+          <div className="space-y-3 rounded-md border border-border p-3">
+            <div className="grid gap-3 sm:grid-cols-[1fr_7rem]">
+              <Select
+                label={t('repeats')}
+                value={form.repeat}
+                onChange={(e) => update({ repeat: e.target.value as CalendarRepeat })}
+              >
+                {REPEATS.map((r) => (
+                  <option key={r} value={r}>
+                    {t(`repeat_${r}`)}
+                  </option>
+                ))}
+              </Select>
+              {form.repeat !== 'none' && (
+                <Input
+                  type="number"
+                  min={1}
+                  max={99}
+                  label={t('repeatEvery')}
+                  value={form.repeat_interval}
+                  onChange={(e) => update({ repeat_interval: e.target.value })}
+                />
+              )}
+            </div>
+            {form.repeat !== 'none' && (
+              <>
+                <DatePicker
+                  label={`${t('repeatUntil')} (${t('optional')})`}
+                  value={form.repeat_until || null}
+                  onChange={(repeat_until) => update({ repeat_until })}
+                />
+                <p className="text-xs text-text-tertiary">{t('repeatHint')}</p>
+              </>
+            )}
+          </div>
+          )}
           <Input
             label={`${t('eventLocation')} (${t('optional')})`}
             placeholder={t('eventLocationPlaceholder')}
@@ -523,104 +753,18 @@ export const CalendarEventModal = ({
       </Modal>
       <ConfirmDialog
         open={confirmDelete}
-        title={t('delete')}
-        message={t('confirmDeleteCalendarEvent')}
-        confirmLabel={t('delete')}
+        title={single ? t('cancelOccurrence') : t('delete')}
+        message={
+          single
+            ? t('confirmCancelOccurrence')
+            : event && event.repeat !== 'none'
+              ? t('confirmDeleteSeries')
+              : t('confirmDeleteCalendarEvent')
+        }
+        confirmLabel={single ? t('cancelOccurrence') : t('delete')}
         destructive
         onConfirm={remove}
         onCancel={() => setConfirmDelete(false)}
-      />
-    </>
-  );
-};
-
-// --- Subscription link ---------------------------------------------------------------
-
-export const SubscribeModal = ({
-  calendar,
-  onClose,
-  onRenewed,
-}: {
-  calendar: Calendar | null;
-  onClose: () => void;
-  onRenewed: () => void;
-}) => {
-  const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
-  const [confirmRenew, setConfirmRenew] = useState(false);
-
-  useEffect(() => setCopied(false), [calendar?.id, calendar?.feed_token]);
-
-  if (!calendar) return null;
-  const urls = feedUrls(calendar.feed_token);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(urls.https);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  const renew = async () => {
-    setConfirmRenew(false);
-    await api.from('calendars').update({ feed_token: crypto.randomUUID() }).eq('id', calendar.id);
-    onRenewed();
-  };
-
-  return (
-    <>
-      <Modal open title={`${t('subscribeCalendar')}: ${calendar.name}`} onClose={onClose} size="lg">
-        <p className="text-sm text-text-secondary">{t('subscribeCalendarHint')}</p>
-        <div className="flex gap-2">
-          <input
-            readOnly
-            value={urls.https}
-            onFocus={(e) => e.target.select()}
-            aria-label={t('subscribeLink')}
-            className="min-w-0 flex-1 rounded-md border border-border bg-surface-subtle px-3 py-2 font-mono text-xs text-text-secondary focus:border-black focus:outline-none"
-          />
-          <Button variant="secondary" onClick={copy} className="flex-shrink-0">
-            {copied ? <Check size={15} /> : <Copy size={15} />}
-            {copied ? t('copied') : t('copyLink')}
-          </Button>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <a
-            href={urls.google}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-surface-muted"
-          >
-            <ExternalLink size={15} />
-            {t('openInGoogleCalendar')}
-          </a>
-          <a
-            href={urls.webcal}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-surface-muted"
-          >
-            <ExternalLink size={15} />
-            {t('openInAppleCalendar')}
-          </a>
-        </div>
-        <p className="text-xs text-text-tertiary">{t('subscribeRefreshHint')}</p>
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="text-sm text-text-secondary">{t('renewCalendarLinkHint')}</p>
-          <Button variant="secondary" onClick={() => setConfirmRenew(true)} className="flex-shrink-0">
-            <RefreshCw size={15} />
-            {t('renewLink')}
-          </Button>
-        </div>
-      </Modal>
-      <ConfirmDialog
-        open={confirmRenew}
-        title={t('renewLink')}
-        message={t('renewCalendarLinkConfirm')}
-        confirmLabel={t('renewLink')}
-        destructive
-        onConfirm={renew}
-        onCancel={() => setConfirmRenew(false)}
       />
     </>
   );
