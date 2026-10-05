@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, UserCog } from 'lucide-react';
+import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, UserCog, Users } from 'lucide-react';
 import { DeleteProjectDialog } from '@/components/DeleteProjectDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
@@ -22,6 +22,9 @@ export const ProjectsPage = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   // Projects I take part in myself: an active member row linked to my account.
   const [participating, setParticipating] = useState<Set<string>>(new Set());
+  // Active members per project, only for projects I may see the members of
+  // (all with the project-management grant, else my individual grants).
+  const [activeCounts, setActiveCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [toDelete, setToDelete] = useState<Project | null>(null);
   const [accessFor, setAccessFor] = useState<Project | null>(null);
@@ -29,21 +32,35 @@ export const ProjectsPage = () => {
   const tf = useTableFilters({ status: 'active' });
 
   const load = async () => {
-    const [{ data }, { data: mine }] = await Promise.all([
+    const [{ data }, { data: mine }, { data: active }, { data: grants }] = await Promise.all([
       api.from('projects').select('*').order('created_at', { ascending: false }),
       user
         ? api.from('members').select('project_id').eq('user_id', user.id).eq('status', 'active')
         : Promise.resolve({ data: [] }),
+      api.from('members').select('project_id').eq('status', 'active'),
+      user && !canManageProjects
+        ? api.from('user_projects').select('project_id').eq('user_id', user.id)
+        : Promise.resolve({ data: [] }),
     ]);
-    setProjects((data as Project[]) ?? []);
+    const list = (data as Project[]) ?? [];
+    setProjects(list);
     setParticipating(new Set(((mine as { project_id: string }[] | null) ?? []).map((m) => m.project_id)));
+    // Without access a project only returns my own member row, so its count
+    // would be wrong; those projects get no number.
+    const granted = new Set(((grants as { project_id: string }[] | null) ?? []).map((g) => g.project_id));
+    const counts = new Map<string, number>();
+    for (const p of list) if (canManageProjects || granted.has(p.id)) counts.set(p.id, 0);
+    for (const m of (active as { project_id: string }[] | null) ?? []) {
+      if (counts.has(m.project_id)) counts.set(m.project_id, counts.get(m.project_id)! + 1);
+    }
+    setActiveCounts(counts);
     setLoading(false);
   };
 
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, canManageProjects]);
 
   const toggleArchive = async (p: Project) => {
     await api
@@ -81,6 +98,25 @@ export const ProjectsPage = () => {
         </div>
       ),
     },
+    ...(activeCounts.size > 0
+      ? [
+          {
+            id: 'activeMembers',
+            header: t('activeMembers'),
+            accessor: (p: Project) => activeCounts.get(p.id) ?? null,
+            className: 'w-px whitespace-nowrap text-center',
+            render: (p: Project) =>
+              activeCounts.has(p.id) ? (
+                <span className="inline-flex items-center gap-1.5 tabular-nums text-text-secondary">
+                  <Users size={14} />
+                  {activeCounts.get(p.id)}
+                </span>
+              ) : (
+                <span className="text-text-tertiary">—</span>
+              ),
+          } satisfies Column<Project>,
+        ]
+      : []),
     {
       id: 'participating',
       header: t('myParticipation'),

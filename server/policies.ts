@@ -101,6 +101,14 @@ const pageInManagedProject = (pageId: string) =>
 // Same predicate for every operation (Postgres "for all ... using/with check").
 const all = (p: Predicate): TablePolicy => ({ select: p, insert: p, update: p, check: p, delete: p });
 
+// Only web links (no javascript: or data: URLs) for calendar events.
+const validateCalendarLink = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return;
+  if (typeof value !== 'string' || value.length > 2000 || !/^https?:\/\/\S+$/i.test(value)) {
+    throw new ApiError('Links must start with http:// or https://', 400, '23514');
+  }
+};
+
 // A registration deadline must be a full ISO timestamp with time zone (or
 // null). The public RPCs treat anything unparsable as closed.
 const validateClosesAt = (row: Record<string, unknown>) => {
@@ -306,6 +314,19 @@ export const policies: Record<string, TablePolicy> = {
   },
 
   event_checkins: all((a) => eventInManagedProject(`${a}.event_id`)),
+
+  // Kalender (dashboard tab): for those with access to all projects, since a
+  // calendar can take in any project's rehearsals.
+  calendars: all(canManageProjects),
+  calendar_projects: all(canManageProjects),
+  calendar_events: {
+    ...all(canManageProjects),
+    // The link is rendered as <a href> and put into the iCal feed.
+    validateInsert: (row) => validateCalendarLink(row.link),
+    validateUpdate: (_old, patch) => {
+      if ('link' in patch) validateCalendarLink(patch.link);
+    },
+  },
 
   // Submissions are only written by the public check-in functions.
   checkin_submissions: {

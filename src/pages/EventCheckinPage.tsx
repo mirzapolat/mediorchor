@@ -219,6 +219,15 @@ export const EventCheckinPage = () => {
     [],
   );
 
+  // Starting the check-in briefly pulses the fullscreen button, nudging
+  // toward showing the QR code big on the projector/tablet.
+  const [nudgeFullscreen, setNudgeFullscreen] = useState(false);
+  useEffect(() => {
+    if (!nudgeFullscreen) return;
+    const timer = window.setTimeout(() => setNudgeFullscreen(false), 3600);
+    return () => window.clearTimeout(timer);
+  }, [nudgeFullscreen]);
+
   const updateCheckin = async (patch: Partial<EventCheckin>) => {
     if (!checkin) return;
     setBusy(true);
@@ -230,6 +239,15 @@ export const EventCheckinPage = () => {
       .single();
     if (data) setCheckin(data as EventCheckin);
     setBusy(false);
+  };
+
+  // Start/stop, from the button or by clicking the QR code. Starting outside
+  // fullscreen nudges toward the fullscreen view.
+  const toggleActive = () => {
+    if (!checkin) return;
+    if (!checkin.is_active) track('checkin-start');
+    setNudgeFullscreen(!checkin.is_active && !fullscreenOpen);
+    void updateCheckin({ is_active: !checkin.is_active });
   };
 
   const reset = async () => {
@@ -347,14 +365,7 @@ export const EventCheckinPage = () => {
             <RotateCcw size={16} />
             {t('clearFilters')}
           </Button>
-          <Button
-            variant={checkin.is_active ? 'accent' : 'primary'}
-            disabled={busy}
-            onClick={() => {
-              if (!checkin.is_active) track('checkin-start');
-              void updateCheckin({ is_active: !checkin.is_active });
-            }}
-          >
+          <Button variant={checkin.is_active ? 'accent' : 'primary'} disabled={busy} onClick={toggleActive}>
             {checkin.is_active ? <Square size={15} /> : <Play size={16} />}
             {checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
           </Button>
@@ -362,27 +373,37 @@ export const EventCheckinPage = () => {
       </div>
 
       <section className="flex flex-col items-center text-center py-4 mb-12">
-        {/* An active code sits on paper (light in dark mode too) so it scans well. */}
-        <div
-          ref={qrContainerRef}
-          className={`relative rounded-xl border border-border p-5 shadow-sm ${checkin.is_active ? 'bg-paper' : 'bg-white'}`}
+        {/* An active code sits on paper (light in dark mode too) so it scans well.
+            Clicking the code starts/stops the check-in, like the button above. */}
+        <button
+          type="button"
+          onClick={toggleActive}
+          disabled={busy}
+          aria-label={checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
+          title={checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
+          className="rounded-xl transition-transform hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait"
         >
-          <QRCodeSVG
-            value={publicUrl}
-            size={264}
-            level="H"
-            marginSize={0}
-            imageSettings={qrImageSettings}
-            className={`h-auto w-[264px] max-w-full ${checkin.is_active ? '' : 'opacity-15'}`}
-          />
-          {!checkin.is_active ? (
-            <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white border border-border shadow-sm">
-                <Lock size={24} />
-              </span>
-            </div>
-          ) : null}
-        </div>
+          <div
+            ref={qrContainerRef}
+            className="relative rounded-xl border border-border bg-paper p-5 shadow-sm"
+          >
+            <QRCodeSVG
+              value={publicUrl}
+              size={264}
+              level="H"
+              marginSize={0}
+              imageSettings={qrImageSettings}
+              className={`h-auto w-[264px] max-w-full ${checkin.is_active ? '' : 'opacity-15'}`}
+            />
+            {!checkin.is_active ? (
+              <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-white border border-border shadow-sm">
+                  <Lock size={24} />
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </button>
         <div
           className={`mt-5 inline-flex items-center gap-2 text-sm font-medium ${
             checkin.is_active ? 'text-success-strong' : 'text-text-secondary'
@@ -413,8 +434,10 @@ export const EventCheckinPage = () => {
           </Button>
           <Button
             variant="secondary"
+            className={nudgeFullscreen ? 'nudge-pulse' : undefined}
             onClick={() => {
               track('checkin-share', { kind: 'fullscreen' });
+              setNudgeFullscreen(false);
               setFullscreenOpen(true);
             }}
           >
@@ -533,7 +556,9 @@ export const EventCheckinPage = () => {
           eventName={event.name}
           publicUrl={publicUrl}
           active={checkin.is_active}
+          busy={busy}
           logoSrc={logoSrc}
+          onToggle={toggleActive}
           onClose={closeFullscreen}
         />
       ) : null}
@@ -817,13 +842,17 @@ const FullscreenQrCode = ({
   eventName,
   publicUrl,
   active,
+  busy,
   logoSrc,
+  onToggle,
   onClose,
 }: {
   eventName: string;
   publicUrl: string;
   active: boolean;
+  busy: boolean;
   logoSrc: string | null;
+  onToggle: () => void;
   onClose: () => void;
 }) => {
   const { t } = useI18n();
@@ -848,6 +877,7 @@ const FullscreenQrCode = ({
       aria-modal="true"
       aria-label={t('showFullscreen')}
     >
+      <div className="dot-field" aria-hidden="true" />
       <button
         type="button"
         onClick={onClose}
@@ -859,25 +889,32 @@ const FullscreenQrCode = ({
       </button>
 
       <h2 className="mb-8 max-w-3xl text-3xl font-bold sm:text-4xl">{eventName}</h2>
-      <div
-        className={`relative rounded-2xl border border-border p-6 shadow-sm sm:p-8 ${active ? 'bg-paper' : 'bg-white'}`}
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={busy}
+        aria-label={active ? t('stopCheckIn') : t('startCheckIn')}
+        title={active ? t('stopCheckIn') : t('startCheckIn')}
+        className="rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait"
       >
-        <QRCodeSVG
-          value={publicUrl}
-          size={640}
-          level="H"
-          marginSize={0}
-          imageSettings={logoSrc ? { src: logoSrc, height: 120, width: 120, excavate: true } : undefined}
-          className={`h-auto w-[min(60vw,60vh)] max-w-[640px] ${active ? '' : 'opacity-15'}`}
-        />
-        {!active ? (
-          <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-            <span className="flex h-20 w-20 items-center justify-center rounded-full border border-border bg-white shadow-sm">
-              <Lock size={34} />
-            </span>
-          </div>
-        ) : null}
-      </div>
+        <div className="relative rounded-2xl border border-border bg-paper p-6 shadow-sm sm:p-8">
+          <QRCodeSVG
+            value={publicUrl}
+            size={640}
+            level="H"
+            marginSize={0}
+            imageSettings={logoSrc ? { src: logoSrc, height: 120, width: 120, excavate: true } : undefined}
+            className={`h-auto w-[min(60vw,60vh)] max-w-[640px] ${active ? '' : 'opacity-15'}`}
+          />
+          {!active ? (
+            <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+              <span className="flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-white shadow-sm">
+                <Lock size={34} />
+              </span>
+            </div>
+          ) : null}
+        </div>
+      </button>
       <div
         className={`mt-7 inline-flex items-center gap-2 text-lg font-semibold ${
           active ? 'text-success-strong' : 'text-text-secondary'

@@ -19,7 +19,7 @@ import type { Event } from '@/types';
 
 const today = localToday;
 
-const blank = { name: '', description: '', date: '', time: '', location: '' };
+const blank = { name: '', description: '', date: '', time: '', end_time: '', location: '' };
 
 export const EventsPage = () => {
   const { t } = useI18n();
@@ -98,6 +98,7 @@ export const EventsPage = () => {
       description: form.description.trim() || null,
       date: form.date || null,
       time: form.time || null,
+      end_time: form.time && form.end_time ? form.end_time : null,
       location: form.location.trim() || null,
     };
     if (editing) {
@@ -177,7 +178,7 @@ export const EventsPage = () => {
             {ev.time && (
               <span className="inline-flex items-center gap-1.5">
                 <Clock size={14} />
-                {ev.time}
+                {ev.end_time ? `${ev.time}–${ev.end_time}` : ev.time}
               </span>
             )}
           </span>
@@ -319,18 +320,25 @@ export const EventsPage = () => {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
+          <Input
+            type="date"
+            label={`${t('date')} (${t('optional')})`}
+            value={form.date}
+            onChange={(e) => setForm({ ...form, date: e.target.value })}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input
-              type="date"
-              label={`${t('date')} (${t('optional')})`}
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              type="time"
+              label={`${t('startTime')} (${t('optional')})`}
+              value={form.time}
+              onChange={(e) => setForm({ ...form, time: e.target.value })}
             />
             <Input
               type="time"
-              label={`${t('time')} (${t('optional')})`}
-              value={form.time}
-              onChange={(e) => setForm({ ...form, time: e.target.value })}
+              label={`${t('endTime')} (${t('optional')})`}
+              value={form.end_time}
+              disabled={!form.time}
+              onChange={(e) => setForm({ ...form, end_time: e.target.value })}
             />
           </div>
           <Input

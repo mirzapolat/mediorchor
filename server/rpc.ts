@@ -232,9 +232,36 @@ const get_public_checkin = (args: Args) => {
     groups,
     allow_guest_checkin: Boolean(checkin.allow_guest_checkin),
     allow_account_checkin: Boolean(checkin.allow_account_checkin),
+    // Joining by account check-in needs a group only when the project says so.
+    group_required: signupGroupRequired(text(checkin.project_id)),
     logged_in: uid !== null,
     me,
   };
+};
+
+// One submission per person and Probe: checking in again (double tap, second
+// scan) refreshes the existing row instead of adding a duplicate.
+const recordRecognizedSubmission = (
+  eventId: string,
+  memberId: string,
+  status: string,
+  names: { first_name: string; last_name: string; group_name: string },
+) => {
+  const existing = db
+    .prepare('select id from checkin_submissions where event_id = ? and member_id = ? and recognized = 1')
+    .get(eventId, memberId) as { id: string } | undefined;
+  if (existing) {
+    db.prepare(`update checkin_submissions set attendance_status = ?, submitted_at = now_iso() where id = ?`).run(
+      status,
+      existing.id,
+    );
+    return;
+  }
+  db.prepare(
+    `insert into checkin_submissions
+       (event_id, member_id, first_name, last_name, group_name, recognized, attendance_status)
+     values (?, ?, ?, ?, ?, 1, ?)`,
+  ).run(eventId, memberId, names.first_name, names.last_name, names.group_name, status);
 };
 
 const submit_public_checkin = (args: Args) => {
@@ -300,12 +327,10 @@ const submit_public_checkin = (args: Args) => {
     }
 
     upsertAttendance(checkin.event_id, memberId, checkin.attendance_status);
-    db.prepare(
-      `insert into checkin_submissions
-         (event_id, member_id, first_name, last_name, group_name, recognized, attendance_status)
-       select ?, m.id, m.first_name, m.last_name, coalesce(m.group_name, ''), 1, ?
-       from members m where m.id = ?`,
-    ).run(checkin.event_id, checkin.attendance_status, memberId);
+    const member = db
+      .prepare(`select first_name, last_name, coalesce(group_name, '') as group_name from members where id = ?`)
+      .get(memberId) as { first_name: string; last_name: string; group_name: string };
+    recordRecognizedSubmission(checkin.event_id, memberId, checkin.attendance_status, member);
 
     return { state: 'success', recognized: true };
   }
@@ -328,18 +353,36 @@ const submit_public_checkin = (args: Args) => {
 
   if (match) {
     upsertAttendance(checkin.event_id, match.id, checkin.attendance_status);
-    db.prepare(
-      `insert into checkin_submissions
-         (event_id, member_id, first_name, last_name, group_name, recognized, attendance_status)
-       values (?, ?, ?, ?, ?, 1, ?)`,
-    ).run(checkin.event_id, match.id, firstName, lastName, groupName, checkin.attendance_status);
+    recordRecognizedSubmission(checkin.event_id, match.id, checkin.attendance_status, {
+      first_name: firstName,
+      last_name: lastName,
+      group_name: groupName,
+    });
     return { state: 'success', recognized: true };
   }
 
-  db.prepare(
-    `insert into checkin_submissions (event_id, first_name, last_name, group_name, recognized)
-     values (?, ?, ?, ?, 0)`,
-  ).run(checkin.event_id, firstName, lastName, groupName);
+  // Unknown person: the same name and group again only refreshes the open
+  // entry. The status is kept so a later assignment uses the mode the person
+  // checked in under, not whatever the check-in is set to by then.
+  const open = (
+    db
+      .prepare(
+        `select id, first_name, last_name from checkin_submissions
+         where event_id = ? and recognized = 0 and group_name = ?`,
+      )
+      .all(checkin.event_id, groupName) as { id: string; first_name: string; last_name: string }[]
+  ).find((s) => same(s.first_name, firstName) && same(s.last_name, lastName));
+  if (open) {
+    db.prepare(`update checkin_submissions set attendance_status = ?, submitted_at = now_iso() where id = ?`).run(
+      checkin.attendance_status,
+      open.id,
+    );
+  } else {
+    db.prepare(
+      `insert into checkin_submissions (event_id, first_name, last_name, group_name, recognized, attendance_status)
+       values (?, ?, ?, ?, 0, ?)`,
+    ).run(checkin.event_id, firstName, lastName, groupName, checkin.attendance_status);
+  }
   return { state: 'success', recognized: false };
 };
 
@@ -538,7 +581,7 @@ const assign_checkin_submission = (args: Args) => {
   requireUser();
   const submission = db
     .prepare(
-      `select s.event_id, e.project_id, c.attendance_status
+      `select s.event_id, e.project_id, coalesce(s.attendance_status, c.attendance_status) as attendance_status
        from checkin_submissions s
        join events e on e.id = s.event_id
        join event_checkins c on c.event_id = s.event_id
@@ -556,9 +599,18 @@ const assign_checkin_submission = (args: Args) => {
   if (!member) throw new ApiError('Member not found in this project');
 
   upsertAttendance(submission.event_id, member.id, submission.attendance_status);
-  db.prepare(
-    `update checkin_submissions set member_id = ?, recognized = 1, attendance_status = ? where id = ?`,
-  ).run(member.id, submission.attendance_status, text(args.p_submission_id));
+  // Already checked in under their own name: drop the stray entry instead of
+  // listing the person twice.
+  const duplicate = db
+    .prepare('select 1 from checkin_submissions where event_id = ? and member_id = ? and recognized = 1')
+    .get(submission.event_id, member.id);
+  if (duplicate) {
+    db.prepare('delete from checkin_submissions where id = ?').run(text(args.p_submission_id));
+  } else {
+    db.prepare(
+      `update checkin_submissions set member_id = ?, recognized = 1, attendance_status = ? where id = ?`,
+    ).run(member.id, submission.attendance_status, text(args.p_submission_id));
+  }
   return { success: true };
 };
 

@@ -14,6 +14,7 @@ import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
 import { adminRoutes } from './admin.ts';
 import { webhookRoutes } from './webhooks.ts';
+import { calendarFeedRoutes } from './calendarFeed.ts';
 import { rateLimit } from './ratelimit.ts';
 import { startNotifications } from './notifications.ts';
 import { mailEnabled } from './mail.ts';
@@ -93,7 +94,10 @@ app.post('/api/db', async (c) => {
 // Server functions (the former Postgres RPCs). Some work without a session.
 app.post('/api/rpc/:name', async (c) => {
   const name = c.req.param('name');
-  if (PUBLIC_WRITE_FUNCTIONS.has(name)) rateLimit(c, 'public-submit', 30, 60 * 1000);
+  // At a rehearsal many phones share one public IP (venue Wi-Fi, carrier NAT),
+  // so check-ins get far more headroom than the registration form.
+  if (name === 'submit_public_checkin') rateLimit(c, 'public-checkin', 300, 60 * 1000);
+  else if (PUBLIC_WRITE_FUNCTIONS.has(name)) rateLimit(c, 'public-submit', 30, 60 * 1000);
   const args = (await jsonBody(c)) as Record<string, unknown>;
   const data = withSessionUser(c, () => callFunction(name, args));
   return c.json({ data: data ?? null });
@@ -102,6 +106,8 @@ app.post('/api/rpc/:name', async (c) => {
 app.route('/api/storage', storageRoutes);
 app.route('/api/functions', adminRoutes);
 app.route('/api/webhooks', webhookRoutes);
+// Public iCal subscription links of the Kalender (token-authenticated).
+app.route('/api/calendar-feed', calendarFeedRoutes);
 app.all('/api/*', (c) => c.json({ error: { message: 'Not found' } }, 404));
 
 app.route('/files', fileRoutes);

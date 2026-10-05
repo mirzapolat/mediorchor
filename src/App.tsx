@@ -47,6 +47,7 @@ import { EventCheckinPage } from '@/pages/EventCheckinPage';
 import { RegistrationsPage } from '@/pages/RegistrationsPage';
 import { PiecesPage } from '@/pages/PiecesPage';
 import { GlobalPiecesPage } from '@/pages/GlobalPiecesPage';
+import { CalendarPage } from '@/pages/CalendarPage';
 import { GlobalPiecesLayout } from '@/layouts/GlobalPiecesLayout';
 import { PieceDetailPage } from '@/pages/PieceDetailPage';
 import { PieceSetupPage } from '@/pages/PieceSetupPage';
@@ -122,6 +123,7 @@ export const App = () => {
           <Route element={<PaddedPage />}>
             <Route index element={<ProjectsPage />} />
             <Route path="account" element={<AccountPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
           </Route>
 
           {/* The piece collection shared by all projects. */}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bookmark,
   CalendarX2,
+  AtSign,
   ClipboardCopy,
   FileDown,
   FileText,
@@ -437,6 +438,25 @@ export const AbsencesPage = () => {
     }
   };
 
+  // The matching members' addresses, comma-separated so they paste straight
+  // into a mail's To/BCC field. Members without an address are counted.
+  const emails = [
+    ...new Set(visibleRows.map((row) => row.member.email?.trim()).filter((e): e is string => Boolean(e))),
+  ];
+  const withoutEmail = visibleRows.filter((row) => !row.member.email?.trim()).length;
+  const copyEmails = async () => {
+    try {
+      await navigator.clipboard.writeText(emails.join(', '));
+      track('export', { type: 'absences-emails' });
+      setExportMessage(
+        t('emailListCopied').replace('{n}', String(emails.length)) +
+          (withoutEmail > 0 ? ` ${t('membersWithoutEmail').replace('{n}', String(withoutEmail))}` : ''),
+      );
+    } catch {
+      setExportMessage(t('exportError'));
+    }
+  };
+
   if (loading) return <PageSpinner />;
 
   return (
@@ -608,6 +628,13 @@ export const AbsencesPage = () => {
             variant="secondary"
             disabled={visibleRows.length === 0}
             onClick={copyNames}
+          />
+          <HeaderAction
+            icon={AtSign}
+            label={t('copyEmailList')}
+            variant="secondary"
+            disabled={emails.length === 0}
+            onClick={copyEmails}
           />
         </div>
       </div>

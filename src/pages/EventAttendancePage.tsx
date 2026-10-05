@@ -1,15 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, UserPlus } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
-import { Modal } from '@/components/Modal';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { DataTable, renderCell, type Column } from '@/components/DataTable';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
-import { HeaderAction } from '@/components/HeaderAction';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -37,7 +32,6 @@ export const EventAttendancePage = () => {
   const eventId = event.id;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addOpen, setAddOpen] = useState(false);
   const tf = useTableFilters();
   // Until the Probe has taken place, no record means "open", not absent.
   const held = isHeld(event.date);
@@ -207,7 +201,6 @@ export const EventAttendancePage = () => {
         actions={
           <>
             <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
-            <HeaderAction icon={UserPlus} label={t('addMemberToEvent')} onClick={() => setAddOpen(true)} />
           </>
         }
       />
@@ -233,103 +226,6 @@ export const EventAttendancePage = () => {
           </>
         )}
       />
-
-      <AddPersonModal
-        open={addOpen}
-        projectId={project.id}
-        eventId={eventId!}
-        onClose={() => setAddOpen(false)}
-        onAdded={load}
-      />
     </>
-  );
-};
-
-// Adds a new person to this event, asking whether they should be a one-off guest
-// or a permanent project member.
-const AddPersonModal = ({
-  open,
-  projectId,
-  eventId,
-  onClose,
-  onAdded,
-}: {
-  open: boolean;
-  projectId: string;
-  eventId: string;
-  onClose: () => void;
-  onAdded: () => void;
-}) => {
-  const { t } = useI18n();
-  const [first, setFirst] = useState('');
-  const [last, setLast] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const add = async (asGuest: boolean) => {
-    setSaving(true);
-    const { data: member } = await api
-      .from('members')
-      .insert({
-        project_id: projectId,
-        first_name: first.trim(),
-        last_name: last.trim(),
-        status: asGuest ? 'guest' : 'active',
-      })
-      .select()
-      .single();
-
-    if (member) {
-      await api.from('attendance').insert({
-        event_id: eventId,
-        member_id: (member as Member).id,
-        status: 'attended',
-        is_guest: asGuest,
-      });
-    }
-    setSaving(false);
-    setFirst('');
-    setLast('');
-    onAdded();
-    onClose();
-  };
-
-  const valid = first.trim() && last.trim();
-
-  return (
-    <Modal open={open} title={t('addMemberToEvent')} onClose={onClose}>
-      <form
-        onSubmit={(e: FormEvent) => {
-          e.preventDefault();
-        }}
-        className="space-y-4"
-      >
-        <div className="grid grid-cols-2 gap-3">
-          <Input label={t('firstName')} value={first} onChange={(e) => setFirst(e.target.value)} autoFocus />
-          <Input label={t('lastName')} value={last} onChange={(e) => setLast(e.target.value)} />
-        </div>
-        <p className="text-sm text-text-secondary">{t('guestOrMember')}</p>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            className="flex-1"
-            disabled={!valid || saving}
-            onClick={() => add(true)}
-          >
-            <Plus size={15} />
-            {t('addAsGuest')}
-          </Button>
-          <Button
-            type="button"
-            className="flex-1"
-            disabled={!valid || saving}
-            onClick={() => add(false)}
-          >
-            <UserPlus size={15} />
-            {t('addToProject')}
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 };

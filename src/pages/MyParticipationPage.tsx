@@ -287,7 +287,7 @@ export const MyParticipationPage = () => {
                               </span>
                             )}
                           </div>
-                          <EventWhen date={e.date} time={e.time} location={e.location} lang={lang} />
+                          <EventWhen date={e.date} time={e.end_time && e.time ? `${e.time}–${e.end_time}` : e.time} location={e.location} lang={lang} />
                           {e.description && (
                             <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                           )}
@@ -357,7 +357,7 @@ export const MyParticipationPage = () => {
                     <li key={e.id} className="flex items-start justify-between gap-3 py-3">
                       <div className="min-w-0">
                         <p className="font-medium leading-snug break-words">{e.name}</p>
-                        <EventWhen date={e.date} time={e.time} location={e.location} lang={lang} />
+                        <EventWhen date={e.date} time={e.end_time && e.time ? `${e.time}–${e.end_time}` : e.time} location={e.location} lang={lang} />
                         {e.description && (
                           <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                         )}

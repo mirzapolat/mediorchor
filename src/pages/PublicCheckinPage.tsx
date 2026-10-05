@@ -22,6 +22,7 @@ type PublicCheckinInfo =
       groups: string[];
       allow_guest_checkin: boolean;
       allow_account_checkin: boolean;
+      group_required: boolean;
       logged_in: boolean;
       me: {
         first_name: string;
@@ -110,6 +111,10 @@ export const PublicCheckinPage = () => {
 
   // Prefill the guest form when the account already knows a name.
   const guestFormDisabled = Boolean(active && !active.allow_guest_checkin && !accountMode);
+  // Guests are matched by group, so they always pick one; joining by account
+  // only needs one when the project requires it.
+  const groupRequired = !accountMode || Boolean(active?.group_required);
+  const noGroups = Boolean(active && active.groups.length === 0);
 
   return (
     <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
@@ -204,22 +209,24 @@ export const PublicCheckinPage = () => {
                     maxLength={120}
                     required
                   />
-                  <Select
-                    id="group-name"
-                    label={t('group')}
-                    value={groupName}
-                    onChange={(event) => setGroupName(event.target.value)}
-                    required
-                    disabled={active.groups.length === 0}
-                  >
-                    <option value="">{t('selectGroup')}</option>
-                    {active.groups.map((group) => (
-                      <option key={group} value={group}>
-                        {group}
-                      </option>
-                    ))}
-                  </Select>
-                  {active.groups.length === 0 ? (
+                  {noGroups && !groupRequired ? null : (
+                    <Select
+                      id="group-name"
+                      label={groupRequired ? t('group') : `${t('group')} (${t('optional')})`}
+                      value={groupName}
+                      onChange={(event) => setGroupName(event.target.value)}
+                      required={groupRequired}
+                      disabled={noGroups}
+                    >
+                      <option value="">{t('selectGroup')}</option>
+                      {active.groups.map((group) => (
+                        <option key={group} value={group}>
+                          {group}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                  {noGroups && groupRequired ? (
                     <p className="text-sm text-text-secondary">{t('noGroupsAvailable')}</p>
                   ) : null}
                   {error ? (
@@ -230,7 +237,7 @@ export const PublicCheckinPage = () => {
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={submitting || active.groups.length === 0}
+                    disabled={submitting || (noGroups && groupRequired)}
                   >
                     {submitting ? t('loading') : t('submitCheckIn')}
                   </Button>

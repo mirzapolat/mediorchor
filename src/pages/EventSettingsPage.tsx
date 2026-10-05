@@ -18,6 +18,8 @@ export const EventSettingsPage = () => {
     description: event.description ?? '',
     date: event.date ?? '',
     time: event.time ?? '',
+    end_time: event.end_time ?? '',
+    in_calendar: event.in_calendar,
     location: event.location ?? '',
   });
   const [saving, setSaving] = useState(false);
@@ -40,6 +42,8 @@ export const EventSettingsPage = () => {
         description: form.description.trim() || null,
         date: form.date || null,
         time: form.time || null,
+        end_time: form.time && form.end_time ? form.end_time : null,
+        in_calendar: form.in_calendar,
         location: form.location.trim() || null,
       })
       .eq('id', event.id);
@@ -73,20 +77,28 @@ export const EventSettingsPage = () => {
             value={form.description}
             onChange={(e) => update({ description: e.target.value })}
           />
+          <Input
+            type="date"
+            label={`${t('date')} (${t('optional')})`}
+            value={form.date}
+            onChange={(e) => update({ date: e.target.value })}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input
-              type="date"
-              label={`${t('date')} (${t('optional')})`}
-              value={form.date}
-              onChange={(e) => update({ date: e.target.value })}
-            />
-            <Input
               type="time"
-              label={`${t('time')} (${t('optional')})`}
+              label={`${t('startTime')} (${t('optional')})`}
               value={form.time}
               onChange={(e) => update({ time: e.target.value })}
             />
+            <Input
+              type="time"
+              label={`${t('endTime')} (${t('optional')})`}
+              value={form.end_time}
+              disabled={!form.time}
+              onChange={(e) => update({ end_time: e.target.value })}
+            />
           </div>
+          <p className="-mt-2 text-xs text-text-tertiary">{t('endTimeHint')}</p>
           <Input
             label={`${t('eventLocation')} (${t('optional')})`}
             placeholder={t('eventLocationPlaceholder')}
@@ -94,6 +106,18 @@ export const EventSettingsPage = () => {
             value={form.location}
             onChange={(e) => update({ location: e.target.value })}
           />
+          <label className="flex cursor-pointer items-center justify-between gap-4 border-t border-border pt-4">
+            <span>
+              <span className="block font-medium">{t('showInCalendar')}</span>
+              <span className="mt-0.5 block text-sm text-text-secondary">{t('showInCalendarHint')}</span>
+            </span>
+            <input
+              type="checkbox"
+              className="h-4 w-4 flex-shrink-0 accent-black"
+              checked={form.in_calendar}
+              onChange={(e) => update({ in_calendar: e.target.checked })}
+            />
+          </label>
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={saving || !form.name.trim()}>
               {saving ? t('loading') : t('save')}

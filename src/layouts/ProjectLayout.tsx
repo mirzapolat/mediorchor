@@ -130,6 +130,14 @@ export const ProjectLayout = () => {
   if (!project) return <NoAccess standalone />;
 
   const base = `/projects/${project.id}`;
+  // For those with write access: which pages participants can open as well.
+  const visibleTo = (participants: boolean) =>
+    canManage
+      ? {
+          access: participants ? ('participants' as const) : ('managers' as const),
+          accessLabel: participants ? t('pageVisibleToParticipants') : t('pageManagersOnly'),
+        }
+      : {};
 
   return (
     <div className="flex h-full">
@@ -141,6 +149,7 @@ export const ProjectLayout = () => {
             to={`${base}/participation`}
             label={t('myParticipation')}
             icon={UserRound}
+            {...visibleTo(true)}
           />
           {canManage && (
             <SidebarNavItem
@@ -148,20 +157,26 @@ export const ProjectLayout = () => {
               label={t('events')}
               icon={CalendarDays}
               warningCount={unrecognizedCount}
+              {...visibleTo(false)}
             />
           )}
           {(canManage || project.allow_participant_pieces) && (
-            <SidebarNavItem to={`${base}/pieces`} label={t('pieces')} icon={Music} />
+            <SidebarNavItem
+              to={`${base}/pieces`}
+              label={t('pieces')}
+              icon={Music}
+              {...visibleTo(project.allow_participant_pieces)}
+            />
           )}
           {canManage && (
             <>
-              <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} />
-              <SidebarNavItem to={`${base}/groups`} label={t('groupsList')} icon={Tags} />
-              <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} />
-              <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} />
-              <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} />
+              <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} {...visibleTo(false)} />
+              <SidebarNavItem to={`${base}/groups`} label={t('groupsList')} icon={Tags} {...visibleTo(false)} />
+              <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} {...visibleTo(false)} />
+              <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} {...visibleTo(false)} />
+              <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} {...visibleTo(false)} />
               {canManageProjects && (
-                <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
+                <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} {...visibleTo(false)} />
               )}
             </>
           )}

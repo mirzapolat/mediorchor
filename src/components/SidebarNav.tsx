@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { AlertTriangle, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Globe, Lock, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useSidebar } from './Sidebar';
 
@@ -9,9 +9,14 @@ export interface NavItem {
   icon: LucideIcon;
   end?: boolean;
   warningCount?: number;
+  // Who can open the page, shown as a small icon on the right: 'participants'
+  // (globe) or only those managing the project (lock). Unset = no icon; pass
+  // it only to people with write access, participants don't need the hint.
+  access?: 'participants' | 'managers';
+  accessLabel?: string;
 }
 
-export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0 }: NavItem) => {
+export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, access, accessLabel }: NavItem) => {
   const { collapsed } = useSidebar();
   const hasWarning = warningCount > 0;
   return (
@@ -40,6 +45,12 @@ export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0 }:
             <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-danger-soft px-1.5 py-0.5 text-xs font-semibold text-danger-strong">
               <AlertTriangle size={12} />
               {warningCount}
+            </span>
+          ) : null}
+          {access ? (
+            <span className="flex-shrink-0 text-text-tertiary opacity-70" title={accessLabel}>
+              {access === 'participants' ? <Globe size={13} aria-hidden /> : <Lock size={13} aria-hidden />}
+              {accessLabel ? <span className="sr-only">{accessLabel}</span> : null}
             </span>
           ) : null}
         </>

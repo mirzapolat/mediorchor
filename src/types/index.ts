@@ -103,9 +103,44 @@ export interface Event {
   description: string | null;
   date: string | null; // ISO date
   time: string | null; // HH:MM
+  end_time: string | null; // HH:MM; without one a rehearsal lasts an hour
   location: string | null; // free text, e.g. "Aula, Raum 2"
+  // Unticked: left out of every calendar (Kalender tab, iCal feeds).
+  in_calendar: boolean;
   // General note on the rehearsal's programme ("Bitte Bleistift mitbringen").
   program_note: string;
+  created_at: string;
+}
+
+// A calendar (dashboard tab "Kalender"): the rehearsals of its projects plus
+// its own events, subscribable through the feed token's iCal link.
+export interface Calendar {
+  id: string;
+  name: string;
+  color: string; // #rrggbb
+  feed_token: string;
+  position: number;
+  created_at: string;
+}
+
+export interface CalendarProject {
+  id: string;
+  calendar_id: string;
+  project_id: string;
+  created_at: string;
+}
+
+// An event outside any project, in a calendar's "Events" entry.
+export interface CalendarEvent {
+  id: string;
+  calendar_id: string;
+  name: string;
+  date: string; // ISO date
+  start_time: string | null; // HH:MM; none = all day
+  end_time: string | null;
+  location: string | null;
+  notes: string | null;
+  link: string | null;
   created_at: string;
 }
 

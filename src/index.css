@@ -202,6 +202,62 @@ html.standalone body {
   to { transform: scaleX(1); }
 }
 
+/* Draws the eye to a button: an accent ring pulses out of it (.nudge-pulse,
+   e.g. "Vollbild" right after the check-in starts). */
+@keyframes nudge {
+  0% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0.55); transform: scale(1); }
+  30% { transform: scale(1.06); }
+  60% { transform: scale(1); }
+  100% { box-shadow: 0 0 0 12px rgb(var(--c-accent) / 0); transform: scale(1); }
+}
+
+.nudge-pulse {
+  animation: nudge 1.2s ease-out 3;
+}
+
+/* Fullscreen check-in backdrop: two dot grids drift slowly in opposite
+   directions (a soft parallax) and fade out toward the centre, so the QR code
+   stays the focus. Dots use the text colour, so they work in both themes. */
+@keyframes dotdrift-a {
+  to { background-position: 24px 24px; }
+}
+@keyframes dotdrift-b {
+  to { background-position: -56px 56px; }
+}
+@keyframes dotbreathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.dot-field {
+  position: absolute;
+  inset: 0;
+  /* Behind the in-flow content, above the dialog's own background. */
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 22%, #000 78%);
+  mask-image: radial-gradient(ellipse at center, transparent 22%, #000 78%);
+}
+.dot-field::before,
+.dot-field::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.dot-field::before {
+  background-image: radial-gradient(rgb(var(--c-black) / 0.13) 1.2px, transparent 1.6px);
+  background-size: 24px 24px;
+  animation: dotdrift-a 6s linear infinite;
+}
+.dot-field::after {
+  background-image: radial-gradient(rgb(var(--c-accent) / 0.22) 2px, transparent 2.6px);
+  background-size: 56px 56px;
+  animation:
+    dotdrift-b 14s linear infinite,
+    dotbreathe 7s ease-in-out infinite;
+}
+
 @keyframes popin {
   from { opacity: 0; transform: scale(0.94) rotate(-8deg); }
   to { opacity: 1; transform: scale(1) rotate(0); }
@@ -285,4 +341,7 @@ html.standalone body {
   /* A looping animation at 0.01ms would flicker; keep the strands still. */
   .floating-paths path { animation: none !important; stroke-dasharray: none; }
   .otp-caret { animation: none !important; }
+  /* No pulse: a still ring marks the button for as long as the nudge lasts. */
+  .dot-field::before, .dot-field::after { animation: none !important; }
+  .nudge-pulse { animation: none !important; box-shadow: 0 0 0 3px rgb(var(--c-accent) / 0.45); }
 }
