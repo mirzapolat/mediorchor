@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Bookmark, CalendarDays, ChevronDown, ChevronRight, Clock, ListMusic, LogIn, LogOut, Mic } from 'lucide-react';
+import { Bookmark, CalendarDays, ChevronDown, ChevronRight, Clock, ListMusic, LogIn, LogOut, MapPin, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -287,7 +287,7 @@ export const MyParticipationPage = () => {
                               </span>
                             )}
                           </div>
-                          <EventWhen date={e.date} time={e.time} lang={lang} />
+                          <EventWhen date={e.date} time={e.time} location={e.location} lang={lang} />
                           {e.description && (
                             <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                           )}
@@ -357,7 +357,7 @@ export const MyParticipationPage = () => {
                     <li key={e.id} className="flex items-start justify-between gap-3 py-3">
                       <div className="min-w-0">
                         <p className="font-medium leading-snug break-words">{e.name}</p>
-                        <EventWhen date={e.date} time={e.time} lang={lang} />
+                        <EventWhen date={e.date} time={e.time} location={e.location} lang={lang} />
                         {e.description && (
                           <p className="mt-1 text-sm text-text-secondary break-words">{e.description}</p>
                         )}
@@ -441,10 +441,20 @@ export const MyParticipationPage = () => {
   );
 };
 
-// Date and time on one line, e.g. "Mi., 07.10. · 19:00"; the year only
-// appears when it is not the current one.
-const EventWhen = ({ date, time, lang }: { date: string | null; time: string | null; lang: string }) => {
-  if (!date && !time) return null;
+// Date, time and location on one line, e.g. "Mi., 07.10. · 19:00 · Aula";
+// the year only appears when it is not the current one.
+const EventWhen = ({
+  date,
+  time,
+  location,
+  lang,
+}: {
+  date: string | null;
+  time: string | null;
+  location: string | null;
+  lang: string;
+}) => {
+  if (!date && !time && !location) return null;
   const d = date ? new Date(`${date}T00:00:00`) : null;
   const label = d?.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
     weekday: 'short',
@@ -464,6 +474,12 @@ const EventWhen = ({ date, time, lang }: { date: string | null; time: string | n
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           <Clock size={13} className="shrink-0" />
           {time}
+        </span>
+      )}
+      {location && (
+        <span className="inline-flex min-w-0 items-center gap-1.5">
+          <MapPin size={13} className="shrink-0" />
+          <span className="break-words">{location}</span>
         </span>
       )}
     </p>

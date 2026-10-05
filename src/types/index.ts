@@ -103,6 +103,7 @@ export interface Event {
   description: string | null;
   date: string | null; // ISO date
   time: string | null; // HH:MM
+  location: string | null; // free text, e.g. "Aula, Raum 2"
   // General note on the rehearsal's programme ("Bitte Bleistift mitbringen").
   program_note: string;
   created_at: string;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock, Users } from 'lucide-react';
+import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock, Users, MapPin } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
@@ -19,7 +19,7 @@ import type { Event } from '@/types';
 
 const today = localToday;
 
-const blank = { name: '', description: '', date: '', time: '' };
+const blank = { name: '', description: '', date: '', time: '', location: '' };
 
 export const EventsPage = () => {
   const { t } = useI18n();
@@ -98,6 +98,7 @@ export const EventsPage = () => {
       description: form.description.trim() || null,
       date: form.date || null,
       time: form.time || null,
+      location: form.location.trim() || null,
     };
     if (editing) {
       await api.from('events').update(payload).eq('id', editing.id);
@@ -185,6 +186,20 @@ export const EventsPage = () => {
         ),
     },
     {
+      id: 'location',
+      header: t('eventLocation'),
+      accessor: (ev) => ev.location,
+      render: (ev) =>
+        ev.location ? (
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-text-secondary">
+            <MapPin size={14} className="flex-shrink-0" />
+            <span className="truncate">{ev.location}</span>
+          </span>
+        ) : (
+          <span className="text-text-secondary">—</span>
+        ),
+    },
+    {
       id: 'present',
       header: t('attended'),
       accessor: (ev) => presentCounts[ev.id] ?? 0,
@@ -238,7 +253,7 @@ export const EventsPage = () => {
         columns={columns}
         getRowId={(ev) => ev.id}
         onRowClick={(ev) => navigate(`/projects/${project.id}/events/${ev.id}`)}
-        search={(ev) => `${ev.name} ${ev.description ?? ''}`}
+        search={(ev) => `${ev.name} ${ev.description ?? ''} ${ev.location ?? ''}`}
         filters={filters}
         query={tf.query}
         hideToolbar
@@ -246,13 +261,14 @@ export const EventsPage = () => {
         onClearFilters={() => setHighlightNext(false)}
         emptyMessage={t('noEvents')}
         emptyIcon={CalendarDays}
-        // Phones: name (with badges, description), then date, time and the
-        // number present on one line.
+        // Phones: name (with badges, description), then date, time, location
+        // and the number present on one line.
         mobileCard={(ev) => (
           <>
             <div className="text-base font-medium">{renderCell(columns, 'name', ev)}</div>
             <MobileMeta>
               {renderCell(columns, 'when', ev)}
+              {ev.location && renderCell(columns, 'location', ev)}
               {renderCell(columns, 'present', ev)}
             </MobileMeta>
           </>
@@ -317,6 +333,13 @@ export const EventsPage = () => {
               onChange={(e) => setForm({ ...form, time: e.target.value })}
             />
           </div>
+          <Input
+            label={`${t('eventLocation')} (${t('optional')})`}
+            placeholder={t('eventLocationPlaceholder')}
+            maxLength={200}
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+          />
         </form>
       </Modal>
 

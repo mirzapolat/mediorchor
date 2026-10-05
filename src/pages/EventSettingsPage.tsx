@@ -18,6 +18,7 @@ export const EventSettingsPage = () => {
     description: event.description ?? '',
     date: event.date ?? '',
     time: event.time ?? '',
+    location: event.location ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -39,6 +40,7 @@ export const EventSettingsPage = () => {
         description: form.description.trim() || null,
         date: form.date || null,
         time: form.time || null,
+        location: form.location.trim() || null,
       })
       .eq('id', event.id);
     setSaving(false);
@@ -85,6 +87,13 @@ export const EventSettingsPage = () => {
               onChange={(e) => update({ time: e.target.value })}
             />
           </div>
+          <Input
+            label={`${t('eventLocation')} (${t('optional')})`}
+            placeholder={t('eventLocationPlaceholder')}
+            maxLength={200}
+            value={form.location}
+            onChange={(e) => update({ location: e.target.value })}
+          />
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={saving || !form.name.trim()}>
               {saving ? t('loading') : t('save')}

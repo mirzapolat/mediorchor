@@ -730,6 +730,8 @@ const dict: Dict = {
     de: 'z. B. Tutti, nur Streicher, Raum 2',
     en: 'e.g. tutti, strings only, room 2',
   },
+  eventLocation: { de: 'Ort', en: 'Location' },
+  eventLocationPlaceholder: { de: 'z. B. Aula, Musiksaal 2', en: 'e.g. auditorium, music room 2' },
   date: { de: 'Datum', en: 'Date' },
   time: { de: 'Uhrzeit', en: 'Time' },
   dateAndTime: { de: 'Datum & Uhrzeit', en: 'Date & time' },
