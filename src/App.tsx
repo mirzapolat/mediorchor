@@ -23,6 +23,8 @@ import { EventLayout } from '@/layouts/EventLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { LegalPage } from '@/pages/LegalPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { homePath } from '@/lib/homePage';
 import { ProjectOnboardingPage } from '@/pages/ProjectOnboardingPage';
 import { ClubMembersPage } from '@/pages/ClubMembersPage';
 import { ClubMemberDetailPage } from '@/pages/ClubMemberDetailPage';
@@ -32,7 +34,14 @@ import { UsersPage } from '@/pages/UsersPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
 import { AdminBrandingPage, AdminLegalPage, AdminSecurityPage } from '@/pages/AdminSettingsPages';
 import { AdminEmailPage } from '@/pages/AdminEmailPage';
-import { AccountPage } from '@/pages/AccountPage';
+import {
+  AccountAppearancePage,
+  AccountDangerPage,
+  AccountNotificationsPage,
+  AccountProfilePage,
+  AccountSecurityPage,
+} from '@/pages/AccountPage';
+import { AccountLayout } from '@/layouts/AccountLayout';
 import { EventsPage } from '@/pages/EventsPage';
 import { MembersPage } from '@/pages/MembersPage';
 import { AbsencesPage } from '@/pages/AbsencesPage';
@@ -67,7 +76,7 @@ const RequireAdmin = () => {
 };
 
 export const App = () => {
-  const { session, loading, mfaSetupRequired } = useAuth();
+  const { session, user, loading, mfaSetupRequired } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -107,9 +116,8 @@ export const App = () => {
 
   if (mfaSetupRequired) return <MfaSetupGate />;
 
-  // Every account lands on the projects list; participants only see the
-  // projects they belong to (enforced by RLS), managers/admins see everything.
-  const homePath = '/';
+  // Every account lands on its chosen start page (the dashboard by default).
+  const home = homePath(user);
 
   // After signing in the user is still on /login; return them to the page
   // they originally requested (carried via router state), if any.
@@ -119,13 +127,14 @@ export const App = () => {
     <>
       <WelcomePhotoPrompt />
       <Routes>
-        <Route path="/login" element={<Navigate to={from ?? homePath} replace />} />
+        <Route path="/login" element={<Navigate to={from ?? home} replace />} />
 
         {/* Top-level workspace */}
         <Route element={<AppLayout />}>
+          <Route index element={<Navigate to={home} replace />} />
           <Route element={<PaddedPage />}>
-            <Route index element={<ProjectsPage />} />
-            <Route path="account" element={<AccountPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
             <Route path="calendar" element={<CalendarPage />} />
           </Route>
 
@@ -179,6 +188,15 @@ export const App = () => {
         </Route>
 
         {/* Admin-only administration — isolated in its own sidebar layout. */}
+        <Route path="account" element={<AccountLayout />}>
+          <Route index element={<Navigate to="profile" replace />} />
+          <Route path="profile" element={<AccountProfilePage />} />
+          <Route path="security" element={<AccountSecurityPage />} />
+          <Route path="appearance" element={<AccountAppearancePage />} />
+          <Route path="notifications" element={<AccountNotificationsPage />} />
+          <Route path="danger" element={<AccountDangerPage />} />
+        </Route>
+
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="users" replace />} />
           <Route path="users" element={<UsersPage />} />
@@ -231,7 +249,7 @@ export const App = () => {
           <Route path="settings" element={<EventSettingsPage />} />
         </Route>
 
-        <Route path="*" element={<Navigate to={homePath} replace />} />
+        <Route path="*" element={<Navigate to={home} replace />} />
       </Routes>
     </>
   );

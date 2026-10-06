@@ -302,7 +302,7 @@ const Onboarding = () => {
   const close = () => {
     if (project) openProject(project.id);
     else if (form.name.trim() || members.length || groups.length) setConfirmDiscard(true);
-    else navigate('/');
+    else navigate('/projects');
   };
 
   // Takes the import's members (replacing an earlier import) and adds its new
@@ -699,7 +699,7 @@ const Onboarding = () => {
         message={t('onboardingDiscardMessage')}
         confirmLabel={t('onboardingDiscard')}
         destructive
-        onConfirm={() => navigate('/')}
+        onConfirm={() => navigate('/projects')}
         onCancel={() => setConfirmDiscard(false)}
       />
 
@@ -721,6 +721,6 @@ const Onboarding = () => {
 // wizard is finished or skipped (possible once it has a name).
 export const ProjectOnboardingPage = () => {
   const { canManageProjects } = useAuth();
-  if (!canManageProjects) return <Navigate to="/" replace />;
+  if (!canManageProjects) return <Navigate to="/projects" replace />;
   return <Onboarding />;
 };

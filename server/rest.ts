@@ -316,6 +316,9 @@ const encodeRow = (meta: TableMeta, row: Record<string, unknown>) => {
   for (const [column, value] of Object.entries(row)) {
     if (value === undefined) continue;
     checkColumn(meta, column);
+    if (meta.generated.has(column)) {
+      throw new ApiError(`Column '${column}' of '${meta.name}' is computed and can't be written`, 400, '428C9');
+    }
     columns.push(column);
     values.push(encodeValue(meta.columns.get(column), value));
   }

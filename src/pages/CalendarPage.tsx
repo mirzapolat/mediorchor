@@ -35,6 +35,7 @@ import {
 import { Modal } from '@/components/Modal';
 import { CalendarLinksModal } from '@/components/calendar/CalendarLinksModal';
 import { cn } from '@/lib/cn';
+import { FALLBACK_GROUP_COLOR } from '@/lib/groupColors';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -94,10 +95,11 @@ const BOTTOM_GAP = 32;
 
 // Kalender (dashboard tab): calendars on the left — each collects the
 // rehearsals of its projects plus manual events of its own — and a month grid
-// of the shown calendars on the right. Admins only.
+// of the shown calendars on the right. Admins, and accounts given the
+// calendar permission.
 export const CalendarPage = () => {
-  const { isAdmin } = useAuth();
-  if (!isAdmin) return <NoAccess />;
+  const { canEditCalendars } = useAuth();
+  if (!canEditCalendars) return <NoAccess />;
   return <CalendarView />;
 };
 
@@ -176,9 +178,11 @@ const CalendarView = () => {
     );
   }, [data, shown, focus]);
   const entriesByDate = useMemo(() => groupByDate(entries), [entries]);
+  const openable = useMemo(() => new Set(data.projects.filter((p) => p.can_open).map((p) => p.id)), [data.projects]);
+  const canOpen = useCallback((projectId: string) => openable.has(projectId), [openable]);
   const colorById = useMemo(() => new Map(data.calendars.map((c) => [c.id, c.color])), [data.calendars]);
   const colorOf = useCallback(
-    (entry: CalendarEntry) => colorById.get(entry.calendarIds[0]) ?? '#64748b',
+    (entry: CalendarEntry) => colorById.get(entry.calendarIds[0]) ?? FALLBACK_GROUP_COLOR,
     [colorById],
   );
 
@@ -293,6 +297,7 @@ const CalendarView = () => {
                   onDelete={() => setToDelete(calendar)}
                   onAddEvent={() => addEvent(calendar.id, null)}
                   onOpenProject={(projectId) => navigate(`/projects/${projectId}/events`)}
+                  canOpenProject={canOpen}
                 />
               ))}
             </ul>
@@ -378,6 +383,7 @@ const CalendarView = () => {
           else setEventForm({ open: true, event: entry.event, calendarId: null, date: null });
         }}
         onOpenRehearsal={(projectId, eventId) => navigate(`/projects/${projectId}/events/${eventId}`)}
+        canOpenProject={canOpen}
       />
 
       <CalendarFormModal
@@ -518,6 +524,7 @@ const CalendarListItem = ({
   onDelete,
   onAddEvent,
   onOpenProject,
+  canOpenProject,
 }: {
   calendar: Calendar;
   data: CalendarData;
@@ -532,6 +539,7 @@ const CalendarListItem = ({
   onDelete: () => void;
   onAddEvent: () => void;
   onOpenProject: (projectId: string) => void;
+  canOpenProject: (projectId: string) => boolean;
 }) => {
   const { t } = useI18n();
   const today = localToday();
@@ -553,7 +561,7 @@ const CalendarListItem = ({
           aria-checked={visible}
           onClick={onToggleVisible}
           aria-label={`${t('showCalendar')}: ${calendar.name}`}
-          title={visible ? t('hideCalendar') : t('showCalendar')}
+          title={t('showCalendar')}
           className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md hover:bg-surface-hover"
         >
           <span
@@ -598,9 +606,11 @@ const CalendarListItem = ({
                 active={sameFocus(focus, projectFocus)}
                 onClick={() => onFocus(projectFocus)}
                 action={
-                  <RowAction label={t('openProject')} onClick={() => onOpenProject(p.id)}>
-                    <ArrowUpRight size={14} />
-                  </RowAction>
+                  canOpenProject(p.id) && (
+                    <RowAction label={t('openProject')} onClick={() => onOpenProject(p.id)}>
+                      <ArrowUpRight size={14} />
+                    </RowAction>
+                  )
                 }
               />
             );

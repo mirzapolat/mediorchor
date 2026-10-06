@@ -75,6 +75,7 @@ export const PublicCalendarPage = () => {
         name: result.rehearsals.find((r) => r.project_id === id)?.project_name ?? '',
         status: 'active' as const,
         image_url: null,
+        can_open: false,
       })),
       rehearsals: result.rehearsals as unknown as Event[],
     };

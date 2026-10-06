@@ -14,7 +14,6 @@ import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { splitName } from '@/lib/accountName';
 import { useAuth } from '@/hooks/useAuth';
 import type { AppUser } from '@/types';
 
@@ -69,7 +68,8 @@ export const UsersPage = () => {
     // Accounts are created server-side behind an admin check (server/admin.ts).
     const { error } = await api.functions.invoke('admin-create-user', {
       body: {
-        name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        first_name: form.firstName.trim(),
+        last_name: form.lastName.trim(),
         email: form.email.trim(),
         password: form.password,
       },
@@ -125,7 +125,7 @@ export const UsersPage = () => {
     {
       id: 'name',
       header: t('name'),
-      accessor: (u) => `${splitName(u.name).last} ${splitName(u.name).first}`.toLowerCase(),
+      accessor: (u) => `${u.last_name} ${u.first_name}`.toLowerCase(),
       render: (u) => (
         <div className="flex items-center gap-2.5 min-w-0">
           <Avatar name={u.name} photoUrl={u.photo_url} size={28} />

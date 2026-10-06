@@ -400,11 +400,16 @@ const auth = {
 
   // Without email confirmation the account is signed in right away; with it,
   // session is null until the emailed link is opened.
-  signUp: async (input: { email: string; password: string; options?: { data?: { name?: string } } }) => {
+  signUp: async (input: {
+    email: string;
+    password: string;
+    options?: { data?: { first_name?: string; last_name?: string } };
+  }) => {
     const { data, error } = await request<SessionPayload>('POST', '/api/auth/signup', {
       email: input.email,
       password: input.password,
-      name: input.options?.data?.name ?? '',
+      first_name: input.options?.data?.first_name ?? '',
+      last_name: input.options?.data?.last_name ?? '',
     });
     if (data?.session) emit('SIGNED_IN', data.session);
     return {

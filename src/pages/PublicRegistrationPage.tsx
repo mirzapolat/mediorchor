@@ -55,7 +55,14 @@ type RegistrationInfo =
       allow_guest_signup: boolean;
       allow_account_signup: boolean;
       logged_in: boolean;
-      me: { name: string; email: string; photo_url: string | null; participating: boolean } | null;
+      me: {
+        name: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+        photo_url: string | null;
+        participating: boolean;
+      } | null;
     };
 
 type SubmitResult = {
@@ -96,10 +103,8 @@ export const PublicRegistrationPage = () => {
       setInfo(next);
       // Prefill from the account when signing up while logged in.
       if (next.state === 'active' && next.me) {
-        const name = next.me.name.trim();
-        const lastSpace = name.lastIndexOf(' ');
-        setFirstName((v) => v || (lastSpace > 0 ? name.slice(0, lastSpace) : name));
-        setLastName((v) => v || (lastSpace > 0 ? name.slice(lastSpace + 1) : ''));
+        setFirstName((v) => v || next.me!.first_name);
+        setLastName((v) => v || next.me!.last_name);
         setEmail((v) => v || next.me!.email);
       }
     });

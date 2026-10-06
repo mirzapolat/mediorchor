@@ -2,7 +2,7 @@
 // edge functions). Admin only; reachable as /api/functions/<name>.
 import { Hono, type Context } from 'hono';
 import { db, ApiError, forbidden } from './db.ts';
-import { createAccount, requireSession } from './auth.ts';
+import { createAccount, nameInput, requireSession } from './auth.ts';
 import { activeSmtpConfig, mailStatus, testSmtp, type SmtpConfig, type SmtpSecurity } from './mail.ts';
 import { encryptSecret } from './secrets.ts';
 import { env } from './env.ts';
@@ -22,12 +22,13 @@ export const adminRoutes = new Hono();
 // Creates an account that is already email-confirmed.
 adminRoutes.post('/admin-create-user', async (c) => {
   requireAdmin(c);
-  const { name, email, password } = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const input = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const { email, password } = input;
   if (!email || !password) throw new ApiError('email and password are required', 400);
   const id = await createAccount({
     email: String(email),
     password: String(password),
-    name: typeof name === 'string' ? name : '',
+    ...nameInput(input),
     confirmed: true,
   });
   return c.json({ id });

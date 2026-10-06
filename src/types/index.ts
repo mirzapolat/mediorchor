@@ -9,13 +9,24 @@ import type { Language } from '@/lib/config';
 // piece content (project managers still add, remove and order pieces).
 export type PieceAccess = 'none' | 'projects' | 'all';
 
+// Pages an account can pick as its start page (see app_users.home_page).
+export type HomePage = 'dashboard' | 'projects' | 'pieces' | 'calendar';
+
+export interface DashboardWidgetState {
+  id: string;
+  hidden: boolean;
+}
+
 export interface AppUser {
   id: string;
   email: string;
-  name: string;
+  first_name: string;
+  last_name: string;
+  name: string; // "first last", computed by the database (read-only)
   is_admin: boolean; // full access; several accounts may hold this
   can_manage_projects: boolean; // manages every project; single projects are granted via user_projects
   can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
+  can_edit_calendars: boolean; // opens and edits the Kalender page (off by default; admins always)
   piece_access: PieceAccess; // editing pieces (see PieceAccess)
   photo_url: string | null; // set by the account holder, mirrored onto linked members
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
@@ -24,6 +35,8 @@ export interface AppUser {
   notify_status: boolean; // email: someone marked me excused/absent (opt-in)
   notify_weekly: boolean; // email: Monday overview (opt-in)
   language: Language | null; // for emails; the UI language is per device
+  home_page: HomePage; // where `/` and signing in lead
+  dashboard_layout: DashboardWidgetState[]; // widget order and visibility
   created_at: string;
 }
 

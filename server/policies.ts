@@ -89,6 +89,10 @@ export const canEditPiece = (pieceId: string) => or(
   )`,
 );
 
+// Kalender page: admins, and accounts given the calendar permission.
+export const canEditCalendars = () =>
+  `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_edit_calendars))`;
+
 export const canAccessClub = () =>
   `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_access_club))`;
 
@@ -205,6 +209,7 @@ const PROTECTED_ACCOUNT_FIELDS = [
   'is_admin',
   'can_manage_projects',
   'can_access_club',
+  'can_edit_calendars',
   'piece_access',
   'approved', // accounts waiting for approval can't approve themselves
 ] as const;
@@ -326,11 +331,11 @@ export const policies: Record<string, TablePolicy> = {
 
   event_checkins: all((a) => eventInManagedProject(`${a}.event_id`)),
 
-  // Kalender (dashboard tab): admins only.
-  calendars: all(isAdmin),
-  calendar_projects: all(isAdmin),
+  // Kalender (dashboard tab): admins and accounts with the calendar permission.
+  calendars: all(canEditCalendars),
+  calendar_projects: all(canEditCalendars),
   calendar_events: {
-    ...all(isAdmin),
+    ...all(canEditCalendars),
     // The link is rendered as <a href> and put into the iCal feed.
     validateInsert: (row) => {
       validateCalendarLink(row.link);
@@ -343,7 +348,7 @@ export const policies: Record<string, TablePolicy> = {
   },
   // Single occurrences of repeating manual events (see migration 0037).
   calendar_event_exceptions: {
-    ...all(isAdmin),
+    ...all(canEditCalendars),
     validateInsert: (row) => {
       validateCalendarLink(row.link);
       validateCalendarDates(row);
@@ -355,7 +360,7 @@ export const policies: Record<string, TablePolicy> = {
   },
   // Subscription links (token = credential, see migration 0037).
   calendar_links: {
-    ...all(isAdmin),
+    ...all(canEditCalendars),
     validateInsert: (row) => {
       if (typeof row.name !== 'string' || !row.name.trim() || row.name.length > 80) {
         throw new ApiError('Invalid link name', 400, '23514');

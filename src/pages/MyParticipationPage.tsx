@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Bookmark, CalendarDays, ChevronDown, ChevronRight, Clock, ListMusic, LogIn, LogOut, MapPin, Mic } from 'lucide-react';
+import { Bookmark, ChevronDown, ChevronRight, ListMusic, LogIn, LogOut, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
 import { StatusBadge } from '@/components/StatusBadge';
+import { EventWhen } from '@/components/EventWhen';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
@@ -42,11 +43,9 @@ export const MyParticipationPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Join form (used when there is no active membership yet).
-  const nameParts = (user?.name ?? '').trim();
-  const lastSpace = nameParts.lastIndexOf(' ');
   const [joinForm, setJoinForm] = useState({
-    first_name: lastSpace > 0 ? nameParts.slice(0, lastSpace) : nameParts,
-    last_name: lastSpace > 0 ? nameParts.slice(lastSpace + 1) : '',
+    first_name: user?.first_name ?? '',
+    last_name: user?.last_name ?? '',
     group_name: '',
   });
   const [busy, setBusy] = useState(false);
@@ -438,51 +437,6 @@ export const MyParticipationPage = () => {
         onCancel={() => setConfirmLeave(false)}
       />
     </>
-  );
-};
-
-// Date, time and location on one line, e.g. "Mi., 07.10. · 19:00 · Aula";
-// the year only appears when it is not the current one.
-const EventWhen = ({
-  date,
-  time,
-  location,
-  lang,
-}: {
-  date: string | null;
-  time: string | null;
-  location: string | null;
-  lang: string;
-}) => {
-  if (!date && !time && !location) return null;
-  const d = date ? new Date(`${date}T00:00:00`) : null;
-  const label = d?.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    ...(d.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
-  });
-  return (
-    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-text-secondary">
-      {label && (
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          <CalendarDays size={13} className="shrink-0" />
-          {label}
-        </span>
-      )}
-      {time && (
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          <Clock size={13} className="shrink-0" />
-          {time}
-        </span>
-      )}
-      {location && (
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <MapPin size={13} className="shrink-0" />
-          <span className="break-words">{location}</span>
-        </span>
-      )}
-    </p>
   );
 };
 

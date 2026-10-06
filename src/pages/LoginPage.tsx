@@ -59,7 +59,7 @@ export const LoginPage = () => {
         email,
         password,
         options: {
-          data: { name: `${firstName.trim()} ${lastName.trim()}` },
+          data: { first_name: firstName.trim(), last_name: lastName.trim() },
         },
       });
       setSubmitting(false);

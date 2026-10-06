@@ -53,7 +53,7 @@ export const UserDetailPage = () => {
 
   const isSelf = me?.id === user.id;
 
-  const toggleFlag = async (flag: 'is_admin' | 'can_manage_projects' | 'can_access_club') => {
+  const toggleFlag = async (flag: 'is_admin' | 'can_manage_projects' | 'can_access_club' | 'can_edit_calendars') => {
     if (!user) return;
     const next = !user[flag];
     setUser({ ...user, [flag]: next });
@@ -183,6 +183,23 @@ export const UserDetailPage = () => {
             <FolderKanban size={15} />
             {t('manageAccess')}
           </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+          <div>
+            <p className="font-medium">{t('calendarAccess')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">{t('calendarAccessHint')}</p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center">
+            <input
+              type="checkbox"
+              aria-label={t('calendarAccess')}
+              className="h-4 w-4 accent-black disabled:opacity-50"
+              checked={user.is_admin || user.can_edit_calendars}
+              disabled={user.is_admin}
+              onChange={() => toggleFlag('can_edit_calendars')}
+            />
+          </label>
         </div>
 
         {/* The club section is only a preview for now (see lib/features). */}

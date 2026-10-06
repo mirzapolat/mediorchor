@@ -45,150 +45,279 @@ import { useProfilePhoto } from '@/hooks/useProfilePhoto';
 import type { Language } from '@/lib/config';
 import { useTheme, type ThemePreference } from '@/lib/theme';
 import { canPromptInstall, isInstalled, isIos, promptInstall, subscribeInstall } from '@/lib/pwa';
-import { CardColumns } from '@/components/CardColumns';
 import { cn } from '@/lib/cn';
+import { availableHomePages } from '@/lib/homePage';
+import type { HomePage } from '@/types';
 
-export const AccountPage = () => {
-  const { t, lang, setLang } = useI18n();
-  const { user, session, refreshUser } = useAuth();
-  const [name, setName] = useState(user?.name ?? '');
-  const [email, setEmail] = useState(session?.user.email ?? '');
-  const [password, setPassword] = useState('');
-  const [profileMsg, setProfileMsg] = useState<string | null>(null);
+// Account settings, one page per section of the account sidebar.
+
+// Profile: photo, first and last name.
+export const AccountProfilePage = () => {
+  const { t } = useI18n();
+  const { user, refreshUser } = useAuth();
+  const [firstName, setFirstName] = useState(user?.first_name ?? '');
+  const [lastName, setLastName] = useState(user?.last_name ?? '');
+  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const photo = useProfilePhoto();
-  const photoBusy = photo.busy;
-  const photoError = photo.error;
-  const reauth = useReauth();
 
   if (!user) return <PageSpinner />;
 
-  const saveProfile = async (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    setProfileMsg(null);
-    await api.from('app_users').update({ name: name.trim() }).eq('id', user.id);
-    const authUpdate: { email?: string; password?: string } = {};
-    if (email && email !== session?.user.email) authUpdate.email = email;
-    if (password) authUpdate.password = password;
-    let emailChangePending = false;
-    if (Object.keys(authUpdate).length > 0) {
-      const { data, error } = await reauth.run(() => api.auth.updateUser(authUpdate));
-      if (error) {
-        setProfileMsg(error.code === 'reauth_cancelled' ? null : error.message);
-        setBusy(false);
-        return;
-      }
-      emailChangePending = data.emailChangePending;
-    }
-    await refreshUser();
-    setPassword('');
-    setProfileMsg(emailChangePending ? t('emailChangePending') : '✓');
+    setMessage(null);
+    const { error } = await api
+      .from('app_users')
+      .update({ first_name: firstName.trim(), last_name: lastName.trim() })
+      .eq('id', user.id);
+    if (!error) await refreshUser();
+    setMessage(error ? error.message : t('saved'));
     setBusy(false);
   };
 
   return (
     <>
-      <PageHeader title={t('account')} subtitle={user.email} />
-
-      <CardColumns>
-        <form onSubmit={saveProfile}>
-          <Card className="space-y-4">
-            <h2 className="text-base font-medium">{t('account')}</h2>
-            <div>
-              <p className="text-sm font-medium text-text mb-1.5">{t('profilePhoto')}</p>
-              <div className="flex items-center gap-4">
-                <Avatar name={user.name || user.email} photoUrl={user.photo_url} size={56} />
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-surface-muted transition-colors duration-150">
-                    <Upload size={15} />
-                    {photoBusy ? t('loading') : user.photo_url ? t('changePhoto') : t('uploadPhoto')}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={photoBusy}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = '';
-                        if (file) photo.choose(file);
-                      }}
-                    />
-                  </label>
-                  {user.photo_url && (
-                    <button
-                      type="button"
-                      disabled={photoBusy}
-                      onClick={() => void photo.remove()}
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150"
-                    >
-                      <X size={15} />
-                      {t('remove')}
-                    </button>
-                  )}
-                </div>
+      <PageHeader title={t('accountProfile')} subtitle={user.email} />
+      <form onSubmit={save}>
+        <Card className="space-y-4">
+          <div>
+            <p className="text-sm font-medium text-text mb-1.5">{t('profilePhoto')}</p>
+            <div className="flex items-center gap-4">
+              <Avatar name={user.name || user.email} photoUrl={user.photo_url} size={56} />
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-surface-muted transition-colors duration-150">
+                  <Upload size={15} />
+                  {photo.busy ? t('loading') : user.photo_url ? t('changePhoto') : t('uploadPhoto')}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={photo.busy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) photo.choose(file);
+                    }}
+                  />
+                </label>
+                {user.photo_url && (
+                  <button
+                    type="button"
+                    disabled={photo.busy}
+                    onClick={() => void photo.remove()}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150"
+                  >
+                    <X size={15} />
+                    {t('remove')}
+                  </button>
+                )}
               </div>
-              <p className="mt-1.5 text-sm text-text-secondary">{t('profilePhotoHint')}</p>
-              {photoError && <p className="mt-1 text-sm text-accent">{photoError}</p>}
             </div>
-            <Input label={t('name')} value={name} onChange={(e) => setName(e.target.value)} required />
+            <p className="mt-1.5 text-sm text-text-secondary">{t('profilePhotoHint')}</p>
+            {photo.error && <p className="mt-1 text-sm text-accent">{photo.error}</p>}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input
-              type="email"
-              label={t('email')}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              label={t('firstName')}
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
               required
             />
             <Input
-              type="password"
-              label={t('newPassword')}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              label={t('lastName')}
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
             />
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={busy}>
-                {busy ? t('loading') : t('save')}
-              </Button>
-              {profileMsg && <span className="text-sm text-text-secondary">{profileMsg}</span>}
-            </div>
-          </Card>
-        </form>
-
-        <Card className="space-y-4">
-          <h2 className="text-base font-medium">{t('language')}</h2>
-          <Select
-            value={lang}
-            onChange={(e) => {
-              const next = e.target.value as Language;
-              setLang(next);
-              // Emails use the account's language.
-              // (The query only runs once awaited/then'd.)
-              if (user) void api.from('app_users').update({ language: next }).eq('id', user.id).then(() => undefined);
-            }}
-            className="max-w-[200px]"
-          >
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-          </Select>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={busy || !firstName.trim()}>
+              {busy ? t('loading') : t('save')}
+            </Button>
+            {message && <span className="text-sm text-text-secondary">{message}</span>}
+          </div>
         </Card>
-
-        <AppearanceCard />
-
-        <InstallAppCard />
-
-        <NotificationsCard />
-
-        <SessionsCard />
-
-        <TwoFactorCard />
-
-        <DeleteAccountCard />
-      </CardColumns>
+      </form>
       {photo.cropper}
-      {reauth.modal}
     </>
+  );
+};
+
+// Login & security: email and password, two-factor, signed-in devices.
+export const AccountSecurityPage = () => {
+  const { t } = useI18n();
+  return (
+    <>
+      <PageHeader title={t('loginSecurity')} />
+      <div className="space-y-6">
+        <CredentialsCard />
+        <TwoFactorCard />
+        <SessionsCard />
+      </div>
+    </>
+  );
+};
+
+// Changing the email or password asks to confirm it's you first.
+const CredentialsCard = () => {
+  const { t } = useI18n();
+  const { session, refreshUser } = useAuth();
+  const [email, setEmail] = useState(session?.user.email ?? '');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const reauth = useReauth();
+
+  const changed = (email && email !== session?.user.email) || password;
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    const update: { email?: string; password?: string } = {};
+    if (email && email !== session?.user.email) update.email = email;
+    if (password) update.password = password;
+    if (Object.keys(update).length === 0) return;
+    setBusy(true);
+    setMessage(null);
+    const { data, error } = await reauth.run(() => api.auth.updateUser(update));
+    setBusy(false);
+    if (error) {
+      setMessage(error.code === 'reauth_cancelled' ? null : error.message);
+      return;
+    }
+    await refreshUser();
+    setPassword('');
+    setMessage(data.emailChangePending ? t('emailChangePending') : t('saved'));
+  };
+
+  return (
+    <form onSubmit={save}>
+      <Card className="space-y-4">
+        <h2 className="text-base font-medium">{t('loginCredentials')}</h2>
+        <Input
+          type="email"
+          label={t('email')}
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Input
+          type="password"
+          label={t('newPassword')}
+          placeholder="••••••••"
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={busy || !changed}>
+            {busy ? t('loading') : t('save')}
+          </Button>
+          {message && <span className="text-sm text-text-secondary">{message}</span>}
+        </div>
+      </Card>
+      {reauth.modal}
+    </form>
+  );
+};
+
+// Appearance: theme, language and installing the app.
+export const AccountAppearancePage = () => {
+  const { t } = useI18n();
+  return (
+    <>
+      <PageHeader title={t('appearance')} />
+      <div className="space-y-6">
+        <AppearanceCard />
+        <StartPageCard />
+        <LanguageCard />
+        <InstallAppCard />
+      </div>
+    </>
+  );
+};
+
+export const AccountNotificationsPage = () => {
+  const { t } = useI18n();
+  return (
+    <>
+      <PageHeader title={t('accountNotifications')} />
+      <NotificationsCard />
+    </>
+  );
+};
+
+export const AccountDangerPage = () => {
+  const { t } = useI18n();
+  return (
+    <>
+      <PageHeader title={t('dangerZone')} />
+      <DeleteAccountCard />
+    </>
+  );
+};
+
+// Where signing in and opening the app lead.
+const StartPageCard = () => {
+  const { t } = useI18n();
+  const { user, canEditCalendars, hasFullPieceAccess, refreshUser } = useAuth();
+  if (!user) return null;
+  const labels: Record<HomePage, string> = {
+    dashboard: t('dashboard'),
+    projects: t('projects'),
+    pieces: t('pieces'),
+    calendar: t('calendars'),
+  };
+  const pages = availableHomePages({ hasFullPieceAccess, canEditCalendars });
+  return (
+    <Card className="space-y-4">
+      <div>
+        <h2 className="text-base font-medium">{t('startPage')}</h2>
+        <p className="text-sm text-text-secondary mt-1">{t('startPageHint')}</p>
+      </div>
+      <Select
+        value={pages.includes(user.home_page) ? user.home_page : 'dashboard'}
+        aria-label={t('startPage')}
+        onChange={async (e) => {
+          await api.from('app_users').update({ home_page: e.target.value }).eq('id', user.id);
+          await refreshUser();
+        }}
+        className="max-w-[240px]"
+      >
+        {pages.map((page) => (
+          <option key={page} value={page}>
+            {labels[page]}
+          </option>
+        ))}
+      </Select>
+    </Card>
+  );
+};
+
+const LanguageCard = () => {
+  const { t, lang, setLang } = useI18n();
+  const { user } = useAuth();
+  return (
+    <Card className="space-y-4">
+      <h2 className="text-base font-medium">{t('language')}</h2>
+      <Select
+        value={lang}
+        aria-label={t('language')}
+        onChange={(e) => {
+          const next = e.target.value as Language;
+          setLang(next);
+          // Emails use the account's language.
+          // (The query only runs once awaited/then'd.)
+          if (user) void api.from('app_users').update({ language: next }).eq('id', user.id).then(() => undefined);
+        }}
+        className="max-w-[200px]"
+      >
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+      </Select>
+    </Card>
   );
 };
 
@@ -768,7 +897,6 @@ const DeleteAccountCard = () => {
   );
 };
 
-// Light / dark / system, stored on this device.
 // Offers installing the app on the home screen / desktop: the browser's own
 // prompt where there is one, step-by-step instructions on iPhone/iPad, a hint
 // elsewhere. Hidden when already running as the installed app.
@@ -820,6 +948,7 @@ const InstallAppCard = () => {
   );
 };
 
+// Light / dark / system, stored on this device.
 const AppearanceCard = () => {
   const { t } = useI18n();
   const { preference, setPreference } = useTheme();
@@ -831,10 +960,10 @@ const AppearanceCard = () => {
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="text-base font-medium">{t('appearance')}</h2>
+        <h2 className="text-base font-medium">{t('theme')}</h2>
         <p className="text-sm text-text-secondary mt-1">{t('appearanceHint')}</p>
       </div>
-      <div role="radiogroup" aria-label={t('appearance')} className="grid grid-cols-3 gap-2">
+      <div role="radiogroup" aria-label={t('theme')} className="grid grid-cols-3 gap-2">
         {options.map(({ value, label, icon: Icon }) => {
           const active = preference === value;
           return (

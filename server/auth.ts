@@ -9,6 +9,7 @@ import { env } from './env.ts';
 import { branding } from './branding.ts';
 import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
 import { rateLimit } from './ratelimit.ts';
+import { splitName } from './fieldMatching.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
 import {
   base32Encode,
@@ -98,11 +99,23 @@ const emailTaken = (email: string, exceptUserId?: string) =>
       .get(email, exceptUserId ?? null),
   );
 
+// First and last name from a request body. Older clients send one `name`,
+// split at the last space.
+export const nameInput = (input: Record<string, unknown>) => {
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  if (typeof input.first_name === 'string' || typeof input.last_name === 'string') {
+    return { firstName: str(input.first_name), lastName: str(input.last_name) };
+  }
+  const { first, last } = splitName(str(input.name));
+  return { firstName: first, lastName: last };
+};
+
 // Creates the auth user plus its app_users profile in one transaction.
 export const createAccount = async (opts: {
   email: string;
   password: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   confirmed: boolean;
   isAdmin?: boolean;
   // false = self sign-up waiting for admin approval.
@@ -118,10 +131,13 @@ export const createAccount = async (opts: {
     db.prepare(
       'insert into auth_users (id, email, password_hash, email_confirmed_at) values (?, ?, ?, ?)',
     ).run(id, email, passwordHash, opts.confirmed ? nowIso() : null);
-    db.prepare('insert into app_users (id, email, name, is_admin, approved) values (?, ?, ?, ?, ?)').run(
+    db.prepare(
+      'insert into app_users (id, email, first_name, last_name, is_admin, approved) values (?, ?, ?, ?, ?, ?)',
+    ).run(
       id,
       email,
-      opts.name.trim().slice(0, 200),
+      opts.firstName.trim().slice(0, 100),
+      opts.lastName.trim().slice(0, 100),
       opts.isAdmin ? 1 : 0,
       opts.approved === false ? 0 : 1,
     );
@@ -504,7 +520,8 @@ authRoutes.post('/signup', async (c) => {
   }
   const approved = !settings.requiresApproval;
   const password = validatePassword(input.password);
-  const name = typeof input.name === 'string' ? input.name : '';
+  const { firstName, lastName } = nameInput(input);
+  const name = `${firstName} ${lastName}`.trim();
 
   const existing = db
     .prepare('select id, email_confirmed_at from auth_users where email = ? collate nocase')
@@ -513,7 +530,7 @@ authRoutes.post('/signup', async (c) => {
   if (!mailEnabled()) {
     // No mail server: accounts are confirmed right away.
     if (existing) throw new ApiError('User already registered', 422, 'user_already_exists');
-    const id = await createAccount({ email, password, name, confirmed: true, approved });
+    const id = await createAccount({ email, password, firstName, lastName, confirmed: true, approved });
     if (!approved) {
       void notifyAdminsOfPendingSignup(name, email);
       return c.json({ ...sessionPayload(null), approval_pending: true });
@@ -527,7 +544,7 @@ authRoutes.post('/signup', async (c) => {
     if (!existing.email_confirmed_at) await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email));
     return c.json({ ...sessionPayload(null), approval_pending: !approved });
   }
-  const id = await createAccount({ email, password, name, confirmed: false, approved });
+  const id = await createAccount({ email, password, firstName, lastName, confirmed: false, approved });
   try {
     await sendConfirmSignup(email, issueLink(c, id, 'confirm_signup', email));
   } catch (err) {

@@ -39,6 +39,7 @@ export const DayPreviewModal = ({
   onAdd,
   onEdit,
   onOpenRehearsal,
+  canOpenProject = () => true,
   readOnly = false,
 }: {
   date: string | null;
@@ -50,6 +51,8 @@ export const DayPreviewModal = ({
   onAdd: (date: string) => void;
   onEdit: (entry: Extract<CalendarEntry, { kind: 'event' }>) => void;
   onOpenRehearsal: (projectId: string, eventId: string) => void;
+  // Calendar editors without access to a project can't open its Proben.
+  canOpenProject?: (projectId: string) => boolean;
   // Public web view: nothing to edit or open.
   readOnly?: boolean;
 }) => {
@@ -109,6 +112,7 @@ export const DayPreviewModal = ({
                     </p>
                   </div>
                   {readOnly ? null : entry.kind === 'rehearsal' ? (
+                    canOpenProject(entry.project.id) && (
                     <Button
                       variant="secondary"
                       className="flex-shrink-0 !px-3 !py-1.5 text-xs"
@@ -116,6 +120,7 @@ export const DayPreviewModal = ({
                     >
                       {t('openRehearsal')}
                     </Button>
+                    )
                   ) : (
                     <button
                       type="button"

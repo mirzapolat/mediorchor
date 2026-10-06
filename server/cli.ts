@@ -8,6 +8,7 @@
 // In Docker: docker compose exec web node server/cli.ts <command> …
 import { db, migrate, loadTableMeta } from './db.ts';
 import { createAccount, hashPassword, validatePassword } from './auth.ts';
+import { splitName } from './fieldMatching.ts';
 
 migrate();
 loadTableMeta();
@@ -32,7 +33,8 @@ switch (command) {
       console.error('Usage: create-admin <email> <password> [name]');
       process.exit(1);
     }
-    await createAccount({ email, password, name, confirmed: true, isAdmin: true });
+    const { first, last } = splitName(name);
+    await createAccount({ email, password, firstName: first, lastName: last, confirmed: true, isAdmin: true });
     console.log(`Created admin ${email}`);
     break;
   }

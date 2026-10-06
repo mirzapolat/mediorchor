@@ -5,6 +5,7 @@ import { randomInt } from 'node:crypto';
 import { db, authUid, ApiError, forbidden } from './db.ts';
 import {
   canAccessProject,
+  canEditCalendars,
   canEditPiece,
   canManageAnyProject,
   hasFullPieceAccess,
@@ -387,6 +388,30 @@ const submit_public_checkin = (args: Args) => {
   return { state: 'success', recognized: false };
 };
 
+// Projects and their in-calendar Proben for the Kalender page. Calendar editors
+// may lack access to the projects themselves, so this returns just what the
+// calendar shows; `can_open` says whether the project's own pages are open.
+const calendar_sources = () => {
+  requireUser();
+  if (!check(canEditCalendars())) throw forbidden('Access denied');
+  const projects = db
+    .prepare(
+      `select p.id, p.name, p.status, p.image_url, (${canAccessProject('p.id')}) as can_open
+       from projects p order by p.name collate nocase`,
+    )
+    .all() as Row[];
+  const rehearsals = db
+    .prepare(
+      `select e.id, e.project_id, e.name, e.date, e.time, e.end_time, e.location, e.description
+       from events e
+       where e.in_calendar and e.date is not null
+         and e.project_id in (select project_id from calendar_projects)
+       order by e.date, e.time`,
+    )
+    .all();
+  return { projects: projects.map((p) => ({ ...p, can_open: Boolean(p.can_open) })), rehearsals };
+};
+
 // Public web view of a calendar link (/cal/<token>): the same entries and
 // detail level as its iCal feed.
 const get_public_calendar = (args: Args) => {
@@ -482,7 +507,7 @@ const get_public_registration = (args: Args) => {
   if (uid) {
     const user = db
       .prepare(
-        `select u.name, au.email, u.photo_url,
+        `select u.name, u.first_name, u.last_name, au.email, u.photo_url,
                 exists (select 1 from members m
                         where m.project_id = ? and m.user_id = u.id and m.status = 'active') as participating
          from app_users u join auth_users au on au.id = u.id
@@ -492,6 +517,8 @@ const get_public_registration = (args: Args) => {
     if (user) {
       me = {
         name: user.name,
+        first_name: user.first_name,
+        last_name: user.last_name,
         email: user.email,
         photo_url: user.photo_url ?? null,
         participating: Boolean(user.participating),
@@ -937,7 +964,7 @@ const search_accounts = (args: Args) => {
   if (!query) return [];
   return db
     .prepare(
-      `select id, name, email, photo_url from app_users
+      `select id, name, first_name, last_name, email, photo_url from app_users
        where instr(ulower(name), ulower(@q)) > 0 or instr(ulower(email), ulower(@q)) > 0
        order by name collate nocase, email collate nocase
        limit 10`,
@@ -1059,6 +1086,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   get_legal_pages,
   get_public_checkin,
   get_public_calendar,
+  calendar_sources,
   submit_public_checkin,
   get_public_registration,
   submit_public_registration,

@@ -11,6 +11,8 @@ import type { Member } from '@/types';
 interface AccountResult {
   id: string;
   name: string;
+  first_name: string;
+  last_name: string;
   email: string;
   photo_url: string | null;
 }
@@ -84,12 +86,10 @@ export const MemberForm = ({
     setAccountResults([]);
     setAccountQuery('');
     // Prefill from the account; the group stays a per-project choice.
-    const name = account.name.trim();
-    const lastSpace = name.lastIndexOf(' ');
     setForm((f) => ({
       ...f,
-      first_name: lastSpace > 0 ? name.slice(0, lastSpace) : name,
-      last_name: lastSpace > 0 ? name.slice(lastSpace + 1) : f.last_name,
+      first_name: account.first_name,
+      last_name: account.last_name || f.last_name,
       email: account.email,
     }));
   };

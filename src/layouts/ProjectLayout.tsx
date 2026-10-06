@@ -130,19 +130,16 @@ export const ProjectLayout = () => {
   if (!project) return <NoAccess standalone />;
 
   const base = `/projects/${project.id}`;
-  // For those with write access: which pages participants can open as well.
+  // For those with write access: marks the pages participants can open as well.
   const visibleTo = (participants: boolean) =>
-    canManage
-      ? {
-          access: participants ? ('participants' as const) : ('managers' as const),
-          accessLabel: participants ? t('pageVisibleToParticipants') : t('pageManagersOnly'),
-        }
+    canManage && participants
+      ? { access: 'participants' as const, accessLabel: t('pageVisibleToParticipants') }
       : {};
 
   return (
     <div className="flex h-full">
       <Sidebar>
-        <ProjectHeader project={project} onBack={() => navigate('/')} />
+        <ProjectHeader project={project} onBack={() => navigate('/projects')} />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem

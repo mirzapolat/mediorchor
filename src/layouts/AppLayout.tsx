@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { CalendarDays, FolderKanban, Mail, Music, Settings, UsersRound } from 'lucide-react';
+import { CalendarDays, FolderKanban, LayoutDashboard, Mail, Music, ShieldCheck, UsersRound } from 'lucide-react';
 import { CLUB_ENABLED } from '@/lib/features';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
@@ -11,7 +11,7 @@ import { config } from '@/lib/config';
 import { AppLogo } from '@/components/AppLogo';
 import { FadingText } from '@/components/FadingText';
 
-// `withActions`: the header's right side holds the settings icon next to the
+// `withActions`: the header's right side holds the admin icon next to the
 // collapse toggle, so leave room for both.
 const AppHeader = ({ withActions }: { withActions: boolean }) => {
   const { collapsed } = useSidebar();
@@ -30,27 +30,33 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canAccessClub, isAdmin, hasFullPieceAccess } = useAuth();
+  const { canAccessClub, canEditCalendars, isAdmin, hasFullPieceAccess } = useAuth();
 
   return (
     <div className="flex h-full">
-      {/* Admin settings live behind the gear next to the collapse toggle. */}
+      {/* Admin settings live behind the shield next to the collapse toggle. */}
       <Sidebar
         actions={
-          isAdmin ? <SidebarActionLink to="/admin" label={t('adminConfig')} icon={Settings} /> : undefined
+          isAdmin ? <SidebarActionLink to="/admin" label={t('adminConfig')} icon={ShieldCheck} /> : undefined
         }
       >
         <AppHeader withActions={isAdmin} />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <SidebarNavItem to="/" end label={t('projects')} icon={FolderKanban} />
+          <SidebarNavItem to="/dashboard" label={t('dashboard')} icon={LayoutDashboard} />
+          <SidebarNavItem to="/projects" end label={t('projects')} icon={FolderKanban} />
           {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
-          {isAdmin && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}
-          {/* While the club is a preview, only admins see its notice. */}
-          {(CLUB_ENABLED ? canAccessClub : isAdmin) && (
-            <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />
+          {canEditCalendars && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}
+          {CLUB_ENABLED && canAccessClub && <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />}
+
+          {/* Preview sections (a notice for admins only), set apart by a line. */}
+          {isAdmin && (
+            <>
+              <div role="separator" className="!my-3 border-t border-border" />
+              {!CLUB_ENABLED && <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />}
+              <SidebarNavItem to="/newsletter" label={t('newsletter')} icon={Mail} />
+            </>
           )}
-          {isAdmin && <SidebarNavItem to="/newsletter" label={t('newsletter')} icon={Mail} />}
         </div>
 
         <SidebarFooter />

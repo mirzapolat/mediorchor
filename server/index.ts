@@ -9,6 +9,7 @@ import { db, migrate, loadTableMeta, translateDbError, ApiError } from './db.ts'
 import { env } from './env.ts';
 import { authRoutes, withSessionUser, purgeExpired, createAccount, sessionUser, mfaSetupRequired, baseUrl } from './auth.ts';
 import { pageMeta, previewTags } from './linkPreview.ts';
+import { splitName } from './fieldMatching.ts';
 import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
@@ -184,7 +185,8 @@ const bootstrapAdmin = async () => {
       await createAccount({
         email: env.adminEmail,
         password: env.adminPassword,
-        name: env.adminName,
+        firstName: splitName(env.adminName).first,
+        lastName: splitName(env.adminName).last,
         confirmed: true,
         isAdmin: true,
       });

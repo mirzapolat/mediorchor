@@ -1,56 +1,23 @@
-import { Outlet, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, LockKeyhole, Mail, Palette, ShieldCheck, ShieldHalf, Users } from 'lucide-react';
+import { Outlet } from 'react-router-dom';
+import { Building2, LockKeyhole, Mail, Palette, ShieldCheck, ShieldHalf, Users } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
-import { Sidebar, useSidebar } from '@/components/Sidebar';
+import { SidebarSectionHeader } from '@/components/SidebarSectionHeader';
+import { Sidebar } from '@/components/Sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { NoAccess } from '@/components/NoAccess';
-import { cn } from '@/lib/cn';
-import { FadingText } from '@/components/FadingText';
 import { useI18n } from '@/lib/i18n';
-
-const AdminHeader = ({ onBack }: { onBack: () => void }) => {
-  const { t } = useI18n();
-  const { collapsed } = useSidebar();
-
-  return (
-    <>
-      <button
-        onClick={onBack}
-        title={collapsed ? t('back') : undefined}
-        className={cn(
-          'flex h-14 items-center border-b border-border text-sm font-medium text-text-secondary transition-colors hover:text-text',
-          collapsed ? 'justify-center px-0' : 'gap-2 px-5',
-        )}
-      >
-        <ArrowLeft size={16} />
-        {!collapsed ? <span>{t('back')}</span> : null}
-      </button>
-
-      <div
-        className={cn(
-          'flex items-center border-b border-border',
-          collapsed ? 'justify-center py-4' : 'gap-2.5 px-5 py-4',
-        )}
-      >
-        <ShieldCheck size={collapsed ? 22 : 19} className="text-text-secondary" />
-        {!collapsed ? <FadingText className="font-semibold">{t('adminSettings')}</FadingText> : null}
-      </div>
-    </>
-  );
-};
 
 export const AdminLayout = () => {
   const { t } = useI18n();
   const { isAdmin } = useAuth();
-  const navigate = useNavigate();
 
   if (!isAdmin) return <NoAccess standalone />;
 
   return (
     <div className="flex h-full">
       <Sidebar>
-        <AdminHeader onBack={() => navigate('/')} />
+        <SidebarSectionHeader icon={ShieldCheck} title={t('adminSettings')} />
 
         <div className="flex-1 space-y-1 overflow-y-auto p-3">
           <SidebarNavItem to="/admin/users" label={t('users')} icon={Users} />

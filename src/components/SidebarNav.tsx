@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { AlertTriangle, Globe, Lock, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Globe, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useSidebar } from './Sidebar';
 
@@ -9,10 +9,10 @@ export interface NavItem {
   icon: LucideIcon;
   end?: boolean;
   warningCount?: number;
-  // Who can open the page, shown as a small icon on the right: 'participants'
-  // (globe) or only those managing the project (lock). Unset = no icon; pass
-  // it only to people with write access, participants don't need the hint.
-  access?: 'participants' | 'managers';
+  // 'participants': participants can open the page too, shown as a small globe
+  // on the right. Unset = no icon; pass it only to people with write access,
+  // participants don't need the hint.
+  access?: 'participants';
   accessLabel?: string;
 }
 
@@ -49,7 +49,7 @@ export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, a
           ) : null}
           {access ? (
             <span className="flex-shrink-0 text-text-tertiary opacity-70" title={accessLabel}>
-              {access === 'participants' ? <Globe size={13} aria-hidden /> : <Lock size={13} aria-hidden />}
+              <Globe size={13} aria-hidden />
               {accessLabel ? <span className="sr-only">{accessLabel}</span> : null}
             </span>
           ) : null}

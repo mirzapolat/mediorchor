@@ -93,6 +93,8 @@ export type ColumnKind = 'text' | 'integer' | 'boolean' | 'json';
 export interface TableMeta {
   name: string;
   columns: Map<string, ColumnKind>;
+  // Columns SQLite computes (`generated always as`): readable, never written.
+  generated: Set<string>;
   // Many-to-one relations: referenced table → local column / referenced column.
   foreignKeys: Map<string, { from: string; to: string }>;
 }
@@ -106,7 +108,11 @@ export const loadTableMeta = () => {
     .all() as { name: string }[];
   for (const { name } of tables) {
     const columns = new Map<string, ColumnKind>();
-    for (const col of db.pragma(`table_info("${name}")`) as { name: string; type: string }[]) {
+    const generated = new Set<string>();
+    // table_xinfo (unlike table_info) lists generated columns: hidden 2 or 3.
+    for (const col of db.pragma(`table_xinfo("${name}")`) as { name: string; type: string; hidden: number }[]) {
+      if (col.hidden === 1) continue;
+      if (col.hidden === 2 || col.hidden === 3) generated.add(col.name);
       const type = col.type.toLowerCase();
       columns.set(
         col.name,
@@ -121,7 +127,7 @@ export const loadTableMeta = () => {
     }[]) {
       foreignKeys.set(fk.table, { from: fk.from, to: fk.to });
     }
-    tableMeta.set(name, { name, columns, foreignKeys });
+    tableMeta.set(name, { name, columns, generated, foreignKeys });
   }
 };
 

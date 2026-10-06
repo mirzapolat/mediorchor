@@ -245,7 +245,7 @@ export const ProjectSettingsPage = () => {
           setConfirmDel(false);
           reloadProject();
         }}
-        onDeleted={() => navigate('/')}
+        onDeleted={() => navigate('/projects')}
       />
     </>
   );

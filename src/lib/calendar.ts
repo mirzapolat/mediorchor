@@ -143,36 +143,30 @@ export interface CalendarData {
   calendarProjects: CalendarProject[];
   calendarEvents: CalendarEvent[];
   calendarEventExceptions: CalendarEventException[];
-  projects: Pick<Project, 'id' | 'name' | 'status' | 'image_url'>[];
+  // can_open: the project's own pages are open to the account.
+  projects: (Pick<Project, 'id' | 'name' | 'status' | 'image_url'> & { can_open: boolean })[];
   rehearsals: Event[];
 }
 
 export const loadCalendarData = async (): Promise<CalendarData> => {
-  const [calendarsResult, linksResult, eventsResult, projectsResult, exceptionsResult] = await Promise.all([
+  // Projects and Proben come from calendar_sources: calendar editors may not
+  // have access to the projects themselves.
+  const [calendarsResult, linksResult, eventsResult, sourcesResult, exceptionsResult] = await Promise.all([
     api.from('calendars').select('*').order('position').order('created_at'),
     api.from('calendar_projects').select('*'),
     api.from('calendar_events').select('*').order('date').order('start_time', { nullsFirst: true }),
-    api.from('projects').select('id, name, status, image_url').order('name'),
+    api.rpc('calendar_sources'),
     api.from('calendar_event_exceptions').select('*'),
   ]);
   const calendarProjects = (linksResult.data as CalendarProject[] | null) ?? [];
-  const projectIds = [...new Set(calendarProjects.map((cp) => cp.project_id))];
-  const rehearsals = projectIds.length
-    ? ((
-        await api
-          .from('events')
-          .select('*')
-          .in('project_id', projectIds)
-          .eq('in_calendar', true)
-      ).data as Event[] | null) ?? []
-    : [];
+  const sources = sourcesResult.data as { projects: CalendarData['projects']; rehearsals: Event[] } | null;
   return {
     calendars: (calendarsResult.data as Calendar[] | null) ?? [],
     calendarProjects,
     calendarEvents: (eventsResult.data as CalendarEvent[] | null) ?? [],
     calendarEventExceptions: (exceptionsResult.data as CalendarEventException[] | null) ?? [],
-    projects: (projectsResult.data as CalendarData['projects'] | null) ?? [],
-    rehearsals,
+    projects: sources?.projects ?? [],
+    rehearsals: sources?.rehearsals ?? [],
   };
 };
 
