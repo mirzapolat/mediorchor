@@ -63,8 +63,12 @@ export const DashboardPage = () => {
   const dragging = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
+  // The account's data (and with it its saved layout) can arrive after the
+  // page first renders, or change to another account.
   useEffect(() => {
-    if (user) void loadDashboardData(user.id).then(setData);
+    if (!user) return;
+    setLayout(resolveLayout(user.dashboard_layout));
+    void loadDashboardData(user.id).then(setData);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useCallback(

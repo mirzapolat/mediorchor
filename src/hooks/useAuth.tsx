@@ -58,12 +58,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const { data: sub } = api.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
       if (newSession) {
+        // The profile loads before the session is published, so pages never
+        // render signed in without it (the dashboard layout, the start page).
         const { data } = await api.auth.getSession();
         setMfaSetupRequired(data.mfaSetupRequired);
         if (!data.mfaSetupRequired) await loadProfile(newSession.user.id);
+        setSession(newSession);
       } else {
+        setSession(null);
         setUser(null);
         setMfaSetupRequired(false);
       }
