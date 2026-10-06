@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { localToday } from '@/lib/eventTiming';
+import { loadEventPrograms, type ProgramItem } from '@/lib/eventProgram';
 import type { AttendanceStatus, Event, Project } from '@/types';
 
 export interface UpcomingRehearsal {
@@ -7,7 +8,13 @@ export interface UpcomingRehearsal {
   project: Project;
   // Recorded ahead of time (excused, or marked present); null = nothing yet.
   status: AttendanceStatus | null;
+  // What to prepare (pieces), for the Proben the dashboard shows.
+  program: ProgramItem[];
 }
+
+// Entries per dashboard widget; the rest is on the projects page.
+export const PROJECTS_PREVIEW = 4;
+export const REHEARSALS_PREVIEW = 3;
 
 export interface DashboardData {
   // Active member rows of the account, in any project (archived ones too).
@@ -52,13 +59,17 @@ export const loadDashboardData = async (userId: string): Promise<DashboardData> 
   const byId = new Map(projects.map((p) => [p.id, p]));
   const events = ((eventRows as Event[] | null) ?? []).filter((e) => byId.has(e.project_id));
 
-  const { data: attendanceRows } = events.length
-    ? await api
-        .from('attendance')
-        .select('event_id, status')
-        .in('member_id', members.map((m) => m.id))
-        .in('event_id', events.map((e) => e.id))
-    : { data: [] };
+  const [{ data: attendanceRows }, programs] = await Promise.all([
+    events.length
+      ? api
+          .from('attendance')
+          .select('event_id, status')
+          .in('member_id', members.map((m) => m.id))
+          .in('event_id', events.map((e) => e.id))
+      : Promise.resolve({ data: [] }),
+    // Empty for projects that don't show their pieces to participants.
+    loadEventPrograms(events.slice(0, REHEARSALS_PREVIEW).map((e) => e.id)),
+  ]);
   const statusByEvent = new Map(
     ((attendanceRows as { event_id: string; status: AttendanceStatus }[] | null) ?? []).map((a) => [
       a.event_id,
@@ -77,6 +88,7 @@ export const loadDashboardData = async (userId: string): Promise<DashboardData> 
       event,
       project: byId.get(event.project_id)!,
       status: statusByEvent.get(event.id) ?? null,
+      program: programs.filter((p) => p.event_id === event.id),
     })),
   };
 };

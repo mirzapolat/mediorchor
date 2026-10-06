@@ -5,11 +5,9 @@ import { EventWhen } from '@/components/EventWhen';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useI18n } from '@/lib/i18n';
 import { localToday } from '@/lib/eventTiming';
-import type { UpcomingRehearsal } from '@/lib/dashboard';
+import { EventProgram } from '@/components/EventProgram';
+import { PROJECTS_PREVIEW, REHEARSALS_PREVIEW, type UpcomingRehearsal } from '@/lib/dashboard';
 import type { AttendanceDisplayStatus, Event, Project } from '@/types';
-
-// Entries per widget; the rest is on the projects page.
-const PREVIEW = 4;
 
 // "Teilnahme": the active projects the account takes part in.
 export const ParticipationWidget = ({
@@ -32,7 +30,7 @@ export const ParticipationWidget = ({
   return (
     <>
       <ul className="-mx-2">
-        {projects.slice(0, PREVIEW).map((p) => {
+        {projects.slice(0, PROJECTS_PREVIEW).map((p) => {
           const next = nextByProject.get(p.id);
           return (
             <li key={p.id}>
@@ -56,7 +54,7 @@ export const ParticipationWidget = ({
           );
         })}
       </ul>
-      <MoreLink hidden={projects.length - PREVIEW} />
+      <MoreLink hidden={projects.length - PROJECTS_PREVIEW} />
     </>
   );
 };
@@ -71,7 +69,7 @@ export const UpcomingRehearsalsWidget = ({ rehearsals }: { rehearsals: UpcomingR
   return (
     <>
       <ul className="-mx-2">
-        {rehearsals.slice(0, PREVIEW).map(({ event: e, project, status }, i) => {
+        {rehearsals.slice(0, REHEARSALS_PREVIEW).map(({ event: e, project, status, program }, i) => {
           // As on "Meine Teilnahme": excused, or marked present ("expected";
           // today: checked in). "Absent" isn't shown, nothing has happened yet.
           const recorded: AttendanceDisplayStatus | null =
@@ -82,8 +80,10 @@ export const UpcomingRehearsalsWidget = ({ rehearsals }: { rehearsals: UpcomingR
                   ? 'attended'
                   : 'expected'
                 : null;
+          // The programme's pieces are links of their own, so they sit below
+          // the Probe's link rather than inside it.
           return (
-            <li key={e.id}>
+            <li key={e.id} className="pb-1">
               <Link
                 to={`/projects/${project.id}/participation`}
                 className="flex items-start gap-3 rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-surface-subtle"
@@ -114,11 +114,14 @@ export const UpcomingRehearsalsWidget = ({ rehearsals }: { rehearsals: UpcomingR
                   </span>
                 )}
               </Link>
+              <div className="px-2">
+                <EventProgram projectId={project.id} note={e.program_note} items={program} />
+              </div>
             </li>
           );
         })}
       </ul>
-      <MoreLink hidden={rehearsals.length - PREVIEW} />
+      <MoreLink hidden={rehearsals.length - REHEARSALS_PREVIEW} />
     </>
   );
 };
