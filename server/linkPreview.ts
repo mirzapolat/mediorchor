@@ -85,12 +85,20 @@ export const pageMeta = (pathname: string, base: string): PageMeta | null => {
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 
+// Shown for pages without their own meta (the start page).
+const DEFAULT_DESCRIPTION =
+  'Proben, Anwesenheit und Mitglieder des Medizinerorchesters und -chors München an einem Ort.';
+
 // The tags for one page; `url` is the absolute page URL.
 export const previewTags = (meta: PageMeta | null, url: string, base: string) => {
   const { appName } = branding();
   const title = meta?.title ?? appName;
-  const image = meta?.image ?? `${base}/icon-512.png`;
+  const description = meta ? meta.description : DEFAULT_DESCRIPTION;
   const large = Boolean(meta?.image);
+  // Without a page image: the small icon. Messengers (WhatsApp, Telegram)
+  // show images under ~300px as a thumbnail beside the title and description
+  // instead of a full-width banner.
+  const image = meta?.image ?? `${base}/icon-192.png`;
   const tags: Array<[string, string, string]> = [
     ['property', 'og:type', 'website'],
     ['property', 'og:site_name', appName],
@@ -101,12 +109,13 @@ export const previewTags = (meta: PageMeta | null, url: string, base: string) =>
     ['name', 'twitter:title', title],
     ['name', 'twitter:image', image],
   ];
-  if (large) tags.push(['property', 'og:image:width', '1200'], ['property', 'og:image:height', '630']);
-  if (meta?.description) {
+  const [width, height] = large ? ['1200', '630'] : ['192', '192'];
+  tags.push(['property', 'og:image:width', width], ['property', 'og:image:height', height]);
+  if (description) {
     tags.push(
-      ['name', 'description', meta.description],
-      ['property', 'og:description', meta.description],
-      ['name', 'twitter:description', meta.description],
+      ['name', 'description', description],
+      ['property', 'og:description', description],
+      ['name', 'twitter:description', description],
     );
   }
   return tags.map(([attr, key, value]) => `<meta ${attr}="${key}" content="${escapeHtml(value)}" />`).join('\n    ');
