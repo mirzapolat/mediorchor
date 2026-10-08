@@ -529,9 +529,10 @@ export const AbsencesPage = () => {
                   updateCondition(condition.id, { metric: event.target.value as Metric })
                 }
               >
-                <option value="attended">{t('attended')}</option>
-                <option value="excused">{t('excused')}</option>
-                <option value="absent">{t('notAttended')}</option>
+                <option value="attended">{t('metricAttended')}</option>
+                <option value="excused">{t('metricExcused')}</option>
+                <option value="absent">{t('metricUnexcused')}</option>
+                <option value="missed">{t('metricMissed')}</option>
               </Select>
 
               <Select

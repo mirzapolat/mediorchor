@@ -3,7 +3,8 @@ import type { AttendanceCounts } from './memberAttendance';
 // Absence condition model, shared between the Fehlzeiten page (editor +
 // filtering) and "Meine Teilnahme" (evaluating public labels for oneself).
 
-export type Metric = keyof AttendanceCounts;
+// `missed` is derived: excused + unexcused absences (all held Proben not attended).
+export type Metric = keyof AttendanceCounts | 'missed';
 export type Comparison = 'gte' | 'gt' | 'eq' | 'lt' | 'lte';
 export type Connector = 'and' | 'or';
 
@@ -23,6 +24,9 @@ export const compare = (actual: number, comparison: Comparison, expected: number
   return actual <= expected;
 };
 
+export const metricValue = (counts: AttendanceCounts, metric: Metric) =>
+  metric === 'missed' ? counts.excused + counts.absent : counts[metric];
+
 // AND binds more tightly than OR: A OR B AND C is evaluated as A OR (B AND C).
 export const matchesConditions = (counts: AttendanceCounts, conditions: StoredCondition[]) => {
   if (conditions.length === 0) return true;
@@ -33,6 +37,6 @@ export const matchesConditions = (counts: AttendanceCounts, conditions: StoredCo
     groups[groups.length - 1].push(condition);
   }
   return groups.some((group) =>
-    group.every((condition) => compare(counts[condition.metric], condition.comparison, condition.value)),
+    group.every((condition) => compare(metricValue(counts, condition.metric), condition.comparison, condition.value)),
   );
 };
