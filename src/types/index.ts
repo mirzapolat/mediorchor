@@ -60,6 +60,20 @@ export interface Project {
   created_by: string | null;
 }
 
+// The info box at the top of "Meine Teilnahme" (one per project; managers edit
+// it, participants only see it when it has text or links).
+export interface ProjectInfoLink {
+  label: string;
+  url: string;
+}
+
+export interface ProjectInfo {
+  project_id: string;
+  text: string; // Markdown
+  links: ProjectInfoLink[];
+  updated_at: string;
+}
+
 // 'guest' members were added on the fly for a single event and are kept out of
 // the regular project members list.
 export type MemberStatus = 'active' | 'archived' | 'guest';

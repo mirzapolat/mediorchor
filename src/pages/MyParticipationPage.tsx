@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { EventWhen } from '@/components/EventWhen';
 import { EventProgram } from '@/components/EventProgram';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ProjectInfoCard } from '@/components/ProjectInfoCard';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import { matchesConditions } from '@/lib/absenceConditions';
@@ -29,7 +30,7 @@ const LIST_PREVIEW = 4;
 // Proben, and joining/leaving the project.
 export const MyParticipationPage = () => {
   const { t, lang } = useI18n();
-  const { project } = useProjectContext();
+  const { project, canManage } = useProjectContext();
   const { names: groups } = useProjectGroups();
   const { user } = useAuth();
   const [member, setMember] = useState<Member | null>(null);
@@ -200,6 +201,8 @@ export const MyParticipationPage = () => {
   return (
     <>
       <PageHeader title={t('myParticipation')} />
+
+      <ProjectInfoCard projectId={project.id} canEdit={canManage} />
 
       {error && <p className="text-sm text-accent mb-4">{error}</p>}
 

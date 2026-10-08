@@ -173,6 +173,23 @@ const isHttpUrl = (value: unknown) => {
   }
 };
 
+// Project info box: bounded Markdown text and a short list of labelled
+// http(s) links (rendered as <a href> to participants).
+const validateProjectInfo = (row: Record<string, unknown>) => {
+  if (row.text !== undefined && (typeof row.text !== 'string' || row.text.length > 20_000)) {
+    throw new ApiError('Text is too long', 400, '23514');
+  }
+  if (row.links === undefined) return;
+  const links = row.links;
+  if (!Array.isArray(links) || links.length > 30) throw new ApiError('Invalid links', 400, '23514');
+  for (const link of links) {
+    const { label, url } = (link ?? {}) as Record<string, unknown>;
+    if (typeof label !== 'string' || label.length > 200 || !isHttpUrl(url)) {
+      throw new ApiError('Link must be an http(s) URL', 400, '23514');
+    }
+  }
+};
+
 // Branding: a short plain-text name, a #rrggbb accent, an uploaded logo.
 const validateBranding = (row: Record<string, unknown>) => {
   const name = row.brand_name;
@@ -293,6 +310,15 @@ export const policies: Record<string, TablePolicy> = {
     update: canManageProjects,
     check: () => 'true',
     delete: canManageProjects,
+  },
+
+  // The info box on "Meine Teilnahme": edited by the project's managers
+  // (an individual grant is enough), read by its participants.
+  project_infos: {
+    ...all((a) => canAccessProject(`${a}.project_id`)),
+    select: (a) => or(canAccessProject(`${a}.project_id`), isProjectParticipant(`${a}.project_id`)),
+    validateInsert: (row) => validateProjectInfo(row),
+    validateUpdate: (_old, patch) => validateProjectInfo(patch),
   },
 
   user_projects: {

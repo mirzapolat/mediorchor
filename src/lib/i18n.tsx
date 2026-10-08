@@ -265,6 +265,21 @@ const dict: Dict = {
   owner: { de: 'Admin', en: 'Admin' },
   member: { de: 'Mitglied', en: 'Member' },
   role: { de: 'Rolle', en: 'Role' },
+  deactivateUser: { de: 'Konto deaktivieren', en: 'Deactivate account' },
+  deactivateUserHint: {
+    de: 'Das Konto kann sich nicht mehr anmelden, bleibt aber mit allen Daten erhalten und lässt sich wieder freigeben.',
+    en: 'The account can no longer sign in but keeps all its data and can be approved again.',
+  },
+  confirmDeactivateUser: {
+    de: 'Dieses Konto deaktivieren? Die Person wird sofort abgemeldet und kann sich erst nach erneuter Freigabe wieder anmelden.',
+    en: 'Deactivate this account? They are signed out immediately and can only sign in again once re-approved.',
+  },
+  accountInactive: { de: 'Konto nicht freigegeben', en: 'Account not approved' },
+  accountInactiveHint: {
+    de: 'Dieses Konto wartet auf Freigabe oder wurde deaktiviert und kann sich nicht anmelden. Zum Ablehnen das Konto unten löschen.',
+    en: 'This account is awaiting approval or was deactivated and cannot sign in. To reject it, delete the account below.',
+  },
+  twoFactorAuth: { de: 'Zwei-Faktor-Authentifizierung', en: 'Two-factor authentication' },
   deleteUser: { de: 'Benutzer löschen', en: 'Delete user' },
   confirmDeleteUser: {
     de: 'Diesen Benutzer endgültig löschen? Der Zugang wird sofort entzogen.',
@@ -313,6 +328,24 @@ const dict: Dict = {
   },
   coveredByAllProjects: { de: 'Hat bereits Zugriff auf alle Projekte', en: 'Already has access to all projects' },
   noProjectsGranted: { de: 'Keine', en: 'None' },
+  userProjectsHint: {
+    de: 'Projekte, an denen das Konto teilnimmt oder die es verwalten darf.',
+    en: 'Projects this account takes part in or may manage.',
+  },
+  userProjectsAllHint: {
+    de: 'Verwaltet alle Projekte. Aufgeführt sind die Projekte, an denen das Konto teilnimmt oder die einzeln freigegeben sind.',
+    en: 'Manages all projects. Listed are the projects this account takes part in or was granted individually.',
+  },
+  userProjectsNone: { de: 'Keinem Projekt zugeordnet', en: 'Not part of any project' },
+  userProjectsActive: { de: 'Aktiv', en: 'Active' },
+  userProjectParticipant: { de: 'Teilnehmend', en: 'Participant' },
+  userProjectLeft: { de: 'Ausgetreten', en: 'Left' },
+  userProjectManage: { de: 'Verwaltung', en: 'Manager' },
+  userProjectManageAll: { de: 'Verwaltung (alle Projekte)', en: 'Manager (all projects)' },
+  userProjectNoAccountAccess: {
+    de: 'Das Projekt erlaubt keinen Kontozugriff – für das Konto nicht sichtbar.',
+    en: 'The project does not allow account access – not visible to this account.',
+  },
   projectSingular: { de: 'Projekt', en: 'project' },
   projectPlural: { de: 'Projekte', en: 'projects' },
   accessFor: { de: 'Zugriff für', en: 'Access for' },
@@ -1156,6 +1189,31 @@ const dict: Dict = {
   confirmLeaveProject: {
     de: 'Dieses Projekt wirklich verlassen?',
     en: 'Really leave this project?',
+  },
+  projectInfo: { de: 'Infos', en: 'Info' },
+  editProjectInfo: { de: 'Infos bearbeiten', en: 'Edit info' },
+  addProjectInfo: { de: 'Infos & Links für Teilnehmende hinzufügen', en: 'Add info & links for participants' },
+  projectInfoText: { de: 'Text', en: 'Text' },
+  projectInfoTextPlaceholder: {
+    de: 'z. B. Treffpunkt, Ansprechpartner, wichtige Hinweise …',
+    en: 'e.g. meeting point, contact person, important notes …',
+  },
+  projectInfoLinks: { de: 'Links', en: 'Links' },
+  projectInfoLinkLabel: { de: 'Bezeichnung', en: 'Label' },
+  projectInfoLinkUrl: { de: 'https://…', en: 'https://…' },
+  addLink: { de: 'Link hinzufügen', en: 'Add link' },
+  removeLink: { de: 'Link entfernen', en: 'Remove link' },
+  projectInfoHint: {
+    de: 'Wird allen Teilnehmenden oben auf „Meine Teilnahme“ angezeigt. Leer bleibt der Kasten für sie ausgeblendet.',
+    en: 'Shown to all participants at the top of “My participation”. When empty, the box stays hidden for them.',
+  },
+  projectInfoInvalidUrl: {
+    de: 'Bitte gib für jeden Link eine gültige Adresse (http/https) an.',
+    en: 'Please enter a valid address (http/https) for every link.',
+  },
+  projectInfoSaveError: {
+    de: 'Die Infos konnten nicht gespeichert werden.',
+    en: 'The info could not be saved.',
   },
   myGroup: { de: 'Meine Gruppe', en: 'My group' },
   myGroupHint: {

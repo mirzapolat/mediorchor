@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Clock, Crown, FolderKanban, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Check, Clock, Crown, FolderKanban, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Select } from '@/components/Input';
@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UserAccessModal } from '@/components/UserAccessModal';
+import { UserProjectsCard } from '@/components/UserProjectsCard';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,6 +27,9 @@ export const UserDetailPage = () => {
   const [grantedCount, setGrantedCount] = useState(0);
   const [twoFactor, setTwoFactor] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  // Bumped after access changes so the projects list reloads.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const load = async () => {
     const [{ data }, { count }, mfa] = await Promise.all([
@@ -37,6 +41,7 @@ export const UserDetailPage = () => {
     setUser((data as AppUser) ?? null);
     setGrantedCount(count ?? 0);
     setLoading(false);
+    setReloadKey((k) => k + 1);
   };
 
   useEffect(() => {
@@ -71,6 +76,15 @@ export const UserDetailPage = () => {
     const { error: approveError } = await api.from('app_users').update({ approved: true }).eq('id', user.id);
     if (approveError) setError(approveError.message);
     else setUser({ ...user, approved: true });
+  };
+
+  // Deactivating is the reverse of approving: the account keeps its data but
+  // can't sign in, and its open sessions stop working (server/auth.ts).
+  const deactivate = async () => {
+    setConfirmDeactivate(false);
+    const { error: deactivateError } = await api.from('app_users').update({ approved: false }).eq('id', user.id);
+    if (deactivateError) setError(deactivateError.message);
+    else setUser({ ...user, approved: false });
   };
 
   const deleteUser = async () => {
@@ -111,9 +125,7 @@ export const UserDetailPage = () => {
             {user.name}
             {user.is_admin && <Crown size={20} className="text-accent" />}
           </h1>
-          <p className="text-text-secondary text-sm mt-1">
-            {user.email} · {t('twoFactorShort')}: {twoFactor ? t('twoFactorOn') : t('twoFactorOff')}
-          </p>
+          <p className="text-text-secondary text-sm mt-1">{user.email}</p>
         </div>
       </div>
 
@@ -124,8 +136,8 @@ export const UserDetailPage = () => {
           <div className="flex items-start gap-3">
             <Clock size={18} className="mt-0.5 flex-shrink-0 text-accent" />
             <div>
-              <p className="font-medium">{t('approvalPending')}</p>
-              <p className="text-sm text-text-secondary mt-0.5">{t('approvalPendingHint')}</p>
+              <p className="font-medium">{t('accountInactive')}</p>
+              <p className="text-sm text-text-secondary mt-0.5">{t('accountInactiveHint')}</p>
             </div>
           </div>
           <Button className="sm:flex-shrink-0" onClick={() => void approve()}>
@@ -134,6 +146,32 @@ export const UserDetailPage = () => {
           </Button>
         </Card>
       )}
+
+      <Card className="max-w-xl mb-6">
+        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            <dt className="text-sm text-text-secondary">{t('firstName')}</dt>
+            <dd className="mt-0.5 font-medium break-words">{user.first_name || '—'}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-sm text-text-secondary">{t('lastName')}</dt>
+            <dd className="mt-0.5 font-medium break-words">{user.last_name || '—'}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-sm text-text-secondary">{t('email')}</dt>
+            <dd className="mt-0.5 font-medium break-all">{user.email}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-sm text-text-secondary">{t('twoFactorAuth')}</dt>
+            <dd
+              className={`mt-0.5 inline-flex items-center gap-1.5 font-medium ${twoFactor ? 'text-success' : 'text-text-secondary'}`}
+            >
+              {twoFactor ? <ShieldCheck size={16} /> : <ShieldOff size={16} />}
+              {twoFactor ? t('twoFactorOn') : t('twoFactorOff')}
+            </dd>
+          </div>
+        </dl>
+      </Card>
 
       <Card className="max-w-xl space-y-4">
         <div className="flex items-center justify-between gap-4">
@@ -241,8 +279,22 @@ export const UserDetailPage = () => {
         </div>
       </Card>
 
+      <UserProjectsCard user={user} reloadKey={reloadKey} />
+
       {!isSelf && (
         <Card className="max-w-xl mt-6 space-y-4">
+          {user.approved && (
+            <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
+              <div>
+                <p className="font-medium">{t('deactivateUser')}</p>
+                <p className="text-sm text-text-secondary mt-0.5">{t('deactivateUserHint')}</p>
+              </div>
+              <Button variant="secondary" onClick={() => setConfirmDeactivate(true)} disabled={user.is_admin}>
+                <Ban size={15} />
+                {t('deactivate')}
+              </Button>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-medium">{t('deleteUser')}</p>
@@ -260,6 +312,16 @@ export const UserDetailPage = () => {
         user={accessOpen ? user : null}
         onClose={() => setAccessOpen(false)}
         onSaved={load}
+      />
+
+      <ConfirmDialog
+        open={confirmDeactivate}
+        title={t('deactivateUser')}
+        message={`${t('confirmDeactivateUser')}\n\n${user.name} (${user.email})`}
+        confirmLabel={t('deactivate')}
+        destructive
+        onConfirm={() => void deactivate()}
+        onCancel={() => setConfirmDeactivate(false)}
       />
 
       <ConfirmDialog

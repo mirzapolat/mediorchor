@@ -1,13 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Plus, Crown, Check } from 'lucide-react';
+import { Plus, Check } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, renderCell, type Column } from '@/components/DataTable';
+import { DataTable, type Column } from '@/components/DataTable';
 import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
@@ -22,8 +22,6 @@ export const UsersPage = () => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [grantedUsers, setGrantedUsers] = useState<Set<string>>(new Set());
-  const [twoFactorUsers, setTwoFactorUsers] = useState<Set<string>>(new Set());
   const [lastSeen, setLastSeen] = useState<Map<string, string>>(new Map());
   const tf = useTableFilters();
   const [loading, setLoading] = useState(true);
@@ -35,10 +33,8 @@ export const UsersPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const [usr, access, mfa, seen] = await Promise.all([
+    const [usr, seen] = await Promise.all([
       api.from('app_users').select('*').order('created_at'),
-      api.from('user_projects').select('user_id'),
-      api.rpc('two_factor_users'),
       api.rpc('last_seen'),
     ]);
     setLastSeen(
@@ -49,9 +45,7 @@ export const UsersPage = () => {
         ]),
       ),
     );
-    setTwoFactorUsers(new Set((mfa.data as string[] | null) ?? []));
     setUsers((usr.data as AppUser[]) ?? []);
-    setGrantedUsers(new Set(((access.data as { user_id: string }[]) ?? []).map((r) => r.user_id)));
     setLoading(false);
   };
 
@@ -86,16 +80,6 @@ export const UsersPage = () => {
   };
 
   if (loading) return <PageSpinner />;
-
-  // 'all' = manages every project, 'partial' = individually granted projects,
-  // 'none' = a plain participant account without management rights.
-  const projectAccessState = (u: AppUser): 'all' | 'partial' | 'none' => {
-    if (u.is_admin || u.can_manage_projects) return 'all';
-    return grantedUsers.has(u.id) ? 'partial' : 'none';
-  };
-  const projectAccessLabel = { all: t('accessAllProjects'), partial: t('accessPartial'), none: t('accessNone') };
-  const hasClubAccess = (u: AppUser) => u.is_admin || u.can_access_club;
-  const hasTwoFactor = (u: AppUser) => twoFactorUsers.has(u.id);
 
   // Yes/no cells as a check or a dash keep the narrow columns narrow.
   const flag = (on: boolean) =>
@@ -138,55 +122,15 @@ export const UsersPage = () => {
                 </span>
               )}
             </p>
-            <p className="truncate text-sm leading-tight text-text-secondary">{u.email}</p>
           </div>
         </div>
       ),
     },
     {
-      id: 'role',
-      header: t('role'),
-      accessor: (u) => (u.is_admin ? 0 : 1),
-      className: narrow,
-      render: (u) =>
-        u.is_admin ? (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium">
-            <Crown size={15} className="text-accent" />
-            {t('owner')}
-          </span>
-        ) : (
-          <span className="text-sm text-text-secondary">{t('member')}</span>
-        ),
-    },
-    {
-      id: 'access',
-      header: t('projects'),
-      accessor: (u) => ({ all: 0, partial: 1, none: 2 })[projectAccessState(u)],
-      className: narrow,
-      render: (u) => {
-        const state = projectAccessState(u);
-        return (
-          <span
-            className={`text-sm ${state === 'none' ? 'text-text-tertiary' : 'text-text-secondary'}`}
-          >
-            {projectAccessLabel[state]}
-          </span>
-        );
-      },
-    },
-    {
-      id: 'club',
-      header: t('clubShort'),
-      accessor: (u) => (hasClubAccess(u) ? 0 : 1),
-      className: narrow,
-      render: (u) => flag(hasClubAccess(u)),
-    },
-    {
-      id: 'two_factor',
-      header: t('twoFactorShort'),
-      accessor: (u) => (hasTwoFactor(u) ? 0 : 1),
-      className: narrow,
-      render: (u) => flag(hasTwoFactor(u)),
+      id: 'email',
+      header: t('email'),
+      accessor: (u) => u.email.toLowerCase(),
+      render: (u) => <span className="block truncate text-sm text-text-secondary">{u.email}</span>,
     },
     {
       id: 'created_at',
@@ -209,6 +153,13 @@ export const UsersPage = () => {
         );
       },
     },
+    {
+      id: 'admin',
+      header: t('owner'),
+      accessor: (u) => (u.is_admin ? 0 : 1),
+      className: narrow,
+      render: (u) => flag(u.is_admin),
+    },
   ];
 
   const filters = tf.bind<AppUser>([
@@ -222,42 +173,13 @@ export const UsersPage = () => {
       predicate: (u, v) => (v === 'pending' ? !u.approved : u.approved),
     },
     {
-      id: 'role',
-      label: t('role'),
-      options: [
-        { value: 'admin', label: t('owner') },
-        { value: 'member', label: t('member') },
-      ],
-      predicate: (u, v) => (v === 'admin' ? u.is_admin : !u.is_admin),
-    },
-    {
-      id: 'access',
-      label: t('projects'),
-      options: [
-        // Not just "All": the menu already offers that as "no filter".
-        { value: 'all', label: t('accessAllProjects') },
-        { value: 'partial', label: t('accessPartial') },
-        { value: 'none', label: t('accessNone') },
-      ],
-      predicate: (u, v) => projectAccessState(u) === v,
-    },
-    {
-      id: 'club',
-      label: t('clubShort'),
+      id: 'admin',
+      label: t('owner'),
       options: [
         { value: 'yes', label: t('yes') },
         { value: 'no', label: t('no') },
       ],
-      predicate: (u, v) => (v === 'yes' ? hasClubAccess(u) : !hasClubAccess(u)),
-    },
-    {
-      id: 'two_factor',
-      label: t('twoFactorShort'),
-      options: [
-        { value: 'yes', label: t('yes') },
-        { value: 'no', label: t('no') },
-      ],
-      predicate: (u, v) => (v === 'yes' ? hasTwoFactor(u) : !hasTwoFactor(u)),
+      predicate: (u, v) => (v === 'yes' ? u.is_admin : !u.is_admin),
     },
   ]);
 
@@ -286,11 +208,10 @@ export const UsersPage = () => {
         query={tf.query}
         hideToolbar
         emptyMessage={t('noResults')}
-        // Phones: photo, name and email, then role, project access, club
-        // and 2FA (when on) and when last seen, as compact facts.
+        // Phones: photo, name and email, then admin (when on) and when last
+        // seen, as compact facts.
         mobileCard={(u) => {
           const at = lastSeen.get(u.id);
-          const chip = 'inline-flex items-center gap-1 rounded-md bg-surface-muted px-1.5 py-0.5 text-xs font-medium';
           return (
             <MobilePerson
               avatar={<Avatar name={u.name} photoUrl={u.photo_url} size={36} />}
@@ -304,18 +225,10 @@ export const UsersPage = () => {
               }
             >
               <span className="w-full min-w-0 break-all">{u.email}</span>
-              {renderCell(columns, 'role', u)}
-              {renderCell(columns, 'access', u)}
-              {hasClubAccess(u) && (
-                <span className={chip}>
+              {u.is_admin && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-surface-muted px-1.5 py-0.5 text-xs font-medium">
                   <Check size={12} />
-                  {t('clubShort')}
-                </span>
-              )}
-              {hasTwoFactor(u) && (
-                <span className={chip}>
-                  <Check size={12} />
-                  {t('twoFactorShort')}
+                  {t('owner')}
                 </span>
               )}
               <span className="text-xs text-text-tertiary">
