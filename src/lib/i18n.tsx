@@ -164,7 +164,6 @@ const dict: Dict = {
 
   // Nav
   projects: { de: 'Projekte', en: 'Projects' },
-  comingSoon: { de: 'Demnächst verfügbar', en: 'Coming soon' },
   users: { de: 'Benutzer', en: 'Users' },
   adminConfig: { de: 'Admin Config', en: 'Admin Config' },
   adminSettings: { de: 'Admin-Einstellungen', en: 'Admin settings' },
@@ -178,11 +177,6 @@ const dict: Dict = {
   accountNotifications: { de: 'Benachrichtigungen', en: 'Notifications' },
   dangerZone: { de: 'Gefahrenzone', en: 'Danger zone' },
   theme: { de: 'Farbschema', en: 'Theme' },
-  calendarAccess: { de: 'Kalender', en: 'Calendar' },
-  calendarAccessHint: {
-    de: 'Darf die Kalender-Seite öffnen und Kalender, Termine und Abo-Links bearbeiten. Proben erscheinen dort nur mit Name, Zeit und Ort.',
-    en: 'May open the calendar page and edit calendars, events and subscription links. Rehearsals only show their name, time and place there.',
-  },
   dashboard: { de: 'Dashboard', en: 'Dashboard' },
   dashboardGreeting: { de: 'Hallo, {name}', en: 'Hi, {name}' },
   customizeDashboard: { de: 'Anpassen', en: 'Customize' },
@@ -262,9 +256,36 @@ const dict: Dict = {
 
   // Users
   newUser: { de: 'Neuer Benutzer', en: 'New user' },
-  owner: { de: 'Admin', en: 'Admin' },
   member: { de: 'Mitglied', en: 'Member' },
   role: { de: 'Rolle', en: 'Role' },
+  roleHint: {
+    de: 'Legt fest, was dieses Konto sehen und bearbeiten darf. Neue Konten sind Teilnehmer.',
+    en: 'Sets what this account can see and edit. New accounts are participants.',
+  },
+  roleSelfHint: {
+    de: 'Du kannst deine eigene Rolle nicht ändern.',
+    en: 'You cannot change your own role.',
+  },
+  roleParticipant: { de: 'Teilnehmer', en: 'Participant' },
+  roleParticipantHint: {
+    de: '„Meine Teilnahme“ und die Stücke der Projekte, an denen das Konto teilnimmt.',
+    en: '“My participation” and the pieces of the projects this account takes part in.',
+  },
+  roleSectionLead: { de: 'Stimmeltern', en: 'Section lead' },
+  roleSectionLeadHint: {
+    de: 'Alle Projekte mit Proben, Mitgliedern, Anwesenheit, Anmeldungen und Stücken – aber keine Projekteinstellungen, kein Archivieren oder Löschen.',
+    en: 'All projects with rehearsals, members, attendance, registrations and pieces – but no project settings, archiving or deleting.',
+  },
+  roleManager: { de: 'Verwaltung', en: 'Management' },
+  roleManagerHint: {
+    de: 'Alles außer der Admin-Konfiguration: Projekte anlegen, bearbeiten und löschen, Stückesammlung und Kalender.',
+    en: 'Everything except the admin configuration: create, edit and delete projects, the piece collection and calendars.',
+  },
+  roleAdmin: { de: 'Admin', en: 'Admin' },
+  roleAdminHint: {
+    de: 'Voller Zugriff auf alles, auch Benutzer und App-Einstellungen.',
+    en: 'Full access to everything, including users and app settings.',
+  },
   deactivateUser: { de: 'Konto deaktivieren', en: 'Deactivate account' },
   deactivateUserHint: {
     de: 'Das Konto kann sich nicht mehr anmelden, bleibt aber mit allen Daten erhalten und lässt sich wieder freigeben.',
@@ -285,69 +306,28 @@ const dict: Dict = {
     de: 'Diesen Benutzer endgültig löschen? Der Zugang wird sofort entzogen.',
     en: 'Permanently delete this user? Their access is revoked immediately.',
   },
-  adminRights: { de: 'Administrator', en: 'Administrator' },
-  adminRightsHint: {
-    de: 'Voller Zugriff auf alles, inklusive Benutzerverwaltung.',
-    en: 'Full access to everything, including user management.',
-  },
-  adminRightsSelfHint: {
-    de: 'Du kannst deine eigenen Admin-Rechte nicht entziehen.',
-    en: 'You cannot remove your own admin rights.',
-  },
-  projectManagement: { de: 'Projektverwaltung', en: 'Project management' },
-  clubAccess: { de: 'Zugriff auf Vereinsmitglieder', en: 'Club members access' },
-  clubAccessHint: {
-    de: 'Wenn aktiv, kann dieser Benutzer die Vereinsmitglieder-Seite sehen und bearbeiten.',
-    en: 'When on, this user can view and manage the club members section.',
-  },
-  accessAll: { de: 'Alle', en: 'All' },
-  accessAllProjects: { de: 'Alle Projekte', en: 'All projects' },
-  accessPartial: { de: 'Teilweise', en: 'Partial' },
-  accessNone: { de: 'Nein', en: 'No' },
-  memberManagement: { de: 'Mitgliederverwaltung', en: 'Member management' },
-  clubShort: { de: 'Verein', en: 'Club' },
   accountCreated: { de: 'Erstellt', en: 'Created' },
   lastSeen: { de: 'Zuletzt aktiv', en: 'Last seen' },
   never: { de: 'Nie', en: 'Never' },
   yes: { de: 'Ja', en: 'Yes' },
   no: { de: 'Nein', en: 'No' },
-  manageAccess: { de: 'Zugriff verwalten', en: 'Manage access' },
-  allProjectsAccess: { de: 'Zugriff auf alle Projekte', en: 'Access to all projects' },
-  allProjectsHint: {
-    de: 'Wenn aktiv, kann dieser Benutzer alle aktuellen und zukünftigen Projekte verwalten und neue anlegen.',
-    en: 'When on, this user can manage all current and future projects and create new ones.',
-  },
-  selectedProjects: { de: 'Einzelne Projekte', en: 'Specific projects' },
-  selectedProjectsHint: {
-    de: 'Dieser Benutzer kann die ausgewählten Projekte verwalten. Dieselbe Auswahl lässt sich auch pro Projekt auf der Projektseite bearbeiten.',
-    en: 'This user can manage the selected projects. The same grants can also be edited per project on the projects page.',
-  },
-  projectAccessHint: {
-    de: 'Ausgewählte Benutzer können dieses Projekt verwalten, ohne Zugriff auf andere Projekte zu erhalten.',
-    en: 'Selected users can manage this project without getting access to other projects.',
-  },
-  coveredByAllProjects: { de: 'Hat bereits Zugriff auf alle Projekte', en: 'Already has access to all projects' },
-  noProjectsGranted: { de: 'Keine', en: 'None' },
   userProjectsHint: {
-    de: 'Projekte, an denen das Konto teilnimmt oder die es verwalten darf.',
-    en: 'Projects this account takes part in or may manage.',
+    de: 'Projekte, an denen das Konto teilnimmt.',
+    en: 'Projects this account takes part in.',
   },
   userProjectsAllHint: {
-    de: 'Verwaltet alle Projekte. Aufgeführt sind die Projekte, an denen das Konto teilnimmt oder die einzeln freigegeben sind.',
-    en: 'Manages all projects. Listed are the projects this account takes part in or was granted individually.',
+    de: 'Hat durch seine Rolle Zugriff auf alle Projekte. Aufgeführt sind die Projekte, an denen das Konto teilnimmt.',
+    en: 'Has access to all projects through its role. Listed are the projects this account takes part in.',
   },
   userProjectsNone: { de: 'Keinem Projekt zugeordnet', en: 'Not part of any project' },
   userProjectsActive: { de: 'Aktiv', en: 'Active' },
   userProjectParticipant: { de: 'Teilnehmend', en: 'Participant' },
   userProjectLeft: { de: 'Ausgetreten', en: 'Left' },
-  userProjectManage: { de: 'Verwaltung', en: 'Manager' },
-  userProjectManageAll: { de: 'Verwaltung (alle Projekte)', en: 'Manager (all projects)' },
+  userProjectManageAll: { de: 'Zugriff über Rolle', en: 'Access through role' },
   userProjectNoAccountAccess: {
     de: 'Das Projekt erlaubt keinen Kontozugriff – für das Konto nicht sichtbar.',
     en: 'The project does not allow account access – not visible to this account.',
   },
-  projectSingular: { de: 'Projekt', en: 'project' },
-  projectPlural: { de: 'Projekte', en: 'projects' },
   accessFor: { de: 'Zugriff für', en: 'Access for' },
 
   // Account
@@ -582,10 +562,10 @@ const dict: Dict = {
     en: 'Only addresses at these domains may sign up themselves, separated by commas or line breaks. Empty = any domain.',
   },
   securitySection: { de: 'Sicherheit', en: 'Security' },
-  require2fa: { de: '2FA für Administratoren vorschreiben', en: 'Require 2FA for administrators' },
+  require2fa: { de: '2FA für Stimmeltern, Verwaltung und Admins vorschreiben', en: 'Require 2FA for section leads, management and admins' },
   require2faHint: {
-    de: 'Administratoren und Konten mit Zugriff auf alle Projekte müssen eine Zwei-Faktor-Authentifizierung einrichten, bevor sie weiterarbeiten können.',
-    en: 'Administrators and accounts with access to all projects must set up two-factor authentication before they can continue.',
+    de: 'Alle Konten außer Teilnehmern (Stimmeltern, Verwaltung, Admin) müssen eine Zwei-Faktor-Authentifizierung einrichten, bevor sie weiterarbeiten können.',
+    en: 'Every account except participants (section leads, management, admins) must set up two-factor authentication before they can continue.',
   },
   require2faSelfFirst: {
     de: 'Richte zuerst für dein eigenes Konto die Zwei-Faktor-Authentifizierung ein (unter Konto), damit du dich nicht aussperrst.',
@@ -729,6 +709,7 @@ const dict: Dict = {
     en: 'No matching account found. The member will be created manually.',
   },
   linkedToAccount: { de: 'Mit Account verknüpft', en: 'Linked to an account' },
+  openAccount: { de: 'Zum Konto', en: 'Open account' },
   nameDiffersFromAccount: {
     de: 'Name weicht vom Konto ab',
     en: 'Name differs from account',
@@ -1041,6 +1022,9 @@ const dict: Dict = {
   saveAsLabel: { de: 'Als Label speichern', en: 'Save as label' },
   labelName: { de: 'Label-Name', en: 'Label name' },
   manageLabels: { de: 'Labels verwalten', en: 'Manage labels' },
+  newLabel: { de: 'Neues Label', en: 'New label' },
+  discardLabelDraft: { de: 'Entwurf verwerfen', en: 'Discard draft' },
+  auditioned: { de: 'Vorgesungen', en: 'Auditioned' },
   noLabels: { de: 'Noch keine Labels', en: 'No labels yet' },
   publicLabel: { de: 'Öffentlich', en: 'Public' },
   labelKind: { de: 'Art', en: 'Kind' },
@@ -1059,6 +1043,7 @@ const dict: Dict = {
     en: 'Replaces the current rule “{name}”. Every participant sees whether they must audition.',
   },
   mustAudition: { de: 'Du musst vorsingen', en: 'You must audition' },
+  hasAuditioned: { de: 'Du hast vorgesungen', en: 'You have auditioned' },
   noAuditionYet: { de: 'Du musst noch nicht vorsingen', en: 'You don’t need to audition yet' },
   publicLabelHint: {
     de: 'Öffentliche Labels werden Teilnehmenden unter „Meine Teilnahme“ angezeigt, wenn sie auf sie zutreffen.',
@@ -1307,54 +1292,7 @@ const dict: Dict = {
   },
 
   // Previews of planned sections
-  notAvailableYet: { de: 'Noch nicht verfügbar', en: 'Not available yet' },
-  featureNotImplemented: { de: 'Diese Funktion ist noch nicht umgesetzt.', en: 'This feature is not built yet.' },
-  clubPreviewIntro: {
-    de: 'Hier könnte der Verein in Zukunft irgendwann vielleicht verwaltet werden:',
-    en: 'Some day, the club could perhaps be managed here:',
-  },
-  clubPreviewMembers: { de: 'Mitgliederverwaltung', en: 'Member management' },
-  clubPreviewApplications: { de: 'Mitgliedsanträge', en: 'Membership applications' },
-  clubPreviewRules: { de: 'Satzungen speichern', en: 'Storing the statutes' },
-  newsletter: { de: 'Newsletter (Beta)', en: 'Newsletter (beta)' },
-  newsletterPreviewIntro: {
-    de: 'Theoretisch ließen sich Newsletter künftig direkt von hier aus versenden:',
-    en: 'In theory, newsletters could be sent right from here in future:',
-  },
-  newsletterPreviewProject: {
-    de: 'automatisch an alle Teilnehmenden eines Projekts',
-    en: 'automatically to everyone in a project',
-  },
-  newsletterPreviewEveryone: {
-    de: 'oder an alle, die jemals an einem Projekt mitgemacht haben',
-    en: 'or to everyone who ever took part in a project',
-  },
 
-  // Club (Verein) section with the association's member directory
-  club: { de: 'Verein (Beta)', en: 'Club (beta)' },
-  membershipApplications: { de: 'Mitgliedsanträge', en: 'Membership applications' },
-  rules: { de: 'Regeln', en: 'Rules' },
-  newClubMember: { de: 'Neues Vereinsmitglied', en: 'New club member' },
-  editClubMember: { de: 'Vereinsmitglied bearbeiten', en: 'Edit club member' },
-  noClubMembers: { de: 'Noch keine Vereinsmitglieder', en: 'No club members yet' },
-  memberTitle: { de: 'Titel', en: 'Title' },
-  salutation: { de: 'Anrede', en: 'Salutation' },
-  careOf: { de: 'Zusatz / c/o', en: 'Care of (c/o)' },
-  street: { de: 'Straße und Hausnummer', en: 'Street and number' },
-  addressExtra: { de: 'Adresszusatz', en: 'Address addition' },
-  addressExtraHint: {
-    de: 'z. B. Gebäude, Stockwerk oder Wohnungsnummer',
-    en: 'e.g. building, floor or apartment number',
-  },
-  postalCode: { de: 'Postleitzahl (PLZ)', en: 'Postal code' },
-  city: { de: 'Ort / Stadt', en: 'City' },
-  country: { de: 'Land', en: 'Country' },
-  phone: { de: 'Telefonnummer', en: 'Phone number' },
-  passive: { de: 'Passiv', en: 'Passive' },
-  clubMemberSaved: { de: 'Gespeichert', en: 'Saved' },
-  contactDetails: { de: 'Kontakt', en: 'Contact' },
-  addressSection: { de: 'Adresse', en: 'Address' },
-  masterData: { de: 'Stammdaten', en: 'Details' },
 
   // A rehearsal's programme
   program: { de: 'Programm', en: 'Programme' },
@@ -1515,14 +1453,6 @@ const dict: Dict = {
   pieceLength: { de: 'Länge', en: 'Length' },
   pieceProjects: { de: 'Projekte', en: 'Projects' },
   noPiecesInCollection: { de: 'Noch keine Stücke in der Sammlung', en: 'No pieces in the collection yet' },
-  pieceAccess: { de: 'Stücke bearbeiten', en: 'Edit pieces' },
-  pieceAccessHint: {
-    de: 'Projektverwalter können Stücke ihrer Projekte immer hinzufügen, entfernen und sortieren. Inhalte (Dateien, Takte, Credits) bearbeiten und neue Stücke anlegen geht nur mit dieser Berechtigung.',
-    en: 'Project managers can always add, remove and order the pieces of their projects. Editing content (files, bars, credits) and creating pieces needs this permission.',
-  },
-  pieceAccessNone: { de: 'Keine', en: 'None' },
-  pieceAccessProjects: { de: 'In eigenen Projekten', en: 'In own projects' },
-  pieceAccessAll: { de: 'Alle Stücke (Stückesammlung)', en: 'All pieces (collection)' },
   error: { de: 'Etwas ist schiefgelaufen.', en: 'Something went wrong.' },
   pieceEmpty: {
     de: 'Für dieses Stück gibt es noch keine Noten oder Aufnahmen.',

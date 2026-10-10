@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, UserCog, Users } from 'lucide-react';
+import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, Users } from 'lucide-react';
 import { DeleteProjectDialog } from '@/components/DeleteProjectDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
 import { DataTable, type Column } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
-import { ProjectAccessModal } from '@/components/ProjectAccessModal';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
@@ -17,39 +16,35 @@ import type { Project } from '@/types';
 
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { isAdmin, canManageProjects, user } = useAuth();
+  const { canAccessAllProjects, canManageProjects, user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   // Projects I take part in myself: an active member row linked to my account.
   const [participating, setParticipating] = useState<Set<string>>(new Set());
-  // Active members per project, only for projects I may see the members of
-  // (all with the project-management grant, else my individual grants).
+  // Active members per project, only when I may see every project's members
+  // (Stimmeltern and up).
   const [activeCounts, setActiveCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [toDelete, setToDelete] = useState<Project | null>(null);
-  const [accessFor, setAccessFor] = useState<Project | null>(null);
   // Search and filter live in the header menu; the table only applies them.
   const tf = useTableFilters({ status: 'active' });
 
   const load = async () => {
-    const [{ data }, { data: mine }, { data: active }, { data: grants }] = await Promise.all([
+    const [{ data }, { data: mine }, { data: active }] = await Promise.all([
       api.from('projects').select('*').order('created_at', { ascending: false }),
       user
         ? api.from('members').select('project_id').eq('user_id', user.id).eq('status', 'active')
         : Promise.resolve({ data: [] }),
-      api.from('members').select('project_id').eq('status', 'active'),
-      user && !canManageProjects
-        ? api.from('user_projects').select('project_id').eq('user_id', user.id)
+      canAccessAllProjects
+        ? api.from('members').select('project_id').eq('status', 'active')
         : Promise.resolve({ data: [] }),
     ]);
     const list = (data as Project[]) ?? [];
     setProjects(list);
     setParticipating(new Set(((mine as { project_id: string }[] | null) ?? []).map((m) => m.project_id)));
-    // Without access a project only returns my own member row, so its count
-    // would be wrong; those projects get no number.
-    const granted = new Set(((grants as { project_id: string }[] | null) ?? []).map((g) => g.project_id));
+    // Teilnehmer only get their own member rows, so they see no counts.
     const counts = new Map<string, number>();
-    for (const p of list) if (canManageProjects || granted.has(p.id)) counts.set(p.id, 0);
+    if (canAccessAllProjects) for (const p of list) counts.set(p.id, 0);
     for (const m of (active as { project_id: string }[] | null) ?? []) {
       if (counts.has(m.project_id)) counts.set(m.project_id, counts.get(m.project_id)! + 1);
     }
@@ -60,7 +55,7 @@ export const ProjectsPage = () => {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, canManageProjects]);
+  }, [user?.id, canAccessAllProjects]);
 
   const toggleArchive = async (p: Project) => {
     await api
@@ -181,17 +176,12 @@ export const ProjectsPage = () => {
         hideToolbar
         emptyMessage={t('noProjects')}
         emptyIcon={FolderKanban}
-        // Settings, archiving and deletion need access to all projects; an
-        // individual project grant only covers the project's content.
+        // Settings, archiving and deletion need Verwaltung; Stimmeltern only
+        // work with a project's content.
         actions={
           canManageProjects
             ? (p) => (
                 <>
-                  {isAdmin && (
-                    <RowActionButton label={t('manageAccess')} onClick={() => setAccessFor(p)}>
-                      <UserCog size={15} />
-                    </RowActionButton>
-                  )}
                   <RowActionButton
                     label={t('edit')}
                     onClick={() => navigate(`/projects/${p.id}/settings`)}
@@ -209,8 +199,6 @@ export const ProjectsPage = () => {
             : undefined
         }
       />
-
-      <ProjectAccessModal project={accessFor} onClose={() => setAccessFor(null)} />
 
       <DeleteProjectDialog
         project={toDelete}

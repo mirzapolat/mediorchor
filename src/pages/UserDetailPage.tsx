@@ -1,30 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, Check, Clock, Crown, FolderKanban, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Check, Clock, Crown, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { Select } from '@/components/Input';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { UserAccessModal } from '@/components/UserAccessModal';
 import { UserProjectsCard } from '@/components/UserProjectsCard';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { CLUB_ENABLED } from '@/lib/features';
-import type { AppUser, PieceAccess } from '@/types';
+import { cn } from '@/lib/cn';
+import { ROLES, ROLE_HINT, ROLE_LABEL } from '@/lib/roles';
+import type { AppUser, UserRole } from '@/types';
 
 export const UserDetailPage = () => {
   const { t } = useI18n();
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { user: me, isAdmin, refreshUser } = useAuth();
+  const { user: me, isAdmin } = useAuth();
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [accessOpen, setAccessOpen] = useState(false);
-  const [grantedCount, setGrantedCount] = useState(0);
   const [twoFactor, setTwoFactor] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
@@ -32,14 +29,12 @@ export const UserDetailPage = () => {
   const [reloadKey, setReloadKey] = useState(0);
 
   const load = async () => {
-    const [{ data }, { count }, mfa] = await Promise.all([
+    const [{ data }, mfa] = await Promise.all([
       api.from('app_users').select('*').eq('id', userId).maybeSingle(),
-      api.from('user_projects').select('project_id', { count: 'exact', head: true }).eq('user_id', userId),
       api.rpc('two_factor_users'),
     ]);
     setTwoFactor(((mfa.data as string[] | null) ?? []).includes(userId ?? ''));
     setUser((data as AppUser) ?? null);
-    setGrantedCount(count ?? 0);
     setLoading(false);
     setReloadKey((k) => k + 1);
   };
@@ -58,18 +53,18 @@ export const UserDetailPage = () => {
 
   const isSelf = me?.id === user.id;
 
-  const toggleFlag = async (flag: 'is_admin' | 'can_manage_projects' | 'can_access_club' | 'can_edit_calendars') => {
-    if (!user) return;
-    const next = !user[flag];
-    setUser({ ...user, [flag]: next });
-    await api.from('app_users').update({ [flag]: next }).eq('id', user.id);
-    if (isSelf) await refreshUser();
-  };
-
-  const setPieceAccess = async (piece_access: PieceAccess) => {
-    setUser({ ...user, piece_access });
-    await api.from('app_users').update({ piece_access }).eq('id', user.id);
-    if (isSelf) await refreshUser();
+  // Nobody changes their own role (the server refuses it as well), so an
+  // admin can't lock themselves out.
+  const setRole = async (role: UserRole) => {
+    if (isSelf || role === user.role) return;
+    const previous = user.role;
+    setError(null);
+    setUser({ ...user, role });
+    const { error: roleError } = await api.from('app_users').update({ role }).eq('id', user.id);
+    if (roleError) {
+      setUser({ ...user, role: previous });
+      setError(roleError.message);
+    }
   };
 
   const approve = async () => {
@@ -101,13 +96,6 @@ export const UserDetailPage = () => {
     navigate('/admin/users');
   };
 
-  const hasAllProjects = user.is_admin || user.can_manage_projects;
-  const accessLabel = hasAllProjects
-    ? t('coveredByAllProjects')
-    : grantedCount > 0
-      ? `${grantedCount} ${t(grantedCount === 1 ? 'projectSingular' : 'projectPlural')}`
-      : t('noProjectsGranted');
-
   return (
     <>
       <button
@@ -123,7 +111,7 @@ export const UserDetailPage = () => {
         <div>
           <h1 className="text-2xl font-bold inline-flex items-center gap-2">
             {user.name}
-            {user.is_admin && <Crown size={20} className="text-accent" />}
+            {user.role === 'admin' && <Crown size={20} className="text-accent" />}
           </h1>
           <p className="text-text-secondary text-sm mt-1">{user.email}</p>
         </div>
@@ -173,109 +161,36 @@ export const UserDetailPage = () => {
         </dl>
       </Card>
 
-      <Card className="max-w-xl space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="font-medium">{t('adminRights')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">
-              {isSelf ? t('adminRightsSelfHint') : t('adminRightsHint')}
-            </p>
-          </div>
-          <label className="inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-black disabled:opacity-50"
-              checked={user.is_admin}
-              disabled={isSelf}
-              onChange={() => toggleFlag('is_admin')}
-            />
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-          <div>
-            <p className="font-medium">{t('allProjectsAccess')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{t('allProjectsHint')}</p>
-          </div>
-          <label className="inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-black disabled:opacity-50"
-              checked={user.is_admin || user.can_manage_projects}
-              disabled={user.is_admin}
-              onChange={() => toggleFlag('can_manage_projects')}
-            />
-          </label>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-          <div>
-            <p className="font-medium">{t('selectedProjects')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{accessLabel}</p>
-          </div>
-          <Button
-            variant="secondary"
-            onClick={() => setAccessOpen(true)}
-            disabled={hasAllProjects}
-          >
-            <FolderKanban size={15} />
-            {t('manageAccess')}
-          </Button>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-          <div>
-            <p className="font-medium">{t('calendarAccess')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{t('calendarAccessHint')}</p>
-          </div>
-          <label className="inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              aria-label={t('calendarAccess')}
-              className="h-4 w-4 accent-black disabled:opacity-50"
-              checked={user.is_admin || user.can_edit_calendars}
-              disabled={user.is_admin}
-              onChange={() => toggleFlag('can_edit_calendars')}
-            />
-          </label>
-        </div>
-
-        {/* The club section is only a preview for now (see lib/features). */}
-        {CLUB_ENABLED && (
-          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-            <div>
-              <p className="font-medium">{t('clubAccess')}</p>
-              <p className="text-sm text-text-secondary mt-0.5">{t('clubAccessHint')}</p>
-            </div>
-            <label className="inline-flex cursor-pointer items-center">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-black disabled:opacity-50"
-                checked={user.is_admin || user.can_access_club}
-                disabled={user.is_admin}
-                onChange={() => toggleFlag('can_access_club')}
-              />
-            </label>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div>
-            <p className="font-medium">{t('pieceAccess')}</p>
-            <p className="text-sm text-text-secondary mt-0.5">{t('pieceAccessHint')}</p>
-          </div>
-          <div className="sm:w-56 sm:flex-shrink-0">
-            <Select
-              aria-label={t('pieceAccess')}
-              value={user.is_admin ? 'all' : user.piece_access}
-              disabled={user.is_admin}
-              onChange={(e) => void setPieceAccess(e.target.value as PieceAccess)}
-            >
-              <option value="none">{t('pieceAccessNone')}</option>
-              <option value="projects">{t('pieceAccessProjects')}</option>
-              <option value="all">{t('pieceAccessAll')}</option>
-            </Select>
-          </div>
+      <Card className="max-w-xl">
+        <p className="font-medium">{t('role')}</p>
+        <p className="text-sm text-text-secondary mt-0.5">{isSelf ? t('roleSelfHint') : t('roleHint')}</p>
+        <div role="radiogroup" aria-label={t('role')} className="mt-4 space-y-2">
+          {ROLES.map((role) => {
+            const selected = user.role === role;
+            return (
+              <label
+                key={role}
+                className={cn(
+                  'flex items-start gap-3 rounded-md border px-3 py-2.5 transition-colors duration-150',
+                  selected ? 'border-text' : 'border-border',
+                  isSelf ? 'cursor-default opacity-70' : 'cursor-pointer hover:bg-surface-muted',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="user-role"
+                  className="mt-0.5 h-4 w-4 accent-black"
+                  checked={selected}
+                  disabled={isSelf}
+                  onChange={() => void setRole(role)}
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{t(ROLE_LABEL[role])}</span>
+                  <span className="mt-0.5 block text-sm text-text-secondary">{t(ROLE_HINT[role])}</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
       </Card>
 
@@ -289,7 +204,7 @@ export const UserDetailPage = () => {
                 <p className="font-medium">{t('deactivateUser')}</p>
                 <p className="text-sm text-text-secondary mt-0.5">{t('deactivateUserHint')}</p>
               </div>
-              <Button variant="secondary" onClick={() => setConfirmDeactivate(true)} disabled={user.is_admin}>
+              <Button variant="secondary" onClick={() => setConfirmDeactivate(true)} disabled={user.role === 'admin'}>
                 <Ban size={15} />
                 {t('deactivate')}
               </Button>
@@ -300,19 +215,13 @@ export const UserDetailPage = () => {
               <p className="font-medium">{t('deleteUser')}</p>
               <p className="text-sm text-text-secondary mt-0.5">{t('confirmDeleteUser')}</p>
             </div>
-            <Button variant="accent" onClick={() => setConfirmDelete(true)} disabled={user.is_admin}>
+            <Button variant="accent" onClick={() => setConfirmDelete(true)} disabled={user.role === 'admin'}>
               <Trash2 size={15} />
               {t('delete')}
             </Button>
           </div>
         </Card>
       )}
-
-      <UserAccessModal
-        user={accessOpen ? user : null}
-        onClose={() => setAccessOpen(false)}
-        onSaved={load}
-      />
 
       <ConfirmDialog
         open={confirmDeactivate}

@@ -8,19 +8,13 @@ import {
 } from 'react';
 import { api, type ApiError, type MfaChallenge, type Session } from '@/lib/api';
 import type { AppUser } from '@/types';
+import { permissionsFor, type Permissions } from '@/lib/roles';
 
-interface AuthContextValue {
+// The permission flags come from the account's role (src/lib/roles.ts).
+interface AuthContextValue extends Permissions {
   session: Session | null;
   user: AppUser | null;
   loading: boolean;
-  isAdmin: boolean;
-  canManageProjects: boolean;
-  canAccessClub: boolean;
-  canEditCalendars: boolean;
-  // Edits every piece and opens the collection page (admin or 'all').
-  hasFullPieceAccess: boolean;
-  // Edits the pieces of projects one manages (or every piece).
-  canEditProjectPieces: boolean;
   // The admin requires 2FA for this account and none is set up yet: the app
   // shows only the setup until refreshSession() reports it done.
   mfaSetupRequired: boolean;
@@ -80,12 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       session,
       user,
       loading,
-      isAdmin: Boolean(user?.is_admin),
-      canManageProjects: Boolean(user?.is_admin || user?.can_manage_projects),
-      canAccessClub: Boolean(user?.is_admin || user?.can_access_club),
-      canEditCalendars: Boolean(user?.is_admin || user?.can_edit_calendars),
-      hasFullPieceAccess: Boolean(user?.is_admin || user?.piece_access === 'all'),
-      canEditProjectPieces: Boolean(user?.is_admin || (user && user.piece_access !== 'none')),
+      ...permissionsFor(user?.role),
       mfaSetupRequired,
       refreshSession: async () => {
         const { data } = await api.auth.getSession();

@@ -1,6 +1,7 @@
 // Installable app (PWA): service worker registration and the install prompt.
 
 import { track } from './analytics';
+import { initPullToRefresh } from './pullToRefresh';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -34,7 +35,11 @@ const blockEdgeSwipe = () => {
 // Chrome/Edge/Android offer installation through this event; it may fire
 // before any page that shows an install button is mounted, so keep it.
 export const initPwa = () => {
-  if (isInstalled()) blockEdgeSwipe();
+  if (isInstalled()) {
+    blockEdgeSwipe();
+    // No reload button in the installed app: pulling down reloads instead.
+    initPullToRefresh();
+  }
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e as BeforeInstallPromptEvent;

@@ -33,23 +33,31 @@ export interface TablePolicy {
 // Wrapped as a whole, so `x and ${or(a, b)}` means `x and (a or b)`.
 const or = (...parts: string[]) => `(${parts.map((p) => `(${p})`).join(' or ')})`;
 
-export const isAdmin = () =>
-  `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.is_admin)`;
+// --- roles (see migration 0044) -------------------------------------------
+//   participant  (Teilnehmer)  only what isProjectParticipant() opens
+//   section_lead (Stimmeltern) the content of every project
+//   manager      (Verwaltung)  everything except the admin configuration
+//   admin                      everything
+export const ROLES = ['participant', 'section_lead', 'manager', 'admin'] as const;
+export type Role = (typeof ROLES)[number];
 
-// Access to every project (current and future); also required to create one.
-export const canManageProjects = () =>
-  `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_manage_projects))`;
+// The calling account holds `role` or a higher one.
+const hasRole = (role: Role) => {
+  const allowed = ROLES.slice(ROLES.indexOf(role)).map((r) => `'${r}'`).join(', ');
+  return `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.role in (${allowed}))`;
+};
 
-// Management access to a project: admin, access to all projects, or an
-// explicit user_projects grant for this one.
-export const canAccessProject = (pid: string) => or(
-  canManageProjects(),
-  `exists (select 1 from user_projects _up where _up.user_id = auth_uid() and _up.project_id = ${pid})`,
-);
+export const isAdmin = () => hasRole('admin');
 
-// Management access to at least one project.
-export const canManageAnyProject = () =>
-  or(canManageProjects(), `exists (select 1 from user_projects _up where _up.user_id = auth_uid())`);
+// Creating projects, their settings, archiving and deletion: Verwaltung.
+export const canManageProjects = () => hasRole('manager');
+
+// The content of a project (members, Proben, attendance, registrations,
+// labels, its pieces): Stimmeltern and up, for every project.
+export const canAccessProject = (_pid: string) => hasRole('section_lead');
+
+// Pages that work across projects (e.g. looking up accounts to add as members).
+export const canManageAnyProject = () => hasRole('section_lead');
 
 // Participant access: an active linked member row in a project that allows
 // account access.
@@ -65,13 +73,9 @@ const participantCanSeePieces = (pid: string) => `(${isProjectParticipant(pid)} 
 
 // --- pieces (one collection shared by all projects, see migration 0032) ----
 
-// Edits every piece and opens the collection page: admins and the 'all' level.
-export const hasFullPieceAccess = () =>
-  `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.piece_access = 'all'))`;
-
-// The 'projects' level: edits pieces of projects one manages.
-const hasProjectPieceAccess = () =>
-  `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.piece_access = 'projects')`;
+// Edits every piece, opens the collection page, archives and deletes pieces:
+// Verwaltung.
+export const hasFullPieceAccess = () => hasRole('manager');
 
 // Reading a piece: full access, or the piece is in a project one manages or
 // takes part in (while that project shows its pieces to participants).
@@ -81,20 +85,17 @@ export const canSeePiece = (pieceId: string) => or(
     and ${or(canAccessProject('_pv.project_id'), participantCanSeePieces('_pv.project_id'))})`,
 );
 
-// Editing a piece's content (details, files, bar markers).
+// Editing a piece's content (details, files, bar markers): Verwaltung, or
+// Stimmeltern for pieces that are in a project.
 export const canEditPiece = (pieceId: string) => or(
   hasFullPieceAccess(),
-  `${hasProjectPieceAccess()} and exists (
+  `exists (
     select 1 from project_pieces _pe where _pe.piece_id = ${pieceId} and ${canAccessProject('_pe.project_id')}
   )`,
 );
 
-// Kalender page: admins, and accounts given the calendar permission.
-export const canEditCalendars = () =>
-  `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_edit_calendars))`;
-
-export const canAccessClub = () =>
-  `exists (select 1 from app_users _u where _u.id = auth_uid() and (_u.is_admin or _u.can_access_club))`;
+// Kalender page: Verwaltung.
+export const canEditCalendars = () => hasRole('manager');
 
 const eventInManagedProject = (eventId: string) =>
   `exists (select 1 from events _e where _e.id = ${eventId} and ${canAccessProject('_e.project_id')})`;
@@ -223,11 +224,7 @@ const validateCalendarDates = (row: Record<string, unknown>) => {
 const PROTECTED_ACCOUNT_FIELDS = [
   'id',
   'email',
-  'is_admin',
-  'can_manage_projects',
-  'can_access_club',
-  'can_edit_calendars',
-  'piece_access',
+  'role',
   'approved', // accounts waiting for approval can't approve themselves
 ] as const;
 
@@ -256,8 +253,9 @@ export const policies: Record<string, TablePolicy> = {
         if (field === 'id' || field === 'email' || !admin) {
           throw new ApiError('new row violates row-level security policy for table "app_users"', 403, '42501');
         }
-        if (self && field === 'is_admin') {
-          throw new ApiError('You cannot remove your own administrator access', 403, '42501');
+        // An admin can't demote themselves (and lock everyone out).
+        if (self && field === 'role') {
+          throw new ApiError('You cannot change your own role', 403, '42501');
         }
       }
       // Only the account holder sets their profile photo.
@@ -302,8 +300,8 @@ export const policies: Record<string, TablePolicy> = {
     },
   },
 
-  // Project settings, archiving and deletion need access to all projects;
-  // an individual grant only covers the project's content.
+  // Project settings, archiving and deletion need Verwaltung; Stimmeltern
+  // only work with a project's content.
   projects: {
     select: (a) => or(canAccessProject(`${a}.id`), isProjectParticipant(`${a}.id`)),
     insert: canManageProjects,
@@ -312,21 +310,13 @@ export const policies: Record<string, TablePolicy> = {
     delete: canManageProjects,
   },
 
-  // The info box on "Meine Teilnahme": edited by the project's managers
-  // (an individual grant is enough), read by its participants.
+  // The info box on "Meine Teilnahme": edited by Stimmeltern and up, read by
+  // the project's participants.
   project_infos: {
     ...all((a) => canAccessProject(`${a}.project_id`)),
     select: (a) => or(canAccessProject(`${a}.project_id`), isProjectParticipant(`${a}.project_id`)),
     validateInsert: (row) => validateProjectInfo(row),
     validateUpdate: (_old, patch) => validateProjectInfo(patch),
-  },
-
-  user_projects: {
-    select: (a) => or(`${a}.user_id = auth_uid()`, isAdmin()),
-    insert: isAdmin,
-    update: isAdmin,
-    check: isAdmin,
-    delete: isAdmin,
   },
 
   members: {
@@ -425,8 +415,6 @@ export const policies: Record<string, TablePolicy> = {
   },
 
   registrations: all((a) => pageInManagedProject(`${a}.registration_page_id`)),
-
-  club_members: all(() => canAccessClub()),
 
   // New pieces in a project are created through create_piece (piece and
   // project link at once); here only with full access.

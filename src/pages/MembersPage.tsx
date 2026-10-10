@@ -94,9 +94,9 @@ export const MembersPage = () => {
 
   if (loading) return <PageSpinner />;
 
-  // A linked account shows as a check mark at the bottom of the photo, a name
-  // that differs from that account's as a dot at the top; the details are in
-  // the tooltip (and on the member's page).
+  // A linked account shows as a check mark at the bottom of the photo; a name
+  // that differs from that account's is only mentioned in the tooltip (and on
+  // the member's page).
   const memberAvatar = (m: Member, size: number) => {
     const deviation = accountNameDeviation(m, accountNames[m.id]);
     const hint = deviation ? `${t('nameDiffersFromAccount')}: ${deviation}` : undefined;
@@ -106,11 +106,6 @@ export const MembersPage = () => {
     return (
       <span className="relative flex flex-shrink-0" title={title}>
         <Avatar name={`${m.first_name} ${m.last_name}`} photoUrl={m.photo_url} size={size} />
-        {hint ? (
-          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-surface">
-            <span className="sr-only">{hint}</span>
-          </span>
-        ) : null}
         {linked ? (
           <span
             className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-success text-white ring-2 ring-surface"

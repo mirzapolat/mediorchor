@@ -176,7 +176,7 @@ const bootstrapAdmin = async () => {
       | { id: string }
       | undefined;
     if (existing) {
-      db.prepare('update app_users set is_admin = 1 where id = ?').run(existing.id);
+      db.prepare("update app_users set role = 'admin' where id = ?").run(existing.id);
       db.prepare('update auth_users set email_confirmed_at = coalesce(email_confirmed_at, ?) where id = ?').run(
         new Date().toISOString(),
         existing.id,
@@ -193,7 +193,7 @@ const bootstrapAdmin = async () => {
       console.log(`Created admin account ${env.adminEmail}`);
     }
   }
-  const { n } = db.prepare('select count(*) as n from app_users where is_admin').get() as { n: number };
+  const { n } = db.prepare("select count(*) as n from app_users where role = 'admin'").get() as { n: number };
   if (n === 0) {
     console.warn(
       'No admin account exists yet. Set ADMIN_EMAIL and ADMIN_PASSWORD, or run:\n' +

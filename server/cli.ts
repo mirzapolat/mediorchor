@@ -39,7 +39,7 @@ switch (command) {
     break;
   }
   case 'make-admin': {
-    db.prepare('update app_users set is_admin = 1 where id = ?').run(userId(args[0]));
+    db.prepare("update app_users set role = 'admin' where id = ?").run(userId(args[0]));
     console.log(`${args[0]} is now an administrator`);
     break;
   }

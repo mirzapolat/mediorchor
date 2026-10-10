@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { ArrowLeft, Pencil, UserRound } from 'lucide-react';
 import { Card } from '@/components/Card';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
@@ -15,6 +15,7 @@ import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { AttendanceDisplayStatus, AttendanceStatus, Event, Member } from '@/types';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { useAuth } from '@/hooks/useAuth';
 import { isHeld, localToday } from '@/lib/eventTiming';
 import { GroupPill } from '@/components/GroupPill';
 
@@ -40,6 +41,7 @@ const displayStatus = (event: Event, status: AttendanceStatus | undefined): Atte
 export const MemberDetailPage = () => {
   const { t } = useI18n();
   const { project } = useProjectContext();
+  const { isAdmin } = useAuth();
   const { names: groups } = useProjectGroups();
   const { memberId } = useParams();
   const navigate = useNavigate();
@@ -161,7 +163,15 @@ export const MemberDetailPage = () => {
             </p>
           </div>
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {isAdmin && member.user_id && (
+            <HeaderAction
+              icon={UserRound}
+              label={t('openAccount')}
+              variant="secondary"
+              onClick={() => navigate(`/admin/users/${member.user_id}`)}
+            />
+          )}
           <HeaderAction icon={Pencil} label={t('edit')} variant="secondary" onClick={() => setEditOpen(true)} />
         </div>
       </div>

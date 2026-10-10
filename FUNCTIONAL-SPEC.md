@@ -12,8 +12,6 @@ An attendance-management tool for a musical ensemble / club (orchestra, choir, b
 2. **Self-service intake** — public, link-based QR check-in forms and public registration/sign-up pages that let people mark themselves present or apply to join, with or without an account.
 3. **Rehearsal material** — a per-project library of musical pieces, each a practice workspace with score, notation file, one recording per voice, links and notes, and a bar-accurate player that follows the score.
 
-Alongside these, a separate **club-member directory** holds the association's formal membership records (postal addresses etc.), which is deliberately unrelated to project participation.
-
 Everything is multilingual (German and English) and re-brandable (app name, accent color, logo).
 
 ---
@@ -22,7 +20,7 @@ Everything is multilingual (German and English) and re-brandable (app name, acce
 
 | Concept | Meaning |
 |---|---|
-| **Account** | A login (email + password). Every account is the same kind of object; capabilities are granted through flags. |
+| **Account** | A login (email + password). Every account has exactly one role (Teilnehmer, Stimmeltern, Verwaltung, Admin) that decides what it may see and edit. |
 | **Project** | A workspace: a named ensemble/season/production. Owns its members, events, groups, pieces, registration pages and settings. |
 | **Group** | A subdivision inside a project (e.g. "Sopran", "1. Geige") with a name and a color. Each project maintains one central, ordered set of groups (the Groups page); it is the only source of selectable groups anywhere in the project. |
 | **Member** | A person inside one project. Has a name, optional group, optional email, optional photo, and a status. A member row may be **linked** to an account. |
@@ -33,38 +31,37 @@ Everything is multilingual (German and English) and re-brandable (app name, acce
 | **Check-in** | A per-event public QR/link form where people mark themselves present. |
 | **Registration page** | A per-project public link where people sign up to join; submissions can later be transferred into the member list. |
 | **Piece** | A musical work inside a project: files (score PDF, notation, MIDI, recordings per voice, other files, links), notes and one bar timeline. |
-| **Club member** | A record in the association-wide member directory (name, salutation, address, contact, active/passive). Independent of projects. |
 | **Absence label** | A saved, reusable set of attendance conditions with a name, optionally shown to the matching participants themselves. |
 
 ---
 
 ## 3. Roles, permissions and visibility
 
-There are no role names in the data — only capability flags on each account. An account with no flags is a plain participant.
+Every account has exactly one **role**. Roles are ordered; each one includes everything the roles below it may do. New accounts (self sign-up and accounts created by an admin) start as Teilnehmer.
 
-### 3.1 Capability flags
+### 3.1 Roles
 
-| Flag | Grants |
+| Role (data value) | Grants |
 |---|---|
-| **Administrator** | Full access to everything, including account administration and instance configuration. Multiple accounts may hold it. |
-| **Project management** | May create projects and manage projects within their scope. |
-| **Project scope** | Either *all projects* (default) or *only explicitly selected projects*. Only meaningful together with project management. |
-| **Club access** | May view and edit the club-member directory. Off by default. |
+| **Teilnehmer** (`participant`) | "My participation" and — when the project shows its pieces to participants — the pieces of the projects they take part in. No management pages, no piece collection, no calendars. |
+| **Stimmeltern** (`section_lead`) | The content of **every** project, current and future: rehearsals, check-in, members, groups, registrations, absences/labels, statistics, the info box and the project's pieces (adding, ordering and editing their content). **Not**: creating projects, project settings, archiving or deleting projects, deleting or archiving pieces, the piece collection, calendars. |
+| **Verwaltung** (`manager`) | Everything except the admin configuration: creating, editing (settings), archiving and deleting projects; the piece collection (create, archive, delete any piece); the calendars. |
+| **Admin** (`admin`) | Everything, always — including account administration (users, roles, approvals) and instance configuration (branding, security, legal pages, email). Multiple accounts may be admins. |
 
-Administrators implicitly hold every other capability; the UI shows their toggles as on and locked. An administrator cannot remove their own administrator flag, and administrators cannot be deleted.
+Nobody can change their own role (so an admin can't lock themselves out); admins can't be deactivated or deleted. With "Require 2FA" on, every role except Teilnehmer must set up a second factor.
 
 ### 3.2 Effective access rules
 
-- **Managing a project** requires: administrator, OR project management + (all-projects scope OR that project explicitly in scope).
+- **Managing a project's content** requires the Stimmeltern role or higher (it then applies to every project). **Project settings, creation, archiving and deletion** require Verwaltung or higher.
 - **Participating in a project** requires: an active linked member row in that project AND the project's "allow account access" toggle being on.
 - Managers see everything in a project. Participants see only the participation page and (if the project allows it) the pieces area.
-- A single account can be a manager of project A and a mere participant in project B.
+- Roles are global: an account with Stimmeltern or higher manages every project's content, and can additionally take part in any project as a member.
 - The projects list shows managers every project they manage and participants every project they participate in.
-- Access is enforced server-side, not only in the UI: a participant must be unable to read other members' names, attendance, registrations, check-in submissions or club records by any means.
+- Access is enforced server-side, not only in the UI: a participant must be unable to read other members' names, attendance, registrations or check-in submissions by any means.
 
 ### 3.3 Own-profile safety
 
-An account may edit its own display name, email and password, but must never be able to change its own capability flags or project scope through any self-service path.
+An account may edit its own display name, email and password, but must never be able to change its own role (or approval) through any self-service path.
 
 ---
 
@@ -114,18 +111,16 @@ Unlinked member rows whose email matches an account's **confirmed** email addres
 
 A dedicated administration area with its own sidebar (Users, Configuration) and a "back" link to the main app.
 
-**User list** — a table of all accounts with: first name (with avatar) and last name (the display name split at the last space), email, role (Administrator / Member), project-management state (*All* / *Partial* / *No*), and club access (*Yes* / *No*). Searchable by name/email, filterable by each of those three dimensions.
+**User list** — a table of all accounts with: name (with avatar), email, created, last seen and role. Searchable by name/email, filterable by approval status and role.
 
-**Create user** — name, email and password; the account is created already email-confirmed.
+**Create user** — name, email and password; the account is created already email-confirmed, as a Teilnehmer.
 
-**User detail** — avatar, name, email, and toggles for:
-- Administrator ("Full access to everything, including user management"); disabled for oneself.
-- Project management; disabled (and shown as on) for administrators.
-- Project access: opens a dialog offering "Access to all projects" or, when off, a checkbox list of individual projects. Disabled unless the account has project management.
-- Club members access; disabled (and shown as on) for administrators.
-- Delete user (hidden for oneself, blocked for other administrators), with confirmation showing the name and email.
+**User detail** — avatar, name, email, 2FA state, and:
+- Role: a choice of the four roles, each with a one-line description of what it grants; disabled for oneself.
+- The projects the account takes part in (with "access through role" for Stimmeltern and up).
+- Deactivate / delete user (hidden for oneself, blocked for admins), with confirmation showing the name and email.
 
-**Configuration** — currently just the "Allow self-signup" toggle. Under Security, "Allow codes by email as second factor" (off by default; can only be turned on while outgoing email is set up) lets accounts use emailed codes as their second factor. "Require 2FA for administrators" counts any method (authenticator app, passkey, or — while allowed — email codes).
+**Configuration** — currently just the "Allow self-signup" toggle. Under Security, "Allow codes by email as second factor" (off by default; can only be turned on while outgoing email is set up) lets accounts use emailed codes as their second factor. "Require 2FA for section leads, management and admins" counts any method (authenticator app, passkey, or — while allowed — email codes).
 
 ---
 
@@ -136,7 +131,7 @@ A dedicated administration area with its own sidebar (Users, Configuration) and 
 Every authenticated screen is a **left sidebar + scrolling content** layout. Content is capped at a comfortable max width with generous padding that shrinks on small screens.
 
 The sidebar is a shared shell reused by every section:
-- **Header** — an icon/logo plus the current context's name (app name, project name + logo, event name + date/time, "Admin settings", "Club (beta)"). Sub-contexts (project, event, admin) additionally show a "back" row at the very top.
+- **Header** — an icon/logo plus the current context's name (app name, project name + logo, event name + date/time, "Admin settings"). Sub-contexts (project, event, admin) additionally show a "back" row at the very top.
 - **Nav items** — icon + label, active item highlighted, optional red warning badge with a count.
 - **Footer** — Admin link (administrators only), then an **account card**: a rounded, bordered rectangle with the user's avatar (initials), name and email linking to account settings, and sign-out as an icon-only button (tooltip "Sign out", turns red on hover). Collapsed, the card shows just the avatar above the sign-out icon.
 - **Collapsible** to a 64px icon rail (labels become tooltips; badges become a red dot).
@@ -149,10 +144,6 @@ The sidebar is a shared shell reused by every section:
 ```
 /                        Projects list
 /account                 Account settings
-/club/members            Club member list
-/club/members/:id        Club member detail (":id = new" creates one)
-/club/applications       Membership applications (placeholder: "Coming soon")
-/club/rules              Rules (placeholder: "Coming soon")
 /admin/users             User list
 /admin/users/:id         User detail
 /admin/config            Instance configuration
@@ -452,7 +443,7 @@ Both types feed the same registrations list, table, transfer and auto-transfer. 
     - The number is set with a −/+ stepper or typed, limited to 1…pending ("of *N* pending registrations"). The submit button reads "Transfer *n*" / "Draw and transfer *n*".
     - Afterwards the dialog lists exactly who was transferred (numbered, with check marks) until closed with "Done"; the table refreshes behind it. Transfers follow the usual transfer semantics.
 
-**Transfer semantics:** transferring creates an active project member from the registration and marks it transferred — unless the project already has that person (§16 *Duplicate detection*). Then the existing row is re-activated, takes the registration's group (if any), gets a missing email filled in and, for a registration submitted with an account, is linked to that account; no second row is created. This applies to manual, bulk, selection, and automatic transfers (form and webhook) alike. Transferring an already-transferred registration is a no-op.
+**Transfer semantics:** transferring creates an active project member from the registration and marks it transferred — unless the project already has that person (§15 *Duplicate detection*). Then the existing row is re-activated, takes the registration's group (if any), gets a missing email filled in and, for a registration submitted with an account, is linked to that account; no second row is created. This applies to manual, bulk, selection, and automatic transfers (form and webhook) alike. Transferring an already-transferred registration is a no-op.
   - In the table, a pending registration that matches an existing member shows "Already a member" (or "Archived member") under its status; hovering names the member it will be merged into.
 
 ### 11.3 Visitor side (`/register/:token`)
@@ -608,29 +599,9 @@ Done in the browser, for `.musicxml`/`.xml` and zipped `.mxl` (partwise; timewis
 
 ---
 
-## 15. Club (association directory)
+## 15. Cross-cutting behaviours
 
-Shown in the navigation as **Club (beta)** / *Verein (Beta)*.
-
-A workspace-wide directory, gated behind the club-access capability, with its own nested sidebar (Members / Membership applications / Rules) that becomes a horizontal tab strip on mobile. Applications and Rules are placeholders showing "Coming soon".
-
-**Member list** — columns: name (title + first + last), city, email, phone, and an active/passive status with a colored dot. Search across name, email, phone and city; filter by status. Row click opens the record; row actions edit and delete.
-
-**Member record** — a form laid out in three cards:
-
-1. **Details** — salutation (Herr / Frau / Divers), title, first name (required), last name (required), status (Active / Passive).
-2. **Contact** — email, phone.
-3. **Address** — care-of ("Zusatz / c/o"), street and number, address addition (hint: "e.g. building, floor or apartment number"), postal code, city, country.
-
-The header shows the assembled full name, a delete button (with confirmation) and a save button that turns into a "Saved" acknowledgement. Creating a new record redirects to its own page after saving.
-
-This directory is completely separate from project members — no linking, no shared data.
-
----
-
-## 16. Cross-cutting behaviours
-
-**Internationalisation** — every visible string comes from a German/English dictionary. The default language comes from configuration; the user's choice overrides it and persists per browser. Dates and times are formatted per locale (`de-DE` vs. `en-GB`/`en-US`). Note the domain wording: the German term for "event" is *Probe* (rehearsal), and the club section is *Verein*.
+**Internationalisation** — every visible string comes from a German/English dictionary. The default language comes from configuration; the user's choice overrides it and persists per browser. Dates and times are formatted per locale (`de-DE` vs. `en-GB`/`en-US`). Note the domain wording: the German term for "event" is *Probe* (rehearsal).
 
 **Branding** — app name, accent color and default language are deployment configuration, resolvable at container start without rebuilding the frontend. The accent color drives a CSS variable and an auto-darkened hover shade; the app name sets the document title; the logo is the favicon.
 
@@ -656,12 +627,11 @@ This directory is completely separate from project members — no linking, no sh
 
 ---
 
-## 17. Data model summary
+## 16. Data model summary
 
 ```
-account            id, email, name, is_admin, can_manage_projects,
-                   all_projects, can_access_club, created_at
-account_project     (account, project)            ← explicit scope when all_projects = false
+account            id, email, name, role (participant|section_lead|manager|admin),
+                   approved, created_at
 
 instance_settings  app_name, accent_color, icon, language, allow_self_signup
 
@@ -704,21 +674,17 @@ piece_file         id, piece, kind (score|notation|midi|audio|other|link), title
 
 absence_label      id, project, name, conditions[{connector, metric, comparison, value}],
                    is_public, position, created_at
-
-club_member        id, title?, salutation?, first_name, last_name, care_of?, street?,
-                   address_extra?, postal_code?, city?, country?, email?, phone?,
-                   status (active|passive), created_at
 ```
 
 ---
 
-## 18. Behaviours worth getting right
+## 17. Behaviours worth getting right
 
 These are the non-obvious rules that make the app coherent. They are easy to miss on a rebuild.
 
 1. **Registration ≠ membership.** Even an account-authenticated sign-up produces only a registration. Membership happens at transfer time. Check-in, by contrast, *does* create membership implicitly.
 2. **Leaving a project archives, never deletes.** History must survive, and rejoining must restore participation without any data loss.
-3. **One member row per account per project**, enforced everywhere: joining, check-in, registration transfer, and the manager's member form all re-activate rather than duplicate. Registration transfers and CSV imports additionally recognise people without an account by email or name (§16 *Duplicate detection*).
+3. **One member row per account per project**, enforced everywhere: joining, check-in, registration transfer, and the manager's member form all re-activate rather than duplicate. Registration transfers and CSV imports additionally recognise people without an account by email or name (§15 *Duplicate detection*).
 4. **Groups are per project and centrally defined.** The project's groups table is the only source of groups anywhere; member groups always stay in sync with it (renames and deletions cascade, unknown groups are created).
 5. **Absent is derived, not stored.** It is total events minus present minus excused. Undated events still count as held.
 6. **The account's email and name are authoritative** in account-mode flows; typed values are ignored.

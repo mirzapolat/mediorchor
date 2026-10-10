@@ -1157,20 +1157,29 @@ const SessionsCard = () => {
           );
         })}
       </ul>
-      {sessions.length > SESSIONS_PREVIEW && (
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          className="text-sm font-medium text-text-secondary hover:text-text"
-        >
-          {showAll ? t('showLess') : `${t('showMore')} (${sessions.length - SESSIONS_PREVIEW})`}
-        </button>
-      )}
-      {others > 0 && (
-        <Button variant="secondary" disabled={busy} onClick={() => void revoke({ others: true })}>
-          <LogOut size={15} />
-          {t('signOutOtherDevices')} ({others})
-        </Button>
+      {(sessions.length > SESSIONS_PREVIEW || others > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {sessions.length > SESSIONS_PREVIEW && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="text-sm font-medium text-text-secondary hover:text-text"
+            >
+              {showAll ? t('showLess') : `${t('showMore')} (${sessions.length - SESSIONS_PREVIEW})`}
+            </button>
+          )}
+          {others > 0 && (
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => void revoke({ others: true })}
+              className="ml-auto"
+            >
+              <LogOut size={15} />
+              {t('signOutOtherDevices')} ({others})
+            </Button>
+          )}
+        </div>
       )}
     </Card>
   );

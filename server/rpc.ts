@@ -1034,20 +1034,17 @@ const unlock_piece_markers = (args: Args) => {
 };
 
 // Creates a piece in the collection. With a project it is added to that
-// project right away (end of its running order): for its managers with the
-// pieces permission. Without a project only with access to all pieces.
+// project right away (end of its running order): for everyone who manages the
+// project's content (Stimmeltern and up). Without a project only with access
+// to all pieces (Verwaltung).
 const create_piece = (args: Args) => {
   const uid = requireUser();
   const name = trimmed(args.p_name);
   if (!name) throw new ApiError('A piece needs a name', 400);
   const projectId = optional(args.p_project_id);
-  const full = check(hasFullPieceAccess());
   if (projectId) {
-    const level = (db.prepare('select piece_access from app_users where id = ?').get(uid) as
-      | { piece_access: string }
-      | undefined)?.piece_access;
-    if (!userCanAccessProject(projectId) || !(full || level === 'projects')) throw forbidden('Access denied');
-  } else if (!full) {
+    if (!userCanAccessProject(projectId)) throw forbidden('Access denied');
+  } else if (!check(hasFullPieceAccess())) {
     throw forbidden('Access denied');
   }
   const user = db.prepare('select name from app_users where id = ?').get(uid) as { name: string } | undefined;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bookmark, ChevronDown, LogIn, LogOut, Mic } from 'lucide-react';
+import { Bookmark, ChevronDown, CircleCheck, LogIn, LogOut, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -137,11 +137,14 @@ export const MyParticipationPage = () => {
       labels.filter((l) => l.kind !== 'audition' && l.is_public && matchesConditions(stats, l.conditions)),
     [labels, stats],
   );
-  // The project's audition rule, shown to everyone as "must / needn't yet".
-  const audition = useMemo(() => {
+  // The project's audition rule, shown to everyone as "must / needn't yet" –
+  // or "done" once a manager ticked "Vorgesungen" for this member.
+  const audition = useMemo((): 'done' | 'must' | 'notYet' | null => {
     const rule = labels.find((l) => l.kind === 'audition');
-    return rule ? matchesConditions(stats, rule.conditions) : null;
-  }, [labels, stats]);
+    if (!rule) return null;
+    if (member?.auditioned) return 'done';
+    return matchesConditions(stats, rule.conditions) ? 'must' : 'notYet';
+  }, [labels, member?.auditioned, stats]);
 
   const join = async (e: FormEvent) => {
     e.preventDefault();
@@ -330,11 +333,23 @@ export const MyParticipationPage = () => {
               <p
                 className={cn(
                   'mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
-                  audition ? 'border border-accent text-accent' : 'bg-success-soft-strong text-success-strong',
+                  audition === 'done'
+                    ? 'bg-success text-white'
+                    : audition === 'must'
+                      ? 'border border-accent text-accent'
+                      : 'bg-success-soft-strong text-success-strong',
                 )}
               >
-                <Mic size={15} className="shrink-0" />
-                {audition ? t('mustAudition') : t('noAuditionYet')}
+                {audition === 'done' ? (
+                  <CircleCheck size={15} className="shrink-0" />
+                ) : (
+                  <Mic size={15} className="shrink-0" />
+                )}
+                {audition === 'done'
+                  ? t('hasAuditioned')
+                  : audition === 'must'
+                    ? t('mustAudition')
+                    : t('noAuditionYet')}
               </p>
             )}
             {matchingLabels.length > 0 && (

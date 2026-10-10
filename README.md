@@ -1,8 +1,7 @@
 # mediorchor
 
 Attendance and member management for the Medizinerorchester und -chor e.V., Munich:
-projects, members, rehearsals, check-in, public registration, absences, pieces and
-club members. See [FUNCTIONAL-SPEC.md](FUNCTIONAL-SPEC.md) for the full feature set.
+projects, members, rehearsals, check-in, public registration, absences and pieces. See [FUNCTIONAL-SPEC.md](FUNCTIONAL-SPEC.md) for the full feature set.
 
 ## Proprietary software
 

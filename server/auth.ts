@@ -131,14 +131,15 @@ export const createAccount = async (opts: {
     db.prepare(
       'insert into auth_users (id, email, password_hash, email_confirmed_at) values (?, ?, ?, ?)',
     ).run(id, email, passwordHash, opts.confirmed ? nowIso() : null);
+    // Everyone else starts as a Teilnehmer (the column default).
     db.prepare(
-      'insert into app_users (id, email, first_name, last_name, is_admin, approved) values (?, ?, ?, ?, ?, ?)',
+      'insert into app_users (id, email, first_name, last_name, role, approved) values (?, ?, ?, ?, ?, ?)',
     ).run(
       id,
       email,
       opts.firstName.trim().slice(0, 100),
       opts.lastName.trim().slice(0, 100),
-      opts.isAdmin ? 1 : 0,
+      opts.isAdmin ? 'admin' : 'participant',
       opts.approved === false ? 0 : 1,
     );
   })();
@@ -263,13 +264,12 @@ const isApproved = (userId: string) => {
   return !row || Boolean(row.approved);
 };
 
-// With "require 2FA" on, admins and accounts with access to all projects must
-// have a verified factor; until then only 2FA setup (and signing out) works.
+// With "require 2FA" on, every account with access to all projects (Stimmeltern,
+// Verwaltung, Admin) must have a verified factor; until then only 2FA setup
+// (and signing out) works.
 const isPrivileged = (userId: string) => {
-  const row = db.prepare('select is_admin, can_manage_projects from app_users where id = ?').get(userId) as
-    | { is_admin: number; can_manage_projects: number }
-    | undefined;
-  return Boolean(row && (row.is_admin || row.can_manage_projects));
+  const row = db.prepare('select role from app_users where id = ?').get(userId) as { role: string } | undefined;
+  return Boolean(row && row.role !== 'participant');
 };
 
 export const mfaRequiredFor = (userId: string) => instanceSettings().requireAdmin2fa && isPrivileged(userId);
@@ -304,7 +304,7 @@ const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
   const admins = db
     .prepare(
       `select au.email from app_users u join auth_users au on au.id = u.id
-       where u.is_admin and au.email_confirmed_at is not null`,
+       where u.role = 'admin' and au.email_confirmed_at is not null`,
     )
     .all() as { email: string }[];
   for (const admin of admins) {
@@ -651,7 +651,7 @@ authRoutes.delete('/user', async (c) => {
   const { me, others } = db
     .prepare(
       `select coalesce(sum(id = @id), 0) as me, coalesce(sum(id <> @id), 0) as others
-       from app_users where is_admin`,
+       from app_users where role = 'admin'`,
     )
     .get({ id: user.id }) as { me: number; others: number };
   if (me && !others) {

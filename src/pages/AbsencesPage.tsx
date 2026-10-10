@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bookmark,
@@ -12,6 +12,7 @@ import {
   Settings2,
   Mic,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -220,6 +221,13 @@ export const AbsencesPage = () => {
   const [labelKind, setLabelKind] = useState<AbsenceLabel['kind']>('tag');
   const [savingLabel, setSavingLabel] = useState(false);
   const [labelSettingsOpen, setLabelSettingsOpen] = useState(false);
+  // The condition editor is only shown while a new label is being drafted;
+  // what was selected before is restored when the draft is discarded.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [beforeDraft, setBeforeDraft] = useState<{
+    conditions: Condition[];
+    activeLabelId: string | null;
+  } | null>(null);
   const tf = useTableFilters({ status: 'active' });
 
   useEffect(() => {
@@ -248,6 +256,24 @@ export const AbsencesPage = () => {
       cancelled = true;
     };
   }, [project.id]);
+
+  // "Vorgesungen" is stored on the member row; toggled optimistically and
+  // reverted if the update fails.
+  const toggleAuditioned = useCallback(async (member: Member) => {
+    const setAuditioned = (value: boolean) =>
+      setRows((current) =>
+        current.map((row) =>
+          row.member.id === member.id ? { ...row, member: { ...row.member, auditioned: value } } : row,
+        ),
+      );
+    const next = !member.auditioned;
+    setAuditioned(next);
+    const { error } = await api.from('members').update({ auditioned: next }).eq('id', member.id);
+    if (error) setAuditioned(!next);
+  }, []);
+
+  // "Vorgesungen" only matters once the project has an audition rule.
+  const hasAuditionRule = labels.some((l) => l.kind === 'audition');
 
   const matchingRows = useMemo(
     () => rows.filter((row) => matchesConditions(row.counts, conditions)),
@@ -308,8 +334,28 @@ export const AbsencesPage = () => {
         render: (row) => <span className="font-medium text-text-secondary">{row.counts.absent}</span>,
         className: 'w-px text-center whitespace-nowrap',
       },
+      ...(hasAuditionRule
+        ? [
+            {
+              id: 'auditioned',
+              header: t('auditioned'),
+              accessor: (row) => (row.member.auditioned ? 1 : 0),
+              render: (row) => (
+                <input
+                  type="checkbox"
+                  aria-label={`${t('auditioned')}: ${row.member.first_name} ${row.member.last_name}`}
+                  className="h-4 w-4 cursor-pointer accent-black align-middle"
+                  checked={row.member.auditioned}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={() => void toggleAuditioned(row.member)}
+                />
+              ),
+              className: 'w-px text-center whitespace-nowrap',
+            } satisfies Column<ResultRow>,
+          ]
+        : []),
     ],
-    [t],
+    [hasAuditionRule, t, toggleAuditioned],
   );
   const filters = useMemo<FilterDef<ResultRow>[]>(
     () => [
@@ -363,10 +409,27 @@ export const AbsencesPage = () => {
     );
   };
 
-  // Load a saved label into the condition editor.
+  // Filter by a saved label; this also discards an unsaved draft.
   const applyLabel = (label: AbsenceLabel) => {
+    setEditorOpen(false);
+    setBeforeDraft(null);
     setActiveLabelId(label.id);
     setConditions(label.conditions.map((c) => ({ ...c, id: `condition-${nextConditionId++}` })));
+  };
+
+  const startDraft = () => {
+    if (editorOpen) return;
+    setBeforeDraft({ conditions, activeLabelId });
+    setActiveLabelId(null);
+    setConditions([createCondition()]);
+    setEditorOpen(true);
+  };
+
+  const discardDraft = () => {
+    setConditions(beforeDraft?.conditions ?? []);
+    setActiveLabelId(beforeDraft?.activeLabelId ?? null);
+    setBeforeDraft(null);
+    setEditorOpen(false);
   };
 
   // The project's audition rule, if it has one (at most one).
@@ -405,6 +468,8 @@ export const AbsencesPage = () => {
           : [...current, saved],
       );
       setActiveLabelId(saved.id);
+      setEditorOpen(false);
+      setBeforeDraft(null);
     }
   };
 
@@ -486,6 +551,20 @@ export const AbsencesPage = () => {
         ))}
         <button
           type="button"
+          aria-label={t('newLabel')}
+          title={t('newLabel')}
+          onClick={startDraft}
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-md border transition-colors duration-150',
+            editorOpen
+              ? 'border-text bg-text text-white'
+              : 'border-border text-text-secondary hover:bg-surface-muted hover:text-text',
+          )}
+        >
+          <Plus size={15} />
+        </button>
+        <button
+          type="button"
           aria-label={t('manageLabels')}
           title={t('manageLabels')}
           onClick={() => setLabelSettingsOpen(true)}
@@ -495,10 +574,22 @@ export const AbsencesPage = () => {
         </button>
       </div>
 
+      {editorOpen && (
       <Card className="mb-8">
-        <div className="mb-5">
-          <h2 className="font-semibold">{t('absenceConditions')}</h2>
-          <p className="mt-1 text-sm text-text-secondary">{t('absenceConditionsHint')}</p>
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">{t('absenceConditions')}</h2>
+            <p className="mt-1 text-sm text-text-secondary">{t('absenceConditionsHint')}</p>
+          </div>
+          <button
+            type="button"
+            aria-label={t('discardLabelDraft')}
+            title={t('discardLabelDraft')}
+            onClick={discardDraft}
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text"
+          >
+            <X size={16} />
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -598,6 +689,7 @@ export const AbsencesPage = () => {
           </Button>
         </div>
       </Card>
+      )}
 
       {/* Search, filters and exports apply to the results table below. */}
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -679,6 +771,20 @@ export const AbsencesPage = () => {
               {row.member.email && <span className="min-w-0 break-all">{row.member.email}</span>}
               {row.member.group_name && <GroupPill name={row.member.group_name} />}
             </MobilePerson>
+            {hasAuditionRule && (
+            <label
+              className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-text-secondary"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-black"
+                checked={row.member.auditioned}
+                onChange={() => void toggleAuditioned(row.member)}
+              />
+              {t('auditioned')}
+            </label>
+            )}
             <div className="mt-3 grid grid-cols-3 gap-1.5">
               {(
                 [

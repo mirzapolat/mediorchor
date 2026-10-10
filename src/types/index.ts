@@ -4,10 +4,9 @@ import type { Language } from '@/lib/config';
 // Every account is the same kind of account; capability flags grant extra
 // rights. An account without any flag is a participant: it only sees projects
 // it participates in (via a members row linked through members.user_id).
-// Editing pieces of the shared collection: 'all' = every piece and the
-// collection page, 'projects' = pieces of projects one manages, 'none' = no
-// piece content (project managers still add, remove and order pieces).
-export type PieceAccess = 'none' | 'projects' | 'all';
+// An account's permissions (see src/lib/roles.ts): Teilnehmer, Stimmeltern,
+// Verwaltung, Admin.
+export type UserRole = 'participant' | 'section_lead' | 'manager' | 'admin';
 
 // Pages an account can pick as its start page (see app_users.home_page).
 export type HomePage = 'dashboard' | 'projects' | 'pieces' | 'calendar';
@@ -23,11 +22,7 @@ export interface AppUser {
   first_name: string;
   last_name: string;
   name: string; // "first last", computed by the database (read-only)
-  is_admin: boolean; // full access; several accounts may hold this
-  can_manage_projects: boolean; // manages every project; single projects are granted via user_projects
-  can_access_club: boolean; // access to the Vereinsmitglieder section (off by default)
-  can_edit_calendars: boolean; // opens and edits the Kalender page (off by default; admins always)
-  piece_access: PieceAccess; // editing pieces (see PieceAccess)
+  role: UserRole; // permissions; new accounts are Teilnehmer ('participant')
   photo_url: string | null; // set by the account holder, mirrored onto linked members
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
   approved: boolean; // false = self sign-up waiting for admin approval
@@ -99,27 +94,7 @@ export interface Member {
   photo_url: string | null; // mirrors the linked account's photo (read-only)
   status: MemberStatus;
   user_id: string | null; // linked account; an active linked row = participation
-  created_at: string;
-}
-
-export type ClubMemberStatus = 'active' | 'passive';
-
-// Workspace-wide association member directory — unrelated to project `members`.
-export interface ClubMember {
-  id: string;
-  title: string | null;
-  salutation: string | null;
-  first_name: string;
-  last_name: string;
-  care_of: string | null; // "Zusatz / c/o"
-  street: string | null; // "Straße und Hausnummer"
-  address_extra: string | null; // "Adresszusatz"
-  postal_code: string | null; // "PLZ"
-  city: string | null; // "Ort / Stadt"
-  country: string | null; // "Land"
-  email: string | null;
-  phone: string | null;
-  status: ClubMemberStatus;
+  auditioned: boolean; // "Vorgesungen", ticked on the Fehlzeiten page
   created_at: string;
 }
 

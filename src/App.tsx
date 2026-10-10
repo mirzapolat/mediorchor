@@ -1,7 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { Mail, UsersRound } from 'lucide-react';
-import { NoAccess } from '@/components/NoAccess';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { safeRedirectPath } from '@/lib/safePath';
 import { trackPageview } from '@/lib/analytics';
@@ -10,9 +8,6 @@ import { WelcomePhotoPrompt } from '@/components/WelcomePhotoPrompt';
 import { LoginPage } from '@/pages/LoginPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { PaddedPage } from '@/layouts/PaddedPage';
-import { ClubLayout } from '@/layouts/ClubLayout';
-import { FeaturePreviewPage } from '@/pages/FeaturePreviewPage';
-import { CLUB_ENABLED } from '@/lib/features';
 import {
   ProjectLayout,
   ProjectIndexRedirect,
@@ -26,10 +21,6 @@ import { ProjectsPage } from '@/pages/ProjectsPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { homePath } from '@/lib/homePage';
 import { ProjectOnboardingPage } from '@/pages/ProjectOnboardingPage';
-import { ClubMembersPage } from '@/pages/ClubMembersPage';
-import { ClubMemberDetailPage } from '@/pages/ClubMemberDetailPage';
-import { ClubApplicationsPage } from '@/pages/ClubApplicationsPage';
-import { ClubRulesPage } from '@/pages/ClubRulesPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
 import { AdminBrandingPage, AdminLegalPage, AdminSecurityPage } from '@/pages/AdminSettingsPages';
@@ -68,12 +59,6 @@ import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicCalendarPage } from '@/pages/PublicCalendarPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
-
-// Admin-only routes; everyone else gets the no-access notice.
-const RequireAdmin = () => {
-  const { isAdmin } = useAuth();
-  return isAdmin ? <Outlet /> : <NoAccess />;
-};
 
 export const App = () => {
   const { session, user, loading, mfaSetupRequired } = useAuth();
@@ -144,47 +129,6 @@ export const App = () => {
             <Route path=":pieceId" element={<PieceDetailPage />} />
             <Route path=":pieceId/setup" element={<PieceSetupPage />} />
           </Route>
-
-          {/* Planned sections, shown as a notice to admins for now. */}
-          <Route element={<RequireAdmin />}>
-            <Route element={<PaddedPage />}>
-              {!CLUB_ENABLED && (
-                <Route
-                  path="club/*"
-                  element={
-                    <FeaturePreviewPage
-                      title="club"
-                      icon={UsersRound}
-                      intro="clubPreviewIntro"
-                      ideas={['clubPreviewMembers', 'clubPreviewApplications', 'clubPreviewRules']}
-                    />
-                  }
-                />
-              )}
-              <Route
-                path="newsletter"
-                element={
-                  <FeaturePreviewPage
-                    title="newsletter"
-                    icon={Mail}
-                    intro="newsletterPreviewIntro"
-                    ideas={['newsletterPreviewProject', 'newsletterPreviewEveryone']}
-                  />
-                }
-              />
-            </Route>
-          </Route>
-
-          {/* Club members section — owns a second (nested) sidebar. */}
-          {CLUB_ENABLED && (
-            <Route path="club" element={<ClubLayout />}>
-              <Route index element={<Navigate to="members" replace />} />
-              <Route path="members" element={<ClubMembersPage />} />
-              <Route path="members/:memberId" element={<ClubMemberDetailPage />} />
-              <Route path="applications" element={<ClubApplicationsPage />} />
-              <Route path="rules" element={<ClubRulesPage />} />
-            </Route>
-          )}
         </Route>
 
         {/* Admin-only administration — isolated in its own sidebar layout. */}

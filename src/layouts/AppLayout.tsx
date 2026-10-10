@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { CalendarDays, FolderKanban, LayoutDashboard, Mail, Music, ShieldCheck, UsersRound } from 'lucide-react';
-import { CLUB_ENABLED } from '@/lib/features';
+import { CalendarDays, FolderKanban, LayoutDashboard, Music, ShieldCheck } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { Sidebar, SidebarActionLink, useSidebar } from '@/components/Sidebar';
@@ -30,7 +29,7 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canAccessClub, canEditCalendars, isAdmin, hasFullPieceAccess } = useAuth();
+  const { canEditCalendars, isAdmin, hasFullPieceAccess } = useAuth();
 
   return (
     <div className="flex h-full">
@@ -47,16 +46,6 @@ export const AppLayout = () => {
           <SidebarNavItem to="/projects" end label={t('projects')} icon={FolderKanban} />
           {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
           {canEditCalendars && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}
-          {CLUB_ENABLED && canAccessClub && <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />}
-
-          {/* Preview sections (a notice for admins only), set apart by a line. */}
-          {isAdmin && (
-            <>
-              <div role="separator" className="!my-3 border-t border-border" />
-              {!CLUB_ENABLED && <SidebarNavItem to="/club" label={t('club')} icon={UsersRound} />}
-              <SidebarNavItem to="/newsletter" label={t('newsletter')} icon={Mail} />
-            </>
-          )}
         </div>
 
         <SidebarFooter />

@@ -5,25 +5,23 @@ import { Avatar } from './Avatar';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
+import { permissionsFor } from '@/lib/roles';
 import type { AppUser, Member, Project } from '@/types';
 
 type Row = {
   project: Project;
-  // 'all': management through admin / all-projects rights; 'granted': a
-  // user_projects row for this project.
-  manage: 'all' | 'granted' | null;
+  // Works with the project's content through its role (Stimmeltern and up).
+  manage: boolean;
   member: Member | null;
 };
 
-// Admin view of an account's projects: where it takes part (and as what) and
-// where it has management rights, split into active and archived projects.
-// Accounts with access to all projects list only the projects they also take
-// part in or were granted; the rest is covered by the hint.
+// Admin view of an account's projects: where it takes part (and as what),
+// split into active and archived projects. Roles from Stimmeltern up cover
+// every project; the hint says so and each listed project shows it.
 export const UserProjectsCard = ({ user, reloadKey }: { user: AppUser; reloadKey: number }) => {
   const { t } = useI18n();
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [granted, setGranted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,12 +29,10 @@ export const UserProjectsCard = ({ user, reloadKey }: { user: AppUser; reloadKey
     void Promise.all([
       api.from('projects').select('*').order('name'),
       api.from('members').select('*').eq('user_id', user.id),
-      api.from('user_projects').select('project_id').eq('user_id', user.id),
-    ]).then(([proj, mem, access]) => {
+    ]).then(([proj, mem]) => {
       if (cancelled) return;
       setProjects((proj.data as Project[]) ?? []);
       setMembers((mem.data as Member[]) ?? []);
-      setGranted(new Set(((access.data as { project_id: string }[]) ?? []).map((r) => r.project_id)));
       setLoading(false);
     });
     return () => {
@@ -44,22 +40,22 @@ export const UserProjectsCard = ({ user, reloadKey }: { user: AppUser; reloadKey
     };
   }, [user.id, reloadKey]);
 
-  const allProjects = user.is_admin || user.can_manage_projects;
+  const allProjects = permissionsFor(user.role).canAccessAllProjects;
 
   const { active, archived } = useMemo(() => {
     const memberByProject = new Map(members.map((m) => [m.project_id, m]));
     const rows: Row[] = projects
       .map((project) => ({
         project,
-        manage: allProjects ? ('all' as const) : granted.has(project.id) ? ('granted' as const) : null,
+        manage: allProjects,
         member: memberByProject.get(project.id) ?? null,
       }))
-      .filter((r) => r.member || granted.has(r.project.id));
+      .filter((r) => r.member);
     return {
       active: rows.filter((r) => r.project.status === 'active'),
       archived: rows.filter((r) => r.project.status === 'archived'),
     };
-  }, [projects, members, granted, allProjects]);
+  }, [projects, members, allProjects]);
 
   return (
     <Card className="max-w-xl mt-6">
@@ -118,9 +114,7 @@ const ProjectRow = ({ row, muted }: { row: Row; muted?: boolean }) => {
           {project.name}
         </Link>
         <div className="mt-1 flex flex-wrap gap-1.5">
-          {manage && (
-            <Badge strong>{manage === 'all' ? t('userProjectManageAll') : t('userProjectManage')}</Badge>
-          )}
+          {manage && <Badge strong>{t('userProjectManageAll')}</Badge>}
           {participation && (
             <Badge>
               {participation}

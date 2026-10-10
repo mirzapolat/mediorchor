@@ -1,4 +1,5 @@
 import type { AppUser, HomePage } from '@/types';
+import { permissionsFor } from '@/lib/roles';
 
 const PATHS: Record<HomePage, string> = {
   dashboard: '/dashboard',
@@ -19,10 +20,7 @@ export const availableHomePages = (access: { hasFullPieceAccess: boolean; canEdi
 // Where `/` and signing in lead; the dashboard when the chosen page isn't
 // (or no longer is) open to the account.
 export const homePath = (user: AppUser | null) => {
-  const access = {
-    hasFullPieceAccess: Boolean(user?.is_admin || user?.piece_access === 'all'),
-    canEditCalendars: Boolean(user?.is_admin || user?.can_edit_calendars),
-  };
+  const access = permissionsFor(user?.role);
   const page = user?.home_page ?? 'dashboard';
   return PATHS[availableHomePages(access).includes(page) ? page : 'dashboard'];
 };

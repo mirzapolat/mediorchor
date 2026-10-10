@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Plus, Check } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -15,6 +15,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLES, ROLE_LABEL } from '@/lib/roles';
 import type { AppUser } from '@/types';
 
 export const UsersPage = () => {
@@ -81,15 +82,6 @@ export const UsersPage = () => {
 
   if (loading) return <PageSpinner />;
 
-  // Yes/no cells as a check or a dash keep the narrow columns narrow.
-  const flag = (on: boolean) =>
-    on ? (
-      <Check size={16} className="mx-auto text-text-secondary" aria-label={t('yes')} />
-    ) : (
-      <span className="block text-center text-text-tertiary" aria-label={t('no')}>
-        —
-      </span>
-    );
   const narrow = 'w-px whitespace-nowrap';
   // Date over time keeps the timestamp columns narrow.
   const locale = lang === 'de' ? 'de-DE' : 'en-GB';
@@ -154,11 +146,12 @@ export const UsersPage = () => {
       },
     },
     {
-      id: 'admin',
-      header: t('owner'),
-      accessor: (u) => (u.is_admin ? 0 : 1),
+      id: 'role',
+      header: t('role'),
+      // Highest role first when sorting ascending.
+      accessor: (u) => ROLES.length - ROLES.indexOf(u.role),
       className: narrow,
-      render: (u) => flag(u.is_admin),
+      render: (u) => <span className="text-sm text-text-secondary">{t(ROLE_LABEL[u.role])}</span>,
     },
   ];
 
@@ -173,13 +166,10 @@ export const UsersPage = () => {
       predicate: (u, v) => (v === 'pending' ? !u.approved : u.approved),
     },
     {
-      id: 'admin',
-      label: t('owner'),
-      options: [
-        { value: 'yes', label: t('yes') },
-        { value: 'no', label: t('no') },
-      ],
-      predicate: (u, v) => (v === 'yes' ? u.is_admin : !u.is_admin),
+      id: 'role',
+      label: t('role'),
+      options: ROLES.map((role) => ({ value: role, label: t(ROLE_LABEL[role]) })),
+      predicate: (u, v) => u.role === v,
     },
   ]);
 
@@ -208,8 +198,8 @@ export const UsersPage = () => {
         query={tf.query}
         hideToolbar
         emptyMessage={t('noResults')}
-        // Phones: photo, name and email, then admin (when on) and when last
-        // seen, as compact facts.
+        // Phones: photo, name and email, then the role (unless Teilnehmer) and
+        // when last seen, as compact facts.
         mobileCard={(u) => {
           const at = lastSeen.get(u.id);
           return (
@@ -225,10 +215,9 @@ export const UsersPage = () => {
               }
             >
               <span className="w-full min-w-0 break-all">{u.email}</span>
-              {u.is_admin && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-surface-muted px-1.5 py-0.5 text-xs font-medium">
-                  <Check size={12} />
-                  {t('owner')}
+              {u.role !== 'participant' && (
+                <span className="inline-flex items-center rounded-md bg-surface-muted px-1.5 py-0.5 text-xs font-medium">
+                  {t(ROLE_LABEL[u.role])}
                 </span>
               )}
               <span className="text-xs text-text-tertiary">

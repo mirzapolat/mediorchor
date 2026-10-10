@@ -10,10 +10,8 @@ import { rateLimit } from './ratelimit.ts';
 
 const requireAdmin = (c: Context) => {
   const user = requireSession(c);
-  const row = db.prepare('select is_admin from app_users where id = ?').get(user.id) as
-    | { is_admin: number }
-    | undefined;
-  if (!row?.is_admin) throw forbidden('Forbidden: admin only');
+  const row = db.prepare('select role from app_users where id = ?').get(user.id) as { role: string } | undefined;
+  if (row?.role !== 'admin') throw forbidden('Forbidden: admin only');
   return user;
 };
 
@@ -42,10 +40,8 @@ adminRoutes.post('/admin-delete-user', async (c) => {
   if (typeof userId !== 'string' || !userId) throw new ApiError('userId is required', 400);
   if (userId === me.id) throw new ApiError('You cannot delete yourself', 400);
 
-  const target = db.prepare('select is_admin from app_users where id = ?').get(userId) as
-    | { is_admin: number }
-    | undefined;
-  if (target?.is_admin) throw new ApiError('Cannot delete an admin', 400);
+  const target = db.prepare('select role from app_users where id = ?').get(userId) as { role: string } | undefined;
+  if (target?.role === 'admin') throw new ApiError('Cannot delete an admin', 400);
 
   const { changes } = db.prepare('delete from auth_users where id = ?').run(userId);
   if (!changes) throw new ApiError('User not found', 404);
