@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type DragEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -33,7 +33,10 @@ import {
   persistOrder,
   pieceFileUrl,
   removePieceFromProject,
+  TRACK_RECORDING_FIELDS,
+  trackRecordingField,
   uploadPieceFile,
+  type TrackRecordingField,
 } from '@/lib/pieceFiles';
 import { NotationError, parseNotation } from '@/lib/musicxml';
 import {
@@ -43,6 +46,7 @@ import {
   guessFileKind,
   guessVoice,
   isClickRecording,
+  isQuietRecording,
   timelineDuration,
   timelineLabels,
 } from '@/lib/pieceTimeline';
@@ -272,9 +276,13 @@ export const PieceSetupPage = () => {
 
   const addFiles = async (picked: File[]) => {
     // Notation first (its bars then check the recordings); recordings with
-    // click last, so the voices they belong to exist.
+    // click or quiet other voices last, so the voices they belong to exist.
     const rank = (f: File) =>
-      guessFileKind(f) === 'notation' ? 0 : guessFileKind(f) === 'audio' && isClickRecording(f.name) ? 2 : 1;
+      guessFileKind(f) === 'notation'
+        ? 0
+        : guessFileKind(f) === 'audio' && (isClickRecording(f.name) || isQuietRecording(f.name))
+          ? 2
+          : 1;
     const ordered = [...picked].sort((a, b) => rank(a) - rank(b));
     const counts: Partial<Record<PieceFileKind, number>> = {};
     for (const f of files) counts[f.kind] = (counts[f.kind] ?? 0) + 1;
@@ -291,6 +299,9 @@ export const PieceSetupPage = () => {
 
       const kind = guessFileKind(file);
       const withClick = kind === 'audio' && isClickRecording(file.name);
+      const quiet = kind === 'audio' && isQuietRecording(file.name);
+      // Which of a voice's four recordings this is.
+      const slot = trackRecordingField(quiet, withClick);
       const [result, leadIn] = await Promise.all([
         uploadPieceFile(piece.id, file),
         kind === 'audio' ? detectLeadIn(file) : Promise.resolve(null),
@@ -309,9 +320,9 @@ export const PieceSetupPage = () => {
           kind,
           title:
             kind === 'audio'
-              ? withClick
-                ? `${voice} (${t('withMetronome')})`
-                : voice
+              ? slot === 'file_id'
+                ? voice
+                : `${voice} (${recordingSlotLabel(slot)})`
               : file.name.replace(/\.[^.]+$/, ''),
           file_path: result.path,
           file_name: file.name,
@@ -327,25 +338,26 @@ export const PieceSetupPage = () => {
       const fileId = (data as { id: string }).id;
       let note: string = t(KIND_OPTIONS.find((k) => k.kind === kind)!.label);
 
-      if (kind === 'audio' && !withClick) {
-        // A new voice with this recording (the voice from the file name).
-        const { data: track } = await api
-          .from('piece_tracks')
-          .insert({ piece_id: piece.id, title: voice, file_id: fileId, offset_s: leadIn ?? 0, position: voices.length })
-          .select('*')
-          .single();
-        if (track) voices.push(track as PieceTrack);
-        note = `${t('voiceName')} · ${voice}`;
-      } else if (withClick) {
-        // Joins the voice of the same name, or the only one still without.
+      if (kind === 'audio') {
+        // Joins the voice of the same name, or the only one still without
+        // this recording; otherwise (and always for the plain recording)
+        // starts a new voice.
         const name = voice.toLowerCase();
-        const open = voices.filter((v) => !v.click_file_id);
+        const open = slot === 'file_id' ? [] : voices.filter((v) => !v[slot]);
         const target =
           open.find((v) => v.title.trim().toLowerCase() === name) ?? (open.length === 1 ? open[0] : undefined);
         if (target) {
-          target.click_file_id = fileId;
-          await api.from('piece_tracks').update({ click_file_id: fileId }).eq('id', target.id);
-          note = `${t('withMetronome')} · ${target.title}`;
+          target[slot] = fileId;
+          await api.from('piece_tracks').update({ [slot]: fileId }).eq('id', target.id);
+          note = `${recordingSlotLabel(slot)} · ${target.title}`;
+        } else {
+          const { data: track } = await api
+            .from('piece_tracks')
+            .insert({ piece_id: piece.id, title: voice, [slot]: fileId, offset_s: leadIn ?? 0, position: voices.length })
+            .select('*')
+            .single();
+          if (track) voices.push(track as PieceTrack);
+          note = `${t('voiceName')} · ${voice}`;
         }
       } else if (kind === 'score' && !scoreId) {
         scoreId = fileId;
@@ -468,8 +480,15 @@ export const PieceSetupPage = () => {
   const links = files.filter((f) => f.kind === 'link');
   const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
 
+  // "Andere stumm · ohne Metronom" etc.
+  const recordingSlotLabel = (slot: TrackRecordingField) => {
+    const quiet = slot === 'quiet_file_id' || slot === 'quiet_click_file_id';
+    const click = slot === 'click_file_id' || slot === 'quiet_click_file_id';
+    return `${t(quiet ? 'othersQuietLong' : 'othersMutedLong')} · ${t(click ? 'withMetronome' : 'withoutMetronome')}`;
+  };
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4 pb-10">
+    <div className="mx-auto max-w-2xl space-y-4 pb-10 lg:max-w-6xl">
       <button
         onClick={() => navigate(back)}
         className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
@@ -482,467 +501,493 @@ export const PieceSetupPage = () => {
         <p className="mt-1 text-sm text-text-secondary">{t('setUpHint')}</p>
       </div>
 
-      <Section title={t('details')}>
-        <Input
-          id="piece-name"
-          label={t('pieceName')}
-          defaultValue={piece.name}
-          onBlur={(e) => {
-            const v = e.target.value.trim();
-            if (v && v !== piece.name) void updatePiece({ name: v });
-          }}
-        />
-        <Input
-          id="piece-composer"
-          label={t('composer')}
-          defaultValue={piece.composer}
-          onBlur={(e) => e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })}
-        />
-        <Input
-          id="piece-description"
-          label={
-            <>
-              {t('shortDescription')} <span className="font-normal text-text-tertiary">({t('optional')})</span>
-            </>
-          }
-          placeholder={t('shortDescriptionPlaceholder')}
-          defaultValue={piece.description}
-          onBlur={(e) =>
-            e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
-          }
-        />
-        <div className="space-y-1.5">
-          <Input
-            // Re-mounted when the saved value changes (e.g. read from the MusicXML).
-            key={piece.duration_s ?? 'none'}
-            id="piece-duration"
-            label={t('pieceLength')}
-            placeholder="m:ss"
-            inputMode="numeric"
-            defaultValue={piece.duration_s != null ? formatTime(piece.duration_s) : ''}
-            onBlur={(e) => {
-              const v = parseDuration(e.target.value);
-              if (v === undefined) {
-                setDurationError(true);
-                return;
+      {/* Wide screens: piece details and uploads left; what the player and
+          the piece page use (voices, score, notation, links, bars) right. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="min-w-0 space-y-4">
+          <Section title={t('details')}>
+            <Input
+              id="piece-name"
+              label={t('pieceName')}
+              defaultValue={piece.name}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v && v !== piece.name) void updatePiece({ name: v });
+              }}
+            />
+            <Input
+              id="piece-composer"
+              label={t('composer')}
+              defaultValue={piece.composer}
+              onBlur={(e) => e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })}
+            />
+            <Input
+              id="piece-description"
+              label={
+                <>
+                  {t('shortDescription')} <span className="font-normal text-text-tertiary">({t('optional')})</span>
+                </>
               }
-              setDurationError(false);
-              if (v !== piece.duration_s) void updatePiece({ duration_s: v });
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            className="max-w-[10rem]"
-          />
-          <p className={cn('text-sm', durationError ? 'text-danger' : 'text-text-secondary')}>
-            {durationError ? t('durationInvalid') : t('durationHint')}
-          </p>
-        </div>
-      </Section>
-
-      <Section title={t('credits')} hint={t('creditsHint')}>
-        {credits.length > 0 && (
-          <ul className="space-y-3">
-            {credits.map((c) => (
-              <li key={c.id}>
-                <CreditRow
-                  credit={c}
-                  onChange={(patch) => void updateCredit(c, patch)}
-                  onRemove={() => void removeCredit(c)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-        <Button variant="secondary" onClick={() => void addCredit()}>
-          <Plus size={15} />
-          {t('addCredit')}
-        </Button>
-      </Section>
-
-      <Section title={t('addFiles')}>
-        <MultiDropzone onFiles={(picked) => void addFiles(picked)} />
-        {uploads.length > 0 && (
-          <ul className="space-y-1.5">
-            {uploads.map((u) => (
-              <li key={u.key} className="flex items-center gap-2 text-sm">
-                {u.state === 'busy' ? (
-                  <Loader2 size={15} className="flex-shrink-0 animate-spin text-text-tertiary" />
-                ) : u.state === 'done' ? (
-                  <CheckCircle2 size={15} className="flex-shrink-0 text-success" />
-                ) : (
-                  <XCircle size={15} className="flex-shrink-0 text-danger" />
-                )}
-                <span className="min-w-0 flex-1 truncate">{u.name}</span>
-                {u.note && (
-                  <span className={cn('flex-shrink-0 text-xs', u.state === 'error' ? 'text-danger' : 'text-text-secondary')}>
-                    {u.note}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="space-y-2 border-t border-border pt-4">
-          <h3 className="text-sm font-semibold">
-            {t('uploadedFiles')}
-            {uploadedFiles.length > 0 && <span className="font-normal text-text-secondary"> · {uploadedFiles.length}</span>}
-          </h3>
-          {uploadedFiles.length === 0 ? (
-            <p className="text-sm text-text-secondary">{t('noFiles')}</p>
-          ) : (
-            <ul className="divide-y divide-border rounded-md border border-border">
-              {uploadedFiles.map((f) => (
-                <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
-                  <div className="min-w-0 flex-1">
-                    <input
-                      defaultValue={f.title}
-                      aria-label={t('displayName')}
-                      placeholder={f.file_name ?? ''}
-                      onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
-                      className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
-                    />
-                    <p className="truncate px-1.5 text-xs text-text-tertiary">{f.file_name}</p>
-                  </div>
-                  <select
-                    value={f.kind}
-                    aria-label={t('fileKind')}
-                    onChange={(e) => void updateFile(f, { kind: e.target.value as PieceFileKind })}
-                    className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-1.5 text-xs text-text-secondary focus:border-black focus:outline-none"
-                  >
-                    {KIND_OPTIONS.map((k) => (
-                      <option key={k.kind} value={k.kind}>
-                        {t(k.label)}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setToDelete(f)}
-                    aria-label={t('delete')}
-                    title={t('delete')}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </Section>
-
-      <Section title={t('timingTitle')} hint={t('timingHint')}>
-        <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
-          {(['notation', 'even'] as const).map((src) => {
-            const active = mode === src;
-            return (
-              <button
-                key={src}
-                type="button"
-                disabled={src === 'notation' && !notationFile}
-                onClick={() => {
-                  setTimingMode(src);
-                  setTimingError(null);
-                  if (src === 'notation' && timeline?.source !== 'notation') void rereadNotation();
-                }}
-                className={cn(
-                  'h-9 flex-1 rounded text-sm font-medium transition-colors duration-150 disabled:opacity-40',
-                  active ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-                )}
-              >
-                {src === 'notation' ? t('timingFromNotation') : t('timingEven')}
-              </button>
-            );
-          })}
-        </div>
-
-        {mode === 'notation' ? (
-          <div className="space-y-3">
-            {timeline?.source === 'notation' && (
-              <div className="flex flex-wrap gap-1.5">
-                <Chip>
-                  {timeline.written} {t('bars')}
-                </Chip>
-                {timeline.bars.length !== timeline.written && (
-                  <Chip>
-                    {timeline.bars.length} {t('barsPlayed')}
-                  </Chip>
-                )}
-                {timeline.repeats > 0 && (
-                  <Chip>
-                    {timeline.repeats} {t('repeatsCount')}
-                  </Chip>
-                )}
-                {timeline.tempoChanges > 0 && (
-                  <Chip>
-                    {timeline.tempoChanges} {t('tempoChanges')}
-                  </Chip>
-                )}
-                {timeline.meterChanges > 0 && (
-                  <Chip>
-                    {timeline.meterChanges} {t('meterChanges')}
-                  </Chip>
-                )}
-                {expected != null && <Chip>{formatTime(expected)}</Chip>}
-              </div>
-            )}
-            {notationFile && (
-              <Button variant="secondary" onClick={() => void rereadNotation()} disabled={timingBusy}>
-                <RefreshCw size={15} className={cn(timingBusy && 'animate-spin')} />
-                {t('rereadNotation')}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {!notationFile && <p className="text-sm text-text-secondary">{t('notationTip')}</p>}
-            <div className="flex items-end gap-3">
+              placeholder={t('shortDescriptionPlaceholder')}
+              defaultValue={piece.description}
+              onBlur={(e) =>
+                e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
+              }
+            />
+            <div className="space-y-1.5">
               <Input
-                id="bar-count"
-                label={t('barCount')}
-                type="number"
+                // Re-mounted when the saved value changes (e.g. read from the MusicXML).
+                key={piece.duration_s ?? 'none'}
+                id="piece-duration"
+                label={t('pieceLength')}
+                placeholder="m:ss"
                 inputMode="numeric"
-                min={1}
-                value={barCount}
-                onChange={(e) => setBarCount(e.target.value)}
+                defaultValue={piece.duration_s != null ? formatTime(piece.duration_s) : ''}
+                onBlur={(e) => {
+                  const v = parseDuration(e.target.value);
+                  if (v === undefined) {
+                    setDurationError(true);
+                    return;
+                  }
+                  setDurationError(false);
+                  if (v !== piece.duration_s) void updatePiece({ duration_s: v });
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                 className="max-w-[10rem]"
               />
-              <Button onClick={() => void saveEven()} disabled={!barCount} className="h-10">
-                {t('save')}
-              </Button>
+              <p className={cn('text-sm', durationError ? 'text-danger' : 'text-text-secondary')}>
+                {durationError ? t('durationInvalid') : t('durationHint')}
+              </p>
             </div>
-          </div>
-        )}
-        {timingError && <p className="text-sm text-danger">{timingError}</p>}
+          </Section>
 
-        {firstNumber != null && shownStart != null && (
-          <div className="space-y-1.5 border-t border-border pt-3">
-            <Input
-              // Re-mounted when the saved value changes, so it shows that value.
-              key={shownStart}
-              id="bar-numbering-start"
-              label={t('barNumberingStart')}
-              type="number"
-              inputMode="numeric"
-              defaultValue={shownStart}
-              onBlur={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (!Number.isFinite(v) || v === shownStart) {
-                  e.target.value = String(shownStart);
-                  return;
-                }
-                void updatePiece({ bar_shift: v - firstNumber });
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              className="max-w-[10rem]"
-            />
-            <p className="text-sm text-text-secondary">{t('barNumberingHint')}</p>
-          </div>
-        )}
-      </Section>
-
-      {score && labels.length > 0 && (
-        <Section
-          title={t('markersTitle')}
-          hint={t('markersHint')}
-          action={
-            <span className="flex-shrink-0 text-sm tabular-nums text-text-secondary">
-              {placed}/{labels.length}
-            </span>
-          }
-        >
-          <Button variant="secondary" onClick={() => navigate(`${back}?place=1`)} disabled={!canPlaceBars}>
-            <MapPin size={15} />
-            {placed > 0 ? t('editMarkers') : t('placeBars')}
-          </Button>
-          {!canPlaceBars && <p className="text-sm text-text-secondary">{t('placeBarsDesktopOnly')}</p>}
-        </Section>
-      )}
-
-      <Section title={t('voicesTitle')} hint={t('voicesPickHint')}>
-        {recordings.length === 0 && <p className="text-sm text-text-secondary">{t('voicesNoRecordings')}</p>}
-        {tracks.length > 0 && (
-          <SortableList
-            items={tracks}
-            getId={(x) => x.id}
-            onReorder={reorderVoices}
-            renderItem={(track) => {
-              const without = recordings.find((f) => f.id === track.file_id);
-              return (
-                <div className="space-y-2 p-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      defaultValue={track.title}
-                      aria-label={t('voiceName')}
-                      placeholder={t('voiceName')}
-                      onBlur={(e) =>
-                        e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })
-                      }
-                      className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+          <Section title={t('credits')} hint={t('creditsHint')}>
+            {credits.length > 0 && (
+              <ul className="space-y-3">
+                {credits.map((c) => (
+                  <li key={c.id}>
+                    <CreditRow
+                      credit={c}
+                      onChange={(patch) => void updateCredit(c, patch)}
+                      onRemove={() => void removeCredit(c)}
                     />
-                    <button
-                      type="button"
-                      onClick={() => void removeVoice(track)}
-                      aria-label={t('removeVoice')}
-                      title={t('removeVoice')}
-                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                    >
-                      <X size={15} />
-                    </button>
-                  </div>
-                  <div className="grid gap-2 px-2 sm:grid-cols-2">
-                    {(['file_id', 'click_file_id'] as const).map((field) => (
-                      <label key={field} className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-secondary">
-                        {field === 'file_id' ? t('withoutMetronome') : t('withMetronome')}
-                        <select
-                          value={track[field] ?? ''}
-                          onChange={(e) => {
-                            const id = e.target.value || null;
-                            const patch: Partial<PieceTrack> = { [field]: id };
-                            // A first recording brings its measured lead-in.
-                            const picked = recordings.find((f) => f.id === id);
-                            if (field === 'file_id' && picked && track.offset_s === 0 && picked.offset_s > 0) {
-                              patch.offset_s = picked.offset_s;
-                            }
-                            void updateTrack(track, patch);
-                          }}
-                          className={selectClasses}
-                        >
-                          <option value="">{t('noRecording')}</option>
-                          {recordings.map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {fileLabel(f)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2 text-xs text-text-secondary">
-                    <label className="inline-flex items-center gap-1.5">
-                      {t('leadIn')}
-                      <input
-                        key={track.offset_s}
-                        type="number"
-                        step={0.01}
-                        min={0}
-                        defaultValue={track.offset_s}
-                        onBlur={(e) => {
-                          const v = Math.max(0, parseFloat(e.target.value) || 0);
-                          if (v !== track.offset_s) void updateTrack(track, { offset_s: v });
-                        }}
-                        className="h-7 w-16 rounded-md border border-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-black focus:outline-none"
-                      />
-                      s
-                    </label>
-                    {without && durations[without.id] > 0 && (
-                      <TrackCheck duration={durations[without.id]} expected={expected} offset={track.offset_s} />
-                    )}
-                  </div>
-                </div>
-              );
-            }}
-          />
-        )}
-        <Button variant="secondary" onClick={() => void addVoice()}>
-          <Plus size={15} />
-          {t('addVoice')}
-        </Button>
-      </Section>
-
-      <Section title={t('miscTitle')}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
-            {t('scoreFileLabel')}
-            <select
-              value={piece.score_file_id ?? ''}
-              onChange={(e) => void updatePiece({ score_file_id: e.target.value || null })}
-              className={cn(selectClasses, 'h-10')}
-            >
-              <option value="">{t('noFileSelected')}</option>
-              {scoreFiles.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {fileLabel(f)}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs font-normal text-text-secondary">{t('scoreFileHint')}</span>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
-            {t('notationFileLabel')}
-            <select
-              value={piece.notation_file_id ?? ''}
-              onChange={(e) => {
-                const id = e.target.value || null;
-                void updatePiece({ notation_file_id: id });
-                // The bars follow the chosen file while they come from one.
-                const picked = notationFiles.find((f) => f.id === id) ?? null;
-                if (picked && mode === 'notation') void rereadNotation(picked);
-              }}
-              className={cn(selectClasses, 'h-10')}
-            >
-              <option value="">{t('noFileSelected')}</option>
-              {notationFiles.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {fileLabel(f)}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs font-normal text-text-secondary">{t('notationFileHint')}</span>
-          </label>
-        </div>
-
-        <div className="space-y-2 border-t border-border pt-4">
-          <h3 className="text-sm font-semibold">{t('fileKindLink')}</h3>
-          {links.length > 0 && (
-            <ul className="divide-y divide-border rounded-md border border-border">
-              {links.map((f) => (
-                <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
-                  <div className="min-w-0 flex-1">
-                    <input
-                      defaultValue={f.title}
-                      aria-label={t('displayName')}
-                      onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
-                      className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
-                    />
-                    <p className="truncate px-1.5 text-xs text-text-tertiary">{f.url}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setToDelete(f)}
-                    aria-label={t('delete')}
-                    title={t('delete')}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
-            <input
-              value={linkTitle}
-              onChange={(e) => setLinkTitle(e.target.value)}
-              placeholder={t('displayName')}
-              aria-label={t('displayName')}
-              className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-            />
-            <input
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://"
-              aria-label={t('linkUrl')}
-              inputMode="url"
-              className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-            />
-            <Button variant="secondary" onClick={() => void addLink()} disabled={!linkUrl.trim()} className="h-10">
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button variant="secondary" onClick={() => void addCredit()}>
               <Plus size={15} />
-              {t('add')}
+              {t('addCredit')}
             </Button>
-          </div>
-          {linkError && <p className="text-sm text-danger">{linkError}</p>}
+          </Section>
+
+          <Section title={t('addFiles')}>
+            <MultiDropzone onFiles={(picked) => void addFiles(picked)} />
+            {uploads.length > 0 && (
+              <ul className="space-y-1.5">
+                {uploads.map((u) => (
+                  <li key={u.key} className="flex items-center gap-2 text-sm">
+                    {u.state === 'busy' ? (
+                      <Loader2 size={15} className="flex-shrink-0 animate-spin text-text-tertiary" />
+                    ) : u.state === 'done' ? (
+                      <CheckCircle2 size={15} className="flex-shrink-0 text-success" />
+                    ) : (
+                      <XCircle size={15} className="flex-shrink-0 text-danger" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{u.name}</span>
+                    {u.note && (
+                      <span className={cn('flex-shrink-0 text-xs', u.state === 'error' ? 'text-danger' : 'text-text-secondary')}>
+                        {u.note}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="space-y-2 border-t border-border pt-4">
+              <h3 className="text-sm font-semibold">
+                {t('uploadedFiles')}
+                {uploadedFiles.length > 0 && <span className="font-normal text-text-secondary"> · {uploadedFiles.length}</span>}
+              </h3>
+              {uploadedFiles.length === 0 ? (
+                <p className="text-sm text-text-secondary">{t('noFiles')}</p>
+              ) : (
+                <ul className="divide-y divide-border rounded-md border border-border">
+                  {uploadedFiles.map((f) => (
+                    <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <input
+                          defaultValue={f.title}
+                          aria-label={t('displayName')}
+                          placeholder={f.file_name ?? ''}
+                          onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
+                          className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                        />
+                        <p className="truncate px-1.5 text-xs text-text-tertiary">{f.file_name}</p>
+                      </div>
+                      <select
+                        value={f.kind}
+                        aria-label={t('fileKind')}
+                        onChange={(e) => void updateFile(f, { kind: e.target.value as PieceFileKind })}
+                        className="h-8 flex-shrink-0 rounded-md border border-border bg-surface px-1.5 text-xs text-text-secondary focus:border-black focus:outline-none"
+                      >
+                        {KIND_OPTIONS.map((k) => (
+                          <option key={k.kind} value={k.kind}>
+                            {t(k.label)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setToDelete(f)}
+                        aria-label={t('delete')}
+                        title={t('delete')}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Section>
         </div>
-      </Section>
+        <div className="min-w-0 space-y-4">
+          <Section title={t('voicesTitle')} hint={t('voicesPickHint')}>
+            {recordings.length === 0 && <p className="text-sm text-text-secondary">{t('voicesNoRecordings')}</p>}
+            {tracks.length > 0 && (
+              <SortableList
+                items={tracks}
+                getId={(x) => x.id}
+                onReorder={reorderVoices}
+                renderItem={(track) => {
+                  // Checked against the bars: the first of its recordings (all share their timing).
+                  const without = TRACK_RECORDING_FIELDS.map((field) => recordings.find((f) => f.id === track[field])).find(
+                    Boolean,
+                  );
+                  return (
+                    <div className="space-y-2 p-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          defaultValue={track.title}
+                          aria-label={t('voiceName')}
+                          placeholder={t('voiceName')}
+                          onBlur={(e) =>
+                            e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })
+                          }
+                          className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void removeVoice(track)}
+                          aria-label={t('removeVoice')}
+                          title={t('removeVoice')}
+                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                      {/* The four recordings: other voices muted / quiet (rows)
+                          × without / with metronome (columns). */}
+                      <div
+                        role="group"
+                        aria-label={t('voiceRecordings')}
+                        className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5 px-2 text-xs font-medium text-text-secondary"
+                      >
+                        <span className="text-[11px] font-normal text-text-tertiary">{t('otherVoices')}</span>
+                        <span>{t('withoutMetronome')}</span>
+                        <span>{t('withMetronome')}</span>
+                        {[false, true].map((quiet) => (
+                          <Fragment key={String(quiet)}>
+                            <span>{t(quiet ? 'othersQuiet' : 'othersMuted')}</span>
+                            {[false, true].map((click) => {
+                              const field = trackRecordingField(quiet, click);
+                              return (
+                                <select
+                                  key={field}
+                                  value={track[field] ?? ''}
+                                  aria-label={recordingSlotLabel(field)}
+                                  onChange={(e) => {
+                                    const id = e.target.value || null;
+                                    const patch: Partial<PieceTrack> = { [field]: id };
+                                    // A first recording brings its measured lead-in.
+                                    const picked = recordings.find((f) => f.id === id);
+                                    if (picked && track.offset_s === 0 && picked.offset_s > 0) {
+                                      patch.offset_s = picked.offset_s;
+                                    }
+                                    void updateTrack(track, patch);
+                                  }}
+                                  className={cn(selectClasses, 'w-full font-normal text-text')}
+                                >
+                                  <option value="">{t('noRecording')}</option>
+                                  {recordings.map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                      {fileLabel(f)}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+                            })}
+                          </Fragment>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2 text-xs text-text-secondary">
+                        <label className="inline-flex items-center gap-1.5">
+                          {t('leadIn')}
+                          <input
+                            key={track.offset_s}
+                            type="number"
+                            step={0.01}
+                            min={0}
+                            defaultValue={track.offset_s}
+                            onBlur={(e) => {
+                              const v = Math.max(0, parseFloat(e.target.value) || 0);
+                              if (v !== track.offset_s) void updateTrack(track, { offset_s: v });
+                            }}
+                            className="h-7 w-16 rounded-md border border-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-black focus:outline-none"
+                          />
+                          s
+                        </label>
+                        {without && durations[without.id] > 0 && (
+                          <TrackCheck duration={durations[without.id]} expected={expected} offset={track.offset_s} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+            )}
+            <Button variant="secondary" onClick={() => void addVoice()}>
+              <Plus size={15} />
+              {t('addVoice')}
+            </Button>
+          </Section>
+
+          <Section title={t('miscTitle')}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
+                {t('scoreFileLabel')}
+                <select
+                  value={piece.score_file_id ?? ''}
+                  onChange={(e) => void updatePiece({ score_file_id: e.target.value || null })}
+                  className={cn(selectClasses, 'h-10')}
+                >
+                  <option value="">{t('noFileSelected')}</option>
+                  {scoreFiles.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {fileLabel(f)}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs font-normal text-text-secondary">{t('scoreFileHint')}</span>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
+                {t('notationFileLabel')}
+                <select
+                  value={piece.notation_file_id ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value || null;
+                    void updatePiece({ notation_file_id: id });
+                    // The bars follow the chosen file while they come from one.
+                    const picked = notationFiles.find((f) => f.id === id) ?? null;
+                    if (picked && mode === 'notation') void rereadNotation(picked);
+                  }}
+                  className={cn(selectClasses, 'h-10')}
+                >
+                  <option value="">{t('noFileSelected')}</option>
+                  {notationFiles.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {fileLabel(f)}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs font-normal text-text-secondary">{t('notationFileHint')}</span>
+              </label>
+            </div>
+
+            <div className="space-y-2 border-t border-border pt-4">
+              <h3 className="text-sm font-semibold">{t('fileKindLink')}</h3>
+              {links.length > 0 && (
+                <ul className="divide-y divide-border rounded-md border border-border">
+                  {links.map((f) => (
+                    <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <input
+                          defaultValue={f.title}
+                          aria-label={t('displayName')}
+                          onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
+                          className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                        />
+                        <p className="truncate px-1.5 text-xs text-text-tertiary">{f.url}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setToDelete(f)}
+                        aria-label={t('delete')}
+                        title={t('delete')}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+                <input
+                  value={linkTitle}
+                  onChange={(e) => setLinkTitle(e.target.value)}
+                  placeholder={t('displayName')}
+                  aria-label={t('displayName')}
+                  className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+                />
+                <input
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://"
+                  aria-label={t('linkUrl')}
+                  inputMode="url"
+                  className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+                />
+                <Button variant="secondary" onClick={() => void addLink()} disabled={!linkUrl.trim()} className="h-10">
+                  <Plus size={15} />
+                  {t('add')}
+                </Button>
+              </div>
+              {linkError && <p className="text-sm text-danger">{linkError}</p>}
+            </div>
+          </Section>
+
+          <Section title={t('timingTitle')} hint={t('timingHint')}>
+            <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
+              {(['notation', 'even'] as const).map((src) => {
+                const active = mode === src;
+                return (
+                  <button
+                    key={src}
+                    type="button"
+                    disabled={src === 'notation' && !notationFile}
+                    onClick={() => {
+                      setTimingMode(src);
+                      setTimingError(null);
+                      if (src === 'notation' && timeline?.source !== 'notation') void rereadNotation();
+                    }}
+                    className={cn(
+                      'h-9 flex-1 rounded text-sm font-medium transition-colors duration-150 disabled:opacity-40',
+                      active ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
+                    )}
+                  >
+                    {src === 'notation' ? t('timingFromNotation') : t('timingEven')}
+                  </button>
+                );
+              })}
+            </div>
+
+            {mode === 'notation' ? (
+              <div className="space-y-3">
+                {timeline?.source === 'notation' && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <Chip>
+                      {timeline.written} {t('bars')}
+                    </Chip>
+                    {timeline.bars.length !== timeline.written && (
+                      <Chip>
+                        {timeline.bars.length} {t('barsPlayed')}
+                      </Chip>
+                    )}
+                    {timeline.repeats > 0 && (
+                      <Chip>
+                        {timeline.repeats} {t('repeatsCount')}
+                      </Chip>
+                    )}
+                    {timeline.tempoChanges > 0 && (
+                      <Chip>
+                        {timeline.tempoChanges} {t('tempoChanges')}
+                      </Chip>
+                    )}
+                    {timeline.meterChanges > 0 && (
+                      <Chip>
+                        {timeline.meterChanges} {t('meterChanges')}
+                      </Chip>
+                    )}
+                    {expected != null && <Chip>{formatTime(expected)}</Chip>}
+                  </div>
+                )}
+                {notationFile && (
+                  <Button variant="secondary" onClick={() => void rereadNotation()} disabled={timingBusy}>
+                    <RefreshCw size={15} className={cn(timingBusy && 'animate-spin')} />
+                    {t('rereadNotation')}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {!notationFile && <p className="text-sm text-text-secondary">{t('notationTip')}</p>}
+                <div className="flex items-end gap-3">
+                  <Input
+                    id="bar-count"
+                    label={t('barCount')}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={barCount}
+                    onChange={(e) => setBarCount(e.target.value)}
+                    className="max-w-[10rem]"
+                  />
+                  <Button onClick={() => void saveEven()} disabled={!barCount} className="h-10">
+                    {t('save')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {timingError && <p className="text-sm text-danger">{timingError}</p>}
+
+            {firstNumber != null && shownStart != null && (
+              <div className="space-y-1.5 border-t border-border pt-3">
+                <Input
+                  // Re-mounted when the saved value changes, so it shows that value.
+                  key={shownStart}
+                  id="bar-numbering-start"
+                  label={t('barNumberingStart')}
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={shownStart}
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!Number.isFinite(v) || v === shownStart) {
+                      e.target.value = String(shownStart);
+                      return;
+                    }
+                    void updatePiece({ bar_shift: v - firstNumber });
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                  className="max-w-[10rem]"
+                />
+                <p className="text-sm text-text-secondary">{t('barNumberingHint')}</p>
+              </div>
+            )}
+          </Section>
+
+          {score && labels.length > 0 && (
+            <Section
+              title={t('markersTitle')}
+              hint={t('markersHint')}
+              action={
+                <span className="flex-shrink-0 text-sm tabular-nums text-text-secondary">
+                  {placed}/{labels.length}
+                </span>
+              }
+            >
+              <Button variant="secondary" onClick={() => navigate(`${back}?place=1`)} disabled={!canPlaceBars}>
+                <MapPin size={15} />
+                {placed > 0 ? t('editMarkers') : t('placeBars')}
+              </Button>
+              {!canPlaceBars && <p className="text-sm text-text-secondary">{t('placeBarsDesktopOnly')}</p>}
+            </Section>
+          )}
+        </div>
+      </div>
 
       <div className="flex flex-wrap justify-between gap-3 pt-2">
         <div className="flex flex-wrap gap-2">

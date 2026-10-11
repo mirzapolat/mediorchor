@@ -1,5 +1,5 @@
-import { useRef, type PointerEvent } from 'react';
-import { LocateFixed, Pause, Play, Repeat, SkipBack, SkipForward, X } from 'lucide-react';
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { LocateFixed, Pause, Play, Repeat, SkipBack, SkipForward, SlidersHorizontal, X } from 'lucide-react';
 import { PLAYBACK_RATES, type PracticePlayer } from '@/hooks/usePracticePlayer';
 import { formatTime } from '@/lib/pieceTimeline';
 import { useI18n } from '@/lib/i18n';
@@ -12,25 +12,6 @@ export type LoopPicking = null | { from: number | null };
 const iconButton =
   'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-text-secondary sm:h-11 sm:w-11 ' +
   'hover:bg-surface-hover hover:text-text transition-colors duration-150 disabled:opacity-40';
-
-// Lucide has no metronome; drawn in the same stroke style.
-const MetronomeIcon = ({ size = 16 }: { size?: number }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M9.5 3h5l4.5 18H5L9.5 3z" />
-    <path d="M7 15h10" />
-    <path d="M12 15l5-9" />
-  </svg>
-);
 
 // Seek bar with the loop section and (when they fit) bar ticks drawn in. The
 // thumb carries the current bar number, so no separate status line is needed.
@@ -108,6 +89,134 @@ const SeekBar = ({ player }: { player: PracticePlayer }) => {
   );
 };
 
+// A row of options in the settings panel, the chosen one filled.
+const Segmented = <T,>({
+  label,
+  options,
+  value,
+  onChange,
+  compact = false,
+}: {
+  label: string;
+  // Smaller labels, for many options.
+  compact?: boolean;
+  options: Array<{ value: T; label: ReactNode }>;
+  value: T;
+  onChange: (value: T) => void;
+}) => (
+  <div className="space-y-1.5">
+    <div className="text-xs font-medium text-text-secondary">{label}</div>
+    <div role="radiogroup" aria-label={label} className="flex gap-1 rounded-full bg-surface-hover p-0.5">
+      {options.map((o) => (
+        <button
+          key={String(o.value)}
+          type="button"
+          role="radio"
+          aria-checked={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            'h-8 min-w-0 flex-1 whitespace-nowrap rounded-full font-medium tabular-nums transition-colors duration-150',
+            compact ? 'px-0.5 text-xs' : 'px-2 text-sm',
+            o.value === value ? 'bg-black text-white shadow-sm' : 'text-text-secondary hover:text-text',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+// Playback settings behind one button: speed, metronome and the other
+// voices (the last two only when the voice has such recordings). Opens
+// upwards; closes on a click outside or Escape.
+const PlayerSettings = ({ player }: { player: PracticePlayer }) => {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { metronome, otherVoices, rate } = player;
+  // Something differs from plain playback: shown on the button.
+  const changed = rate !== 1 || (metronome.available && metronome.on) || (otherVoices.available && otherVoices.quiet);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: globalThis.PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      ref.current?.querySelector('button')?.focus();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t('playerSettings')}
+        title={t('playerSettings')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className={cn(
+          'relative flex h-9 min-w-[2.25rem] items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium tabular-nums transition-colors duration-150',
+          open ? 'bg-black text-white' : 'text-text-secondary hover:bg-surface-hover hover:text-text',
+        )}
+      >
+        <SlidersHorizontal size={16} />
+        {rate !== 1 && <span>{rate}×</span>}
+        {changed && rate === 1 && !open && (
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-black ring-2 ring-surface" />
+        )}
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={t('playerSettings')}
+          className="absolute bottom-full right-0 z-40 mb-2 w-[min(19rem,calc(100vw-2rem))] space-y-3 rounded-2xl border border-border bg-surface p-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)]"
+        >
+          <Segmented
+            label={t('playbackSpeed')}
+            options={PLAYBACK_RATES.map((r) => ({ value: r, label: `${r}×` }))}
+            value={rate}
+            onChange={player.setRate}
+            compact
+          />
+          {metronome.available && (
+            <Segmented
+              label={t('metronome')}
+              options={[
+                { value: false, label: t('off') },
+                { value: true, label: t('on') },
+              ]}
+              value={metronome.on}
+              onChange={metronome.setOn}
+            />
+          )}
+          {otherVoices.available && (
+            <Segmented
+              label={t('otherVoices')}
+              options={[
+                { value: false, label: t('othersMuted') },
+                { value: true, label: t('othersQuiet') },
+              ]}
+              value={otherVoices.quiet}
+              onChange={otherVoices.setQuiet}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const PiecePlayerBar = ({
   player,
   tracks,
@@ -127,7 +236,7 @@ export const PiecePlayerBar = ({
   follow?: { on: boolean; onChange: (on: boolean) => void };
 }) => {
   const { t } = useI18n();
-  const { track, bars, currentBar, loop, playing, metronome } = player;
+  const { track, bars, currentBar, loop, playing } = player;
   const hasBars = bars.length > 0;
 
   // Other plays of the same bar (repeats), to hop between them.
@@ -304,44 +413,7 @@ export const PiecePlayerBar = ({
                 <LocateFixed size={16} />
               </button>
             )}
-            {metronome.available && (
-              <button
-                type="button"
-                onClick={() => metronome.setOn(!metronome.on)}
-                aria-pressed={metronome.on}
-                aria-label={t('metronome')}
-                title={t('metronome')}
-                className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150',
-                  metronome.on
-                    ? 'bg-black text-white hover:bg-black-hover'
-                    : 'text-text-secondary hover:bg-surface-hover hover:text-text',
-                )}
-              >
-                <MetronomeIcon />
-              </button>
-            )}
-            {/* The value is drawn by a pill (selects ignore text alignment and
-                padding in some browsers); the native select lies invisibly on
-                top, so the system picker still opens. */}
-            <label
-              title={t('playbackSpeed')}
-              className="relative flex h-9 min-w-[3.75rem] flex-shrink-0 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border border-border bg-surface/60 px-3 text-sm font-medium tabular-nums text-text-secondary transition-colors duration-150 focus-within:border-black hover:text-text"
-            >
-              {player.rate}×
-              <select
-                value={player.rate}
-                onChange={(e) => player.setRate(Number(e.target.value))}
-                aria-label={t('playbackSpeed')}
-                className="absolute inset-0 cursor-pointer appearance-none opacity-0"
-              >
-                {PLAYBACK_RATES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}×
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PlayerSettings player={player} />
           </div>
         </div>
       </div>

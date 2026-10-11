@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { pieceFileUrl } from '@/lib/pieceFiles';
+import { pieceFileUrl, trackRecording } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
 import type { Piece } from '@/types';
@@ -8,6 +8,23 @@ import type { PlayerTrack } from '@/lib/pieceFiles';
 export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
 
 const METRONOME_KEY = 'mediorchor.metronome';
+const QUIET_KEY = 'mediorchor.othersQuiet';
+
+const readFlag = (key: string): boolean => {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const storeFlag = (key: string, on: boolean) => {
+  try {
+    localStorage.setItem(key, on ? '1' : '0');
+  } catch {
+    /* storage unavailable */
+  }
+};
 
 // A loop section in played-bar indices (inclusive).
 export interface LoopRange {
@@ -17,7 +34,8 @@ export interface LoopRange {
 
 // Where to continue once another recording has loaded, and whether to keep
 // playing: another voice restarts the bar (its lead-in and length may
-// differ); the same voice with or without click continues at the exact time.
+// differ); another mix of the same voice (click, background voices)
+// continues at the exact time.
 interface PendingSwitch {
   bar: number;
   time: number;
@@ -27,8 +45,8 @@ interface PendingSwitch {
 
 // Drives practice playback for a piece: one <audio> element that switches
 // between the voice tracks while keeping the position, bar-accurate jumps,
-// a loop section, playback speed, the recording with or without metronome
-// click, and the phone's lock-screen controls.
+// a loop section, playback speed, the voice's recording with or without
+// metronome click and other voices, and the phone's lock-screen controls.
 export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   if (audioRef.current === null && typeof Audio !== 'undefined') {
@@ -42,14 +60,10 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   const [playing, setPlaying] = useState(false);
   const [rate, setRateState] = useState(1);
   const [loop, setLoopState] = useState<LoopRange | null>(null);
-  // Whether the click recordings are wanted; remembered per browser.
-  const [metronomeOn, setMetronomeOn] = useState(() => {
-    try {
-      return localStorage.getItem(METRONOME_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  // The wanted mix (click; other voices quiet instead of muted), picking
+  // one of the voice's recordings; remembered per browser.
+  const [metronomeOn, setMetronomeOn] = useState(() => readFlag(METRONOME_KEY));
+  const [quietOn, setQuietOn] = useState(() => readFlag(QUIET_KEY));
 
   const track = tracks.find((t) => t.id === trackId) ?? tracks[0] ?? null;
   const offset = track?.offset_s ?? 0;
@@ -61,9 +75,12 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   const currentIndex = barIndexAt(bars, time);
   const currentBar: PlayedBar | null = currentIndex >= 0 ? bars[currentIndex] : null;
 
-  // The metronome is a second recording of the track with a click in it.
-  const metronomeAvailable = Boolean(track?.click_file_path);
-  const filePath = metronomeOn && track?.click_file_path ? track.click_file_path : track?.file_path;
+  // Each mix is a recording of its own; a switch only shows when the voice
+  // has a recording that differs in it.
+  const rec = track?.recordings ?? {};
+  const metronomeAvailable = Boolean(rec.click_file_id || rec.quiet_click_file_id);
+  const quietAvailable = Boolean(rec.quiet_file_id || rec.quiet_click_file_id);
+  const filePath = trackRecording(track, quietOn, metronomeOn);
 
   // Latest values for the event handlers / animation loop.
   const live = useRef({ bars, loop, currentIndex });
@@ -250,11 +267,10 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
     (id: string) => {
       if (id === track?.id) return;
       const next = tracks.find((t) => t.id === id);
-      const nextPath = metronomeOn && next?.click_file_path ? next.click_file_path : next?.file_path;
-      if (nextPath !== filePath) holdPosition(false);
+      if (trackRecording(next ?? null, quietOn, metronomeOn) !== filePath) holdPosition(false);
       setTrackId(id);
     },
-    [track?.id, tracks, metronomeOn, filePath, holdPosition],
+    [track?.id, tracks, quietOn, metronomeOn, filePath, holdPosition],
   );
 
   // Runs once the new recording's bars are known.
@@ -285,20 +301,17 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
     audio.preservesPitch = true;
   }, []);
 
-  // Both recordings share their timing, so the other one continues at the
-  // exact same moment.
-  const setMetronome = useCallback(
-    (on: boolean) => {
-      if (on === metronomeOn) return;
-      if (track?.click_file_path) holdPosition(true);
-      setMetronomeOn(on);
-      try {
-        localStorage.setItem(METRONOME_KEY, on ? '1' : '0');
-      } catch {
-        /* storage unavailable */
-      }
+  // A voice's recordings share their timing, so another mix continues at
+  // the exact same moment.
+  const setMix = useCallback(
+    (quiet: boolean, click: boolean) => {
+      if (trackRecording(track, quiet, click) !== filePath) holdPosition(true);
+      setQuietOn(quiet);
+      setMetronomeOn(click);
+      storeFlag(QUIET_KEY, quiet);
+      storeFlag(METRONOME_KEY, click);
     },
-    [metronomeOn, track?.click_file_path, holdPosition],
+    [track, filePath, holdPosition],
   );
 
   // Lock-screen / headset controls on phones.
@@ -355,9 +368,16 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
     setLoop,
     metronome: {
       on: metronomeOn,
-      setOn: setMetronome,
-      // The current track has a recording with click.
+      setOn: (on: boolean) => setMix(quietOn, on),
+      // The current voice has a recording with click.
       available: metronomeAvailable,
+    },
+    // Other voices quietly in the background instead of muted.
+    otherVoices: {
+      quiet: quietOn,
+      setQuiet: (quiet: boolean) => setMix(quiet, metronomeOn),
+      // The current voice has a recording with the others quiet.
+      available: quietAvailable,
     },
   };
 };

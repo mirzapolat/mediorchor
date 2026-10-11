@@ -83,31 +83,50 @@ export const loadPieceCredits = async (pieceId: string): Promise<PieceCredit[]> 
   return (data as PieceCredit[] | null) ?? [];
 };
 
+// The four recording slots of a voice: other voices muted or quiet, each
+// without and with metronome click.
+export const TRACK_RECORDING_FIELDS = ['file_id', 'click_file_id', 'quiet_file_id', 'quiet_click_file_id'] as const;
+export type TrackRecordingField = (typeof TRACK_RECORDING_FIELDS)[number];
+
+export const trackRecordingField = (quiet: boolean, click: boolean): TrackRecordingField =>
+  quiet ? (click ? 'quiet_click_file_id' : 'quiet_file_id') : click ? 'click_file_id' : 'file_id';
+
 // A voice as the player plays it: its recordings resolved to stored files.
 export interface PlayerTrack {
   id: string;
   title: string;
-  file_path: string;
-  click_file_path: string | null;
+  recordings: Partial<Record<TrackRecordingField, string>>;
   offset_s: number;
 }
 
-// The playable voices (those with a recording without click), in order.
+// The playable voices (those with at least one recording), in order.
 export const playerTracks = (tracks: PieceTrack[], files: PieceFile[]): PlayerTrack[] =>
   tracks.flatMap((track) => {
-    const file = files.find((f) => f.id === track.file_id);
-    if (!file?.file_path) return [];
-    const click = files.find((f) => f.id === track.click_file_id);
-    return [
-      {
-        id: track.id,
-        title: track.title,
-        file_path: file.file_path,
-        click_file_path: click?.file_path ?? null,
-        offset_s: track.offset_s,
-      },
-    ];
+    const recordings: PlayerTrack['recordings'] = {};
+    for (const field of TRACK_RECORDING_FIELDS) {
+      const path = files.find((f) => f.id === track[field])?.file_path;
+      if (path) recordings[field] = path;
+    }
+    if (Object.keys(recordings).length === 0) return [];
+    return [{ id: track.id, title: track.title, recordings, offset_s: track.offset_s }];
   });
+
+// The recording to play for the wanted mix; when the voice lacks it, the
+// closest one (keeping the metronome choice before the background voices).
+export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click: boolean): string | null => {
+  if (!track) return null;
+  const order: Array<[boolean, boolean]> = [
+    [quiet, click],
+    [!quiet, click],
+    [quiet, !click],
+    [!quiet, !click],
+  ];
+  for (const [q, c] of order) {
+    const path = track.recordings[trackRecordingField(q, c)];
+    if (path) return path;
+  }
+  return null;
+};
 
 // The score PDF shown on the piece page: the picked one, else the first.
 export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: PieceFile[]): PieceFile | null =>

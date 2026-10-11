@@ -348,15 +348,18 @@ export interface PieceFile {
   created_at: string;
 }
 
-// A voice of a piece (Sopran, Alt, Tutti, …): one uploaded recording
-// without and optionally one with metronome click, same timing.
+// A voice of a piece (Sopran, Alt, Tutti, …): up to four uploaded
+// recordings of the same timing — the other voices muted or quietly in the
+// background, each without and with metronome click.
 export interface PieceTrack {
   id: string;
   piece_id: string;
   title: string;
   file_id: string | null;
   click_file_id: string | null;
-  // Seconds of lead-in before the first bar (both recordings).
+  quiet_file_id: string | null;
+  quiet_click_file_id: string | null;
+  // Seconds of lead-in before the first bar (all recordings).
   offset_s: number;
   position: number;
   created_at: string;

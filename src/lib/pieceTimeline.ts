@@ -140,6 +140,11 @@ export const guessFileKind = (file: File): PieceFileKind => {
 export const isClickRecording = (fileName: string): boolean =>
   /(metronom|click|klick)/i.test(fileName.replace(/\.[^.]+$/, ''));
 
+// Whether a recording's file name marks it as the version with the other
+// voices quietly in the background ("Ave-verum_Sopran_leise.mp3").
+export const isQuietRecording = (fileName: string): boolean =>
+  /(leise|quiet|soft|hintergrund|background)/i.test(fileName.replace(/\.[^.]+$/, ''));
+
 const VOICES: Array<[RegExp, string]> = [
   [/\b(?:sopran|soprano|sop)\s*(\d)?\b/i, 'Sopran'],
   [/\bmezzo\s*(\d)?\b/i, 'Mezzo'],

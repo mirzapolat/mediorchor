@@ -1,7 +1,8 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  ChevronDown,
   Download,
   ExternalLink,
   FileCode2,
@@ -36,6 +37,8 @@ import {
   loadPieceTracks,
   pieceScoreFile,
   playerTracks,
+  TRACK_RECORDING_FIELDS,
+  type TrackRecordingField,
   pieceDownloadName,
   pieceFileDownloadUrl,
   pieceFileUrl,
@@ -59,42 +62,148 @@ const FILE_GROUPS: Array<{ kind: PieceFileKind; label: TranslationKey; icon: Luc
   { kind: 'link', label: 'fileKindLink', icon: LinkIcon },
 ];
 
-// Downloads and links, grouped by what they are.
-const FileList = memo(({ piece, files }: { piece: Piece; files: PieceFile[] }) => {
+const downloadHref = (piece: Piece, name: string, f: PieceFile) =>
+  f.file_path ? pieceFileDownloadUrl(f.file_path, pieceDownloadName(piece, name, f.file_name ?? f.file_path)) : '#';
+
+const rowClass =
+  'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-surface-subtle';
+
+// One download row per voice. With several recordings (other voices muted
+// or quiet × without or with metronome) it opens the choice, laid out like
+// the matrix on the set-up page; with one it downloads right away.
+const VoiceDownload = ({
+  piece,
+  title,
+  recordings,
+}: {
+  piece: Piece;
+  title: string;
+  recordings: Array<{ field: TrackRecordingField; file: PieceFile }>;
+}) => {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const name = title.trim() || t('fileKindAudio');
+  const quiet = (f: TrackRecordingField) => f === 'quiet_file_id' || f === 'quiet_click_file_id';
+  const click = (f: TrackRecordingField) => f === 'click_file_id' || f === 'quiet_click_file_id';
+  const variantName = (f: TrackRecordingField) =>
+    `${t(quiet(f) ? 'othersQuietLong' : 'othersMutedLong')} · ${t(click(f) ? 'withMetronome' : 'withoutMetronome')}`;
+
+  if (recordings.length === 1) {
+    const { field, file } = recordings[0];
+    return (
+      <a href={downloadHref(piece, field === 'file_id' ? name : `${name} (${variantName(field)})`, file)} className={rowClass}>
+        <Music size={16} className="flex-shrink-0 text-text-secondary" />
+        <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+        <Download size={15} className="flex-shrink-0 text-text-tertiary" />
+      </a>
+    );
+  }
+
+  // Only the rows / columns the voice has recordings in.
+  const rows = [false, true].filter((q) => recordings.some((r) => quiet(r.field) === q));
+  const cols = [false, true].filter((c) => recordings.some((r) => click(r.field) === c));
+  return (
+    <>
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={rowClass}>
+        <Music size={16} className="flex-shrink-0 text-text-secondary" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{name}</span>
+          <span className="block text-xs text-text-tertiary">
+            {t('voiceDownloadVariants').replace('{count}', String(recordings.length))}
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          className={cn('flex-shrink-0 text-text-tertiary transition-transform duration-150', open && 'rotate-180')}
+        />
+      </button>
+      {open && (
+        <div
+          className={cn(
+            'grid items-center gap-1.5 border-t border-border bg-surface-subtle px-3 py-2.5 text-xs text-text-secondary',
+            cols.length === 2 ? 'grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[auto_minmax(0,1fr)]',
+          )}
+        >
+          <span className="text-[11px] text-text-tertiary">{t('otherVoices')}</span>
+          {cols.map((c) => (
+            <span key={String(c)} className="font-medium">
+              {t(c ? 'withMetronome' : 'withoutMetronome')}
+            </span>
+          ))}
+          {rows.map((q) => (
+            <Fragment key={String(q)}>
+              <span className="font-medium">{t(q ? 'othersQuiet' : 'othersMuted')}</span>
+              {cols.map((c) => {
+                const rec = recordings.find((r) => quiet(r.field) === q && click(r.field) === c);
+                return rec ? (
+                  <a
+                    key={String(c)}
+                    href={downloadHref(piece, `${name} (${variantName(rec.field)})`, rec.file)}
+                    aria-label={`${name}: ${variantName(rec.field)}`}
+                    className="flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface font-medium text-text transition-colors duration-150 hover:border-black"
+                  >
+                    <Download size={14} />
+                    {t('download')}
+                  </a>
+                ) : (
+                  <span key={String(c)} className="text-center text-text-tertiary">
+                    –
+                  </span>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
+
+// Downloads and links, grouped by what they are. Recordings are offered per
+// voice; ones no voice uses are listed on their own after them.
+const FileList = memo(({ piece, files, voices }: { piece: Piece; files: PieceFile[]; voices: PieceTrack[] }) => {
   const { t } = useI18n();
   if (files.length === 0) {
     return <p className="text-sm text-text-secondary">{t('noFiles')}</p>;
   }
+  const voiceDownloads = voices.flatMap((v) => {
+    const recordings = TRACK_RECORDING_FIELDS.flatMap((field) => {
+      const file = files.find((f) => f.id === v[field] && f.file_path);
+      return file ? [{ field, file }] : [];
+    });
+    return recordings.length > 0 ? [{ voice: v, recordings }] : [];
+  });
+  const usedIds = new Set(voiceDownloads.flatMap((d) => d.recordings.map((r) => r.file.id)));
   return (
     <div className="space-y-4">
       {FILE_GROUPS.map(({ kind, label, icon: Icon }) => {
-        const group = files.filter((f) => f.kind === kind);
-        if (group.length === 0) return null;
+        const group = files.filter((f) => f.kind === kind && !usedIds.has(f.id));
+        const perVoice = kind === 'audio' ? voiceDownloads : [];
+        if (group.length === 0 && perVoice.length === 0) return null;
         return (
           <div key={kind}>
             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
               {t(label)}
             </h3>
-            <ul className="divide-y divide-border rounded-md border border-border bg-surface">
+            <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
+              {perVoice.map(({ voice, recordings }) => (
+                <li key={voice.id}>
+                  <VoiceDownload piece={piece} title={voice.title} recordings={recordings} />
+                </li>
+              ))}
               {group.map((f) => {
                 // Uploaders' file names are never shown: the display name,
                 // or the group's name when there is none.
                 const name = f.title.trim() || (kind === 'link' ? f.url ?? '—' : t(label));
                 // Only plain web links are ever rendered as a clickable href.
                 const href =
-                  kind === 'link'
-                    ? /^https?:\/\//i.test(f.url ?? '')
-                      ? (f.url as string)
-                      : '#'
-                    : f.file_path
-                      ? pieceFileDownloadUrl(f.file_path, pieceDownloadName(piece, name, f.file_name ?? f.file_path))
-                      : '#';
+                  kind === 'link' ? (/^https?:\/\//i.test(f.url ?? '') ? (f.url as string) : '#') : downloadHref(piece, name, f);
                 return (
                   <li key={f.id}>
                     <a
                       href={href}
                       {...(kind === 'link' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
-                      className="flex min-h-[3rem] items-center gap-3 px-3 py-2 text-sm transition-colors duration-150 hover:bg-surface-subtle"
+                      className={rowClass}
                     >
                       <Icon size={16} className="flex-shrink-0 text-text-secondary" />
                       <span className="min-w-0 flex-1">
@@ -575,7 +684,7 @@ export const PieceDetailPage = () => {
       )}
       <section className={cn(tab !== 'files' && 'max-lg:hidden')}>
         <SectionTitle>{t('files')}</SectionTitle>
-        <FileList piece={piece} files={files} />
+        <FileList piece={piece} files={files} voices={voiceRows} />
       </section>
     </>
   );
