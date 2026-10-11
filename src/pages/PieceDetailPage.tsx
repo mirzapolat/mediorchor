@@ -76,29 +76,32 @@ const VARIANT_LABELS: Record<TrackRecordingField, TranslationKey> = {
   quiet_click_file_id: 'variantWithOthersClick',
 };
 
-// One download row per voice. With several recordings (solo or with the
-// others, each without or with metronome) it opens a button per recording;
-// with one it downloads right away.
-const VoiceDownload = ({
-  piece,
+interface DownloadOption {
+  key: string;
+  label: string;
+  href: string;
+}
+
+// One download row for several versions of the same thing (a voice's
+// recordings, the score as PDF and MusicXML): it opens a button per version;
+// with only one it downloads right away.
+const DownloadChoice = ({
   title,
-  recordings,
+  icon: Icon,
+  options,
 }: {
-  piece: Piece;
   title: string;
-  recordings: Array<{ field: TrackRecordingField; file: PieceFile }>;
+  icon: LucideIcon;
+  options: DownloadOption[];
 }) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const name = title.trim() || t('fileKindAudio');
-  const variantName = (f: TrackRecordingField) => t(VARIANT_LABELS[f]);
 
-  if (recordings.length === 1) {
-    const { field, file } = recordings[0];
+  if (options.length === 1) {
     return (
-      <a href={downloadHref(piece, field === 'file_id' ? name : `${name} (${variantName(field)})`, file)} className={rowClass}>
-        <Music size={16} className="flex-shrink-0 text-text-secondary" />
-        <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+      <a href={options[0].href} className={rowClass}>
+        <Icon size={16} className="flex-shrink-0 text-text-secondary" />
+        <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         <Download size={15} className="flex-shrink-0 text-text-tertiary" />
       </a>
     );
@@ -107,11 +110,11 @@ const VoiceDownload = ({
   return (
     <>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={rowClass}>
-        <Music size={16} className="flex-shrink-0 text-text-secondary" />
+        <Icon size={16} className="flex-shrink-0 text-text-secondary" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{name}</span>
+          <span className="block truncate font-medium">{title}</span>
           <span className="block text-xs text-text-tertiary">
-            {t('voiceDownloadVariants').replace('{count}', String(recordings.length))}
+            {t('voiceDownloadVariants').replace('{count}', String(options.length))}
           </span>
         </span>
         <ChevronDown
@@ -121,15 +124,15 @@ const VoiceDownload = ({
       </button>
       {open && (
         <div className="grid grid-cols-2 gap-2 border-t border-border bg-surface-subtle p-2.5">
-          {recordings.map(({ field, file }) => (
+          {options.map((o) => (
             <a
-              key={field}
-              href={downloadHref(piece, `${name} (${variantName(field)})`, file)}
-              aria-label={`${name}: ${variantName(field)}`}
+              key={o.key}
+              href={o.href}
+              aria-label={`${title}: ${o.label}`}
               className="flex min-h-[2.75rem] items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 hover:border-black sm:text-sm"
             >
               <Download size={14} className="flex-shrink-0 text-text-tertiary" />
-              <span className="min-w-0">{variantName(field)}</span>
+              <span className="min-w-0">{o.label}</span>
             </a>
           ))}
         </div>
@@ -138,36 +141,58 @@ const VoiceDownload = ({
   );
 };
 
-// Downloads and links, grouped by what they are. Recordings are offered per
-// voice; ones no voice uses are listed on their own after them.
+// Downloads and links, grouped by what they are. The score (PDF and
+// MusicXML) is one row, recordings one row per voice; recordings no voice
+// uses are listed on their own after them.
 const FileList = memo(({ piece, files, voices }: { piece: Piece; files: PieceFile[]; voices: PieceTrack[] }) => {
   const { t } = useI18n();
   if (files.length === 0) {
     return <p className="text-sm text-text-secondary">{t('noFiles')}</p>;
   }
-  const voiceDownloads = voices.flatMap((v) => {
-    const recordings = TRACK_RECORDING_FIELDS.flatMap((field) => {
+  const voiceRows = voices.flatMap((v) => {
+    const name = v.title.trim() || t('fileKindAudio');
+    const options = TRACK_RECORDING_FIELDS.flatMap((field) => {
       const file = files.find((f) => f.id === v[field] && f.file_path);
-      return file ? [{ field, file }] : [];
+      if (!file) return [];
+      const label = t(VARIANT_LABELS[field]);
+      return [{ key: field, label, href: downloadHref(piece, `${name} (${label})`, file), fileId: file.id }];
     });
-    return recordings.length > 0 ? [{ voice: v, recordings }] : [];
+    return options.length > 0 ? [{ id: v.id, title: name, icon: Music, options }] : [];
   });
-  const usedIds = new Set(voiceDownloads.flatMap((d) => d.recordings.map((r) => r.file.id)));
+  const usedIds = new Set(voiceRows.flatMap((r) => r.options.map((o) => o.fileId)));
+
+  // PDF and MusicXML; several of a kind are told apart by their names.
+  const sheetFiles = files.filter((f) => (f.kind === 'score' || f.kind === 'notation') && f.file_path);
+  const sheetOptions = sheetFiles.map((f) => {
+    const format = f.kind === 'score' ? 'PDF' : 'MusicXML';
+    const several = sheetFiles.filter((x) => x.kind === f.kind).length > 1;
+    const label = several && f.title.trim() ? `${format} · ${f.title.trim()}` : format;
+    return { key: f.id, label, href: downloadHref(piece, `${t('sheetMusic')} (${label})`, f) };
+  });
+
   return (
     <div className="space-y-4">
       {FILE_GROUPS.map(({ kind, label, icon: Icon }) => {
-        const group = files.filter((f) => f.kind === kind && !usedIds.has(f.id));
-        const perVoice = kind === 'audio' ? voiceDownloads : [];
-        if (group.length === 0 && perVoice.length === 0) return null;
+        if (kind === 'notation') return null;
+        const choices =
+          kind === 'audio'
+            ? voiceRows
+            : kind === 'score' && sheetOptions.length > 0
+              ? [{ id: 'sheet', title: t('sheetMusic'), icon: FileText, options: sheetOptions }]
+              : [];
+        const group = files.filter(
+          (f) => f.kind === kind && kind !== 'score' && !usedIds.has(f.id),
+        );
+        if (group.length === 0 && choices.length === 0) return null;
         return (
           <div key={kind}>
             <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-              {t(label)}
+              {kind === 'score' ? t('sheetMusic') : t(label)}
             </h3>
             <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
-              {perVoice.map(({ voice, recordings }) => (
-                <li key={voice.id}>
-                  <VoiceDownload piece={piece} title={voice.title} recordings={recordings} />
+              {choices.map((c) => (
+                <li key={c.id}>
+                  <DownloadChoice title={c.title} icon={c.icon} options={c.options} />
                 </li>
               ))}
               {group.map((f) => {

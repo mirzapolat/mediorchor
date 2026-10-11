@@ -113,7 +113,11 @@ export const playerTracks = (tracks: PieceTrack[], files: PieceFile[]): PlayerTr
 
 // The recording to play for the wanted mix; when the voice lacks it, the
 // closest one (keeping the metronome choice before the background voices).
-export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click: boolean): string | null => {
+export const trackRecordingChoice = (
+  track: PlayerTrack | null,
+  quiet: boolean,
+  click: boolean,
+): { path: string; quiet: boolean; click: boolean } | null => {
   if (!track) return null;
   const order: Array<[boolean, boolean]> = [
     [quiet, click],
@@ -123,10 +127,13 @@ export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click:
   ];
   for (const [q, c] of order) {
     const path = track.recordings[trackRecordingField(q, c)];
-    if (path) return path;
+    if (path) return { path, quiet: q, click: c };
   }
   return null;
 };
+
+export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click: boolean): string | null =>
+  trackRecordingChoice(track, quiet, click)?.path ?? null;
 
 // The score PDF shown on the piece page: the picked one, else the first.
 export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: PieceFile[]): PieceFile | null =>

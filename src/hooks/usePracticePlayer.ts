@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { pieceFileUrl, trackRecording } from '@/lib/pieceFiles';
+import { pieceFileUrl, trackRecording, trackRecordingChoice } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
 import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
 import type { Piece } from '@/types';
@@ -76,12 +76,18 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   const currentIndex = barIndexAt(bars, time);
   const currentBar: PlayedBar | null = currentIndex >= 0 ? bars[currentIndex] : null;
 
-  // Each mix is a recording of its own; a switch only shows when the voice
-  // has a recording that differs in it.
+  // Each mix is a recording of its own. A switch only shows when the voice
+  // has recordings on both of its sides, and it shows what is actually
+  // playing (the wanted mix may be missing, then the closest one plays).
   const rec = track?.recordings ?? {};
-  const metronomeAvailable = Boolean(rec.click_file_id || rec.quiet_click_file_id);
-  const quietAvailable = Boolean(rec.quiet_file_id || rec.quiet_click_file_id);
-  const filePath = trackRecording(track, quietOn, metronomeOn);
+  const metronomeAvailable =
+    Boolean(rec.click_file_id || rec.quiet_click_file_id) && Boolean(rec.file_id || rec.quiet_file_id);
+  const quietAvailable =
+    Boolean(rec.quiet_file_id || rec.quiet_click_file_id) && Boolean(rec.file_id || rec.click_file_id);
+  const current = trackRecordingChoice(track, quietOn, metronomeOn);
+  const filePath = current?.path ?? null;
+  const clickPlaying = current?.click ?? metronomeOn;
+  const quietPlaying = current?.quiet ?? quietOn;
 
   // Latest values for the event handlers / animation loop.
   const live = useRef({ bars, loop, currentIndex });
@@ -368,16 +374,16 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
     loop,
     setLoop,
     metronome: {
-      on: metronomeOn,
-      setOn: (on: boolean) => setMix(quietOn, on),
-      // The current voice has a recording with click.
+      on: clickPlaying,
+      setOn: (on: boolean) => setMix(quietPlaying, on),
+      // The current voice has recordings with and without click.
       available: metronomeAvailable,
     },
     // Other voices quietly in the background instead of muted.
     otherVoices: {
-      quiet: quietOn,
-      setQuiet: (quiet: boolean) => setMix(quiet, metronomeOn),
-      // The current voice has a recording with the others quiet.
+      quiet: quietPlaying,
+      setQuiet: (quiet: boolean) => setMix(quiet, clickPlaying),
+      // The current voice has recordings solo and with the others.
       available: quietAvailable,
     },
   };

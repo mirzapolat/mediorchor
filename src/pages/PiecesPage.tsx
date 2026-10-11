@@ -137,17 +137,12 @@ export const PiecesPage = () => {
               onReorder={canManage && !query ? reorder : undefined}
               renderItem={(p) => {
                 const duration = pieceDuration(p);
-                // Running order in the programme (kept while searching).
-                const number = pieces.indexOf(p) + 1;
                 return (
                   <div className="flex items-center">
                   <Link
                     to={`/projects/${project.id}/pieces/${p.id}`}
                     className="group flex min-w-0 flex-1 items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4"
                   >
-                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-surface-muted text-sm font-semibold tabular-nums text-text-secondary transition-colors duration-150 group-hover:bg-black group-hover:text-white">
-                      {number}
-                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{p.name}</span>
                       {p.composer && (

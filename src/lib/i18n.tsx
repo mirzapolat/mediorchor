@@ -1618,6 +1618,7 @@ const dict: Dict = {
   othersMutedLong: { de: 'Andere stumm', en: 'Others muted' },
   othersQuietLong: { de: 'Andere leise', en: 'Others quiet' },
   voiceDownloadVariants: { de: '{count} Versionen', en: '{count} versions' },
+  sheetMusic: { de: 'Noten', en: 'Sheet music' },
   variantSolo: { de: 'Solo', en: 'Solo' },
   variantSoloClick: { de: 'Solo + Metronom', en: 'Solo + metronome' },
   variantWithOthers: { de: 'Mit Anderen', en: 'With others' },

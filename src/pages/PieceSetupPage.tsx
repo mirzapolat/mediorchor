@@ -926,13 +926,13 @@ export const PieceSetupPage = () => {
                 ))}
               </ul>
             )}
-            <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
               <input
                 value={linkTitle}
                 onChange={(e) => setLinkTitle(e.target.value)}
                 placeholder={t('displayName')}
                 aria-label={t('displayName')}
-                className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
               />
               <input
                 value={linkUrl}
@@ -940,7 +940,7 @@ export const PieceSetupPage = () => {
                 placeholder="https://"
                 aria-label={t('linkUrl')}
                 inputMode="url"
-                className="h-10 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+                className="h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
               />
               <Button variant="secondary" onClick={() => void addLink()} disabled={!linkUrl.trim()} className="h-10">
                 <Plus size={15} />
