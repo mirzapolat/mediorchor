@@ -25,6 +25,7 @@ interface Settings {
   require_admin_2fa: boolean;
   allow_email_2fa: boolean;
   session_days: number | null;
+  single_project_focus: boolean;
 }
 
 interface ServerInfo {
@@ -54,7 +55,7 @@ export const AdminSecurityPage = () => {
       api
         .from('app_settings')
         .select(
-          'allow_self_signup, signup_requires_approval, signup_allowed_domains, require_admin_2fa, allow_email_2fa, session_days',
+          'allow_self_signup, signup_requires_approval, signup_allowed_domains, require_admin_2fa, allow_email_2fa, session_days, single_project_focus',
         )
         .eq('id', 1)
         .maybeSingle(),
@@ -172,6 +173,17 @@ export const AdminSecurityPage = () => {
           {error?.section === 'security' || error?.section === 'session' ? (
             <p className="text-sm text-danger-strong">{error.message}</p>
           ) : null}
+        </Card>
+
+        <Card className="space-y-4">
+          <h2 className="text-base font-medium">{t('participantsSection')}</h2>
+          <ToggleRow
+            label={t('singleProjectFocus')}
+            hint={t('singleProjectFocusHint')}
+            checked={settings.single_project_focus}
+            onChange={(v) => void update('participants', { single_project_focus: v })}
+          />
+          {error?.section === 'participants' ? <p className="text-sm text-danger-strong">{error.message}</p> : null}
         </Card>
       </CardColumns>
     </>

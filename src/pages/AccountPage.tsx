@@ -262,8 +262,9 @@ export const AccountDangerPage = () => {
 // Where signing in and opening the app lead.
 const StartPageCard = () => {
   const { t } = useI18n();
-  const { user, canEditCalendars, hasFullPieceAccess, refreshUser } = useAuth();
-  if (!user) return null;
+  const { user, canEditCalendars, hasFullPieceAccess, refreshUser, soleProjectId } = useAuth();
+  // A participant of a single project always starts in it.
+  if (!user || soleProjectId) return null;
   const labels: Record<HomePage, string> = {
     dashboard: t('dashboard'),
     projects: t('projects'),

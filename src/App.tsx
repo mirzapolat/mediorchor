@@ -61,7 +61,7 @@ import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
 
 export const App = () => {
-  const { session, user, loading, mfaSetupRequired } = useAuth();
+  const { session, user, loading, mfaSetupRequired, soleProjectId } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export const App = () => {
   if (mfaSetupRequired) return <MfaSetupGate />;
 
   // Every account lands on its chosen start page (the dashboard by default).
-  const home = homePath(user);
+  const home = homePath(user, soleProjectId);
 
   // After signing in the user is still on /login; return them to the page
   // they originally requested (carried via router state), if any.
@@ -114,22 +114,25 @@ export const App = () => {
       <Routes>
         <Route path="/login" element={<Navigate to={from ?? home} replace />} />
 
-        {/* Top-level workspace */}
-        <Route element={<AppLayout />}>
-          <Route index element={<Navigate to={home} replace />} />
-          <Route element={<PaddedPage />}>
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="calendar" element={<CalendarPage />} />
-          </Route>
+        {/* Top-level workspace. A participant of a single project has none:
+            their app is just that project (the catch-all leads there). */}
+        {!soleProjectId && (
+          <Route element={<AppLayout />}>
+            <Route index element={<Navigate to={home} replace />} />
+            <Route element={<PaddedPage />}>
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="calendar" element={<CalendarPage />} />
+            </Route>
 
-          {/* The piece collection shared by all projects. */}
-          <Route path="pieces" element={<GlobalPiecesLayout />}>
-            <Route index element={<GlobalPiecesPage />} />
-            <Route path=":pieceId" element={<PieceDetailPage />} />
-            <Route path=":pieceId/setup" element={<PieceSetupPage />} />
+            {/* The piece collection shared by all projects. */}
+            <Route path="pieces" element={<GlobalPiecesLayout />}>
+              <Route index element={<GlobalPiecesPage />} />
+              <Route path=":pieceId" element={<PieceDetailPage />} />
+              <Route path=":pieceId/setup" element={<PieceSetupPage />} />
+            </Route>
           </Route>
-        </Route>
+        )}
 
         {/* Admin-only administration — isolated in its own sidebar layout. */}
         <Route path="account" element={<AccountLayout />}>

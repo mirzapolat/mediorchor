@@ -8,13 +8,16 @@ import {
 } from 'react';
 import { api, type ApiError, type MfaChallenge, type Session } from '@/lib/api';
 import type { AppUser } from '@/types';
-import { permissionsFor, type Permissions } from '@/lib/roles';
+import { hasRole, permissionsFor, type Permissions } from '@/lib/roles';
 
 // The permission flags come from the account's role (src/lib/roles.ts).
 interface AuthContextValue extends Permissions {
   session: Session | null;
   user: AppUser | null;
   loading: boolean;
+  // A participant who takes part in exactly one project: the app is just that
+  // project (no dashboard or project list), plus the account settings.
+  soleProjectId: string | null;
   // The admin requires 2FA for this account and none is set up yet: the app
   // shows only the setup until refreshSession() reports it done.
   mfaSetupRequired: boolean;
@@ -31,6 +34,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
+  const [soleProjectId, setSoleProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
 
@@ -39,7 +43,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // past guest check-ins/sign-ups connect to the account. Idempotent.
     await api.rpc('claim_my_memberships');
     const { data } = await api.from('app_users').select('*').eq('id', uid).maybeSingle();
-    setUser((data as AppUser) ?? null);
+    const profile = (data as AppUser) ?? null;
+    // Participants only see the projects they take part in. The admin can
+    // turn the single-project view off (app_settings.single_project_focus).
+    let sole: string | null = null;
+    if (profile && !hasRole(profile.role, 'section_lead')) {
+      const [{ data: settings }, { data: projects }] = await Promise.all([
+        api.from('app_settings').select('single_project_focus').eq('id', 1).maybeSingle(),
+        api.from('projects').select('id'),
+      ]);
+      const list = (projects as { id: string }[] | null) ?? [];
+      const focus = (settings as { single_project_focus?: boolean } | null)?.single_project_focus ?? true;
+      if (focus && list.length === 1) sole = list[0].id;
+    }
+    setSoleProjectId(sole);
+    setUser(profile);
   };
 
   useEffect(() => {
@@ -62,6 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setSession(null);
         setUser(null);
+        setSoleProjectId(null);
         setMfaSetupRequired(false);
       }
     });
@@ -74,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       session,
       user,
       loading,
+      soleProjectId,
       ...permissionsFor(user?.role),
       mfaSetupRequired,
       refreshSession: async () => {
@@ -88,13 +108,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signOut: async () => {
         await api.auth.signOut();
         setUser(null);
+        setSoleProjectId(null);
         setSession(null);
       },
       refreshUser: async () => {
         if (session) await loadProfile(session.user.id);
       },
     }),
-    [session, user, loading, mfaSetupRequired],
+    [session, user, loading, soleProjectId, mfaSetupRequired],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

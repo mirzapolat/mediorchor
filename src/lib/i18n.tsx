@@ -580,6 +580,12 @@ const dict: Dict = {
     de: 'Erfordert eingerichteten E-Mail-Versand (unter E-Mail).',
     en: 'Requires outgoing email to be set up (under Email).',
   },
+  participantsSection: { de: 'Teilnehmer', en: 'Participants' },
+  singleProjectFocus: { de: 'Nur das eigene Projekt zeigen', en: 'Show only their own project' },
+  singleProjectFocusHint: {
+    de: 'Teilnehmer, die nur in einem Projekt sind, sehen kein Dashboard und keine Projektliste, sondern direkt dieses Projekt (und ihre Kontoeinstellungen).',
+    en: 'Participants in just one project see no dashboard or project list, only that project (and their account settings).',
+  },
   sessionLength: { de: 'Sitzungsdauer (Tage)', en: 'Session length (days)' },
   sessionLengthHint: {
     de: 'So lange bleibt man angemeldet, verlängert bei Nutzung. Leer = Standard des Servers ({n} Tage). Kürzere Werte gelten sofort auch für bestehende Sitzungen.',

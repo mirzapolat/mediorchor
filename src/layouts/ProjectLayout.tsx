@@ -17,22 +17,26 @@ import { useAuth } from '@/hooks/useAuth';
 import { FadingText } from '@/components/FadingText';
 import type { Project } from '@/types';
 
-const ProjectHeader = ({ project, onBack }: { project: Project; onBack: () => void }) => {
+// Without `onBack` (a participant of a single project) there is no project
+// list to go back to.
+const ProjectHeader = ({ project, onBack }: { project: Project; onBack?: () => void }) => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
   return (
     <>
-      <button
-        onClick={onBack}
-        title={collapsed ? t('projects') : undefined}
-        className={cn(
-          'flex items-center h-14 border-b border-border text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150',
-          collapsed ? 'justify-center px-0' : 'gap-2 px-5',
-        )}
-      >
-        <ArrowLeft size={16} />
-        {!collapsed && <span>{t('projects')}</span>}
-      </button>
+      {onBack && (
+        <button
+          onClick={onBack}
+          title={collapsed ? t('projects') : undefined}
+          className={cn(
+            'flex items-center h-14 border-b border-border text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150',
+            collapsed ? 'justify-center px-0' : 'gap-2 px-5',
+          )}
+        >
+          <ArrowLeft size={16} />
+          {!collapsed && <span>{t('projects')}</span>}
+        </button>
+      )}
 
       <div
         className={cn(
@@ -82,7 +86,7 @@ export const ProjectLayout = () => {
   const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId') != null;
   const navigate = useNavigate();
   // Project settings need access to all projects, not just this one.
-  const { canManageProjects } = useAuth();
+  const { canManageProjects, soleProjectId } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [unrecognizedCount, setUnrecognizedCount] = useState(0);
@@ -139,7 +143,7 @@ export const ProjectLayout = () => {
   return (
     <div className="flex h-full">
       <Sidebar>
-        <ProjectHeader project={project} onBack={() => navigate('/projects')} />
+        <ProjectHeader project={project} onBack={soleProjectId ? undefined : () => navigate('/projects')} />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           <SidebarNavItem
