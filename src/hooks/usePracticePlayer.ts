@@ -10,11 +10,12 @@ export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
 const METRONOME_KEY = 'mediorchor.metronome';
 const QUIET_KEY = 'mediorchor.othersQuiet';
 
+// A remembered switch; on until someone turned it off.
 const readFlag = (key: string): boolean => {
   try {
-    return localStorage.getItem(key) === '1';
+    return localStorage.getItem(key) !== '0';
   } catch {
-    return false;
+    return true;
   }
 };
 

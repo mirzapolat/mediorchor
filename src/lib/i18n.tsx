@@ -1481,6 +1481,7 @@ const dict: Dict = {
   midiCreditLinked: { de: 'Mit Account verknüpft – das Profilbild wird übernommen.', en: 'Linked to an account — its profile photo is used.' },
   noFiles: { de: 'Noch keine Dateien.', en: 'No files yet.' },
   follow: { de: 'Mitlaufen', en: 'Follow' },
+  followScore: { de: 'Noten mitlaufen lassen', en: 'Score follows along' },
   resetZoom: { de: 'Zurücksetzen', en: 'Reset' },
   zoomIn: { de: 'Vergrößern', en: 'Zoom in' },
   zoomOut: { de: 'Verkleinern', en: 'Zoom out' },
@@ -1617,7 +1618,10 @@ const dict: Dict = {
   othersMutedLong: { de: 'Andere stumm', en: 'Others muted' },
   othersQuietLong: { de: 'Andere leise', en: 'Others quiet' },
   voiceDownloadVariants: { de: '{count} Versionen', en: '{count} versions' },
-  download: { de: 'Herunterladen', en: 'Download' },
+  variantSolo: { de: 'Solo', en: 'Solo' },
+  variantSoloClick: { de: 'Solo + Metronom', en: 'Solo + metronome' },
+  variantWithOthers: { de: 'Mit Anderen', en: 'With others' },
+  variantWithOthersClick: { de: 'Mit Anderen + Metronom', en: 'With others + metronome' },
   voicesNoRecordings: {
     de: 'Lade oben zuerst die Aufnahmen hoch.',
     en: 'Upload the recordings above first.',
@@ -1676,10 +1680,18 @@ const dict: Dict = {
     de: 'Bitte gib eine gültige http(s)-URL an.',
     en: 'Please enter a valid http(s) URL.',
   },
-  timingTitle: { de: 'Taktstruktur', en: 'Bar timing' },
-  timingHint: {
-    de: 'Wann welcher Takt in den Aufnahmen beginnt – gilt für alle Stimmen.',
-    en: 'When each bar starts in the recordings — shared by all voices.',
+  barsTitle: { de: 'Takte', en: 'Bars' },
+  barsHint: {
+    de: 'Wann welcher Takt in den Aufnahmen beginnt (gilt für alle Stimmen) und wo er in den Noten steht.',
+    en: 'When each bar starts in the recordings (shared by all voices) and where it sits in the score.',
+  },
+  markersNeedScore: {
+    de: 'Wähle unter „Sonstiges“ ein Noten-PDF, um die Takte darin zu markieren.',
+    en: 'Pick a score PDF under “Other” to mark the bars in it.',
+  },
+  markersNeedBars: {
+    de: 'Lege oben zuerst die Takte fest.',
+    en: 'Set up the bars above first.',
   },
   timingFromNotation: { de: 'Aus Notendatei', en: 'From notation file' },
   timingEven: { de: 'Gleichmäßig', en: 'Evenly spaced' },

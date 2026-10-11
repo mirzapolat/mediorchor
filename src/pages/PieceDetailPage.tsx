@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -68,9 +68,17 @@ const downloadHref = (piece: Piece, name: string, f: PieceFile) =>
 const rowClass =
   'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-surface-subtle';
 
-// One download row per voice. With several recordings (other voices muted
-// or quiet × without or with metronome) it opens the choice, laid out like
-// the matrix on the set-up page; with one it downloads right away.
+// What each of a voice's recordings is called in the download choice.
+const VARIANT_LABELS: Record<TrackRecordingField, TranslationKey> = {
+  file_id: 'variantSolo',
+  click_file_id: 'variantSoloClick',
+  quiet_file_id: 'variantWithOthers',
+  quiet_click_file_id: 'variantWithOthersClick',
+};
+
+// One download row per voice. With several recordings (solo or with the
+// others, each without or with metronome) it opens a button per recording;
+// with one it downloads right away.
 const VoiceDownload = ({
   piece,
   title,
@@ -83,10 +91,7 @@ const VoiceDownload = ({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const name = title.trim() || t('fileKindAudio');
-  const quiet = (f: TrackRecordingField) => f === 'quiet_file_id' || f === 'quiet_click_file_id';
-  const click = (f: TrackRecordingField) => f === 'click_file_id' || f === 'quiet_click_file_id';
-  const variantName = (f: TrackRecordingField) =>
-    `${t(quiet(f) ? 'othersQuietLong' : 'othersMutedLong')} · ${t(click(f) ? 'withMetronome' : 'withoutMetronome')}`;
+  const variantName = (f: TrackRecordingField) => t(VARIANT_LABELS[f]);
 
   if (recordings.length === 1) {
     const { field, file } = recordings[0];
@@ -99,9 +104,6 @@ const VoiceDownload = ({
     );
   }
 
-  // Only the rows / columns the voice has recordings in.
-  const rows = [false, true].filter((q) => recordings.some((r) => quiet(r.field) === q));
-  const cols = [false, true].filter((c) => recordings.some((r) => click(r.field) === c));
   return (
     <>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={rowClass}>
@@ -118,40 +120,17 @@ const VoiceDownload = ({
         />
       </button>
       {open && (
-        <div
-          className={cn(
-            'grid items-center gap-1.5 border-t border-border bg-surface-subtle px-3 py-2.5 text-xs text-text-secondary',
-            cols.length === 2 ? 'grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[auto_minmax(0,1fr)]',
-          )}
-        >
-          <span className="text-[11px] text-text-tertiary">{t('otherVoices')}</span>
-          {cols.map((c) => (
-            <span key={String(c)} className="font-medium">
-              {t(c ? 'withMetronome' : 'withoutMetronome')}
-            </span>
-          ))}
-          {rows.map((q) => (
-            <Fragment key={String(q)}>
-              <span className="font-medium">{t(q ? 'othersQuiet' : 'othersMuted')}</span>
-              {cols.map((c) => {
-                const rec = recordings.find((r) => quiet(r.field) === q && click(r.field) === c);
-                return rec ? (
-                  <a
-                    key={String(c)}
-                    href={downloadHref(piece, `${name} (${variantName(rec.field)})`, rec.file)}
-                    aria-label={`${name}: ${variantName(rec.field)}`}
-                    className="flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface font-medium text-text transition-colors duration-150 hover:border-black"
-                  >
-                    <Download size={14} />
-                    {t('download')}
-                  </a>
-                ) : (
-                  <span key={String(c)} className="text-center text-text-tertiary">
-                    –
-                  </span>
-                );
-              })}
-            </Fragment>
+        <div className="grid grid-cols-2 gap-2 border-t border-border bg-surface-subtle p-2.5">
+          {recordings.map(({ field, file }) => (
+            <a
+              key={field}
+              href={downloadHref(piece, `${name} (${variantName(field)})`, file)}
+              aria-label={`${name}: ${variantName(field)}`}
+              className="flex min-h-[2.75rem] items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 hover:border-black sm:text-sm"
+            >
+              <Download size={14} className="flex-shrink-0 text-text-tertiary" />
+              <span className="min-w-0">{variantName(field)}</span>
+            </a>
           ))}
         </div>
       )}

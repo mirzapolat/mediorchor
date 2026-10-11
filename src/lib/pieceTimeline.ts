@@ -135,39 +135,6 @@ export const guessFileKind = (file: File): PieceFileKind => {
   return 'other';
 };
 
-// Whether a recording's file name marks it as the version with a metronome
-// click ("Ave-verum_Sopran_Metronom.mp3", "…_click.mp3").
-export const isClickRecording = (fileName: string): boolean =>
-  /(metronom|click|klick)/i.test(fileName.replace(/\.[^.]+$/, ''));
-
-// Whether a recording's file name marks it as the version with the other
-// voices quietly in the background ("Ave-verum_Sopran_leise.mp3").
-export const isQuietRecording = (fileName: string): boolean =>
-  /(leise|quiet|soft|hintergrund|background)/i.test(fileName.replace(/\.[^.]+$/, ''));
-
-const VOICES: Array<[RegExp, string]> = [
-  [/\b(?:sopran|soprano|sop)\s*(\d)?\b/i, 'Sopran'],
-  [/\bmezzo\s*(\d)?\b/i, 'Mezzo'],
-  [/\b(?:alt|alto)\s*(\d)?\b/i, 'Alt'],
-  [/\b(?:tenor|ten)\s*(\d)?\b/i, 'Tenor'],
-  [/\b(?:bariton|baritone)\s*(\d)?\b/i, 'Bariton'],
-  [/\b(?:bass|basso)\s*(\d)?\b/i, 'Bass'],
-  [/\b(?:tutti|alle|full|gesamt|chor|choir)\b/i, 'Tutti'],
-  [/\b(?:klavier|piano|begleitung|accompaniment)\b/i, 'Klavier'],
-];
-
-// Suggests a track name from the file name: "Ave-verum_Sopran.mp3" → Sopran,
-// "…_Tenor_2.mp3" → Tenor 2; falls back to the bare file name.
-export const guessVoice = (fileName: string): string => {
-  const base = fileName.replace(/\.[^.]+$/, '');
-  const words = base.replace(/[_\-.()[\]]+/g, ' ');
-  for (const [re, voice] of VOICES) {
-    const match = words.match(re);
-    if (match) return match[1] ? `${voice} ${match[1]}` : voice;
-  }
-  return base;
-};
-
 // Lead-in silence of a recording in seconds (MuseScore exports often start
 // with a short gap), measured on the decoded audio. null if it can't decode.
 export const detectLeadIn = async (file: Blob): Promise<number | null> => {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { LocateFixed, Pause, Play, Repeat, SkipBack, SkipForward, SlidersHorizontal, X } from 'lucide-react';
+import { Pause, Play, Repeat, SkipBack, SkipForward, SlidersHorizontal, X } from 'lucide-react';
 import { PLAYBACK_RATES, type PracticePlayer } from '@/hooks/usePracticePlayer';
 import { formatTime } from '@/lib/pieceTimeline';
 import { useI18n } from '@/lib/i18n';
@@ -128,9 +128,15 @@ const Segmented = <T,>({
 );
 
 // Playback settings behind one button: speed, metronome and the other
-// voices (the last two only when the voice has such recordings). Opens
-// upwards; closes on a click outside or Escape.
-const PlayerSettings = ({ player }: { player: PracticePlayer }) => {
+// voices (the last two only when the voice has such recordings), and the
+// score following along. Opens upwards; closes on a click outside or Escape.
+const PlayerSettings = ({
+  player,
+  follow,
+}: {
+  player: PracticePlayer;
+  follow?: { on: boolean; onChange: (on: boolean) => void };
+}) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -209,6 +215,17 @@ const PlayerSettings = ({ player }: { player: PracticePlayer }) => {
               ]}
               value={otherVoices.quiet}
               onChange={otherVoices.setQuiet}
+            />
+          )}
+          {follow && (
+            <Segmented
+              label={t('followScore')}
+              options={[
+                { value: false, label: t('off') },
+                { value: true, label: t('on') },
+              ]}
+              value={follow.on}
+              onChange={follow.onChange}
             />
           )}
         </div>
@@ -363,7 +380,7 @@ export const PiecePlayerBar = ({
                 <X size={14} className="-mr-1 opacity-80" />
               </>
             ) : (
-              <span className="hidden min-[440px]:inline">{picking ? t('cancel') : t('loopShort')}</span>
+              <span className="hidden sm:inline">{picking ? t('cancel') : t('loopShort')}</span>
             )}
           </button>
 
@@ -396,24 +413,7 @@ export const PiecePlayerBar = ({
           </div>
 
           <div className="flex flex-shrink-0 items-center gap-1">
-            {follow && (
-              <button
-                type="button"
-                onClick={() => follow.onChange(!follow.on)}
-                aria-pressed={follow.on}
-                aria-label={t('follow')}
-                title={t('followHint')}
-                className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150',
-                  follow.on
-                    ? 'bg-black text-white hover:bg-black-hover'
-                    : 'text-text-secondary hover:bg-surface-hover hover:text-text',
-                )}
-              >
-                <LocateFixed size={16} />
-              </button>
-            )}
-            <PlayerSettings player={player} />
+            <PlayerSettings player={player} follow={follow} />
           </div>
         </div>
       </div>
