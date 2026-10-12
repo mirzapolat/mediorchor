@@ -106,6 +106,7 @@ interface Measure {
   daCapo: boolean;
   dalSegno: string | null;
   fine: boolean;
+  fermata: boolean; // a note or barline in any part has one
 }
 
 const childrenNamed = (el: Element, name: string) =>
@@ -247,6 +248,7 @@ const parseScore = (xml: string): Measure[] => {
     daCapo: false,
     dalSegno: null,
     fine: false,
+    fermata: false,
   }));
 
   // Length and tempo: every part is scanned (tempo marks may sit in any
@@ -258,6 +260,9 @@ const parseScore = (xml: string): Measure[] => {
       if (!target) return;
       const scan = scanMeasure(m, state);
       target.quarters = Math.max(target.quarters, scan.quarters);
+      // No length in MusicXML (MuseScore keeps its time stretch to itself);
+      // marked so a sync with the recording can give these bars the extra time.
+      if (m.querySelector('note fermata, barline fermata')) target.fermata = true;
       for (const ev of scan.tempos) {
         if (!target.tempos.some((t) => Math.abs(t.pos - ev.pos) < 1e-6)) target.tempos.push(ev);
       }
@@ -429,7 +434,9 @@ export const parseNotation = async (file: Blob): Promise<NotationTimeline> => {
   let t = 0;
   for (const index of unfold(measures)) {
     const end = t + timing[index];
-    bars.push({ label: measures[index].label, start: round(t), end: round(end) });
+    const bar: TimelineBar = { label: measures[index].label, start: round(t), end: round(end) };
+    if (measures[index].fermata) bar.fermata = true;
+    bars.push(bar);
     t = end;
   }
   if (bars.length === 0) throw new NotationError('empty');
@@ -443,6 +450,7 @@ export const parseNotation = async (file: Blob): Promise<NotationTimeline> => {
     tempoChanges: Math.max(0, tempoMarks.length - 1),
     meterChanges: Math.max(0, meters.length - 1),
     repeats: measures.filter((m) => m.backward || m.daCapo || m.dalSegno != null).length,
+    fermatas: measures.filter((m) => m.fermata).length,
   };
 };
 

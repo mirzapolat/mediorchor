@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  AudioWaveform,
   CheckCircle2,
   Loader2,
   MapPin,
@@ -21,6 +22,7 @@ import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SortableList } from '@/components/SortableList';
+import { BarSyncEditor, FermataIcon, type SyncVoice } from '@/components/BarSyncEditor';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
@@ -44,14 +46,14 @@ import {
   firstBarNumber,
   formatTime,
   guessFileKind,
-  timelineDuration,
+  syncedDuration,
   timelineLabels,
 } from '@/lib/pieceTimeline';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { NoAccess } from '@/components/NoAccess';
 import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
-import type { Piece, PieceCredit, PieceFile, PieceFileKind, PieceTimeline, PieceTrack } from '@/types';
+import type { BarSyncPoint, Piece, PieceCredit, PieceFile, PieceFileKind, PieceTimeline, PieceTrack } from '@/types';
 
 interface UploadItem {
   key: string;
@@ -192,6 +194,7 @@ export const PieceSetupPage = () => {
   const [toDelete, setToDelete] = useState<PieceFile | null>(null);
   const [deletePieceOpen, setDeletePieceOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   const back = `${base}/${pieceId}`;
 
@@ -256,7 +259,10 @@ export const PieceSetupPage = () => {
   const readNotation = async (blob: Blob): Promise<string | null> => {
     try {
       const timeline: PieceTimeline = await parseNotation(blob);
-      await updatePiece({ timeline, duration_s: timelineDuration(timeline) });
+      // Sync points whose bars no longer match are left out by themselves;
+      // ones set on evenly spaced bars mean other bars.
+      const bar_sync = piece.timeline?.source === 'even' ? [] : piece.bar_sync;
+      await updatePiece({ timeline, bar_sync, duration_s: syncedDuration(timeline, bar_sync) });
       setTimingError(null);
       return null;
     } catch (e) {
@@ -354,7 +360,10 @@ export const PieceSetupPage = () => {
     setTimingError(null);
     // Keeps the first bar's number; the numbering below shifts it.
     const first = piece.timeline?.source === 'even' ? piece.timeline.first : 1;
-    await updatePiece({ timeline: { source: 'even', first, last: first + count - 1 } });
+    await updatePiece({
+      timeline: { source: 'even', first, last: first + count - 1 },
+      bar_sync: piece.timeline?.source === 'even' ? piece.bar_sync : [],
+    });
   };
 
   const addLink = async () => {
@@ -434,7 +443,35 @@ export const PieceSetupPage = () => {
   // Shown bar numbers: the first numbered bar plus the piece's shift.
   const firstNumber = firstBarNumber(labels);
   const shownStart = firstNumber == null ? null : firstNumber + (piece.bar_shift ?? 0);
-  const expected = timelineDuration(timeline);
+  const expected = syncedDuration(timeline, piece.bar_sync);
+  // Voices to fit the bars with: each with the first of its recordings.
+  const syncVoices: SyncVoice[] = tracks.flatMap((track) => {
+    const file = TRACK_RECORDING_FIELDS.map((field) => recordings.find((f) => f.id === track[field])).find(Boolean);
+    return file?.file_path
+      ? [{ id: track.id, title: track.title, path: file.file_path, offset: track.offset_s }]
+      : [];
+  });
+  const syncCount = (piece.bar_sync ?? []).length;
+  const fermataCount = timeline?.source === 'notation' ? (timeline.fermatas ?? 0) : 0;
+
+  // Saves the fitted bars and changed lead-ins; the piece's length follows
+  // the bars unless it was set by hand.
+  const saveSync = async (sync: BarSyncPoint[], offsets: Record<string, number>) => {
+    const before = syncedDuration(timeline, piece.bar_sync);
+    const after = syncedDuration(timeline, sync);
+    const patch: Partial<Piece> = { bar_sync: sync };
+    if (after != null && (piece.duration_s == null || before == null || Math.abs(piece.duration_s - before) < 0.5)) {
+      patch.duration_s = Math.round(after * 1000) / 1000;
+    }
+    await Promise.all([
+      updatePiece(patch),
+      ...Object.entries(offsets).map(([id, offset_s]) => {
+        const track = tracks.find((x) => x.id === id);
+        return track ? updateTrack(track, { offset_s }) : Promise.resolve();
+      }),
+    ]);
+    setSyncOpen(false);
+  };
   const mode = timingMode ?? timeline?.source ?? (notationFile ? 'notation' : 'even');
   const uploadedFiles = files.filter((f) => f.kind !== 'link');
   const links = files.filter((f) => f.kind === 'link');
@@ -776,6 +813,12 @@ export const PieceSetupPage = () => {
                       {timeline.meterChanges} {t('meterChanges')}
                     </Chip>
                   )}
+                  {fermataCount > 0 && (
+                    <Chip>
+                      <FermataIcon size={12} className="-mt-0.5 mr-1 inline" />
+                      {fermataCount} {t(fermataCount === 1 ? 'fermata' : 'fermatasLower')}
+                    </Chip>
+                  )}
                   {expected != null && <Chip>{formatTime(expected)}</Chip>}
                 </div>
               )}
@@ -807,6 +850,42 @@ export const PieceSetupPage = () => {
             </div>
           )}
           {timingError && <p className="text-sm text-danger">{timingError}</p>}
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="text-sm font-semibold">{t('syncSection')}</h3>
+              {syncCount > 0 && (
+                <span className="flex-shrink-0 text-sm tabular-nums text-text-secondary">
+                  {syncCount === 1 ? t('syncPinnedOne') : t('syncPinnedCount').replace('{n}', String(syncCount))}
+                </span>
+              )}
+            </div>
+            {fermataCount > 0 && syncCount === 0 ? (
+              <p className="flex gap-2 rounded-md bg-info-soft px-3 py-2 text-sm text-text">
+                <FermataIcon size={16} className="mt-1 flex-shrink-0" />
+                <span>
+                  {fermataCount === 1
+                    ? t('syncFermataWarningOne')
+                    : t('syncFermataWarning').replace('{n}', String(fermataCount))}
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-text-secondary">{t('syncSectionHint')}</p>
+            )}
+            <Button
+              variant="secondary"
+              onClick={() => setSyncOpen(true)}
+              disabled={!timeline || syncVoices.length === 0}
+            >
+              <AudioWaveform size={15} />
+              {syncCount > 0 ? t('syncEdit') : t('syncOpen')}
+            </Button>
+            {(!timeline || syncVoices.length === 0) && (
+              <p className="text-sm text-text-secondary">
+                {!timeline ? t('syncNeedsBars') : t('syncNeedsRecording')}
+              </p>
+            )}
+          </div>
 
           {firstNumber != null && shownStart != null && (
             <div className="space-y-1.5 border-t border-border pt-3">
@@ -971,6 +1050,14 @@ export const PieceSetupPage = () => {
         <Button onClick={() => navigate(back)}>{t('done')}</Button>
       </div>
 
+      {syncOpen && timeline && syncVoices.length > 0 && (
+        <BarSyncEditor
+          piece={piece}
+          voices={syncVoices}
+          onClose={() => setSyncOpen(false)}
+          onSave={saveSync}
+        />
+      )}
       <ConfirmDialog
         open={!!toDelete}
         title={t('delete')}

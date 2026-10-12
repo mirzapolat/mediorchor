@@ -581,7 +581,8 @@ Outside edit mode frames are invisible apart from a small number chip; the whole
 
 - **Details** — name, composer, short description; saved when a field is left.
 - **Add files** — one drop zone for any number of files. Each is recognised by its name: `.pdf` → score, `.musicxml/.mxl/.xml` → notation file, `.mid/.midi` → MIDI, audio types → recording, anything else → other file. Recordings are named after the voice found in the file name (Sopran, Alt, Tenor, Bass, Tutti, Klavier …, with a trailing number kept) and their **lead-in silence** is measured on the decoded audio. A notation file is read immediately (see 14.6). Each upload shows progress and its outcome.
-- **Bar timing** — *From notation file* (summary: bars, bars played, repeats/jumps, tempo changes, meter changes, length; *Read again*) or *Evenly spaced* (first and last bar; bars are spread evenly across each recording after its lead-in). Without a notation file a tip explains how to export MusicXML from MuseScore.
+- **Bar timing** — *From notation file* (summary: bars, bars played, repeats/jumps, tempo changes, meter changes, fermatas, length; *Read again*) or *Evenly spaced* (first and last bar; bars are spread evenly across each recording after its lead-in). Without a notation file a tip explains how to export MusicXML from MuseScore.
+- **Fit to the recordings** — for recordings that leave the notated timing (fermatas, ritardandi, live recordings): the number of pinned bars and a button opening the editor (14.7). With fermatas in the score and no bar pinned yet, a hint explains that their length isn't in the MusicXML. Needs bars and a voice with a recording.
 - **Bars in the score** — "*placed*/*total*" and a button to place/edit markers.
 - **File groups** (Voices, Score, Notation file, MIDI, Other files, Links) — sortable cards with an editable name, the file name, a type selector (to correct a wrong guess) and delete. Recordings also have their lead-in (seconds) and a length check against the timeline: fine when the recording is at most 1.5 s shorter or 8 s longer (MuseScore exports end with a release tail), otherwise a warning "*n* s longer/shorter than the score". The first score PDF is the one shown. Links are added with a name and URL (`https://` is prepended when missing; anything but http/https is rejected).
 - **Delete piece** (with confirmation; stored files are removed too) and *Done*.
@@ -595,7 +596,15 @@ Done in the browser, for `.musicxml`/`.xml` and zipped `.mxl` (partwise; timewis
 - **Bar length** is the bar's actual content (notes, `backup`, `forward`; chords and grace notes don't advance), so pickups and incomplete bars are exact; the longest part wins; an empty bar falls back to its time signature.
 - **Tempo** from `<sound tempo>` (or a metronome mark), at its position inside the bar, from any part; 120 quarter notes per minute until the first mark. Tempo follows the written order of the score.
 - **Playback order** unfolds repeats (with `times`), voltas (by pass; after a jump the last volta of a group), D.C., D.S. (by segno name), To Coda/Coda and Fine; repeats are not taken again after a jump — MuseScore's default playback.
-- The result is the list of played bars (label, start, end in seconds from bar one); a recording's lead-in is added per recording.
+- **Fermatas** (on a note or barline, any part) mark their bar. MusicXML doesn't say how long a fermata is held (MuseScore keeps its time stretch to itself), so the bar keeps its written length; fitting to the recordings (14.7) gives it the extra time.
+- The result is the list of played bars (label, start, end in seconds from bar one, fermata flag); a recording's lead-in is added per recording.
+
+### 14.7 Fitting the bars to the recordings
+
+A piece can pin bars to when they really start: `[{bar, label, at}]` — played-bar index, its label, seconds after bar one. Shared by all voices (each voice's lead-in still applies). A point whose bar no longer carries that label (the notation was read again with another structure) is ignored; switching between notation and evenly spaced bars clears them.
+
+- **Fitting**: between two pinned bars (bar one counts as pinned) the time is shared out anew — when there's more time than written and fermata bars lie in between, they get the extra time equally; otherwise all bars in between stretch or shrink alike. After the last pinned bar bars keep their length (evenly spaced bars still end with the recording). Applied wherever bars are played (practice player, setup length check); the piece's length follows unless it was set by hand.
+- **Editor** (full screen, from the setup page): voice chips (switching keeps the musical position); the recording as a zoomable waveform (buttons, ⌃/⌘ + wheel, pinch) with every bar as a draggable chip — pinned bars dark with a pin, the selected one in the accent colour, fermata bars with the fermata sign and a tinted band; tapping the waveform moves the playhead. *Dragging* a bar pins it (it can't pass its pinned neighbours); dragging bar one sets the voice's lead-in and keeps the pinned bars where they are in the recording. *Tapping* a chip selects it and moves 1.5 s before it. Transport: play/pause, time and current bar, speed (0.5×/0.75×/1×), *Bar ticks* (a soft tick on every bar start, higher on pinned bars, to hear whether bars sit right) and **"Bar *n* starts now"** (key T): pins the selected bar (else the nearest) at the playhead and selects the next bar, so a passage can be tapped through. Selected bar panel: its time, whether it is pinned, ±10/±100 ms nudges, unpin; *Unpin all* (with confirmation). Fermata list: each fermata with *Pin bar n+1* (selects the bar after it, ready to listen) and whether it is fitted. Keys: Space, T, ←/→ (⇧ for 100 ms), ⌫ unpins, Esc deselects/closes. Closing with unsaved changes asks first.
 
 ---
 
@@ -668,7 +677,8 @@ registration       id, page, first_name, last_name, email?, group_name?,
 
 piece              id, project, name, composer, description, notes (Markdown),
                    timeline? ({even: first, last} | {notation: bars[{label, start, end}], stats}),
-                   bar_anchors{ bar label → {page, x, y} }, position, created_at
+                   bar_anchors{ bar label → {page, x, y} }, bar_sync[{bar, label, at}],
+                   position, created_at
 piece_file         id, piece, kind (score|notation|midi|audio|other|link), title,
                    url?, file_path?, file_name?, offset_s (audio lead-in), position, created_at
 

@@ -1,4 +1,4 @@
-import type { PieceFileKind, PieceTimeline } from '@/types';
+import type { BarSyncPoint, PieceFileKind, PieceTimeline } from '@/types';
 
 // A bar as played on one audio track: absolute times in that recording, plus
 // which occurrence of its label it is (bars inside repeats occur twice).
@@ -9,36 +9,128 @@ export interface PlayedBar {
   shown: string;
   start: number;
   end: number;
+  fermata: boolean;
   occurrence: number; // 1-based
   occurrences: number;
 }
 
+// Sync points that still fit these bars: past bar one, label unchanged, in
+// bar order and each later than the one before (bars can't overlap).
+export const validSyncPoints = (
+  bars: ReadonlyArray<{ label: string }>,
+  sync: readonly BarSyncPoint[] | null | undefined,
+): BarSyncPoint[] => {
+  const sorted = (sync ?? [])
+    .filter((p) => p.bar > 0 && p.bar < bars.length && bars[p.bar].label === p.label && Number.isFinite(p.at))
+    .sort((a, b) => a.bar - b.bar);
+  const out: BarSyncPoint[] = [];
+  let last = { bar: 0, at: 0 };
+  for (const p of sorted) {
+    if (p.bar === last.bar || p.at < last.at + MIN_BAR_SECONDS * (p.bar - last.bar)) continue;
+    out.push(p);
+    last = p;
+  }
+  return out;
+};
+
+// Shortest a bar may get between two sync points.
+export const MIN_BAR_SECONDS = 0.05;
+
+// Bars (times from bar one) fitted to the sync points: between two pinned
+// bars the time is shared out anew — extra time goes to the bars with a
+// fermata when there are any (that's where it was held), otherwise all bars
+// stretch or shrink alike. After the last point bars keep their length,
+// unless `endAt` pins the end of the last bar too (evenly spaced bars fill
+// the recording).
+export const applySync = <T extends { label: string; start: number; end: number; fermata?: boolean }>(
+  bars: T[],
+  sync: readonly BarSyncPoint[] | null | undefined,
+  endAt?: number,
+): T[] => {
+  const n = bars.length;
+  if (n === 0) return bars;
+  const origin = bars[0].start;
+  const points = validSyncPoints(bars, sync);
+  const pins: Array<{ index: number; at: number }> = [
+    { index: 0, at: origin },
+    ...points.map((p) => ({ index: p.bar, at: origin + p.at })),
+  ];
+  const lastPin = pins[pins.length - 1];
+  if (endAt != null && endAt > lastPin.at + MIN_BAR_SECONDS * (n - lastPin.index)) {
+    pins.push({ index: n, at: endAt });
+  }
+  if (pins.length === 1) return bars;
+
+  const length = bars.map((b, k) => (k + 1 < n ? bars[k + 1].start : b.end) - b.start);
+  const fitted = [...length];
+  for (let i = 0; i + 1 < pins.length; i++) {
+    const { index: p, at: from } = pins[i];
+    const { index: q, at: to } = pins[i + 1];
+    const written = length.slice(p, q).reduce((sum, l) => sum + l, 0);
+    const wanted = to - from;
+    const held = bars.slice(p, q).filter((b) => b.fermata).length;
+    for (let k = p; k < q; k++) {
+      if (wanted > written && held > 0) {
+        fitted[k] = length[k] + (bars[k].fermata ? (wanted - written) / held : 0);
+      } else {
+        fitted[k] = written > 0 ? (length[k] * wanted) / written : wanted / (q - p);
+      }
+    }
+  }
+  let t = origin;
+  return bars.map((b, k) => {
+    const start = t;
+    t += fitted[k];
+    return { ...b, start, end: t };
+  });
+};
+
+// Length of the timeline in seconds once fitted to the sync points
+// (notation only; even bars have none).
+export const syncedDuration = (
+  timeline: PieceTimeline | null,
+  sync: readonly BarSyncPoint[] | null | undefined,
+): number | null => {
+  if (timeline?.source !== 'notation') return null;
+  const fitted = applySync(timeline.bars, sync);
+  return fitted[fitted.length - 1]?.end ?? 0;
+};
+
 // Maps the piece timeline onto a recording: `offset` is the lead-in before
-// bar one, `duration` the recording length (needed for evenly spaced bars).
+// bar one, `duration` the recording length (needed for evenly spaced bars),
+// `sync` the points the bars are fitted to.
 export const resolveBars = (
   timeline: PieceTimeline | null,
   duration: number,
   offset: number,
   shift = 0,
+  sync: readonly BarSyncPoint[] | null = null,
 ): PlayedBar[] => {
   if (!timeline) return [];
-  let raw: Array<{ label: string; start: number; end: number }>;
+  let relative: Array<{ label: string; start: number; end: number; fermata?: boolean }>;
   if (timeline.source === 'even') {
     const count = timeline.last - timeline.first + 1;
     if (count < 1 || duration <= 0) return [];
-    const length = Math.max(0, duration - offset) / count;
-    raw = Array.from({ length: count }, (_, i) => ({
-      label: String(timeline.first + i),
-      start: offset + i * length,
-      end: offset + (i + 1) * length,
-    }));
+    const span = Math.max(0, duration - offset);
+    const length = span / count;
+    relative = applySync(
+      Array.from({ length: count }, (_, i) => ({
+        label: String(timeline.first + i),
+        start: i * length,
+        end: (i + 1) * length,
+      })),
+      sync,
+      span,
+    );
   } else {
-    raw = timeline.bars.map((b) => ({
-      label: b.label,
-      start: offset + b.start,
-      end: offset + b.end,
-    }));
+    relative = applySync(timeline.bars, sync);
   }
+  const raw = relative.map((b) => ({
+    label: b.label,
+    start: offset + b.start,
+    end: offset + b.end,
+    fermata: Boolean(b.fermata),
+  }));
 
   const totals = new Map<string, number>();
   for (const b of raw) totals.set(b.label, (totals.get(b.label) ?? 0) + 1);

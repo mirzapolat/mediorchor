@@ -312,6 +312,9 @@ export interface Piece {
   notation_file_id: string | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
+  // Where the recordings leave the notation's timing (fermatas, ritardandi):
+  // bars pinned to when they really start; see BarSyncPoint.
+  bar_sync: BarSyncPoint[];
   // Added to every numeric bar label when shown (display only).
   bar_shift: number;
   // Archived pieces stay in their projects but can't be added to more.
@@ -385,6 +388,19 @@ export interface TimelineBar {
   label: string;
   start: number;
   end: number;
+  // A note or barline in it carries a fermata (held longer than written).
+  fermata?: boolean;
+}
+
+// A bar pinned to when it starts in the recordings: `bar` is its index in
+// the played bars, `label` its label (a point whose bar no longer matches
+// after the notation was read again is ignored), `at` seconds after bar
+// one. Bars between two pinned ones are stretched to fit, extra time going
+// to fermata bars first.
+export interface BarSyncPoint {
+  bar: number;
+  label: string;
+  at: number;
 }
 
 // The bar timeline shared by all audio tracks of a piece: either read from a
@@ -400,6 +416,8 @@ export type PieceTimeline =
       tempoChanges: number;
       meterChanges: number;
       repeats: number;
+      // Written bars with a fermata (missing in timelines read before).
+      fermatas?: number;
     };
 
 // A bar's mark on the score PDF: page number (1-based) and a frame (or, in
