@@ -4,7 +4,14 @@ import { Check, Loader2, Minus, Pause, Pin, PinOff, Play, Plus, RotateCcw, X } f
 import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { pieceFileUrl } from '@/lib/pieceFiles';
-import { MIN_BAR_SECONDS, barIndexAt, resolveBars, validSyncPoints } from '@/lib/pieceTimeline';
+import {
+  MIN_BAR_SECONDS,
+  barIndexAt,
+  firstBarNumber,
+  resolveBars,
+  timelineLabels,
+  validSyncPoints,
+} from '@/lib/pieceTimeline';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import type { BarSyncPoint, Piece } from '@/types';
@@ -21,8 +28,9 @@ interface BarSyncEditorProps {
   piece: Piece;
   voices: SyncVoice[];
   onClose: () => void;
-  // The sync points and the lead-ins that changed (voice id → seconds).
-  onSave: (sync: BarSyncPoint[], offsets: Record<string, number>) => Promise<void>;
+  // The sync points, the lead-ins that changed (voice id → seconds) and
+  // the bar numbering's shift.
+  onSave: (sync: BarSyncPoint[], offsets: Record<string, number>, barShift: number) => Promise<void>;
 }
 
 const RATES = [0.5, 0.75, 1];
@@ -103,6 +111,7 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
   const [offsets, setOffsets] = useState<Record<string, number>>(() =>
     Object.fromEntries(voices.map((v) => [v.id, v.offset])),
   );
+  const [shift, setShift] = useState(piece.bar_shift ?? 0);
   const [selected, setSelected] = useState<number | null>(null);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -136,15 +145,19 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
   const dragging = useRef<{ bar: number; moved: boolean; x: number } | null>(null);
 
   const bars = useMemo(
-    () => resolveBars(piece.timeline, duration, offset, piece.bar_shift ?? 0, sync),
-    [piece.timeline, duration, offset, piece.bar_shift, sync],
+    () => resolveBars(piece.timeline, duration, offset, shift, sync),
+    [piece.timeline, duration, offset, shift, sync],
   );
   const points = useMemo(() => validSyncPoints(bars, sync), [bars, sync]);
   const pinned = useMemo(() => new Set(points.map((p) => p.bar)), [points]);
   const contentWidth = Math.max(viewWidth, duration * pps);
   const currentIndex = barIndexAt(bars, time);
 
+  // Bar numbering: the first numbered bar as shown (number plus shift).
+  const firstNumber = useMemo(() => firstBarNumber(timelineLabels(piece.timeline)), [piece.timeline]);
+
   const dirty =
+    shift !== (piece.bar_shift ?? 0) ||
     JSON.stringify(points) !== JSON.stringify(validSyncPoints(bars, piece.bar_sync)) ||
     voices.some((v) => Math.abs((offsets[v.id] ?? 0) - v.offset) > 1e-4);
 
@@ -544,7 +557,7 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
     const changed = Object.fromEntries(
       voices.filter((v) => Math.abs((offsets[v.id] ?? 0) - v.offset) > 1e-4).map((v) => [v.id, offsets[v.id]]),
     );
-    await onSave(points, changed);
+    await onSave(points, changed, shift);
     setSaving(false);
   };
 
@@ -598,7 +611,16 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
               ))}
             </div>
           ) : (
-            <p className="min-w-0 flex-1 text-sm text-text-secondary">{t('syncHelp')}</p>
+            <div className="flex-1" />
+          )}
+          {firstNumber != null && (
+            <label
+              className="ml-auto flex flex-shrink-0 items-center gap-2 text-sm text-text-secondary"
+              title={t('barNumberingHint')}
+            >
+              {t('barNumberingStart')}
+              <NumberingInput value={firstNumber + shift} onChange={(v) => setShift(v - firstNumber)} />
+            </label>
           )}
           <div className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-surface-hover p-0.5">
             <button
@@ -620,7 +642,7 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
               <Plus size={15} />
             </button>
           </div>
-          {voices.length > 1 && <p className="w-full text-sm text-text-secondary">{t('syncHelp')}</p>}
+          <p className="w-full text-sm text-text-secondary">{t('syncHelp')}</p>
         </div>
 
         {/* The recording with the bars on top */}
@@ -888,5 +910,27 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
       />
     </div>,
     document.body,
+  );
+};
+
+// The number of the first bar; applied while typing when it is a number,
+// put back when left empty or invalid.
+const NumberingInput = ({ value, onChange }: { value: number; onChange: (value: number) => void }) => {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const v = parseInt(e.target.value, 10);
+        if (Number.isFinite(v)) onChange(v);
+      }}
+      onBlur={() => setText(String(value))}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      className="h-8 w-16 rounded-md border border-border bg-surface px-2 text-right text-base tabular-nums focus:border-black focus:outline-none sm:text-sm"
+    />
   );
 };

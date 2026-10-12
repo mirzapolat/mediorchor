@@ -26,6 +26,7 @@ import { Avatar } from '@/components/Avatar';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
+import { isTimingFileName } from '@/lib/mpos';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
@@ -162,7 +163,9 @@ const FileList = memo(({ piece, files, voices }: { piece: Piece; files: PieceFil
   const usedIds = new Set(voiceRows.flatMap((r) => r.options.map((o) => o.fileId)));
 
   // PDF and MusicXML; several of a kind are told apart by their names.
-  const sheetFiles = files.filter((f) => (f.kind === 'score' || f.kind === 'notation') && f.file_path);
+  const sheetFiles = files.filter(
+    (f) => (f.kind === 'score' || f.kind === 'notation') && f.file_path && !isTimingFileName(f.file_name ?? ''),
+  );
   const sheetOptions = sheetFiles.map((f) => {
     const format = f.kind === 'score' ? 'PDF' : 'MusicXML';
     const several = sheetFiles.filter((x) => x.kind === f.kind).length > 1;

@@ -1600,8 +1600,8 @@ const dict: Dict = {
   addFiles: { de: 'Dateien hinzufügen', en: 'Add files' },
   pieceDropTitle: { de: 'Dateien hierher ziehen oder tippen', en: 'Drop files here or tap to browse' },
   pieceDropHint: {
-    de: 'Noten-PDF, MusicXML (.musicxml/.mxl), MIDI und die Aufnahmen der Stimmen, auch mit Metronom (MP3, WAV …).',
-    en: 'Score PDF, MusicXML (.musicxml/.mxl), MIDI and the voice recordings, also with metronome (MP3, WAV …).',
+    de: 'Noten-PDF, MusicXML (.musicxml/.mxl), MuseScore-Taktzeiten (.mpos), MIDI und die Aufnahmen der Stimmen, auch mit Metronom (MP3, WAV …).',
+    en: 'Score PDF, MusicXML (.musicxml/.mxl), MuseScore bar timing (.mpos), MIDI and the voice recordings, also with metronome (MP3, WAV …).',
   },
   durationHint: {
     de: 'Format m:ss. Wird beim Einlesen einer MusicXML automatisch gesetzt.',
@@ -1702,6 +1702,55 @@ const dict: Dict = {
   },
   timingFromNotation: { de: 'Aus Notendatei', en: 'From notation file' },
   timingEven: { de: 'Gleichmäßig', en: 'Evenly spaced' },
+  timingFromMuseScore: { de: 'MuseScore-Zeiten', en: 'MuseScore timing' },
+  loadTiming: { de: 'Laden', en: 'Load' },
+  timingNotLoaded: {
+    de: 'Nicht geladen – die Takte kommen gerade aus „{source}“.',
+    en: 'Not loaded — the bars currently come from “{source}”.',
+  },
+  placeFromMuseScore: { de: 'Takte ins PDF übernehmen', en: 'Place bars in the PDF from MuseScore' },
+  placeFromMuseScoreHint: {
+    de: 'Setzt jeden Takt dorthin, wo er laut MuseScore im Noten-PDF steht. Passt nur, wenn das PDF aus derselben MuseScore-Datei exportiert wurde.',
+    en: 'Places every bar where MuseScore says it sits in the score PDF. Only right when the PDF was exported from the same MuseScore file.',
+  },
+  placeFromMuseScoreConfirm: {
+    de: '{n} Takte sind schon im PDF platziert. Sie werden durch die Positionen aus MuseScore ersetzt. Das passt nur, wenn das PDF aus derselben MuseScore-Datei stammt.',
+    en: '{n} bars are already placed in the PDF. They are replaced by MuseScore’s positions. This is only right when the PDF comes from the same MuseScore file.',
+  },
+  placeFromMuseScoreConfirmButton: { de: 'Ersetzen', en: 'Replace' },
+  placedFromMuseScore: {
+    de: '{n} Takte im PDF platziert. Prüfe sie unter „Takte im PDF platzieren“.',
+    en: '{n} bars placed in the PDF. Check them under “Place bars in the PDF”.',
+  },
+  placeMismatch: {
+    de: 'Die Takte passen nicht auf dieses PDF – es stammt wohl nicht aus derselben MuseScore-Datei.',
+    en: 'The bars don’t fit this PDF — it probably doesn’t come from the same MuseScore file.',
+  },
+  timingUnreadable: {
+    de: 'Die Taktzeiten konnten nicht gelesen werden (MuseScore-Export .mpos erwartet).',
+    en: 'The bar timing could not be read (MuseScore .mpos export expected).',
+  },
+  timingTip: {
+    de: 'MuseScore kann genau exportieren, wann jeder Takt beginnt – so wie es das Stück abspielt, mit Fermaten, Tempowechseln, Ritardandi und Wiederholungen. Öffne ein Terminal im Ordner der MuseScore-Datei und führe aus:',
+    en: 'MuseScore can export exactly when each bar starts — the way it plays the piece, with fermatas, tempo changes, ritardandi and repeats. Open a terminal in the folder of the MuseScore file and run:',
+  },
+  timingTipAfter: {
+    de: 'Lade die entstandene .mpos-Datei oben hoch. Exportiere sie aus derselben Datei wie die Aufnahmen. Lädst du auch die MusicXML hoch, werden die Takte nach ihr nummeriert.',
+    en: 'Upload the resulting .mpos file above. Export it from the same file as the recordings. With the MusicXML uploaded too, bars are numbered after it.',
+  },
+  timingLabelsFromNotation: {
+    de: 'Taktnummern aus der MusicXML.',
+    en: 'Bar numbers from the MusicXML.',
+  },
+  timingLabelsCounted: {
+    de: 'Taktnummern gezählt (keine MusicXML mit denselben Takten) – den Start der Nummerierung kannst du unter „Takte anpassen“ ändern.',
+    en: 'Bar numbers counted (no MusicXML with the same bars) — change where numbering starts under “Fit bars”.',
+  },
+  timingFileLabel: { de: 'MuseScore-Taktzeiten', en: 'MuseScore bar timing' },
+  timingFileHint: {
+    de: 'Bei „MuseScore-Zeiten“ werden die Takte daraus gelesen.',
+    en: 'With “MuseScore timing” the bars are read from it.',
+  },
   notationTip: {
     de: 'Tipp: Lade die Noten als MusicXML hoch (MuseScore: Datei → Exportieren → MusicXML). Dann stimmen die Taktzeiten exakt – auch bei Tempo- und Taktartwechseln und Wiederholungen. Ohne Notendatei werden die Takte gleichmäßig über die Aufnahme verteilt.',
     en: 'Tip: upload the score as MusicXML (MuseScore: File → Export → MusicXML). Bar times are then exact — including tempo and meter changes and repeats. Without it, bars are spread evenly across the recording.',
@@ -1738,11 +1787,6 @@ const dict: Dict = {
   fermatasLower: { de: 'Fermaten', en: 'fermatas' },
   fermataInBar: { de: 'Fermate in Takt {bar}', en: 'Fermata in bar {bar}' },
   syncTitle: { de: 'Takte an Aufnahme anpassen', en: 'Fit bars to the recording' },
-  syncSection: { de: 'An die Aufnahmen anpassen', en: 'Fit to the recordings' },
-  syncSectionHint: {
-    de: 'Weichen die Aufnahmen vom Notentempo ab – Fermaten, Ritardandi, Live-Aufnahmen –, setze hier, wann Takte wirklich beginnen. Die Takte dazwischen passen sich an. Gilt für alle Stimmen.',
-    en: 'When the recordings leave the notated tempo — fermatas, ritardandi, live recordings — set when bars really start. The bars in between follow. Applies to all voices.',
-  },
   syncFermataWarning: {
     de: 'Die Noten enthalten {n} Fermaten. Wie lange sie gehalten werden, steht nicht in der MusicXML – die Takte danach beginnen in der Aufnahme wahrscheinlich später.',
     en: 'The score has {n} fermatas. How long they are held isn’t in the MusicXML — the bars after them probably start later in the recording.',
@@ -1752,12 +1796,28 @@ const dict: Dict = {
     en: 'The score has a fermata. How long it is held isn’t in the MusicXML — the bars after it probably start later in the recording.',
   },
   syncOpen: { de: 'Takte anpassen', en: 'Fit bars' },
-  syncEdit: { de: 'Anpassung bearbeiten', en: 'Edit fitting' },
+  placeBarsInPdf: { de: 'Takte im PDF platzieren', en: 'Place bars in the PDF' },
+  placedInPdf: { de: '{n} im PDF', en: '{n} in the PDF' },
+  syncFittedOne: { de: '1 Takt angepasst', en: '1 bar fitted' },
+  syncFittedCount: { de: '{n} Takte angepasst', en: '{n} bars fitted' },
+  rereadNotationHint: {
+    de: 'Liest die Takte neu aus der Datei – angepasste Takte und Vorläufe werden zurückgesetzt.',
+    en: 'Reads the bars from the file again — fitted bars and lead-ins are reset.',
+  },
+  rereadResetMessage: {
+    de: 'Die angepassten Takte gehen verloren und jede Stimme bekommt wieder den beim Hochladen gemessenen Vorlauf. Danach kannst du die Takte wieder anpassen.',
+    en: 'The fitted bars are lost and every voice gets back the lead-in measured at upload. You can fit the bars again afterwards.',
+  },
+  resetFittingTitle: { de: 'Anpassung zurücksetzen?', en: 'Reset the fitting?' },
+  resetFittingConfirm: { de: 'Zurücksetzen', en: 'Reset' },
+  syncExplain: {
+    de: 'Lege fest, wann Takte in den Aufnahmen wirklich beginnen – etwa nach Fermaten oder bei Live-Aufnahmen. „Neu einlesen“ oder „Speichern“ oben setzt die Anpassung zurück.',
+    en: 'Set when bars really start in the recordings — e.g. after fermatas or in live recordings. “Read again” or “Save” above resets the fitting.',
+  },
   syncNeedsRecording: {
     de: 'Weise zuerst einer Stimme eine Aufnahme zu.',
     en: 'Assign a recording to a voice first.',
   },
-  syncNeedsBars: { de: 'Lege oben zuerst die Takte fest.', en: 'Set up the bars above first.' },
   syncPinnedCount: { de: '{n} Takte gesetzt', en: '{n} bars pinned' },
   syncPinnedOne: { de: '1 Takt gesetzt', en: '1 bar pinned' },
   syncHelp: {
@@ -1808,11 +1868,6 @@ const dict: Dict = {
     en: 'The fitted bars haven’t been saved yet.',
   },
   syncDiscard: { de: 'Verwerfen', en: 'Discard' },
-  markersTitle: { de: 'Takte in den Noten', en: 'Bars in the score' },
-  markersHint: {
-    de: 'Zieh im PDF einen Rahmen um jeden Takt – dann springt ein Tipp auf die Noten direkt dorthin.',
-    en: 'Draw a frame around each bar in the PDF — then tapping the score jumps right there.',
-  },
 
   // Registration pages
   openRegistrations: { de: 'Offen', en: 'Open' },

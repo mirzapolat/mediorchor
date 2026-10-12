@@ -4,6 +4,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   AudioWaveform,
+  Check,
+  Copy,
+  Download,
   CheckCircle2,
   Loader2,
   MapPin,
@@ -40,10 +43,11 @@ import {
   uploadPieceFile,
   type TrackRecordingField,
 } from '@/lib/pieceFiles';
-import { NotationError, parseNotation } from '@/lib/musicxml';
+import { NotationError, parseNotation, readWrittenBars } from '@/lib/musicxml';
+import { TimingError, isTimingFileName, mposBarFrames, readMpos } from '@/lib/mpos';
+import { pdfPageSizes } from '@/lib/pdfPages';
 import {
   detectLeadIn,
-  firstBarNumber,
   formatTime,
   guessFileKind,
   syncedDuration,
@@ -189,12 +193,17 @@ export const PieceSetupPage = () => {
   const [barCount, setBarCount] = useState('');
   const [timingBusy, setTimingBusy] = useState(false);
   const [timingError, setTimingError] = useState<string | null>(null);
-  const [timingMode, setTimingMode] = useState<'notation' | 'even' | null>(null);
+  const [timingMode, setTimingMode] = useState<PieceTimeline['source'] | null>(null);
   const [durationError, setDurationError] = useState(false);
   const [toDelete, setToDelete] = useState<PieceFile | null>(null);
   const [deletePieceOpen, setDeletePieceOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [placing, setPlacing] = useState(false);
+  const [placeNote, setPlaceNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [confirmPlace, setConfirmPlace] = useState(false);
+  // A change that resets the fitting, waiting for confirmation.
+  const [pendingReset, setPendingReset] = useState<(() => Promise<void>) | null>(null);
 
   const back = `${base}/${pieceId}`;
 
@@ -255,14 +264,19 @@ export const PieceSetupPage = () => {
     if ('user_id' in patch) setCredits(await loadPieceCredits(piece.id));
   };
 
-  // Reads the bars from a MusicXML; the piece's length follows them.
-  const readNotation = async (blob: Blob): Promise<string | null> => {
+  // New bars for the piece; its length follows them. `reset` drops the
+  // fitting to the recordings (see reread); otherwise sync points whose bars
+  // no longer match are left out by themselves, and ones set on bars from
+  // another source mean other bars.
+  const applyTimeline = async (timeline: PieceTimeline, reset: boolean) => {
+    const bar_sync = !reset && piece.timeline?.source === timeline.source ? piece.bar_sync : [];
+    await updatePiece({ timeline, bar_sync, duration_s: syncedDuration(timeline, bar_sync) });
+  };
+
+  // Reads the bars from a MusicXML.
+  const readNotation = async (blob: Blob, reset = false): Promise<string | null> => {
     try {
-      const timeline: PieceTimeline = await parseNotation(blob);
-      // Sync points whose bars no longer match are left out by themselves;
-      // ones set on evenly spaced bars mean other bars.
-      const bar_sync = piece.timeline?.source === 'even' ? [] : piece.bar_sync;
-      await updatePiece({ timeline, bar_sync, duration_s: syncedDuration(timeline, bar_sync) });
+      await applyTimeline(await parseNotation(blob), reset);
       setTimingError(null);
       return null;
     } catch (e) {
@@ -273,19 +287,52 @@ export const PieceSetupPage = () => {
     }
   };
 
-  const notationFiles = files.filter((f) => f.kind === 'notation' && f.file_path);
+  // Reads the bars from MuseScore's timing export, named after the MusicXML's
+  // bars when it has the same ones.
+  const readTiming = async (blob: Blob, notation: Blob | null, reset = false): Promise<string | null> => {
+    try {
+      const written = notation ? await readWrittenBars(notation).catch(() => null) : null;
+      await applyTimeline(await readMpos(blob, written), reset);
+      setTimingError(null);
+      return null;
+    } catch {
+      setTimingError(t('timingUnreadable'));
+      return t('timingUnreadable');
+    }
+  };
+
+  const fetchFile = async (file: PieceFile): Promise<Blob> =>
+    (await fetch(pieceFileUrl(file.file_path as string))).blob();
+
+  // Lead-in measured on a voice's first recording when it was uploaded.
+  const measuredLeadIn = (track: PieceTrack): number | null => {
+    const file = TRACK_RECORDING_FIELDS.map((field) => files.find((f) => f.id === track[field])).find(Boolean);
+    return file ? file.offset_s : null;
+  };
+
+  // MusicXML files and MuseScore timing exports (both kept as notation files).
+  const notationFiles = files.filter(
+    (f) => f.kind === 'notation' && f.file_path && !isTimingFileName(f.file_name ?? ''),
+  );
+  const timingFiles = files.filter((f) => f.kind === 'notation' && f.file_path && isTimingFileName(f.file_name ?? ''));
   const scoreFiles = files.filter((f) => (f.kind === 'score' || /\.pdf$/i.test(f.file_name ?? '')) && f.file_path);
   const notationFile = notationFiles.find((f) => f.id === piece.notation_file_id) ?? null;
+  const timingFile = timingFiles.find((f) => f.id === piece.timing_file_id) ?? null;
 
   const addFiles = async (picked: File[]) => {
-    // Notation first, so its bars are there to check the recordings against.
-    const ordered = [...picked].sort(
-      (a, b) => Number(guessFileKind(b) === 'notation') - Number(guessFileKind(a) === 'notation'),
-    );
+    // MusicXML first, then MuseScore's timing (named after the MusicXML's
+    // bars), so the bars are there to check the recordings against.
+    const rank = (f: File) =>
+      guessFileKind(f) !== 'notation' ? 2 : isTimingFileName(f.name) ? 1 : 0;
+    const ordered = [...picked].sort((a, b) => rank(a) - rank(b));
     const counts: Partial<Record<PieceFileKind, number>> = {};
     for (const f of files) counts[f.kind] = (counts[f.kind] ?? 0) + 1;
     let scoreId = piece.score_file_id;
     let notationId = piece.notation_file_id;
+    let timingId = piece.timing_file_id;
+    // The MusicXML naming the bars: uploaded now, else the piece's.
+    let notationBlob: Blob | null = null;
+    const currentNotation = async () => notationBlob ?? (notationFile ? fetchFile(notationFile) : null);
 
     for (const file of ordered) {
       // Only uploads in progress or failed are listed; a finished one joins
@@ -332,38 +379,95 @@ export const PieceSetupPage = () => {
       if (kind === 'score' && !scoreId) {
         scoreId = row.id;
         await updatePiece({ score_file_id: row.id });
+      } else if (kind === 'notation' && isTimingFileName(file.name)) {
+        if (timingId) continue;
+        timingId = row.id;
+        await updatePiece({ timing_file_id: row.id });
+        setTimingMode('mscore');
+        const problem = await readTiming(file, await currentNotation());
+        if (problem) setUploads((list) => [...list, { key, name: file.name, state: 'error', note: problem }]);
       } else if (kind === 'notation' && !notationId) {
         notationId = row.id;
+        notationBlob = file;
         await updatePiece({ notation_file_id: row.id });
-        const problem = await readNotation(file);
-        if (problem) {
-          setUploads((list) => [...list, { key, name: file.name, state: 'error', note: problem }]);
-        }
+        // Bars from MuseScore's timing stay; the MusicXML only names them.
+        const problem =
+          piece.timeline?.source === 'mscore' && timingFile
+            ? await readTiming(await fetchFile(timingFile), file)
+            : await readNotation(file);
+        if (problem) setUploads((list) => [...list, { key, name: file.name, state: 'error', note: problem }]);
       }
     }
   };
 
-  const rereadNotation = async (file: PieceFile | null = notationFile) => {
+  // Takes the bars from the MusicXML or MuseScore's timing again, as
+  // uploaded: the fitted bars go and, with `resetLeadIns` (the button),
+  // every voice gets back the lead-in measured on its recording. `picks`
+  // names other files to read than the piece's.
+  const reread = async (
+    source: 'notation' | 'mscore',
+    resetLeadIns = false,
+    picks: { notation?: PieceFile | null; timing?: PieceFile | null } = {},
+  ) => {
+    const notation = picks.notation !== undefined ? picks.notation : notationFile;
+    const timing = picks.timing !== undefined ? picks.timing : timingFile;
+    const file = source === 'notation' ? notation : timing;
     if (!file?.file_path) return;
     setTimingBusy(true);
-    const response = await fetch(pieceFileUrl(file.file_path));
-    await readNotation(await response.blob());
+    const problem =
+      source === 'notation'
+        ? await readNotation(await fetchFile(file), true)
+        : await readTiming(await fetchFile(file), notation?.file_path ? await fetchFile(notation) : null, true);
+    if (!problem && resetLeadIns) await restoreLeadIns();
     setTimingBusy(false);
   };
 
-  const saveEven = async () => {
-    const count = parseInt(barCount, 10);
-    if (!(count >= 1)) {
-      setTimingError(t('barRangeInvalid'));
-      return;
-    }
-    setTimingError(null);
-    // Keeps the first bar's number; the numbering below shifts it.
+  // Every voice gets back the lead-in measured on its recording.
+  const restoreLeadIns = () =>
+    Promise.all(
+      tracks.flatMap((track) => {
+        const measured = measuredLeadIn(track);
+        return measured != null && measured !== track.offset_s ? [updateTrack(track, { offset_s: measured })] : [];
+      }),
+    );
+
+  // New evenly spaced bars; like reading a file again, the fitting is reset.
+  const saveEven = async (count: number) => {
+    // Keeps the first bar's number; the editor's numbering shifts it.
     const first = piece.timeline?.source === 'even' ? piece.timeline.first : 1;
-    await updatePiece({
-      timeline: { source: 'even', first, last: first + count - 1 },
-      bar_sync: piece.timeline?.source === 'even' ? piece.bar_sync : [],
-    });
+    await updatePiece({ timeline: { source: 'even', first, last: first + count - 1 }, bar_sync: [] });
+    await restoreLeadIns();
+  };
+
+  // Places every bar on the score PDF where MuseScore's timing export says
+  // it sits — right only when the PDF comes from the same MuseScore file.
+  const placeFromMuseScore = async () => {
+    const pdf = scoreFiles.find((f) => f.id === piece.score_file_id);
+    if (!timingFile || !pdf?.file_path) return;
+    setPlacing(true);
+    setPlaceNote(null);
+    try {
+      const [text, written, pages] = await Promise.all([
+        fetchFile(timingFile).then((b) => b.text()),
+        notationFile ? fetchFile(notationFile).then(readWrittenBars).catch(() => null) : Promise.resolve(null),
+        pdfPageSizes(pieceFileUrl(pdf.file_path)),
+      ]);
+      const anchors = mposBarFrames(text, written, pages);
+      const { error } = await api.from('pieces').update({ bar_anchors: anchors }).eq('id', piece.id);
+      if (error) throw new Error(error.message);
+      setPiece((p) => (p ? { ...p, bar_anchors: anchors } : p));
+      setPlaceNote({ ok: true, text: t('placedFromMuseScore').replace('{n}', String(Object.keys(anchors).length)) });
+    } catch (e) {
+      const mismatch = e instanceof TimingError && (e.message === 'fit' || e.message === 'pages');
+      setPlaceNote({ ok: false, text: mismatch ? t('placeMismatch') : e instanceof Error && !(e instanceof TimingError) ? e.message : t('timingUnreadable') });
+    }
+    setPlacing(false);
+  };
+
+  // Runs a change that resets the fitting, asking first when there is one.
+  const withReset = (action: () => Promise<void>) => {
+    if (isFitted) setPendingReset(() => action);
+    else void action();
   };
 
   const addLink = async () => {
@@ -440,9 +544,6 @@ export const PieceSetupPage = () => {
   const score = scoreFiles.find((f) => f.id === piece.score_file_id) ?? null;
   const labels = timelineLabels(timeline);
   const placed = labels.filter((l) => piece.bar_anchors[l]).length;
-  // Shown bar numbers: the first numbered bar plus the piece's shift.
-  const firstNumber = firstBarNumber(labels);
-  const shownStart = firstNumber == null ? null : firstNumber + (piece.bar_shift ?? 0);
   const expected = syncedDuration(timeline, piece.bar_sync);
   // Voices to fit the bars with: each with the first of its recordings.
   const syncVoices: SyncVoice[] = tracks.flatMap((track) => {
@@ -452,14 +553,21 @@ export const PieceSetupPage = () => {
       : [];
   });
   const syncCount = (piece.bar_sync ?? []).length;
+  // Something "Read again" would undo.
+  const isFitted =
+    syncCount > 0 ||
+    tracks.some((track) => {
+      const measured = measuredLeadIn(track);
+      return measured != null && Math.abs(measured - track.offset_s) > 1e-3;
+    });
   const fermataCount = timeline?.source === 'notation' ? (timeline.fermatas ?? 0) : 0;
 
   // Saves the fitted bars and changed lead-ins; the piece's length follows
   // the bars unless it was set by hand.
-  const saveSync = async (sync: BarSyncPoint[], offsets: Record<string, number>) => {
+  const saveSync = async (sync: BarSyncPoint[], offsets: Record<string, number>, barShift: number) => {
     const before = syncedDuration(timeline, piece.bar_sync);
     const after = syncedDuration(timeline, sync);
-    const patch: Partial<Piece> = { bar_sync: sync };
+    const patch: Partial<Piece> = { bar_sync: sync, bar_shift: barShift };
     if (after != null && (piece.duration_s == null || before == null || Math.abs(piece.duration_s - before) < 0.5)) {
       patch.duration_s = Math.round(after * 1000) / 1000;
     }
@@ -472,7 +580,7 @@ export const PieceSetupPage = () => {
     ]);
     setSyncOpen(false);
   };
-  const mode = timingMode ?? timeline?.source ?? (notationFile ? 'notation' : 'even');
+  const mode = timingMode ?? timeline?.source ?? (timingFile ? 'mscore' : notationFile ? 'notation' : 'even');
   const uploadedFiles = files.filter((f) => f.kind !== 'link');
   const links = files.filter((f) => f.kind === 'link');
   const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
@@ -762,33 +870,37 @@ export const PieceSetupPage = () => {
         {/* Bars: when each starts in the recordings (shared by all voices),
             how they are numbered, and where they sit in the score PDF. */}
         <Section title={t('barsTitle')} hint={t('barsHint')}>
-          <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
-            {(['notation', 'even'] as const).map((src) => {
-              const active = mode === src;
-              return (
-                <button
-                  key={src}
-                  type="button"
-                  disabled={src === 'notation' && !notationFile}
-                  onClick={() => {
-                    setTimingMode(src);
-                    setTimingError(null);
-                    if (src === 'notation' && timeline?.source !== 'notation') void rereadNotation();
-                  }}
-                  className={cn(
-                    'h-9 flex-1 rounded text-sm font-medium transition-colors duration-150 disabled:opacity-40',
-                    active ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-                  )}
-                >
-                  {src === 'notation' ? t('timingFromNotation') : t('timingEven')}
-                </button>
-              );
-            })}
-          </div>
+          {/* Where the bars come from, in a frame of its own: the three
+              sources, what was read, and reading it again. */}
+          <div className="space-y-3 rounded-md border border-border bg-surface-subtle p-3">
+            <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
+              {(['notation', 'mscore', 'even'] as const).map((src) => {
+                const active = mode === src;
+                return (
+                  <button
+                    key={src}
+                    type="button"
+                    disabled={src === 'notation' && !notationFile}
+                    // Only shows the source; its button loads the bars.
+                    onClick={() => {
+                      setTimingMode(src);
+                      setTimingError(null);
+                      setPlaceNote(null);
+                    }}
+                    className={cn(
+                      'h-9 min-w-0 flex-1 truncate rounded px-1 text-sm font-medium transition-colors duration-150 disabled:opacity-40',
+                      active ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
+                    )}
+                  >
+                    {t(src === 'notation' ? 'timingFromNotation' : src === 'mscore' ? 'timingFromMuseScore' : 'timingEven')}
+                  </button>
+                );
+              })}
+            </div>
 
-          {mode === 'notation' ? (
-            <div className="space-y-3">
-              {timeline?.source === 'notation' && (
+            {mode === 'mscore' && !timingFile && <MuseScoreTip name={piece.name} />}
+            {mode !== 'even' && timeline && timeline.source === mode && (
+              <div className="space-y-2">
                 <div className="flex flex-wrap gap-1.5">
                   <Chip>
                     {timeline.written} {t('bars')}
@@ -803,12 +915,12 @@ export const PieceSetupPage = () => {
                       {timeline.repeats} {t('repeatsCount')}
                     </Chip>
                   )}
-                  {timeline.tempoChanges > 0 && (
+                  {timeline.source === 'notation' && timeline.tempoChanges > 0 && (
                     <Chip>
                       {timeline.tempoChanges} {t('tempoChanges')}
                     </Chip>
                   )}
-                  {timeline.meterChanges > 0 && (
+                  {timeline.source === 'notation' && timeline.meterChanges > 0 && (
                     <Chip>
                       {timeline.meterChanges} {t('meterChanges')}
                     </Chip>
@@ -821,118 +933,135 @@ export const PieceSetupPage = () => {
                   )}
                   {expected != null && <Chip>{formatTime(expected)}</Chip>}
                 </div>
-              )}
-              {notationFile && (
-                <Button variant="secondary" onClick={() => void rereadNotation()} disabled={timingBusy}>
-                  <RefreshCw size={15} className={cn(timingBusy && 'animate-spin')} />
-                  {t('rereadNotation')}
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {!notationFile && <p className="text-sm text-text-secondary">{t('notationTip')}</p>}
-              <div className="flex items-end gap-3">
-                <Input
-                  id="bar-count"
-                  label={t('barCount')}
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  value={barCount}
-                  onChange={(e) => setBarCount(e.target.value)}
-                  className="max-w-[10rem]"
-                />
-                <Button onClick={() => void saveEven()} disabled={!barCount} className="h-10">
-                  {t('save')}
-                </Button>
-              </div>
-            </div>
-          )}
-          {timingError && <p className="text-sm text-danger">{timingError}</p>}
-
-          <div className="space-y-2 border-t border-border pt-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-sm font-semibold">{t('syncSection')}</h3>
-              {syncCount > 0 && (
-                <span className="flex-shrink-0 text-sm tabular-nums text-text-secondary">
-                  {syncCount === 1 ? t('syncPinnedOne') : t('syncPinnedCount').replace('{n}', String(syncCount))}
-                </span>
-              )}
-            </div>
-            {fermataCount > 0 && syncCount === 0 ? (
-              <p className="flex gap-2 rounded-md bg-info-soft px-3 py-2 text-sm text-text">
-                <FermataIcon size={16} className="mt-1 flex-shrink-0" />
-                <span>
-                  {fermataCount === 1
-                    ? t('syncFermataWarningOne')
-                    : t('syncFermataWarning').replace('{n}', String(fermataCount))}
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm text-text-secondary">{t('syncSectionHint')}</p>
-            )}
-            <Button
-              variant="secondary"
-              onClick={() => setSyncOpen(true)}
-              disabled={!timeline || syncVoices.length === 0}
-            >
-              <AudioWaveform size={15} />
-              {syncCount > 0 ? t('syncEdit') : t('syncOpen')}
-            </Button>
-            {(!timeline || syncVoices.length === 0) && (
-              <p className="text-sm text-text-secondary">
-                {!timeline ? t('syncNeedsBars') : t('syncNeedsRecording')}
-              </p>
-            )}
-          </div>
-
-          {firstNumber != null && shownStart != null && (
-            <div className="space-y-1.5 border-t border-border pt-3">
-              <Input
-                // Re-mounted when the saved value changes, so it shows that value.
-                key={shownStart}
-                id="bar-numbering-start"
-                label={t('barNumberingStart')}
-                type="number"
-                inputMode="numeric"
-                defaultValue={shownStart}
-                onBlur={(e) => {
-                  const v = parseInt(e.target.value, 10);
-                  if (!Number.isFinite(v) || v === shownStart) {
-                    e.target.value = String(shownStart);
-                    return;
-                  }
-                  void updatePiece({ bar_shift: v - firstNumber });
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                className="max-w-[10rem]"
-              />
-              <p className="text-sm text-text-secondary">{t('barNumberingHint')}</p>
-            </div>
-          )}
-            <div className="space-y-2 border-t border-border pt-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <h3 className="text-sm font-semibold">{t('markersTitle')}</h3>
-                {score && labels.length > 0 && (
-                  <span className="flex-shrink-0 text-sm tabular-nums text-text-secondary">
-                    {placed}/{labels.length}
-                  </span>
+                {timeline.source === 'mscore' && (
+                  <p className="text-sm text-text-secondary">
+                    {timeline.labels === 'notation' ? t('timingLabelsFromNotation') : t('timingLabelsCounted')}
+                  </p>
                 )}
               </div>
+            )}
+            {mode !== 'even' && timeline && timeline.source !== mode && (mode === 'notation' ? notationFile : timingFile) && (
               <p className="text-sm text-text-secondary">
-                {!score ? t('markersNeedScore') : labels.length === 0 ? t('markersNeedBars') : t('markersHint')}
+                {t('timingNotLoaded').replace(
+                  '{source}',
+                  t(timeline.source === 'notation' ? 'timingFromNotation' : timeline.source === 'mscore' ? 'timingFromMuseScore' : 'timingEven'),
+                )}
               </p>
-              {score && labels.length > 0 && (
-                <>
-                  <Button variant="secondary" onClick={() => navigate(`${back}?place=1`)} disabled={!canPlaceBars}>
-                    <MapPin size={15} />
-                    {placed > 0 ? t('editMarkers') : t('placeBars')}
+            )}
+            {((mode === 'notation' && notationFile) || (mode === 'mscore' && timingFile)) && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => withReset(() => reread(mode, true))}
+                  disabled={timingBusy}
+                  title={timeline?.source === mode ? t('rereadNotationHint') : undefined}
+                >
+                  {timeline?.source === mode ? (
+                    <RefreshCw size={15} className={cn(timingBusy && 'animate-spin')} />
+                  ) : (
+                    <Download size={15} className={cn(timingBusy && 'animate-pulse')} />
+                  )}
+                  {timeline?.source === mode ? t('rereadNotation') : t('loadTiming')}
+                </Button>
+                {mode === 'mscore' && timeline?.source === 'mscore' && score && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => (placed > 0 ? setConfirmPlace(true) : void placeFromMuseScore())}
+                    disabled={placing}
+                    title={t('placeFromMuseScoreHint')}
+                  >
+                    {placing ? <Loader2 size={15} className="animate-spin" /> : <MapPin size={15} />}
+                    {t('placeFromMuseScore')}
                   </Button>
-                  {!canPlaceBars && <p className="text-sm text-text-secondary">{t('placeBarsDesktopOnly')}</p>}
-                </>
+                )}
+              </div>
+            )}
+            {mode === 'mscore' && placeNote && (
+              <p className={cn('text-sm', placeNote.ok ? 'text-success-strong' : 'text-danger')}>{placeNote.text}</p>
+            )}
+            {mode === 'even' && (
+              <div className="space-y-3">
+                {!notationFile && !timingFile && <p className="text-sm text-text-secondary">{t('notationTip')}</p>}
+                <div className="flex items-end gap-3">
+                  <Input
+                    id="bar-count"
+                    label={t('barCount')}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={barCount}
+                    onChange={(e) => setBarCount(e.target.value)}
+                    className="max-w-[10rem]"
+                  />
+                  <Button
+                    onClick={() => {
+                      const count = parseInt(barCount, 10);
+                      if (!(count >= 1)) return setTimingError(t('barRangeInvalid'));
+                      setTimingError(null);
+                      withReset(() => saveEven(count));
+                    }}
+                    disabled={!barCount}
+                    className="h-10"
+                  >
+                    {t('save')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {timingError && <p className="text-sm text-danger">{timingError}</p>}
+          </div>
+
+          {fermataCount > 0 && syncCount === 0 && (
+            <p className="flex gap-2 rounded-md bg-info-soft px-3 py-2 text-sm text-text">
+              <FermataIcon size={16} className="mt-1 flex-shrink-0" />
+              <span>
+                {fermataCount === 1
+                  ? t('syncFermataWarningOne')
+                  : t('syncFermataWarning').replace('{n}', String(fermataCount))}
+              </span>
+            </p>
+          )}
+
+          {/* Fitting the bars to the recordings (and numbering them), and
+              placing them in the score PDF. */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setSyncOpen(true)}
+                disabled={!timeline || syncVoices.length === 0}
+              >
+                <AudioWaveform size={15} />
+                {t('syncOpen')}
+              </Button>
+              {score && labels.length > 0 && (
+                <Button variant="secondary" onClick={() => navigate(`${back}?place=1`)} disabled={!canPlaceBars}>
+                  <MapPin size={15} />
+                  {t('placeBarsInPdf')}
+                </Button>
               )}
             </div>
+            <p className="text-sm text-text-secondary">
+              {[
+                syncCount > 0
+                  ? syncCount === 1
+                    ? t('syncFittedOne')
+                    : t('syncFittedCount').replace('{n}', String(syncCount))
+                  : null,
+                score && labels.length > 0 ? t('placedInPdf').replace('{n}', `${placed}/${labels.length}`) : null,
+              ]
+                .filter(Boolean)
+                .map((x) => <span key={x} className="font-medium text-text">{x} · </span>)}
+              {t('syncExplain')}
+              {[
+                timeline && syncVoices.length === 0 ? t('syncNeedsRecording') : null,
+                !score ? t('markersNeedScore') : labels.length > 0 && !canPlaceBars ? t('placeBarsDesktopOnly') : null,
+              ]
+                .filter(Boolean)
+                .map((x) => ` ${x}`)
+                .join('')}
+            </p>
+          </div>
         </Section>
 
         <Section title={t('miscTitle')}>
@@ -960,9 +1089,11 @@ export const PieceSetupPage = () => {
                 onChange={(e) => {
                   const id = e.target.value || null;
                   void updatePiece({ notation_file_id: id });
-                  // The bars follow the chosen file while they come from one.
+                  // The bars follow the chosen file while they come from it
+                  // (or from MuseScore's timing, named after it).
                   const picked = notationFiles.find((f) => f.id === id) ?? null;
-                  if (picked && mode === 'notation') void rereadNotation(picked);
+                  const source = timeline?.source;
+                  if (source === 'notation' || source === 'mscore') void reread(source, false, { notation: picked });
                 }}
                 className={cn(selectClasses, 'h-10')}
               >
@@ -975,6 +1106,29 @@ export const PieceSetupPage = () => {
               </select>
               <span className="text-xs font-normal text-text-secondary">{t('notationFileHint')}</span>
             </label>
+            {timingFiles.length > 0 && (
+              <label className="flex min-w-0 flex-col gap-1.5 text-sm font-medium">
+                {t('timingFileLabel')}
+                <select
+                  value={piece.timing_file_id ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value || null;
+                    void updatePiece({ timing_file_id: id });
+                    const picked = timingFiles.find((f) => f.id === id) ?? null;
+                    if (timeline?.source === 'mscore') void reread('mscore', false, { timing: picked });
+                  }}
+                  className={cn(selectClasses, 'h-10')}
+                >
+                  <option value="">{t('noFileSelected')}</option>
+                  {byLabel(timingFiles).map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {fileLabel(f)}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs font-normal text-text-secondary">{t('timingFileHint')}</span>
+              </label>
+            )}
           </div>
 
           <div className="space-y-2 border-t border-border pt-4">
@@ -1059,6 +1213,31 @@ export const PieceSetupPage = () => {
         />
       )}
       <ConfirmDialog
+        open={confirmPlace}
+        title={t('placeFromMuseScore')}
+        message={t('placeFromMuseScoreConfirm').replace('{n}', String(placed))}
+        confirmLabel={t('placeFromMuseScoreConfirmButton')}
+        destructive
+        onConfirm={() => {
+          setConfirmPlace(false);
+          void placeFromMuseScore();
+        }}
+        onCancel={() => setConfirmPlace(false)}
+      />
+      <ConfirmDialog
+        open={pendingReset != null}
+        title={t('resetFittingTitle')}
+        message={t('rereadResetMessage')}
+        confirmLabel={t('resetFittingConfirm')}
+        destructive
+        onConfirm={() => {
+          const action = pendingReset;
+          setPendingReset(null);
+          void action?.();
+        }}
+        onCancel={() => setPendingReset(null)}
+      />
+      <ConfirmDialog
         open={!!toDelete}
         title={t('delete')}
         message={toDelete?.kind === 'audio' ? t('confirmDeleteRecording') : t('confirmDelete')}
@@ -1092,6 +1271,55 @@ export const PieceSetupPage = () => {
           onCancel={() => setRemoveOpen(false)}
         />
       )}
+    </div>
+  );
+};
+
+// How to export MuseScore's bar timing, with commands to copy (the score's
+// file name taken from the piece's name).
+const MuseScoreTip = ({ name }: { name: string }) => {
+  const { t } = useI18n();
+  const base = name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Stück';
+  const commands = [
+    { os: 'macOS', line: `/Applications/MuseScore\\ 4.app/Contents/MacOS/mscore -o "${base}.mpos" "${base}.mscz"` },
+    { os: 'Windows (PowerShell)', line: `& "C:\\Program Files\\MuseScore 4\\bin\\MuseScore4.exe" -o "${base}.mpos" "${base}.mscz"` },
+  ];
+  return (
+    <div className="space-y-2.5 rounded-md border border-border bg-surface-subtle p-3 text-sm">
+      <p>{t('timingTip')}</p>
+      {commands.map((c) => (
+        <CommandLine key={c.os} label={c.os} line={c.line} />
+      ))}
+      <p className="text-text-secondary">{t('timingTipAfter')}</p>
+    </div>
+  );
+};
+
+const CommandLine = ({ label, line }: { label: string; line: string }) => {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-medium text-text-secondary">{label}</div>
+      <div className="flex items-stretch gap-1.5">
+        <code className="min-w-0 flex-1 select-all overflow-x-auto whitespace-nowrap rounded-md border border-border bg-surface px-2.5 py-2 font-mono text-xs">
+          {line}
+        </code>
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard?.writeText(line).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1500);
+            });
+          }}
+          aria-label={t('copy')}
+          title={t('copy')}
+          className="flex w-9 flex-shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-secondary hover:bg-surface-hover hover:text-text"
+        >
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+        </button>
+      </div>
     </div>
   );
 };

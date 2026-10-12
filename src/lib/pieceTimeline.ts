@@ -86,12 +86,12 @@ export const applySync = <T extends { label: string; start: number; end: number;
 };
 
 // Length of the timeline in seconds once fitted to the sync points
-// (notation only; even bars have none).
+// (evenly spaced bars have none).
 export const syncedDuration = (
   timeline: PieceTimeline | null,
   sync: readonly BarSyncPoint[] | null | undefined,
 ): number | null => {
-  if (timeline?.source !== 'notation') return null;
+  if (!timeline || timeline.source === 'even') return null;
   const fitted = applySync(timeline.bars, sync);
   return fitted[fitted.length - 1]?.end ?? 0;
 };
@@ -206,9 +206,9 @@ export const firstBarNumber = (labels: string[]): number | null => {
   return null;
 };
 
-// Length of the timeline in seconds (notation only; even bars have none).
+// Length of the timeline in seconds (evenly spaced bars have none).
 export const timelineDuration = (timeline: PieceTimeline | null): number | null =>
-  timeline?.source === 'notation' ? (timeline.bars[timeline.bars.length - 1]?.end ?? 0) : null;
+  timeline && timeline.source !== 'even' ? (timeline.bars[timeline.bars.length - 1]?.end ?? 0) : null;
 
 // A piece's length: its own (set from the MusicXML or by hand), else what
 // its bar timeline says.
@@ -219,7 +219,8 @@ export const pieceDuration = (piece: { duration_s: number | null; timeline: Piec
 export const guessFileKind = (file: File): PieceFileKind => {
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf')) return 'score';
-  if (/\.(musicxml|mxl|xml)$/.test(name)) return 'notation';
+  // MuseScore's bar timing (.mpos) is kept with the notation files.
+  if (/\.(musicxml|mxl|xml|mpos)$/.test(name)) return 'notation';
   if (/\.(mid|midi)$/.test(name)) return 'midi';
   if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|ogg|oga|flac|opus)$/.test(name)) {
     return 'audio';

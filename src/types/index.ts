@@ -310,6 +310,8 @@ export interface Piece {
   // read from, both picked from the piece's files.
   score_file_id: string | null;
   notation_file_id: string | null;
+  // The MuseScore bar timing (.mpos) its bars are read from instead.
+  timing_file_id: string | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
   // Where the recordings leave the notation's timing (fermatas, ritardandi):
@@ -403,9 +405,10 @@ export interface BarSyncPoint {
   at: number;
 }
 
-// The bar timeline shared by all audio tracks of a piece: either read from a
-// notation file (exact, handles tempo/meter changes and repeats) or bars
-// spread evenly across the recording.
+// The bar timeline shared by all audio tracks of a piece: read from a
+// notation file (exact, handles tempo/meter changes and repeats), exported by
+// MuseScore (exact as it plays, fermatas included) or bars spread evenly
+// across the recording.
 export type PieceTimeline =
   | { source: 'even'; first: number; last: number }
   | {
@@ -418,6 +421,16 @@ export type PieceTimeline =
       repeats: number;
       // Written bars with a fermata (missing in timelines read before).
       fermatas?: number;
+    }
+  | {
+      // Exported by MuseScore (.mpos): every bar's start as MuseScore plays
+      // it — tempo, fermatas and repeats included.
+      source: 'mscore';
+      bars: TimelineBar[];
+      written: number;
+      repeats: number; // jumps back (repeats, D.C., D.S.)
+      // Labels taken from the MusicXML (same bar count), else counted 1, 2, …
+      labels: 'notation' | 'counted';
     };
 
 // A bar's mark on the score PDF: page number (1-based) and a frame (or, in

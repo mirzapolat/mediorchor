@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n';
 import { track } from '@/lib/analytics';
 import { pieceFileUrl, type PieceOverviewFile } from '@/lib/pieceFiles';
 import { createZip, safeFileName } from '@/lib/zip';
+import { isTimingFileName } from '@/lib/mpos';
 import type { Piece } from '@/types';
 
 const isPdf = (f: PieceOverviewFile) =>
@@ -13,7 +14,9 @@ const isMidi = (f: PieceOverviewFile) =>
   Boolean(f.file_path) && (f.kind === 'midi' || /\.midi?$/i.test(f.file_name ?? ''));
 const isAudio = (f: PieceOverviewFile) => Boolean(f.file_path) && f.kind === 'audio';
 const isMusicXml = (f: PieceOverviewFile) =>
-  Boolean(f.file_path) && (f.kind === 'notation' || /\.(musicxml|mxl|xml)$/i.test(f.file_name ?? ''));
+  Boolean(f.file_path) &&
+  !isTimingFileName(f.file_name ?? '') &&
+  (f.kind === 'notation' || /\.(musicxml|mxl|xml)$/i.test(f.file_name ?? ''));
 
 const extension = (f: PieceOverviewFile, fallback: string) =>
   /\.[a-z0-9]{1,8}$/i.exec(f.file_name ?? f.file_path ?? '')?.[0].toLowerCase() ?? fallback;
