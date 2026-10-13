@@ -456,14 +456,4 @@ export const parseNotation = async (file: Blob): Promise<NotationTimeline> => {
 
 const round = (s: number) => Math.round(s * 1000) / 1000;
 
-// The written bars in score order (label, fermata, length in seconds), for
-// naming the bars of a MuseScore timing export, which only counts them.
-export const readWrittenBars = async (
-  file: Blob,
-): Promise<Array<{ label: string; fermata: boolean; seconds: number }>> => {
-  const measures = parseScore(await readXmlText(file));
-  const timing = measureSeconds(measures);
-  return measures.map((m, i) => ({ label: m.label, fermata: m.fermata, seconds: timing[i] }));
-};
-
 export const isNotationFileName = (name: string) => /\.(musicxml|mxl|xml)$/i.test(name);

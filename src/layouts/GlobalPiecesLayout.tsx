@@ -9,7 +9,8 @@ import type { PieceScope } from './pieceScope';
 export const GlobalPiecesLayout = () => {
   const { hasFullPieceAccess } = useAuth();
   // A piece's practice page uses the full width, like inside a project.
-  const pieceOpen = useMatch('/pieces/:pieceId') != null;
+  const setupOpen = useMatch('/pieces/:pieceId/setup') != null;
+  const pieceOpen = useMatch('/pieces/:pieceId') != null || setupOpen;
   if (!hasFullPieceAccess) return <NoAccess />;
   const pieceScope: PieceScope = {
     base: '/pieces',

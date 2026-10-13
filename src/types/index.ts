@@ -413,7 +413,7 @@ export interface BarSyncPoint {
 // notation file (exact, handles tempo/meter changes and repeats), exported by
 // MuseScore (exact as it plays, fermatas included) or bars spread evenly
 // across the recording.
-export type PieceTimeline =
+export type PieceTimeline = (
   | { source: 'even'; first: number; last: number }
   | {
       source: 'notation';
@@ -435,7 +435,12 @@ export type PieceTimeline =
       repeats: number; // jumps back (repeats, D.C., D.S.)
       // Labels taken from the MusicXML (same bar count), else counted 1, 2, …
       labels: 'notation' | 'counted';
-    };
+    }
+) & {
+  // The file the bars were taken from: the .mpos, the MusicXML, or the
+  // recording even bars were spread over (missing in older timelines).
+  file_id?: string | null;
+};
 
 // A bar's mark on the score PDF: page number (1-based) and a frame (or, in
 // older data, a point) as fractions of the page size, so it scales with any width.

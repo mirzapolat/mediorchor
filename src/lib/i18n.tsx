@@ -1650,6 +1650,39 @@ const dict: Dict = {
   creditRole: { de: 'Rolle', en: 'Role' },
   addCredit: { de: 'Person hinzufügen', en: 'Add person' },
   uploadedFiles: { de: 'Hochgeladene Dateien', en: 'Uploaded files' },
+  filesAndVoicesTitle: { de: 'Dateien & Stimmen', en: 'Files & voices' },
+  filesAndVoicesHint: {
+    de: 'Lade links die Dateien hoch und verbinde sie rechts mit den Stimmen und Noten.',
+    en: 'Upload the files on the left and connect them to the voices and the score on the right.',
+  },
+  wireHint: {
+    de: 'Zieh vom Punkt einer Datei auf einen Eingang, um sie zu verbinden.',
+    en: 'Drag from a file’s point onto an input to connect it.',
+  },
+  wireDesktopOnly: {
+    de: 'Verbinden geht auf einem größeren Bildschirm.',
+    en: 'Connecting works on a larger screen.',
+  },
+  connectFile: { de: '{name} verbinden', en: 'Connect {name}' },
+  notConnected: { de: 'Nicht verbunden', en: 'Not connected' },
+  disconnect: { de: 'Trennen', en: 'Disconnect' },
+  scoreNodesTitle: { de: 'Noten', en: 'Score' },
+  nodeInput: { de: 'Datei', en: 'File' },
+  barsSource: { de: 'Quelle der Takte', en: 'Bar source' },
+  barsSourceHint: {
+    de: 'MPOS: MuseScore-Zeiten · MusicXML: aus der Notendatei · Aufnahme: gleichmäßig verteilt.',
+    en: 'MPOS: MuseScore timing · MusicXML: from the notation file · Recording: evenly spaced.',
+  },
+  barsReadAs: { de: 'Takte:', en: 'Bars:' },
+  barsConnectHint: {
+    de: 'Verbinde eine MPOS-, MusicXML- oder Audiodatei.',
+    en: 'Connect an MPOS, MusicXML or audio file.',
+  },
+  barsNotApplied: {
+    de: 'Neue Quelle verbunden – noch nicht übernommen.',
+    en: 'New source connected — not applied yet.',
+  },
+  applyBars: { de: 'Übernehmen', en: 'Apply' },
   barCount: { de: 'Anzahl Takte', en: 'Number of bars' },
   voicesPickHint: {
     de: 'Wähle für jede Stimme bis zu vier Aufnahmen aus den hochgeladenen Dateien: die anderen Stimmen stumm oder leise im Hintergrund, jeweils ohne und mit Metronom. Im Player lässt sich dann umschalten. Die Reihenfolge gilt auch im Player.',
@@ -1866,8 +1899,8 @@ const dict: Dict = {
   resetFittingTitle: { de: 'Anpassung zurücksetzen?', en: 'Reset the fitting?' },
   resetFittingConfirm: { de: 'Zurücksetzen', en: 'Reset' },
   syncExplain: {
-    de: 'Lege fest, wann Takte in den Aufnahmen wirklich beginnen – etwa nach Fermaten oder bei Live-Aufnahmen. „Neu einlesen“ oder „Speichern“ oben setzt die Anpassung zurück.',
-    en: 'Set when bars really start in the recordings — e.g. after fermatas or in live recordings. “Read again” or “Save” above resets the fitting.',
+    de: 'Lege fest, wann Takte in den Aufnahmen wirklich beginnen – etwa nach Fermaten oder bei Live-Aufnahmen. „Übernehmen“ oben setzt die Anpassung zurück.',
+    en: 'Set when bars really start in the recordings — e.g. after fermatas or in live recordings. “Apply” above resets the fitting.',
   },
   syncNeedsRecording: {
     de: 'Weise zuerst einer Stimme eine Aufnahme zu.',

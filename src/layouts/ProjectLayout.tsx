@@ -84,6 +84,8 @@ export const ProjectLayout = () => {
   const { t } = useI18n();
   const { projectId } = useParams();
   const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId') != null;
+  // Setting up a piece takes the whole screen, without the sidebar.
+  const setupOpen = useMatch('/projects/:projectId/pieces/:pieceId/setup') != null;
   const navigate = useNavigate();
   // Project settings need access to all projects, not just this one.
   const { canManageProjects, soleProjectId } = useAuth();
@@ -139,6 +141,18 @@ export const ProjectLayout = () => {
     canManage && participants
       ? { access: 'participants' as const, accessLabel: t('pageVisibleToParticipants') }
       : {};
+
+  if (setupOpen) {
+    return (
+      <main className="h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <ProjectGroupsProvider projectId={project.id}>
+            <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
+          </ProjectGroupsProvider>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="flex h-full">

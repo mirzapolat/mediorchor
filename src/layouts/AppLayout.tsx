@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useMatch } from 'react-router-dom';
 import { CalendarDays, FolderKanban, LayoutDashboard, Music, ShieldCheck } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
@@ -30,6 +30,16 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
 export const AppLayout = () => {
   const { t } = useI18n();
   const { canEditCalendars, isAdmin, hasFullPieceAccess } = useAuth();
+  // Setting up a piece takes the whole screen, without the sidebar.
+  const setupOpen = useMatch('/pieces/:pieceId/setup') != null;
+
+  if (setupOpen) {
+    return (
+      <main className="h-full overflow-y-auto">
+        <Outlet />
+      </main>
+    );
+  }
 
   return (
     <div className="flex h-full">

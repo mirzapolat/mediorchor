@@ -10,17 +10,6 @@ type MscoreTimeline = Extract<PieceTimeline, { source: 'mscore' }>;
 
 export class TimingError extends Error {}
 
-// A written bar from the MusicXML, to name the counted bars.
-export interface WrittenBar {
-  label: string;
-  fermata: boolean;
-  seconds: number;
-}
-
-// The MusicXML names the bars when it has the same ones.
-const namedBars = (count: number, written: WrittenBar[] | null) =>
-  written && written.length === count ? written : null;
-
 export const isTimingFileName = (name: string) => /\.mpos$/i.test(name);
 
 // A MuseScore score itself (offered for download with the sheet music).
@@ -28,7 +17,9 @@ export const isMuseScoreFileName = (name: string) => /\.msc[zx]$/i.test(name);
 
 const round = (s: number) => Math.round(s * 1000) / 1000;
 
-export const parseMpos = (text: string, written: WrittenBar[] | null): MscoreTimeline => {
+// The bars are counted 1, 2, … by their written bar (a repeated bar keeps
+// its number); the bar editor's numbering shifts them (pickup bars).
+export const parseMpos = (text: string): MscoreTimeline => {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
   if (doc.querySelector('parsererror') || doc.documentElement.tagName !== 'score') throw new TimingError('xml');
   const elements = Array.from(doc.querySelectorAll('elements > element'));
@@ -37,20 +28,11 @@ export const parseMpos = (text: string, written: WrittenBar[] | null): MscoreTim
     .filter((e) => Number.isInteger(e.bar) && e.bar >= 0 && Number.isFinite(e.ms));
   if (events.length === 0) throw new TimingError('empty');
   const count = Math.max(elements.length, ...events.map((e) => e.bar + 1));
-  const named = namedBars(count, written);
-  const labelOf = (bar: number) => named?.[bar].label ?? String(bar + 1);
-
   const bars: TimelineBar[] = events.map((e, i) => {
     const start = e.ms / 1000;
-    // The export has no end for the last bar: its written length (else the
-    // length of the bar before it).
-    const end =
-      i + 1 < events.length
-        ? events[i + 1].ms / 1000
-        : start + (named?.[e.bar].seconds || (i > 0 ? start - events[i - 1].ms / 1000 : 2));
-    const bar: TimelineBar = { label: labelOf(e.bar), start: round(start), end: round(Math.max(end, start)) };
-    if (named?.[e.bar].fermata) bar.fermata = true;
-    return bar;
+    // The export has no end for the last bar: the length of the bar before it.
+    const end = i + 1 < events.length ? events[i + 1].ms / 1000 : start + (i > 0 ? start - events[i - 1].ms / 1000 : 2);
+    return { label: String(e.bar + 1), start: round(start), end: round(Math.max(end, start)) };
   });
   // Bar one at 0 (the recording's lead-in is per voice).
   const origin = bars[0].start;
@@ -64,11 +46,11 @@ export const parseMpos = (text: string, written: WrittenBar[] | null): MscoreTim
     bars,
     written: count,
     repeats: events.filter((e, i) => i > 0 && e.bar <= events[i - 1].bar).length,
-    labels: named ? 'notation' : 'counted',
+    labels: 'counted',
   };
 };
 
-export const readMpos = async (file: Blob, written: WrittenBar[] | null) => parseMpos(await file.text(), written);
+export const readMpos = async (file: Blob) => parseMpos(await file.text());
 
 // PNG resolutions MuseScore may be set to export with; the .mpos uses that
 // resolution × 12 per inch (1200 dpi by default: 200 units per point).
@@ -86,7 +68,6 @@ const FRAME_PAD = 0.012;
 // frames don't fit the PDF (most likely another PDF).
 export const mposBarFrames = (
   text: string,
-  written: WrittenBar[] | null,
   pages: Array<{ width: number; height: number }>,
 ): Record<string, BarAnchor> => {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
@@ -105,8 +86,6 @@ export const mposBarFrames = (
   const snapped = EXPORT_DPIS.map((dpi) => (dpi / 72) * 12).find((u) => Math.abs(u - estimate) / u < 0.06);
   const perPoint = snapped ?? estimate;
 
-  const count = Math.max(...elements.map((e) => e.id + 1));
-  const named = namedBars(count, written);
   const anchors: Record<string, BarAnchor> = {};
   for (const e of elements) {
     const page = pages[e.page];
@@ -124,7 +103,7 @@ export const mposBarFrames = (
     const round = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 10000) / 10000;
     const top = Math.max(0, frame.y - FRAME_PAD);
     const bottom = Math.min(1, frame.y + frame.h + FRAME_PAD);
-    const label = named?.[e.id].label ?? String(e.id + 1);
+    const label = String(e.id + 1);
     anchors[label] ??= { page: frame.page, x: round(frame.x), y: round(top), w: round(frame.w), h: round(bottom - top) };
   }
   return anchors;
