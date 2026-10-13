@@ -1802,7 +1802,7 @@ const dict: Dict = {
     de: 'Nicht geladen – die Takte kommen gerade aus „{source}“.',
     en: 'Not loaded — the bars currently come from “{source}”.',
   },
-  placeFromMuseScore: { de: 'Takte ins PDF übernehmen', en: 'Place bars in the PDF from MuseScore' },
+  placeFromMuseScore: { de: 'Takte automatisch platzieren', en: 'Place bars automatically' },
   placeFromMuseScoreHint: {
     de: 'Setzt jeden Takt dorthin, wo er laut MuseScore im Noten-PDF steht. Passt nur, wenn das PDF aus derselben MuseScore-Datei exportiert wurde.',
     en: 'Places every bar where MuseScore says it sits in the score PDF. Only right when the PDF was exported from the same MuseScore file.',
@@ -1888,7 +1888,7 @@ const dict: Dict = {
     en: 'The score has a fermata. How long it is held isn’t in the MusicXML — the bars after it probably start later in the recording.',
   },
   syncOpen: { de: 'Takte anpassen', en: 'Fit bars' },
-  placeBarsInPdf: { de: 'Takte im PDF platzieren', en: 'Place bars in the PDF' },
+  placeBarsInPdf: { de: 'Takte manuell zeichnen', en: 'Draw bars manually' },
   placedInPdf: { de: '{n} im PDF', en: '{n} in the PDF' },
   syncFittedOne: { de: '1 Takt angepasst', en: '1 bar fitted' },
   syncFittedCount: { de: '{n} Takte angepasst', en: '{n} bars fitted' },

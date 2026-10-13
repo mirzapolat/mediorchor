@@ -157,17 +157,25 @@ const fileIcon = (f: PieceFile): LucideIcon => {
 
 // A file's one name, editable without its ending (".pdf" stays). Renaming
 // changes both the shown name and the stored file name (used for downloads).
-const FileName = ({ file, onRename }: { file: PieceFile; onRename: (patch: Partial<PieceFile>) => void }) => {
+// `beforeEnding` sits between the name and its ending (the download switch).
+const FileName = ({
+  file,
+  onRename,
+  beforeEnding,
+}: {
+  file: PieceFile;
+  onRename: (patch: Partial<PieceFile>) => void;
+  beforeEnding?: ReactNode;
+}) => {
   const { t } = useI18n();
   const stored = file.file_name ?? '';
   const ext = /\.[a-z0-9]{1,8}$/i.exec(stored)?.[0] ?? '';
   const name = file.title.trim() || stored.slice(0, stored.length - ext.length);
   const Icon = fileIcon(file);
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
-      <Icon size={16} className="flex-shrink-0 text-text-secondary" aria-hidden />
-      <div className="flex min-w-0 flex-1 items-center rounded-md border border-transparent hover:border-border focus-within:border-black">
-        <input
+    <div className="flex min-w-0 flex-1 items-center gap-2.5 pl-1">
+      <Icon size={18} className="flex-shrink-0 text-text-secondary" aria-hidden />
+      <input
           key={name}
           defaultValue={name}
           aria-label={t('displayName')}
@@ -180,10 +188,10 @@ const FileName = ({ file, onRename }: { file: PieceFile; onRename: (patch: Parti
             if (v !== name || v + ext !== stored) onRename({ title: v, file_name: v + ext });
           }}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className="h-8 min-w-0 flex-1 bg-transparent pl-1.5 text-base font-medium focus:outline-none sm:text-sm"
+          className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
         />
-        {ext && <span className="flex-shrink-0 pr-1.5 text-sm text-text-tertiary">{ext}</span>}
-      </div>
+      {beforeEnding}
+      {ext && <span className="w-12 flex-shrink-0 text-sm text-text-tertiary">{ext}</span>}
     </div>
   );
 };
@@ -788,17 +796,25 @@ export const PieceSetupPage = () => {
                 f.id === piece.score_file_id ||
                 tracks.some((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === f.id));
               return (
-                <div className="flex items-center gap-1 py-1">
-                  <FileName file={f} onRename={(patch) => void updateFile(f, patch)} />
-                  {!managed && (
-                    <Switch
-                      checked={f.downloadable}
-                      onChange={(downloadable) => void updateFile(f, { downloadable })}
-                      label={t('downloadSwitch')}
-                      title={t('downloadSwitchHint')}
-                      icon={Download}
-                    />
-                  )}
+                <div className="flex items-center gap-1.5 py-2.5">
+                  <FileName
+                    file={f}
+                    onRename={(patch) => void updateFile(f, patch)}
+                    beforeEnding={
+                      managed ? (
+                        // Keeps the endings in line with the rows that have a switch.
+                        <span className="w-[3.25rem] flex-shrink-0" />
+                      ) : (
+                        <Switch
+                          checked={f.downloadable}
+                          onChange={(downloadable) => void updateFile(f, { downloadable })}
+                          label={t('downloadSwitch')}
+                          title={t('downloadSwitchHint')}
+                          icon={Download}
+                        />
+                      )
+                    }
+                  />
                   {f.file_path && (
                     <a
                       href={pieceFileDownloadUrl(f.file_path, f.file_name ?? fileLabel(f))}
