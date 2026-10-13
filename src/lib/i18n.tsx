@@ -1756,7 +1756,10 @@ const dict: Dict = {
   timingFromNotation: { de: 'Aus Notendatei', en: 'From notation file' },
   timingEven: { de: 'Gleichmäßig', en: 'Evenly spaced' },
   timingFromMuseScore: { de: 'MuseScore-Zeiten', en: 'MuseScore timing' },
-  recommended: { de: 'Empfohlen', en: 'Recommended' },
+  timingRecommended: {
+    de: 'Empfohlen: MuseScore-Zeiten – die genauesten Taktanfänge, Wiederholungen schon aufgelöst.',
+    en: 'Recommended: MuseScore timing — the most exact bar starts, repeats already unfolded.',
+  },
   loadTiming: { de: 'Laden', en: 'Load' },
   timingNotLoaded: {
     de: 'Nicht geladen – die Takte kommen gerade aus „{source}“.',
@@ -1834,8 +1837,6 @@ const dict: Dict = {
     de: 'Der letzte Takt muss nach dem ersten liegen.',
     en: 'The last bar must come after the first.',
   },
-  trackLonger: { de: '{s} s länger als die Noten', en: '{s} s longer than the score' },
-  trackShorter: { de: '{s} s kürzer als die Noten', en: '{s} s shorter than the score' },
   fermatas: { de: 'Fermaten', en: 'Fermatas' },
   fermata: { de: 'Fermate', en: 'fermata' },
   fermatasLower: { de: 'Fermaten', en: 'fermatas' },

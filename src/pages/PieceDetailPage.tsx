@@ -166,15 +166,20 @@ const FileList = memo(({ piece, files: allFiles, voices: allVoices }: { piece: P
   });
   const usedIds = new Set(voiceRows.flatMap((r) => r.options.map((o) => o.fileId)));
 
-  // PDF, MusicXML and MuseScore; several of a format are told apart by
-  // their names.
+  // PDF, MusicXML, MuseScore and its bar timing (.mpos); several of a
+  // format are told apart by their names.
   const sheetFormat = (f: PieceFile) =>
-    isMuseScoreFileName(f.file_name ?? '') ? 'MuseScore' : f.kind === 'score' ? 'PDF' : 'MusicXML';
+    isMuseScoreFileName(f.file_name ?? '')
+      ? 'MuseScore'
+      : isTimingFileName(f.file_name ?? '')
+        ? t('timingFromMuseScore')
+        : f.kind === 'score'
+          ? 'PDF'
+          : 'MusicXML';
   const sheetFiles = files.filter(
     (f) =>
       f.file_path &&
-      (isMuseScoreFileName(f.file_name ?? '') ||
-        ((f.kind === 'score' || f.kind === 'notation') && !isTimingFileName(f.file_name ?? ''))),
+      (isMuseScoreFileName(f.file_name ?? '') || f.kind === 'score' || f.kind === 'notation'),
   );
   const sheetIds = new Set(sheetFiles.map((f) => f.id));
   const sheetOptions = sheetFiles.map((f) => {

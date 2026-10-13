@@ -1,13 +1,11 @@
 import { Fragment, useCallback, useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  AlertTriangle,
   ArrowLeft,
   AudioWaveform,
   Check,
   Copy,
   Download,
-  CheckCircle2,
   Loader2,
   MapPin,
   Plus,
@@ -143,26 +141,6 @@ const MultiDropzone = ({ onFiles }: { onFiles: (files: File[]) => void }) => {
   );
 };
 
-// Loads each recording's length (metadata only) to compare with the bars.
-const useRecordingDurations = (recordings: PieceFile[]) => {
-  const [durations, setDurations] = useState<Record<string, number>>({});
-  const key = recordings.map((f) => f.file_path).join('|');
-  useEffect(() => {
-    const audios = recordings
-      .filter((f) => f.file_path)
-      .map((file) => {
-        const audio = new Audio();
-        audio.preload = 'metadata';
-        audio.onloadedmetadata = () => setDurations((d) => ({ ...d, [file.id]: audio.duration }));
-        audio.src = pieceFileUrl(file.file_path as string);
-        return audio;
-      });
-    return () => audios.forEach((a) => a.removeAttribute('src'));
-    // Only when the set of recordings changes.
-  }, [key]);
-  return durations;
-};
-
 // "3:25" (or plain seconds) → seconds; '' → null; undefined when unreadable.
 const parseDuration = (value: string): number | null | undefined => {
   const v = value.trim();
@@ -237,7 +215,6 @@ export const PieceSetupPage = () => {
 
   const recordings = files.filter((f) => f.kind === 'audio' && f.file_path);
   const canPlaceBars = useCanPlaceBars();
-  const durations = useRecordingDurations(recordings);
 
   if (!canEdit) return <NoAccess />;
   if (loading) return <PageSpinner />;
@@ -713,14 +690,12 @@ export const PieceSetupPage = () => {
                         → {users.map((track) => track.title.trim() || t('voiceName')).join(', ')}
                       </span>
                     ) : (
-                      !isTimingFileName(f.file_name ?? '') && (
-                        <Switch
-                          checked={f.downloadable}
-                          onChange={(downloadable) => void updateFile(f, { downloadable })}
-                          label={t('downloadSwitch')}
-                          title={t('downloadSwitchHint')}
-                        />
-                      )
+                      <Switch
+                        checked={f.downloadable}
+                        onChange={(downloadable) => void updateFile(f, { downloadable })}
+                        label={t('downloadSwitch')}
+                        title={t('downloadSwitchHint')}
+                      />
                     )}
                     <select
                       value={f.kind}
@@ -768,10 +743,6 @@ export const PieceSetupPage = () => {
               getId={(x) => x.id}
               onReorder={reorderVoices}
               renderItem={(track) => {
-                // Checked against the bars: the first of its recordings (all share their timing).
-                const without = TRACK_RECORDING_FIELDS.map((field) => recordings.find((f) => f.id === track[field])).find(
-                  Boolean,
-                );
                 return (
                   <div className="space-y-2 p-3">
                     <div className="flex items-center gap-2">
@@ -837,11 +808,6 @@ export const PieceSetupPage = () => {
                         </Fragment>
                       ))}
                     </div>
-                    {without && durations[without.id] > 0 && (
-                      <div className="px-2 text-xs text-text-secondary">
-                        <TrackCheck duration={durations[without.id]} expected={expected} offset={track.offset_s} />
-                      </div>
-                    )}
                   </div>
                 );
               }}
@@ -880,16 +846,12 @@ export const PieceSetupPage = () => {
                     )}
                   >
                     {t(src === 'notation' ? 'timingFromNotation' : src === 'mscore' ? 'timingFromMuseScore' : 'timingEven')}
-                    {src === 'mscore' && (
-                      <span className="ml-1.5 rounded-full bg-black px-1.5 py-px align-middle text-[10px] font-semibold text-white">
-                        {t('recommended')}
-                      </span>
-                    )}
                   </button>
                 );
               })}
             </div>
 
+            <p className="text-xs text-text-secondary">{t('timingRecommended')}</p>
             {mode === 'mscore' && !timingFile && <MuseScoreTip name={piece.name} />}
             {mode !== 'even' && timeline && timeline.source === mode && (
               <div className="space-y-2">
@@ -1321,30 +1283,6 @@ const Chip = ({ children }: { children: ReactNode }) => (
     {children}
   </span>
 );
-
-// Does the recording fit the bars? MuseScore exports end with a short
-// release tail, so a few seconds longer is fine.
-const TrackCheck = ({
-  duration,
-  expected,
-  offset,
-}: {
-  duration: number;
-  expected: number | null;
-  offset: number;
-}) => {
-  const { t } = useI18n();
-  if (expected == null) return <span className="tabular-nums">{formatTime(duration)}</span>;
-  const diff = duration - (expected + offset);
-  const ok = diff > -1.5 && diff < 8;
-  return (
-    <span className={cn('inline-flex items-center gap-1 tabular-nums', ok ? 'text-success-strong' : 'text-danger')}>
-      {ok ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-      {formatTime(duration)}
-      {!ok && ` · ${t(diff > 0 ? 'trackLonger' : 'trackShorter').replace('{s}', String(Math.round(Math.abs(diff))))}`}
-    </span>
-  );
-};
 
 interface AccountResult {
   id: string;

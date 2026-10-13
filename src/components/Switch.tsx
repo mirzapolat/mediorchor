@@ -34,7 +34,7 @@ export const Switch = ({
     >
       <span
         className={cn(
-          'absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-150',
+          'absolute left-0 top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-150',
           checked ? 'translate-x-3.5' : 'translate-x-0.5',
         )}
       />
