@@ -9,9 +9,11 @@
 import { db, migrate, loadTableMeta } from './db.ts';
 import { createAccount, hashPassword, validatePassword } from './auth.ts';
 import { splitName } from './fieldMatching.ts';
+import { installAuditTriggers, runAudited } from './audit.ts';
 
 migrate();
 loadTableMeta();
+installAuditTriggers();
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -26,49 +28,60 @@ const userId = (email: string | undefined) => {
   return row.id;
 };
 
-switch (command) {
-  case 'create-admin': {
-    const [email, password, name = 'Admin'] = args;
-    if (!email || !password) {
-      console.error('Usage: create-admin <email> <password> [name]');
-      process.exit(1);
+// Each command that changes something is one entry in the audit log, by "CLI".
+const COMMANDS = new Set(['create-admin', 'make-admin', 'reset-password', 'disable-2fa']);
+
+const main = async () => {
+  switch (command) {
+    case 'create-admin': {
+      const [email, password, name = 'Admin'] = args;
+      if (!email || !password) {
+        console.error('Usage: create-admin <email> <password> [name]');
+        process.exit(1);
+      }
+      const { first, last } = splitName(name);
+      await createAccount({ email, password, firstName: first, lastName: last, confirmed: true, isAdmin: true });
+      console.log(`Created admin ${email}`);
+      break;
     }
-    const { first, last } = splitName(name);
-    await createAccount({ email, password, firstName: first, lastName: last, confirmed: true, isAdmin: true });
-    console.log(`Created admin ${email}`);
-    break;
+    case 'make-admin': {
+      db.prepare("update app_users set role = 'admin' where id = ?").run(userId(args[0]));
+      console.log(`${args[0]} is now an administrator`);
+      break;
+    }
+    case 'reset-password': {
+      const id = userId(args[0]);
+      const hash = await hashPassword(validatePassword(args[1]));
+      db.prepare('update auth_users set password_hash = ? where id = ?').run(hash, id);
+      db.prepare('delete from auth_sessions where user_id = ?').run(id);
+      console.log(`Password reset for ${args[0]}; all sessions signed out`);
+      break;
+    }
+    case 'disable-2fa': {
+      const id = userId(args[0]);
+      db.transaction(() => {
+        db.prepare('delete from auth_factors where user_id = ?').run(id);
+        db.prepare('delete from auth_passkeys where user_id = ?').run(id);
+        db.prepare('update auth_users set email_2fa = 0 where id = ?').run(id);
+      })();
+      console.log(`Two-factor authentication (authenticator app, passkeys, email codes) removed for ${args[0]}`);
+      break;
+    }
+    default:
+      console.log(
+        'Commands:\n' +
+          '  create-admin <email> <password> [name]\n' +
+          '  make-admin <email>\n' +
+          '  reset-password <email> <new password>\n' +
+          '  disable-2fa <email>',
+      );
   }
-  case 'make-admin': {
-    db.prepare("update app_users set role = 'admin' where id = ?").run(userId(args[0]));
-    console.log(`${args[0]} is now an administrator`);
-    break;
-  }
-  case 'reset-password': {
-    const id = userId(args[0]);
-    const hash = await hashPassword(validatePassword(args[1]));
-    db.prepare('update auth_users set password_hash = ? where id = ?').run(hash, id);
-    db.prepare('delete from auth_sessions where user_id = ?').run(id);
-    console.log(`Password reset for ${args[0]}; all sessions signed out`);
-    break;
-  }
-  case 'disable-2fa': {
-    const id = userId(args[0]);
-    db.transaction(() => {
-      db.prepare('delete from auth_factors where user_id = ?').run(id);
-      db.prepare('delete from auth_passkeys where user_id = ?').run(id);
-      db.prepare('update auth_users set email_2fa = 0 where id = ?').run(id);
-    })();
-    console.log(`Two-factor authentication (authenticator app, passkeys, email codes) removed for ${args[0]}`);
-    break;
-  }
-  default:
-    console.log(
-      'Commands:\n' +
-        '  create-admin <email> <password> [name]\n' +
-        '  make-admin <email>\n' +
-        '  reset-password <email> <new password>\n' +
-        '  disable-2fa <email>',
-    );
+};
+
+if (COMMANDS.has(command)) {
+  await runAudited({ action: `cli.${command}`, actorName: 'CLI', details: { email: args[0] ?? null } }, main);
+} else {
+  await main();
 }
 
 db.close();

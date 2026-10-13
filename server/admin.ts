@@ -7,6 +7,7 @@ import { activeSmtpConfig, mailStatus, testSmtp, type SmtpConfig, type SmtpSecur
 import { encryptSecret } from './secrets.ts';
 import { env } from './env.ts';
 import { rateLimit } from './ratelimit.ts';
+import { auditEntryChanges, auditNote, listAuditLog } from './audit.ts';
 
 const requireAdmin = (c: Context) => {
   const user = requireSession(c);
@@ -168,6 +169,7 @@ adminRoutes.post('/admin-smtp-test', async (c) => {
     to = typeof body.to === 'string' && body.to.trim() ? body.to.trim() : me.email;
     if (!EMAIL_RE.test(to) || to.length > 254) throw bad('Invalid email address');
   }
+  auditNote({ force: true, details: { host: config.host, to: to ?? null } });
   try {
     await testSmtp(config, to);
   } catch (err) {
@@ -274,4 +276,21 @@ adminRoutes.post('/admin-mail-stats', async (c) => {
     last_failed: lastFailed ? { at: lastFailed.sent_at, error: lastFailed.error } : null,
     errors: recentErrors.map((e) => ({ error: e.error ?? 'UNKNOWN', count: e.n })),
   });
+});
+
+// ---------------------------------------------------------------------------
+// Audit log (Admin → Audit-Log): every action of every person, newest first,
+// filtered and paged by the server (see audit.ts).
+// ---------------------------------------------------------------------------
+
+adminRoutes.post('/admin-audit-log', async (c) => {
+  requireAdmin(c);
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  return c.json(listAuditLog(body));
+});
+
+adminRoutes.post('/admin-audit-entry', async (c) => {
+  requireAdmin(c);
+  const { id } = (await c.req.json().catch(() => ({}))) as { id?: unknown };
+  return c.json({ changes: auditEntryChanges(id) });
 });

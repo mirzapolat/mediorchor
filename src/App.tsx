@@ -25,6 +25,7 @@ import { UsersPage } from '@/pages/UsersPage';
 import { UserDetailPage } from '@/pages/UserDetailPage';
 import { AdminBrandingPage, AdminLegalPage, AdminSecurityPage } from '@/pages/AdminSettingsPages';
 import { AdminEmailPage } from '@/pages/AdminEmailPage';
+import { AdminAuditPage } from '@/pages/AdminAuditPage';
 import {
   AccountAppearancePage,
   AccountDangerPage,
@@ -155,6 +156,7 @@ export const App = () => {
           <Route path="imprint" element={<AdminLegalPage kind="imprint" />} />
           <Route path="privacy" element={<AdminLegalPage kind="privacy" />} />
           <Route path="email" element={<AdminEmailPage />} />
+          <Route path="audit" element={<AdminAuditPage />} />
         </Route>
 
         {/* Full-screen wizard for creating a project. */}

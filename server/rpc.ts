@@ -1110,6 +1110,23 @@ const functions: Record<string, (args: Args) => unknown> = {
 // Public functions are rate limited by the HTTP layer.
 export const PUBLIC_WRITE_FUNCTIONS = new Set(['submit_public_checkin', 'submit_public_registration']);
 
+// Functions that only read; a failed call to one is no failed action
+// (see audit.ts).
+export const READ_ONLY_FUNCTIONS = new Set([
+  'get_public_config',
+  'get_legal_pages',
+  'get_public_checkin',
+  'get_public_calendar',
+  'get_public_registration',
+  'calendar_sources',
+  'can_access_project',
+  'search_accounts',
+  'linked_account_names',
+  'two_factor_users',
+  'last_seen',
+  'piece_catalog',
+]);
+
 // Must run inside asUser().
 export const callFunction = (name: string, args: Args) => {
   const fn = Object.hasOwn(functions, name) ? functions[name] : undefined;

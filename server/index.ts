@@ -11,7 +11,7 @@ import { authRoutes, withSessionUser, purgeExpired, createAccount, sessionUser, 
 import { pageMeta, previewTags } from './linkPreview.ts';
 import { splitName } from './fieldMatching.ts';
 import { executeDbRequest, type DbRequest } from './rest.ts';
-import { callFunction, PUBLIC_WRITE_FUNCTIONS } from './rpc.ts';
+import { callFunction, PUBLIC_WRITE_FUNCTIONS, READ_ONLY_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
 import { adminRoutes } from './admin.ts';
 import { webhookRoutes } from './webhooks.ts';
@@ -20,9 +20,11 @@ import { rateLimit } from './ratelimit.ts';
 import { startNotifications } from './notifications.ts';
 import { mailEnabled } from './mail.ts';
 import { brandIndexHtml, clientConfig, webManifest } from './branding.ts';
+import { auditNote, auditRequests, installAuditTriggers } from './audit.ts';
 
 migrate();
 loadTableMeta();
+installAuditTriggers();
 
 const app = new Hono();
 
@@ -30,6 +32,10 @@ app.onError((err, c) => {
   const error = translateDbError(err);
   return c.json({ error: { message: error.message, code: error.code } }, error.status as 400);
 });
+
+// Every API request runs in an audit context (Admin Config → Audit-Log); it
+// comes first so even requests the guards below reject are seen.
+app.use('/api/*', auditRequests);
 
 // Cookie sessions + SameSite=Lax already stop cross-site writes; rejecting a
 // foreign Origin on state-changing requests is a second, explicit guard.
@@ -87,6 +93,11 @@ app.route('/api/auth', authRoutes);
 // Generic table access (the former PostgREST endpoint).
 app.post('/api/db', async (c) => {
   const request = (await jsonBody(c)) as DbRequest;
+  auditNote({
+    action: `db.${String(request?.action)}`,
+    target: typeof request?.table === 'string' ? request.table.slice(0, 64) : null,
+    write: request?.action !== 'select',
+  });
   const result = withSessionUser(c, (user) => {
     if (!user) throw new ApiError('Not authenticated', 401, 'not_authenticated');
     return executeDbRequest(request);
@@ -97,6 +108,7 @@ app.post('/api/db', async (c) => {
 // Server functions (the former Postgres RPCs). Some work without a session.
 app.post('/api/rpc/:name', async (c) => {
   const name = c.req.param('name');
+  auditNote({ action: `rpc.${name.slice(0, 64)}`, write: !READ_ONLY_FUNCTIONS.has(name) });
   // At a rehearsal many phones share one public IP (venue Wi-Fi, carrier NAT),
   // so check-ins get far more headroom than the registration form.
   if (name === 'submit_public_checkin') rateLimit(c, 'public-checkin', 300, 60 * 1000);

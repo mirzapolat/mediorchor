@@ -12,6 +12,7 @@
 //   writes   insert / update / delete / upsert (onConflict), optional returning
 import { db, decodeRow, encodeValue, getTableMeta, authUid, ApiError, forbidden, type TableMeta } from './db.ts';
 import { policies, isAdmin, type TablePolicy } from './policies.ts';
+import { auditNote } from './audit.ts';
 
 type Filter = [column: string, operator: string, value: unknown];
 
@@ -386,9 +387,16 @@ const targetRowids = (meta: TableMeta, op: 'update' | 'delete', filters: Filter[
   }
   const built = buildFilters(meta, [], filters);
   const where = [`(${requirePolicy(meta.name, op)('t')})`, ...built.where].join(' and ');
-  return (
+  const rowids = (
     db.prepare(`select t.rowid as r from ${meta.name} t where ${where}`).all(...built.params) as { r: number }[]
   ).map((row) => row.r);
+  // Rows the filters match but the policy withholds are skipped silently (as
+  // PostgREST does); the audit log still records the attempt.
+  const { n } = db
+    .prepare(`select count(*) as n from ${meta.name} t ${built.where.length ? `where ${built.where.join(' and ')}` : ''}`)
+    .get(...built.params) as { n: number };
+  if (n > rowids.length) auditNote({ denied: n - rowids.length });
+  return rowids;
 };
 
 const runWrite = (meta: TableMeta, req: DbRequest): DbResponse => {

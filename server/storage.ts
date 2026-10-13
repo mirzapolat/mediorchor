@@ -11,6 +11,7 @@ import { db, asUser, uuid, ApiError, forbidden } from './db.ts';
 import { env } from './env.ts';
 import { requireSession } from './auth.ts';
 import { canEditPiece } from './policies.ts';
+import { auditNote } from './audit.ts';
 
 interface Bucket {
   canWrite: (key: string) => boolean;
@@ -89,6 +90,7 @@ storageRoutes.post('/:bucket/*', async (c) => {
   const temp = `${target}.${uuid()}.tmp`;
   await fs.promises.writeFile(temp, data);
   await fs.promises.rename(temp, target);
+  auditNote({ target: bucketName, force: true, details: { file: key, size: data.length } });
   return c.json({ path: key, fullPath: `${bucketName}/${key}` });
 });
 
@@ -111,6 +113,7 @@ storageRoutes.delete('/:bucket', async (c) => {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     }
   }
+  auditNote({ target: bucketName, force: removed.length > 0, details: { files: removed.map((r) => r.name) } });
   return c.json(removed);
 });
 

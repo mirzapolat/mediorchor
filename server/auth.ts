@@ -10,6 +10,7 @@ import { branding } from './branding.ts';
 import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
 import { rateLimit } from './ratelimit.ts';
 import { splitName } from './fieldMatching.ts';
+import { auditActor, auditNote } from './audit.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
 import {
   base32Encode,
@@ -185,6 +186,9 @@ const startSession = (c: Context, userId: string, verified: boolean) => {
   );
   db.prepare('update auth_users set last_seen_at = ? where id = ?').run(now, userId);
   setSessionCookie(c, token, days);
+  // Every sign-in is an entry in the audit log, whoever it is.
+  auditActor(userId);
+  auditNote({ force: true });
 };
 
 // How stale last_seen_at (account and session) may get before a request
@@ -239,6 +243,7 @@ export const sessionUser = (c: Context): SessionUser | null => {
   if (stale(row.last_seen_at)) {
     db.prepare('update auth_users set last_seen_at = ? where id = ?').run(nowIso(), row.id);
   }
+  auditActor(row.id);
   return { id: row.id, email: row.email, sessionId: row.session_id };
 };
 
@@ -375,6 +380,9 @@ authRoutes.post('/login', async (c) => {
     .get(email.trim()) as
     | { id: string; email: string; password_hash: string; email_confirmed_at: string | null }
     | undefined;
+  // Failed attempts are logged too: under the account when it exists.
+  auditActor(user?.id);
+  auditNote({ details: { method: 'password', email: email.trim().slice(0, 254) } });
   const valid = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
   if (!user || !valid) throw new ApiError('Invalid login credentials', 400, 'invalid_credentials');
   if (!user.email_confirmed_at) throw new ApiError('Email not confirmed', 400, 'email_not_confirmed');
@@ -402,6 +410,8 @@ authRoutes.post('/login/mfa', async (c) => {
   rateLimit(c, 'mfa', 20, 15 * 60 * 1000);
   const input = await body(c);
   const challenge = getChallenge(input.challenge_id, ['login']);
+  auditActor(challenge.user_id);
+  auditNote({ details: { method: String(input.method ?? '').slice(0, 20) } });
   const userId = await verifyProof(challenge, input, baseUrl(c));
   return c.json(signInVerified(c, userId));
 });
@@ -416,6 +426,7 @@ authRoutes.post('/passkey/login', async (c) => {
   rateLimit(c, 'login', 20, 15 * 60 * 1000);
   const input = await body(c);
   const challenge = getChallenge(input.challenge_id, ['passkey_login']);
+  auditNote({ details: { method: 'passkey' } });
   const userId = await verifyPasskeyLogin(challenge, input.credential, baseUrl(c));
   const account = db.prepare('select email_confirmed_at from auth_users where id = ?').get(userId) as
     | { email_confirmed_at: string | null }
@@ -484,6 +495,7 @@ authRoutes.post('/reauth', async (c) => {
     await verifyProof(challenge, input, baseUrl(c));
   }
   db.prepare('update auth_sessions set reauth_at = ? where id = ?').run(nowIso(), user.sessionId ?? '');
+  auditNote({ force: true, details: { method: String(input.method ?? '').slice(0, 20) } });
   return c.json({ ok: true });
 });
 
@@ -501,7 +513,16 @@ const checkOwnPassword = async (userId: string, password: unknown) => {
 
 authRoutes.post('/logout', (c) => {
   const token = getCookie(c, COOKIE);
-  if (token) db.prepare('delete from auth_sessions where token_hash = ?').run(sha256(token));
+  if (token) {
+    const session = db.prepare('select user_id from auth_sessions where token_hash = ?').get(sha256(token)) as
+      | { user_id: string }
+      | undefined;
+    db.prepare('delete from auth_sessions where token_hash = ?').run(sha256(token));
+    if (session) {
+      auditActor(session.user_id);
+      auditNote({ force: true });
+    }
+  }
   deleteCookie(c, COOKIE, { path: '/' });
   return c.json({ ok: true });
 });
@@ -515,6 +536,7 @@ authRoutes.post('/signup', async (c) => {
 
   const input = await body(c);
   const email = normalizeEmail(input.email);
+  auditNote({ force: true, details: { email } });
   if (!emailDomainAllowed(email, settings.allowedDomains)) {
     throw new ApiError('Sign-up is not open for this email domain', 403, 'signup_domain_not_allowed');
   }
@@ -562,6 +584,8 @@ authRoutes.get('/confirm', (c) => {
     .prepare('select user_id, kind, email, expires_at from auth_tokens where token_hash = ?')
     .get(sha256(token)) as { user_id: string; kind: string; email: string; expires_at: string } | undefined;
   if (!row || Date.parse(row.expires_at) <= Date.now()) return c.redirect('/login');
+  auditActor(row.user_id);
+  auditNote({ details: { method: 'email_link', kind: row.kind } });
 
   let target = '/';
   const ok = db.transaction(() => {
@@ -626,6 +650,7 @@ authRoutes.patch('/user', async (c) => {
       if (mailEnabled()) {
         await sendConfirmEmailChange(email, issueLink(c, user.id, 'email_change', email));
         emailChangePending = true;
+        auditNote({ force: true, details: { email_change_requested: email } });
       } else {
         db.transaction(() => {
           db.prepare('update auth_users set email = ? where id = ?').run(email, user.id);
@@ -818,6 +843,7 @@ authRoutes.get('/sessions', (c) => {
 authRoutes.post('/sessions/revoke', async (c) => {
   const user = requireSession(c);
   const { id, others } = await body(c);
+  auditNote({ force: true, details: { scope: others === true ? 'others' : 'one' } });
   if (others === true) {
     db.prepare('delete from auth_sessions where user_id = ? and id is not ?').run(user.id, user.sessionId ?? null);
   } else {

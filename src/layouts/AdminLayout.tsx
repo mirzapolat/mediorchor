@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { Building2, LockKeyhole, Mail, Palette, ShieldCheck, ShieldHalf, Users } from 'lucide-react';
+import { Building2, LockKeyhole, Mail, Palette, ScrollText, ShieldCheck, ShieldHalf, Users } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { SidebarSectionHeader } from '@/components/SidebarSectionHeader';
@@ -26,6 +26,7 @@ export const AdminLayout = () => {
           <SidebarNavItem to="/admin/imprint" label={t('imprint')} icon={Building2} />
           <SidebarNavItem to="/admin/privacy" label={t('privacyPolicy')} icon={ShieldHalf} />
           <SidebarNavItem to="/admin/email" label={t('emailSection')} icon={Mail} />
+          <SidebarNavItem to="/admin/audit" label={t('auditLog')} icon={ScrollText} />
         </div>
 
         <SidebarFooter />
