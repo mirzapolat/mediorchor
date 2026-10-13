@@ -228,31 +228,6 @@ export const guessFileKind = (file: File): PieceFileKind => {
   return 'other';
 };
 
-// Lead-in silence of a recording in seconds (MuseScore exports often start
-// with a short gap), measured on the decoded audio. null if it can't decode.
-export const detectLeadIn = async (file: Blob): Promise<number | null> => {
-  const Ctx =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctx) return null;
-  const ctx = new Ctx();
-  try {
-    const audio = await ctx.decodeAudioData(await file.arrayBuffer());
-    const channels = Array.from({ length: audio.numberOfChannels }, (_, c) => audio.getChannelData(c));
-    const threshold = 0.01;
-    for (let i = 0; i < audio.length; i++) {
-      for (const data of channels) {
-        if (Math.abs(data[i]) > threshold) return Math.round((i / audio.sampleRate) * 100) / 100;
-      }
-    }
-    return 0;
-  } catch {
-    return null;
-  } finally {
-    void ctx.close();
-  }
-};
-
 export const formatTime = (seconds: number): string => {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
   const m = Math.floor(seconds / 60);

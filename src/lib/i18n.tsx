@@ -1635,8 +1635,8 @@ const dict: Dict = {
   addFiles: { de: 'Dateien hinzufügen', en: 'Add files' },
   pieceDropTitle: { de: 'Dateien hierher ziehen oder tippen', en: 'Drop files here or tap to browse' },
   pieceDropHint: {
-    de: 'Noten-PDF, MusicXML (.musicxml/.mxl), MuseScore-Taktzeiten (.mpos), MIDI und die Aufnahmen der Stimmen, auch mit Metronom (MP3, WAV …).',
-    en: 'Score PDF, MusicXML (.musicxml/.mxl), MuseScore bar timing (.mpos), MIDI and the voice recordings, also with metronome (MP3, WAV …).',
+    de: 'Noten-PDF, MusicXML (.musicxml/.mxl), MuseScore-Datei (.mscz), MuseScore-Taktzeiten (.mpos), MIDI und die Aufnahmen der Stimmen, auch mit Metronom (MP3, WAV …).',
+    en: 'Score PDF, MusicXML (.musicxml/.mxl), MuseScore file (.mscz), MuseScore bar timing (.mpos), MIDI and the voice recordings, also with metronome (MP3, WAV …).',
   },
   durationHint: {
     de: 'Format m:ss. Wird beim Einlesen einer MusicXML automatisch gesetzt.',
@@ -1691,6 +1691,20 @@ const dict: Dict = {
   fileKindNotation: { de: 'Notendatei', en: 'Notation file' },
   fileKindMidi: { de: 'MIDI', en: 'MIDI' },
   fileKindOther: { de: 'Weitere Dateien', en: 'Other files' },
+  downloadFile: { de: 'Herunterladen', en: 'Download' },
+  downloadSwitch: { de: 'Download', en: 'Download' },
+  downloadSwitchHint: {
+    de: 'An: Mitglieder können die Datei auf der Stückseite herunterladen.',
+    en: 'On: members can download the file on the piece page.',
+  },
+  downloadVoiceHint: {
+    de: 'An: Mitglieder können alle Aufnahmen dieser Stimme herunterladen.',
+    en: 'On: members can download all recordings of this voice.',
+  },
+  downloadViaVoice: {
+    de: 'Wird mit der Stimme freigegeben (Schalter bei den Stimmen).',
+    en: 'Shared with its voice (switch in the voices).',
+  },
   fileKindLink: { de: 'Links', en: 'Links' },
   voicesTitle: { de: 'Stimmen', en: 'Voices' },
   voicesHint: {
@@ -1699,6 +1713,10 @@ const dict: Dict = {
   },
   voiceName: { de: 'Stimme', en: 'Voice' },
   leadIn: { de: 'Vorlauf', en: 'Lead-in' },
+  leadInHint: {
+    de: 'Wann Takt 1 in der Aufnahme dieser Stimme beginnt. Zieh Takt 1 an die Stelle oder tippe die Sekunden ein.',
+    en: 'When bar 1 starts in this voice’s recording. Drag bar 1 there or type the seconds.',
+  },
   metronome: { de: 'Metronom', en: 'Metronome' },
   playerSettings: { de: 'Wiedergabe-Einstellungen', en: 'Playback settings' },
   on: { de: 'An', en: 'On' },
@@ -1738,6 +1756,7 @@ const dict: Dict = {
   timingFromNotation: { de: 'Aus Notendatei', en: 'From notation file' },
   timingEven: { de: 'Gleichmäßig', en: 'Evenly spaced' },
   timingFromMuseScore: { de: 'MuseScore-Zeiten', en: 'MuseScore timing' },
+  recommended: { de: 'Empfohlen', en: 'Recommended' },
   loadTiming: { de: 'Laden', en: 'Load' },
   timingNotLoaded: {
     de: 'Nicht geladen – die Takte kommen gerade aus „{source}“.',
@@ -1836,12 +1855,12 @@ const dict: Dict = {
   syncFittedOne: { de: '1 Takt angepasst', en: '1 bar fitted' },
   syncFittedCount: { de: '{n} Takte angepasst', en: '{n} bars fitted' },
   rereadNotationHint: {
-    de: 'Liest die Takte neu aus der Datei – angepasste Takte und Vorläufe werden zurückgesetzt.',
-    en: 'Reads the bars from the file again — fitted bars and lead-ins are reset.',
+    de: 'Liest die Takte neu aus der Datei – angepasste Takte werden zurückgesetzt, die Vorläufe bleiben.',
+    en: 'Reads the bars from the file again — fitted bars are reset, the lead-ins stay.',
   },
   rereadResetMessage: {
-    de: 'Die angepassten Takte gehen verloren und jede Stimme bekommt wieder den beim Hochladen gemessenen Vorlauf. Danach kannst du die Takte wieder anpassen.',
-    en: 'The fitted bars are lost and every voice gets back the lead-in measured at upload. You can fit the bars again afterwards.',
+    de: 'Die angepassten Takte gehen verloren, die Vorläufe der Stimmen bleiben. Danach kannst du die Takte wieder anpassen.',
+    en: 'The fitted bars are lost; the voices’ lead-ins stay. You can fit the bars again afterwards.',
   },
   resetFittingTitle: { de: 'Anpassung zurücksetzen?', en: 'Reset the fitting?' },
   resetFittingConfirm: { de: 'Zurücksetzen', en: 'Reset' },

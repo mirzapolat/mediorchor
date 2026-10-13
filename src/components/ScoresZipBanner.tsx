@@ -9,12 +9,13 @@ import { isTimingFileName } from '@/lib/mpos';
 import type { Piece } from '@/types';
 
 const isPdf = (f: PieceOverviewFile) =>
-  Boolean(f.file_path) && (f.kind === 'score' || /\.pdf$/i.test(f.file_name ?? ''));
+  Boolean(f.file_path) && f.downloadable && (f.kind === 'score' || /\.pdf$/i.test(f.file_name ?? ''));
 const isMidi = (f: PieceOverviewFile) =>
-  Boolean(f.file_path) && (f.kind === 'midi' || /\.midi?$/i.test(f.file_name ?? ''));
-const isAudio = (f: PieceOverviewFile) => Boolean(f.file_path) && f.kind === 'audio';
+  Boolean(f.file_path) && f.downloadable && (f.kind === 'midi' || /\.midi?$/i.test(f.file_name ?? ''));
+const isAudio = (f: PieceOverviewFile) => Boolean(f.file_path) && f.downloadable && f.kind === 'audio';
 const isMusicXml = (f: PieceOverviewFile) =>
   Boolean(f.file_path) &&
+  f.downloadable &&
   !isTimingFileName(f.file_name ?? '') &&
   (f.kind === 'notation' || /\.(musicxml|mxl|xml)$/i.test(f.file_name ?? ''));
 

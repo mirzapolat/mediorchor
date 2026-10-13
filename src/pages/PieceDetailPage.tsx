@@ -26,12 +26,13 @@ import { Avatar } from '@/components/Avatar';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
-import { isTimingFileName } from '@/lib/mpos';
+import { isMuseScoreFileName, isTimingFileName } from '@/lib/mpos';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
+  isFileDownloadable,
   loadPieceCredits,
   loadPieceFiles,
   loadPieceInScope,
@@ -142,11 +143,14 @@ const DownloadChoice = ({
   );
 };
 
-// Downloads and links, grouped by what they are. The score (PDF and
-// MusicXML) is one row, recordings one row per voice; recordings no voice
-// uses are listed on their own after them.
-const FileList = memo(({ piece, files, voices }: { piece: Piece; files: PieceFile[]; voices: PieceTrack[] }) => {
+// Downloads and links, grouped by what they are. The score (PDF, MusicXML
+// and MuseScore) is one row, recordings one row per voice; recordings no
+// voice uses are listed on their own after them. Only what is switched to
+// downloadable in the setup is listed.
+const FileList = memo(({ piece, files: allFiles, voices: allVoices }: { piece: Piece; files: PieceFile[]; voices: PieceTrack[] }) => {
   const { t } = useI18n();
+  const files = allFiles.filter((f) => isFileDownloadable(f, allVoices));
+  const voices = allVoices.filter((v) => v.downloadable);
   if (files.length === 0) {
     return <p className="text-sm text-text-secondary">{t('noFiles')}</p>;
   }
@@ -162,13 +166,20 @@ const FileList = memo(({ piece, files, voices }: { piece: Piece; files: PieceFil
   });
   const usedIds = new Set(voiceRows.flatMap((r) => r.options.map((o) => o.fileId)));
 
-  // PDF and MusicXML; several of a kind are told apart by their names.
+  // PDF, MusicXML and MuseScore; several of a format are told apart by
+  // their names.
+  const sheetFormat = (f: PieceFile) =>
+    isMuseScoreFileName(f.file_name ?? '') ? 'MuseScore' : f.kind === 'score' ? 'PDF' : 'MusicXML';
   const sheetFiles = files.filter(
-    (f) => (f.kind === 'score' || f.kind === 'notation') && f.file_path && !isTimingFileName(f.file_name ?? ''),
+    (f) =>
+      f.file_path &&
+      (isMuseScoreFileName(f.file_name ?? '') ||
+        ((f.kind === 'score' || f.kind === 'notation') && !isTimingFileName(f.file_name ?? ''))),
   );
+  const sheetIds = new Set(sheetFiles.map((f) => f.id));
   const sheetOptions = sheetFiles.map((f) => {
-    const format = f.kind === 'score' ? 'PDF' : 'MusicXML';
-    const several = sheetFiles.filter((x) => x.kind === f.kind).length > 1;
+    const format = sheetFormat(f);
+    const several = sheetFiles.filter((x) => sheetFormat(x) === format).length > 1;
     const label = several && f.title.trim() ? `${format} · ${f.title.trim()}` : format;
     return { key: f.id, label, href: downloadHref(piece, `${t('sheetMusic')} (${label})`, f) };
   });
@@ -184,7 +195,7 @@ const FileList = memo(({ piece, files, voices }: { piece: Piece; files: PieceFil
               ? [{ id: 'sheet', title: t('sheetMusic'), icon: FileText, options: sheetOptions }]
               : [];
         const group = files.filter(
-          (f) => f.kind === kind && kind !== 'score' && !usedIds.has(f.id),
+          (f) => f.kind === kind && kind !== 'score' && !usedIds.has(f.id) && !sheetIds.has(f.id),
         );
         if (group.length === 0 && choices.length === 0) return null;
         return (
@@ -327,6 +338,10 @@ export const PieceDetailPage = () => {
   }, [load]);
 
   const tracks = useMemo(() => playerTracks(voiceRows, files), [voiceRows, files]);
+  const downloadCount = useMemo(
+    () => files.filter((f) => isFileDownloadable(f, voiceRows)).length,
+    [files, voiceRows],
+  );
   const score = useMemo(() => (piece ? pieceScoreFile(piece, files) : null), [piece, files]);
 
   // The link-preview image of this piece (top of the score), made once by a
@@ -542,7 +557,7 @@ export const PieceDetailPage = () => {
     { id: 'score', label: t('scoreTab') },
     // Only when someone is credited.
     ...(hasCredit ? [{ id: 'credits' as const, label: t('credits') }] : []),
-    { id: 'files', label: `${t('files')}${files.length ? ` · ${files.length}` : ''}` },
+    { id: 'files', label: `${t('files')}${downloadCount ? ` · ${downloadCount}` : ''}` },
   ];
 
   const setUpUrl = `${base}/${piece.id}/setup`;

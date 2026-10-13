@@ -102,7 +102,8 @@ export const FermataIcon = ({ size = 14, className }: { size?: number; className
 // timing: the recording as a waveform with the bars on top. Dragging a bar
 // (or tapping along while it plays) pins when it really starts; the bars in
 // between follow, extra time going to fermata bars first. Dragging bar one
-// sets the voice's lead-in. A soft tick on every bar start lets you hear
+// (or typing the lead-in) sets the voice's lead-in — the only place it is
+// set; nothing measures it automatically. A soft tick on every bar start lets you hear
 // whether the bars sit right.
 export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorProps) => {
   const { t } = useI18n();
@@ -613,6 +614,17 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
           ) : (
             <div className="flex-1" />
           )}
+          <label className="flex flex-shrink-0 items-center gap-2 text-sm text-text-secondary" title={t('leadInHint')}>
+            {t('leadIn')}
+            <LeadInInput
+              key={voice.id}
+              value={offset}
+              onCommit={(v) => {
+                if (!pin(0, v)) outOfOrder(0);
+              }}
+            />
+            s
+          </label>
           {firstNumber != null && (
             <label
               className="ml-auto flex flex-shrink-0 items-center gap-2 text-sm text-text-secondary"
@@ -915,6 +927,28 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
 
 // The number of the first bar; applied while typing when it is a number,
 // put back when left empty or invalid.
+// The selected voice's lead-in in seconds, applied on Enter or leaving.
+const LeadInInput = ({ value, onCommit }: { value: number; onCommit: (value: number) => void }) => {
+  const [text, setText] = useState(value.toFixed(2));
+  useEffect(() => setText(value.toFixed(2)), [value]);
+  const commit = () => {
+    const v = Math.max(0, Math.round(parseFloat(text.replace(',', '.')) * 1000) / 1000);
+    if (Number.isFinite(v) && Math.abs(v - value) > 1e-4) onCommit(v);
+    else setText(value.toFixed(2));
+  };
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      className="h-8 w-16 rounded-md border border-border bg-surface px-2 text-right text-base tabular-nums focus:border-black focus:outline-none sm:text-sm"
+    />
+  );
+};
+
 const NumberingInput = ({ value, onChange }: { value: number; onChange: (value: number) => void }) => {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);

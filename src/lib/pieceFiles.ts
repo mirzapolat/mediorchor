@@ -135,6 +135,17 @@ export const trackRecordingChoice = (
 export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click: boolean): string | null =>
   trackRecordingChoice(track, quiet, click)?.path ?? null;
 
+// Whether members may download a file: a recording a voice uses follows
+// its voice (downloadable if any voice using it is), every other file its
+// own switch.
+export const isFileDownloadable = (
+  file: Pick<PieceFile, 'id' | 'downloadable'>,
+  tracks: Array<Pick<PieceTrack, 'downloadable' | TrackRecordingField>>,
+): boolean => {
+  const users = tracks.filter((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === file.id));
+  return users.length > 0 ? users.some((track) => track.downloadable) : file.downloadable;
+};
+
 // The score PDF shown on the piece page: the picked one, else the first.
 export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: PieceFile[]): PieceFile | null =>
   files.find((f) => f.id === piece.score_file_id && f.file_path) ??
@@ -231,11 +242,14 @@ export const loadPieceInScope = async (pieceId: string, projectId: string | null
 };
 
 export interface PieceOverviewFile {
+  id: string;
   piece_id: string;
   kind: PieceFileKind;
   title: string;
   file_name: string | null;
   file_path: string | null;
+  // See isFileDownloadable.
+  downloadable: boolean;
 }
 
 // A project's piece with its place in the project (`link`).
@@ -258,13 +272,24 @@ export const loadPiecesOverview = async (
     ({ pieces: piece, ...link }) => (piece ? [{ ...piece, link }] : []),
   );
   if (pieces.length === 0) return { pieces, files: [] };
-  const { data: files } = await api
-    .from('piece_files')
-    .select('piece_id, kind, title, file_name, file_path, position')
-    .in(
-      'piece_id',
-      pieces.map((p) => p.id),
-    )
-    .order('position');
-  return { pieces, files: (files as PieceOverviewFile[] | null) ?? [] };
+  const ids = pieces.map((p) => p.id);
+  const [{ data: files }, { data: tracks }] = await Promise.all([
+    api
+      .from('piece_files')
+      .select('id, piece_id, kind, title, file_name, file_path, downloadable, position')
+      .in('piece_id', ids)
+      .order('position'),
+    api
+      .from('piece_tracks')
+      .select(`piece_id, downloadable, ${TRACK_RECORDING_FIELDS.join(', ')}`)
+      .in('piece_id', ids),
+  ]);
+  const voices = (tracks as PieceTrack[] | null) ?? [];
+  return {
+    pieces,
+    files: ((files as PieceOverviewFile[] | null) ?? []).map((f) => ({
+      ...f,
+      downloadable: isFileDownloadable(f, voices.filter((v) => v.piece_id === f.piece_id)),
+    })),
+  };
 };

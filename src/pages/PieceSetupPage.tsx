@@ -25,6 +25,7 @@ import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SortableList } from '@/components/SortableList';
+import { Switch } from '@/components/Switch';
 import { BarSyncEditor, FermataIcon, type SyncVoice } from '@/components/BarSyncEditor';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
@@ -36,6 +37,7 @@ import {
   loadPieceInScope,
   loadPieceTracks,
   persistOrder,
+  pieceFileDownloadUrl,
   pieceFileUrl,
   removePieceFromProject,
   TRACK_RECORDING_FIELDS,
@@ -47,7 +49,6 @@ import { NotationError, parseNotation, readWrittenBars } from '@/lib/musicxml';
 import { TimingError, isTimingFileName, mposBarFrames, readMpos } from '@/lib/mpos';
 import { pdfPageSizes } from '@/lib/pdfPages';
 import {
-  detectLeadIn,
   formatTime,
   guessFileKind,
   syncedDuration,
@@ -304,12 +305,6 @@ export const PieceSetupPage = () => {
   const fetchFile = async (file: PieceFile): Promise<Blob> =>
     (await fetch(pieceFileUrl(file.file_path as string))).blob();
 
-  // Lead-in measured on a voice's first recording when it was uploaded.
-  const measuredLeadIn = (track: PieceTrack): number | null => {
-    const file = TRACK_RECORDING_FIELDS.map((field) => files.find((f) => f.id === track[field])).find(Boolean);
-    return file ? file.offset_s : null;
-  };
-
   // MusicXML files and MuseScore timing exports (both kept as notation files).
   const notationFiles = files.filter(
     (f) => f.kind === 'notation' && f.file_path && !isTimingFileName(f.file_name ?? ''),
@@ -343,10 +338,7 @@ export const PieceSetupPage = () => {
       setUploads((list) => [...list, { key, name: file.name, state: 'busy' }]);
 
       const kind = guessFileKind(file);
-      const [result, leadIn] = await Promise.all([
-        uploadPieceFile(piece.id, file),
-        kind === 'audio' ? detectLeadIn(file) : Promise.resolve(null),
-      ]);
+      const result = await uploadPieceFile(piece.id, file);
       if (!result.path) {
         fail(result.error ?? t('uploadError'));
         continue;
@@ -361,7 +353,6 @@ export const PieceSetupPage = () => {
           title: file.name.replace(/\.[^.]+$/, ''),
           file_path: result.path,
           file_name: file.name,
-          offset_s: leadIn ?? 0,
           position,
         })
         .select('*')
@@ -401,12 +392,10 @@ export const PieceSetupPage = () => {
   };
 
   // Takes the bars from the MusicXML or MuseScore's timing again, as
-  // uploaded: the fitted bars go and, with `resetLeadIns` (the button),
-  // every voice gets back the lead-in measured on its recording. `picks`
-  // names other files to read than the piece's.
+  // uploaded: the fitted bars go; the voices' lead-ins stay as set in the
+  // bar editor. `picks` names other files to read than the piece's.
   const reread = async (
     source: 'notation' | 'mscore',
-    resetLeadIns = false,
     picks: { notation?: PieceFile | null; timing?: PieceFile | null } = {},
   ) => {
     const notation = picks.notation !== undefined ? picks.notation : notationFile;
@@ -414,29 +403,16 @@ export const PieceSetupPage = () => {
     const file = source === 'notation' ? notation : timing;
     if (!file?.file_path) return;
     setTimingBusy(true);
-    const problem =
-      source === 'notation'
-        ? await readNotation(await fetchFile(file), true)
-        : await readTiming(await fetchFile(file), notation?.file_path ? await fetchFile(notation) : null, true);
-    if (!problem && resetLeadIns) await restoreLeadIns();
+    if (source === 'notation') await readNotation(await fetchFile(file), true);
+    else await readTiming(await fetchFile(file), notation?.file_path ? await fetchFile(notation) : null, true);
     setTimingBusy(false);
   };
-
-  // Every voice gets back the lead-in measured on its recording.
-  const restoreLeadIns = () =>
-    Promise.all(
-      tracks.flatMap((track) => {
-        const measured = measuredLeadIn(track);
-        return measured != null && measured !== track.offset_s ? [updateTrack(track, { offset_s: measured })] : [];
-      }),
-    );
 
   // New evenly spaced bars; like reading a file again, the fitting is reset.
   const saveEven = async (count: number) => {
     // Keeps the first bar's number; the editor's numbering shifts it.
     const first = piece.timeline?.source === 'even' ? piece.timeline.first : 1;
     await updatePiece({ timeline: { source: 'even', first, last: first + count - 1 }, bar_sync: [] });
-    await restoreLeadIns();
   };
 
   // Places every bar on the score PDF where MuseScore's timing export says
@@ -554,12 +530,7 @@ export const PieceSetupPage = () => {
   });
   const syncCount = (piece.bar_sync ?? []).length;
   // Something "Read again" would undo.
-  const isFitted =
-    syncCount > 0 ||
-    tracks.some((track) => {
-      const measured = measuredLeadIn(track);
-      return measured != null && Math.abs(measured - track.offset_s) > 1e-3;
-    });
+  const isFitted = syncCount > 0;
   const fermataCount = timeline?.source === 'notation' ? (timeline.fermatas ?? 0) : 0;
 
   // Saves the fitted bars and changed lead-ins; the piece's length follows
@@ -580,7 +551,8 @@ export const PieceSetupPage = () => {
     ]);
     setSyncOpen(false);
   };
-  const mode = timingMode ?? timeline?.source ?? (timingFile ? 'mscore' : notationFile ? 'notation' : 'even');
+  // MuseScore's timing is the default (and recommended) source.
+  const mode = timingMode ?? timeline?.source ?? 'mscore';
   const uploadedFiles = files.filter((f) => f.kind !== 'link');
   const links = files.filter((f) => f.kind === 'link');
   const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
@@ -718,7 +690,10 @@ export const PieceSetupPage = () => {
               <p className="text-sm text-text-secondary">{t('noFiles')}</p>
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border">
-                {uploadedFiles.map((f) => (
+                {uploadedFiles.map((f) => {
+                  // A recording a voice uses is switched with its voice (right).
+                  const users = tracks.filter((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === f.id));
+                  return (
                   <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
                     <div className="min-w-0 flex-1">
                       <input
@@ -730,6 +705,23 @@ export const PieceSetupPage = () => {
                       />
                       <p className="truncate px-1.5 text-xs text-text-tertiary">{f.file_name}</p>
                     </div>
+                    {users.length > 0 ? (
+                      <span
+                        title={t('downloadViaVoice')}
+                        className="max-w-[7rem] flex-shrink-0 truncate px-1.5 text-xs text-text-tertiary"
+                      >
+                        → {users.map((track) => track.title.trim() || t('voiceName')).join(', ')}
+                      </span>
+                    ) : (
+                      !isTimingFileName(f.file_name ?? '') && (
+                        <Switch
+                          checked={f.downloadable}
+                          onChange={(downloadable) => void updateFile(f, { downloadable })}
+                          label={t('downloadSwitch')}
+                          title={t('downloadSwitchHint')}
+                        />
+                      )
+                    )}
                     <select
                       value={f.kind}
                       aria-label={t('fileKind')}
@@ -742,6 +734,16 @@ export const PieceSetupPage = () => {
                         </option>
                       ))}
                     </select>
+                    {f.file_path && (
+                      <a
+                        href={pieceFileDownloadUrl(f.file_path, f.file_name ?? fileLabel(f))}
+                        aria-label={t('downloadFile')}
+                        title={t('downloadFile')}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                      >
+                        <Download size={15} />
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => setToDelete(f)}
@@ -752,7 +754,8 @@ export const PieceSetupPage = () => {
                       <Trash2 size={15} />
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -780,6 +783,12 @@ export const PieceSetupPage = () => {
                           e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })
                         }
                         className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                      />
+                      <Switch
+                        checked={track.downloadable}
+                        onChange={(downloadable) => void updateTrack(track, { downloadable })}
+                        label={t('downloadSwitch')}
+                        title={t('downloadVoiceHint')}
                       />
                       <button
                         type="button"
@@ -812,14 +821,7 @@ export const PieceSetupPage = () => {
                                 value={track[field] ?? ''}
                                 aria-label={recordingSlotLabel(field)}
                                 onChange={(e) => {
-                                  const id = e.target.value || null;
-                                  const patch: Partial<PieceTrack> = { [field]: id };
-                                  // A first recording brings its measured lead-in.
-                                  const picked = recordings.find((f) => f.id === id);
-                                  if (picked && track.offset_s === 0 && picked.offset_s > 0) {
-                                    patch.offset_s = picked.offset_s;
-                                  }
-                                  void updateTrack(track, patch);
+                                  void updateTrack(track, { [field]: e.target.value || null });
                                 }}
                                 className={cn(selectClasses, 'w-full font-normal text-text')}
                               >
@@ -835,27 +837,11 @@ export const PieceSetupPage = () => {
                         </Fragment>
                       ))}
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-2 text-xs text-text-secondary">
-                      <label className="inline-flex items-center gap-1.5">
-                        {t('leadIn')}
-                        <input
-                          key={track.offset_s}
-                          type="number"
-                          step={0.01}
-                          min={0}
-                          defaultValue={track.offset_s}
-                          onBlur={(e) => {
-                            const v = Math.max(0, parseFloat(e.target.value) || 0);
-                            if (v !== track.offset_s) void updateTrack(track, { offset_s: v });
-                          }}
-                          className="h-7 w-16 rounded-md border border-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-black focus:outline-none"
-                        />
-                        s
-                      </label>
-                      {without && durations[without.id] > 0 && (
+                    {without && durations[without.id] > 0 && (
+                      <div className="px-2 text-xs text-text-secondary">
                         <TrackCheck duration={durations[without.id]} expected={expected} offset={track.offset_s} />
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               }}
@@ -874,7 +860,8 @@ export const PieceSetupPage = () => {
               sources, what was read, and reading it again. */}
           <div className="space-y-3 rounded-md border border-border bg-surface-subtle p-3">
             <div className="flex rounded-md border border-border bg-surface-muted p-0.5">
-              {(['notation', 'mscore', 'even'] as const).map((src) => {
+              {/* MuseScore's timing first: the recommended source. */}
+              {(['mscore', 'notation', 'even'] as const).map((src) => {
                 const active = mode === src;
                 return (
                   <button
@@ -893,6 +880,11 @@ export const PieceSetupPage = () => {
                     )}
                   >
                     {t(src === 'notation' ? 'timingFromNotation' : src === 'mscore' ? 'timingFromMuseScore' : 'timingEven')}
+                    {src === 'mscore' && (
+                      <span className="ml-1.5 rounded-full bg-black px-1.5 py-px align-middle text-[10px] font-semibold text-white">
+                        {t('recommended')}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -952,7 +944,7 @@ export const PieceSetupPage = () => {
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
-                  onClick={() => withReset(() => reread(mode, true))}
+                  onClick={() => withReset(() => reread(mode))}
                   disabled={timingBusy}
                   title={timeline?.source === mode ? t('rereadNotationHint') : undefined}
                 >
@@ -1093,7 +1085,7 @@ export const PieceSetupPage = () => {
                   // (or from MuseScore's timing, named after it).
                   const picked = notationFiles.find((f) => f.id === id) ?? null;
                   const source = timeline?.source;
-                  if (source === 'notation' || source === 'mscore') void reread(source, false, { notation: picked });
+                  if (source === 'notation' || source === 'mscore') void reread(source, { notation: picked });
                 }}
                 className={cn(selectClasses, 'h-10')}
               >
@@ -1115,7 +1107,7 @@ export const PieceSetupPage = () => {
                     const id = e.target.value || null;
                     void updatePiece({ timing_file_id: id });
                     const picked = timingFiles.find((f) => f.id === id) ?? null;
-                    if (timeline?.source === 'mscore') void reread('mscore', false, { timing: picked });
+                    if (timeline?.source === 'mscore') void reread('mscore', { timing: picked });
                   }}
                   className={cn(selectClasses, 'h-10')}
                 >

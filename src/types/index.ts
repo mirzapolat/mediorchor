@@ -346,9 +346,11 @@ export interface PieceFile {
   url: string | null;
   file_path: string | null;
   file_name: string | null;
-  // Audio only: lead-in silence measured at upload (a voice using the
-  // recording starts with it).
+  // Unused: a voice's lead-in is set in the bar editor (piece_tracks).
   offset_s: number;
+  // Listed for download on the piece page. A recording a voice uses follows
+  // the voice's switch instead.
+  downloadable: boolean;
   position: number;
   created_at: string;
 }
@@ -366,6 +368,8 @@ export interface PieceTrack {
   quiet_click_file_id: string | null;
   // Seconds of lead-in before the first bar (all recordings).
   offset_s: number;
+  // The voice's recordings are listed for download on the piece page.
+  downloadable: boolean;
   position: number;
   created_at: string;
 }

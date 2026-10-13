@@ -23,6 +23,9 @@ const namedBars = (count: number, written: WrittenBar[] | null) =>
 
 export const isTimingFileName = (name: string) => /\.mpos$/i.test(name);
 
+// A MuseScore score itself (offered for download with the sheet music).
+export const isMuseScoreFileName = (name: string) => /\.msc[zx]$/i.test(name);
+
 const round = (s: number) => Math.round(s * 1000) / 1000;
 
 export const parseMpos = (text: string, written: WrittenBar[] | null): MscoreTimeline => {
