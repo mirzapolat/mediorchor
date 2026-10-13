@@ -34,10 +34,10 @@ export const accepts = (file: PieceFile, target: WireTarget): boolean => {
 // The four recordings in reading order: other voices muted / quiet, each
 // without and with metronome.
 const SLOT_LABELS: Record<TrackRecordingField, [TranslationKey, TranslationKey]> = {
-  file_id: ['othersMuted', 'withoutMetronome'],
-  click_file_id: ['othersMuted', 'withMetronome'],
-  quiet_file_id: ['othersQuiet', 'withoutMetronome'],
-  quiet_click_file_id: ['othersQuiet', 'withMetronome'],
+  file_id: ['slotOthersMuted', 'slotWithoutMetronome'],
+  click_file_id: ['slotOthersMuted', 'slotWithMetronome'],
+  quiet_file_id: ['slotOthersQuiet', 'slotWithoutMetronome'],
+  quiet_click_file_id: ['slotOthersQuiet', 'slotWithMetronome'],
 };
 
 interface Point {
@@ -61,6 +61,7 @@ export const FileWiring = ({
   filesBottom,
   voicesBottom,
   barsBody,
+  scoreHeader,
   onReorderFiles,
   onReorderTracks,
   onConnect,
@@ -76,6 +77,8 @@ export const FileWiring = ({
   voicesBottom?: ReactNode;
   // The bars node's own controls (what was read, apply, fitting, …).
   barsBody?: ReactNode;
+  // On the score node's title row (the connected PDF's download switch).
+  scoreHeader?: ReactNode;
   onReorderFiles: (files: PieceFile[]) => void;
   onReorderTracks: (tracks: PieceTrack[]) => void;
   onConnect: (target: WireTarget, fileId: string | null) => void;
@@ -187,7 +190,7 @@ export const FileWiring = ({
         key={target}
         data-input={target}
         className={cn(
-          'relative flex min-h-[2.75rem] items-center gap-2 border-t border-border py-1.5 pl-4 pr-1.5 transition-colors duration-150',
+          'relative flex h-9 items-center gap-2 border-t border-border pl-4 pr-1 transition-colors duration-150',
           drawing && fits && 'bg-accent/10',
           drawing && fits && drawing.over === target && 'bg-accent/25',
           drawing && !fits && 'opacity-40',
@@ -198,28 +201,35 @@ export const FileWiring = ({
             data-port-in={target}
             aria-hidden
             className={cn(
-              'absolute -left-[8px] top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 transition-colors duration-150',
+              'absolute -left-[7px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 transition-colors duration-150',
               file ? 'border-black bg-black' : 'border-border-strong bg-surface',
               drawing && fits && 'border-accent',
             )}
           />
         )}
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-medium text-text-secondary">{label}</div>
-          <div className={cn('truncate text-sm', file ? 'text-text' : 'text-text-tertiary')}>
-            {file ? fileLabel(file) : t('notConnected')}
-          </div>
-        </div>
-        {file && (
+        {/* What the input is, and what is connected to it, on one line. */}
+        {label && <span className="flex-shrink-0 text-xs text-text-secondary">{label}</span>}
+        <span
+          className={cn(
+            'min-w-0 flex-1 truncate text-sm',
+            label && 'text-right',
+            file ? 'text-text' : 'text-text-tertiary',
+          )}
+        >
+          {file ? fileLabel(file) : t('notConnected')}
+        </span>
+        {file ? (
           <button
             type="button"
             onClick={() => onConnect(target, null)}
-            aria-label={`${t('disconnect')}: ${label}`}
+            aria-label={`${t('disconnect')}: ${label || fileLabel(file)}`}
             title={t('disconnect')}
             className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
           >
             <X size={14} />
           </button>
+        ) : (
+          <span className="w-7 flex-shrink-0" />
         )}
       </div>
     );
@@ -258,11 +268,10 @@ export const FileWiring = ({
   );
 
   return (
-    <div ref={boxRef} className="relative grid gap-6 lg:grid-cols-2 lg:gap-x-24">
+    <div ref={boxRef} className="relative grid gap-6 lg:grid-cols-2 lg:gap-x-48">
       {/* Files */}
       <div className="min-w-0 space-y-3">
         {filesTop}
-        {heading(t('uploadedFiles'), files.length)}
         {files.length === 0 ? (
           <p className="text-sm text-text-secondary">{t('noFiles')}</p>
         ) : (
@@ -311,21 +320,34 @@ export const FileWiring = ({
         {filesBottom}
       </div>
 
-      {/* The score PDF, the voices and the bars */}
-      <div className="min-w-0 space-y-3">
-        <p className="text-sm text-text-secondary">{wired ? t('wireHint') : t('wireDesktopOnly')}</p>
-        {heading(t('scoreNodesTitle'))}
+      {/* The score PDF, the bars and the voices */}
+      <div className="min-w-0 space-y-2">
+        <p className="text-xs text-text-secondary">{wired ? t('wireHint') : t('wireDesktopOnly')}</p>
         <div className="rounded-md border border-border bg-surface">
-          <div className="px-3 py-2">
-            <div className="text-sm font-medium">{t('scoreFileLabel')}</div>
-            <div className="text-xs text-text-secondary">{t('scoreFileHint')}</div>
+          <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('scoreFileHint')}>
+              {t('scoreFileLabel')}
+            </span>
+            {scoreHeader}
           </div>
-          {input('score', t('nodeInput'))}
+          {input('score', '')}
         </div>
 
-        <div className="pt-3">{heading(t('voicesTitle'), tracks.length)}</div>
+        {/* The bars: one source (what is connected picks how they are
+            read), applied with the node's own button. */}
+        <div className="rounded-md border border-border bg-surface">
+          <div className="flex h-10 items-center pl-3 pr-1.5">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('barsSourceHint')}>
+              {t('barsSource')}
+            </span>
+          </div>
+          {input('bars', '')}
+          {barsBody && <div className="space-y-3 border-t border-border p-3">{barsBody}</div>}
+        </div>
+
+        <div className="pt-2">{heading(t('voicesTitle'), tracks.length)}</div>
         {tracks.length > 0 && (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-2">
             {tracks.map((track, index) => (
               <li
                 key={track.id}
@@ -341,27 +363,13 @@ export const FileWiring = ({
                   </div>
                 </div>
                 {TRACK_RECORDING_FIELDS.map((field) =>
-                  input(voiceTarget(track.id, field), SLOT_LABELS[field].map((k) => t(k)).join(' · ')),
+                  input(voiceTarget(track.id, field), SLOT_LABELS[field].map((k) => t(k)).join(' – ')),
                 )}
               </li>
             ))}
           </ul>
         )}
         {voicesBottom}
-
-        {/* The bars: one source (what is connected picks how they are
-            read), applied with the node's own button. */}
-        <div className="space-y-3 pt-3">
-          {heading(t('barsTitle'))}
-          <div className="rounded-md border border-border bg-surface">
-            <div className="px-3 py-2">
-              <div className="text-sm font-medium">{t('barsSource')}</div>
-              <div className="text-xs text-text-secondary">{t('barsSourceHint')}</div>
-            </div>
-            {input('bars', t('nodeInput'))}
-            {barsBody && <div className="space-y-3 border-t border-border p-3">{barsBody}</div>}
-          </div>
-        </div>
       </div>
 
       {/* The wires, over everything but never in the way. */}

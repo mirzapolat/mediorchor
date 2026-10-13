@@ -1,30 +1,37 @@
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-// An on/off switch with a visible label next to it.
+// An on/off switch with its label next to it — or, with `icon`, a small
+// icon in its place (the label stays for screen readers and the tooltip).
 export const Switch = ({
   checked,
   onChange,
   label,
   title,
+  icon: Icon,
   className,
 }: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
   title?: string;
+  icon?: LucideIcon;
   className?: string;
 }) => (
   <button
     type="button"
     role="switch"
     aria-checked={checked}
-    title={title}
+    aria-label={Icon ? label : undefined}
+    title={title ?? (Icon ? label : undefined)}
     onClick={() => onChange(!checked)}
     className={cn(
-      'inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-text-secondary hover:text-text',
+      'inline-flex h-8 flex-shrink-0 items-center rounded-md text-xs font-medium text-text-secondary hover:text-text',
+      Icon ? 'gap-1 px-1' : 'gap-1.5 px-1.5',
       className,
     )}
   >
+    {Icon && <Icon size={13} aria-hidden className={checked ? 'text-text' : 'text-text-tertiary'} />}
     <span
       aria-hidden
       className={cn(
@@ -39,6 +46,6 @@ export const Switch = ({
         )}
       />
     </span>
-    {label}
+    {!Icon && label}
   </button>
 );

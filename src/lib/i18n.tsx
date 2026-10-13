@@ -1639,8 +1639,8 @@ const dict: Dict = {
     en: 'Score PDF, MusicXML (.musicxml/.mxl), MuseScore file (.mscz), MuseScore bar timing (.mpos), MIDI and the voice recordings, also with metronome (MP3, WAV …).',
   },
   durationHint: {
-    de: 'Format m:ss. Wird beim Einlesen einer MusicXML automatisch gesetzt.',
-    en: 'Format m:ss. Set automatically when a MusicXML is read.',
+    de: 'm:ss · folgt der übernommenen Quelle, änderbar.',
+    en: 'm:ss · follows the applied source, editable.',
   },
   durationInvalid: { de: 'Bitte als m:ss angeben, z. B. 3:25.', en: 'Please use m:ss, e.g. 3:25.' },
   creditsHint: {
@@ -1755,6 +1755,10 @@ const dict: Dict = {
   on: { de: 'An', en: 'On' },
   off: { de: 'Aus', en: 'Off' },
   otherVoices: { de: 'Andere Stimmen', en: 'Other voices' },
+  slotOthersMuted: { de: 'Andere Stimmen stumm', en: 'Other voices muted' },
+  slotOthersQuiet: { de: 'Andere Stimmen leise', en: 'Other voices quiet' },
+  slotWithMetronome: { de: 'mit Metronom', en: 'with metronome' },
+  slotWithoutMetronome: { de: 'ohne Metronom', en: 'without metronome' },
   othersMuted: { de: 'Stumm', en: 'Muted' },
   othersQuiet: { de: 'Leise', en: 'Quiet' },
   withMetronome: { de: 'Mit Metronom', en: 'With metronome' },

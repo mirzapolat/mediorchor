@@ -6,6 +6,10 @@ import {
   Check,
   Copy,
   Download,
+  File as FileIcon,
+  FileAudio,
+  FileCode2,
+  FileText,
   Loader2,
   MapPin,
   Plus,
@@ -14,6 +18,7 @@ import {
   Upload,
   X,
   XCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
@@ -24,7 +29,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Switch } from '@/components/Switch';
 import { FileWiring, parseVoiceTarget, type WireTarget } from '@/components/FileWiring';
 import { BarSyncEditor, FermataIcon, type SyncVoice } from '@/components/BarSyncEditor';
-import { useI18n, type TranslationKey } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
   deletePiece,
@@ -41,7 +46,7 @@ import {
   uploadPieceFile,
 } from '@/lib/pieceFiles';
 import { NotationError, parseNotation } from '@/lib/musicxml';
-import { TimingError, isTimingFileName, mposBarFrames, readMpos } from '@/lib/mpos';
+import { TimingError, isMuseScoreFileName, isTimingFileName, mposBarFrames, readMpos } from '@/lib/mpos';
 import { pdfPageSizes } from '@/lib/pdfPages';
 import {
   formatTime,
@@ -53,7 +58,7 @@ import { usePieceScope } from '@/layouts/pieceScope';
 import { NoAccess } from '@/components/NoAccess';
 import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
-import type { BarSyncPoint, Piece, PieceCredit, PieceFile, PieceFileKind, PieceTimeline, PieceTrack } from '@/types';
+import type { BarSyncPoint, Piece, PieceCredit, PieceFile, PieceTimeline, PieceTrack } from '@/types';
 
 interface UploadItem {
   key: string;
@@ -61,14 +66,6 @@ interface UploadItem {
   state: 'busy' | 'error';
   note?: string;
 }
-
-const KIND_OPTIONS: Array<{ kind: Exclude<PieceFileKind, 'link'>; label: TranslationKey }> = [
-  { kind: 'score', label: 'fileKindScore' },
-  { kind: 'audio', label: 'fileKindAudio' },
-  { kind: 'notation', label: 'fileKindNotation' },
-  { kind: 'midi', label: 'fileKindMidi' },
-  { kind: 'other', label: 'fileKindOther' },
-];
 
 
 const Section = ({
@@ -147,6 +144,60 @@ const MultiDropzone = ({ onFiles }: { onFiles: (files: File[]) => void }) => {
     </label>
   );
 };
+
+// What a file is, at a glance: score PDF, recording, notation (MusicXML,
+// MuseScore, its bar timing, MIDI) or anything else.
+const fileIcon = (f: PieceFile): LucideIcon => {
+  const name = f.file_name ?? '';
+  if (/\.pdf$/i.test(name) || f.kind === 'score') return FileText;
+  if (f.kind === 'audio') return FileAudio;
+  if (f.kind === 'notation' || f.kind === 'midi' || isMuseScoreFileName(name)) return FileCode2;
+  return FileIcon;
+};
+
+// A file's one name, editable without its ending (".pdf" stays). Renaming
+// changes both the shown name and the stored file name (used for downloads).
+const FileName = ({ file, onRename }: { file: PieceFile; onRename: (patch: Partial<PieceFile>) => void }) => {
+  const { t } = useI18n();
+  const stored = file.file_name ?? '';
+  const ext = /\.[a-z0-9]{1,8}$/i.exec(stored)?.[0] ?? '';
+  const name = file.title.trim() || stored.slice(0, stored.length - ext.length);
+  const Icon = fileIcon(file);
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+      <Icon size={16} className="flex-shrink-0 text-text-secondary" aria-hidden />
+      <div className="flex min-w-0 flex-1 items-center rounded-md border border-transparent hover:border-border focus-within:border-black">
+        <input
+          key={name}
+          defaultValue={name}
+          aria-label={t('displayName')}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (!v) {
+              e.target.value = name;
+              return;
+            }
+            if (v !== name || v + ext !== stored) onRename({ title: v, file_name: v + ext });
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className="h-8 min-w-0 flex-1 bg-transparent pl-1.5 text-base font-medium focus:outline-none sm:text-sm"
+        />
+        {ext && <span className="flex-shrink-0 pr-1.5 text-sm text-text-tertiary">{ext}</span>}
+      </div>
+    </div>
+  );
+};
+
+// A recording's length in seconds (metadata only), null when unreadable.
+const recordingLength = (file: PieceFile): Promise<number | null> =>
+  new Promise((resolve) => {
+    if (!file.file_path) return resolve(null);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => resolve(Number.isFinite(audio.duration) ? audio.duration : null);
+    audio.onerror = () => resolve(null);
+    audio.src = pieceFileUrl(file.file_path);
+  });
 
 // "3:25" (or plain seconds) → seconds; '' → null; undefined when unreadable.
 const parseDuration = (value: string): number | null | undefined => {
@@ -574,6 +625,9 @@ export const PieceSetupPage = () => {
       setTimingError(null);
       return withReset(async () => {
         await saveEven(count, barsFile.id);
+        // The piece is as long as the recording the bars are spread over.
+        const seconds = await recordingLength(barsFile);
+        if (seconds != null) await updatePiece({ duration_s: Math.round(seconds * 1000) / 1000 });
         setBarsPick(undefined);
       });
     }
@@ -627,83 +681,72 @@ export const PieceSetupPage = () => {
         </div>
       </div>
 
-      {/* Wide screens: three rows of two — the piece and its credits;
-          uploads and the voices they are assigned to; bars and the rest. */}
+      {/* The piece and who worked on it; below, files wired to the score,
+          the bars and the voices. */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title={t('details')}>
-          <Input
-            id="piece-name"
-            label={t('pieceName')}
-            defaultValue={piece.name}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v && v !== piece.name) void updatePiece({ name: v });
-            }}
-          />
-          <Input
-            id="piece-composer"
-            label={t('composer')}
-            defaultValue={piece.composer}
-            onBlur={(e) => e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })}
-          />
-          <Input
-            id="piece-description"
-            label={
-              <>
-                {t('shortDescription')} <span className="font-normal text-text-tertiary">({t('optional')})</span>
-              </>
-            }
-            placeholder={t('shortDescriptionPlaceholder')}
-            defaultValue={piece.description}
-            onBlur={(e) =>
-              e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
-            }
-          />
-          <div className="space-y-1.5">
-            <Input
-              // Re-mounted when the saved value changes (e.g. read from the MusicXML).
-              key={piece.duration_s ?? 'none'}
-              id="piece-duration"
-              label={t('pieceLength')}
-              placeholder="m:ss"
-              inputMode="numeric"
-              defaultValue={piece.duration_s != null ? formatTime(piece.duration_s) : ''}
-              onBlur={(e) => {
-                const v = parseDuration(e.target.value);
-                if (v === undefined) {
-                  setDurationError(true);
-                  return;
+        <Section title={t('details')} className="lg:col-span-2">
+          <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  id="piece-name"
+                  label={t('pieceName')}
+                  defaultValue={piece.name}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v && v !== piece.name) void updatePiece({ name: v });
+                  }}
+                />
+                <Input
+                  id="piece-composer"
+                  label={t('composer')}
+                  defaultValue={piece.composer}
+                  onBlur={(e) =>
+                    e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })
+                  }
+                />
+              </div>
+              <Input
+                id="piece-description"
+                label={
+                  <>
+                    {t('shortDescription')} <span className="font-normal text-text-tertiary">({t('optional')})</span>
+                  </>
                 }
-                setDurationError(false);
-                if (v !== piece.duration_s) void updatePiece({ duration_s: v });
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              className="max-w-[10rem]"
-            />
-            <p className={cn('text-sm', durationError ? 'text-danger' : 'text-text-secondary')}>
-              {durationError ? t('durationInvalid') : t('durationHint')}
-            </p>
+                placeholder={t('shortDescriptionPlaceholder')}
+                defaultValue={piece.description}
+                onBlur={(e) =>
+                  e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
+                }
+              />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="text-sm font-medium" title={t('creditsHint')}>
+                {t('credits')}
+              </div>
+              {credits.length > 0 && (
+                <ul className="space-y-2">
+                  {credits.map((c) => (
+                    <li key={c.id}>
+                      <CreditRow
+                        credit={c}
+                        onChange={(patch) => void updateCredit(c, patch)}
+                        onRemove={() => void removeCredit(c)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                onClick={() => void addCredit()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text"
+              >
+                <Plus size={15} />
+                {t('addCredit')}
+              </button>
+            </div>
           </div>
-        </Section>
-
-        <Section title={t('credits')} hint={t('creditsHint')}>
-          {credits.length > 0 && (
-            <ul className="space-y-3">
-              {credits.map((c) => (
-                <li key={c.id}>
-                  <CreditRow
-                    credit={c}
-                    onChange={(patch) => void updateCredit(c, patch)}
-                    onRemove={() => void removeCredit(c)}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-          <Button variant="secondary" onClick={() => void addCredit()}>
-            <Plus size={15} />
-            {t('addCredit')}
-          </Button>
         </Section>
 
         <Section title={t('filesAndVoicesTitle')} hint={t('filesAndVoicesHint')} className="py-2 lg:col-span-2" plain>
@@ -739,44 +782,23 @@ export const PieceSetupPage = () => {
               </>
             }
             renderFile={(f) => {
-              // A recording a voice uses is switched with its voice.
-              const users = tracks.filter((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === f.id));
+              // A recording a voice uses, and the score PDF, are switched on
+              // their node (right).
+              const managed =
+                f.id === piece.score_file_id ||
+                tracks.some((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === f.id));
               return (
-                <div className="flex items-center gap-1.5 py-1.5">
-                  <div className="min-w-0 flex-1">
-                    <input
-                      defaultValue={f.title}
-                      aria-label={t('displayName')}
-                      placeholder={f.file_name ?? ''}
-                      onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
-                      className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
-                    />
-                    <p className="truncate px-1.5 text-xs text-text-tertiary">{f.file_name}</p>
-                  </div>
-                  {users.length > 0 ? (
-                    <span title={t('downloadViaVoice')} className="max-w-[6rem] flex-shrink-0 truncate px-1.5 text-xs text-text-tertiary">
-                      → {users.map((track) => track.title.trim() || t('voiceName')).join(', ')}
-                    </span>
-                  ) : (
+                <div className="flex items-center gap-1 py-1">
+                  <FileName file={f} onRename={(patch) => void updateFile(f, patch)} />
+                  {!managed && (
                     <Switch
                       checked={f.downloadable}
                       onChange={(downloadable) => void updateFile(f, { downloadable })}
                       label={t('downloadSwitch')}
                       title={t('downloadSwitchHint')}
+                      icon={Download}
                     />
                   )}
-                  <select
-                    value={f.kind}
-                    aria-label={t('fileKind')}
-                    onChange={(e) => void updateFile(f, { kind: e.target.value as PieceFileKind })}
-                    className="h-8 w-24 flex-shrink-0 rounded-md border border-border bg-surface px-1 text-xs text-text-secondary focus:border-black focus:outline-none"
-                  >
-                    {KIND_OPTIONS.map((k) => (
-                      <option key={k.kind} value={k.kind}>
-                        {t(k.label)}
-                      </option>
-                    ))}
-                  </select>
                   {f.file_path && (
                     <a
                       href={pieceFileDownloadUrl(f.file_path, f.file_name ?? fileLabel(f))}
@@ -806,25 +828,37 @@ export const PieceSetupPage = () => {
                   aria-label={t('voiceName')}
                   placeholder={t('voiceName')}
                   onBlur={(e) => e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })}
-                  className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-semibold hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                  className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-semibold hover:border-border focus:border-black focus:outline-none sm:text-sm"
                 />
                 <Switch
                   checked={track.downloadable}
                   onChange={(downloadable) => void updateTrack(track, { downloadable })}
                   label={t('downloadSwitch')}
                   title={t('downloadVoiceHint')}
+                  icon={Download}
                 />
                 <button
                   type="button"
                   onClick={() => void removeVoice(track)}
                   aria-label={t('removeVoice')}
                   title={t('removeVoice')}
-                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
                 >
                   <X size={15} />
                 </button>
               </div>
             )}
+            scoreHeader={
+              score && (
+                <Switch
+                  checked={score.downloadable}
+                  onChange={(downloadable) => void updateFile(score, { downloadable })}
+                  label={t('downloadSwitch')}
+                  title={t('downloadSwitchHint')}
+                  icon={Download}
+                />
+              )
+            }
             voicesBottom={
               <Button variant="secondary" onClick={() => void addVoice()}>
                 <Plus size={15} />
@@ -847,6 +881,29 @@ export const PieceSetupPage = () => {
                 </p>
                 <p className="text-xs text-text-secondary">{t('timingRecommended')}</p>
                 {timingFiles.length === 0 && <MuseScoreTip name={piece.name} />}
+                {/* The piece's length: follows the applied source (its bars, or
+                    the recording even bars are spread over), editable. */}
+                <label className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                  <span className="font-medium">{t('pieceLength')}</span>
+                  <input
+                    // Re-mounted when the saved value changes (e.g. when applied).
+                    key={piece.duration_s ?? 'none'}
+                    placeholder="m:ss"
+                    inputMode="numeric"
+                    defaultValue={piece.duration_s != null ? formatTime(piece.duration_s) : ''}
+                    onBlur={(e) => {
+                      const v = parseDuration(e.target.value);
+                      if (v === undefined) return setDurationError(true);
+                      setDurationError(false);
+                      if (v !== piece.duration_s) void updatePiece({ duration_s: v });
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                    className="h-8 w-20 rounded-md border border-border bg-surface px-2 text-right text-base tabular-nums focus:border-black focus:outline-none sm:text-sm"
+                  />
+                  <span className={cn('text-xs', durationError ? 'text-danger' : 'text-text-secondary')}>
+                    {durationError ? t('durationInvalid') : t('durationHint')}
+                  </span>
+                </label>
                 {!barsPending && timeline && timeline.source !== 'even' && (
                   <div className="space-y-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -1203,9 +1260,11 @@ const CreditRow = ({
   };
 
   return (
-    <div className="space-y-2 rounded-md border border-border p-3">
-      <div className="flex items-center gap-3">
-        <Avatar name={value || '?'} photoUrl={linked ? credit.photo_url : null} size={36} />
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <span title={linked ? t('midiCreditLinked') : undefined} className="flex-shrink-0">
+          <Avatar name={value || '?'} photoUrl={linked ? credit.photo_url : null} size={32} />
+        </span>
         <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
           <input
             value={value}
@@ -1218,7 +1277,7 @@ const CreditRow = ({
             }}
             onBlur={commit}
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            className="h-10 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+            className="h-9 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
           />
           <input
             defaultValue={credit.role}
@@ -1226,7 +1285,7 @@ const CreditRow = ({
             placeholder={t('midiCreditRole')}
             onBlur={(e) => e.target.value.trim() !== credit.role && onChange({ role: e.target.value.trim() })}
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            className="h-10 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
+            className="h-9 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
           />
         </div>
         <button
@@ -1259,7 +1318,6 @@ const CreditRow = ({
           ))}
         </div>
       )}
-      {linked && <p className="text-xs text-text-secondary">{t('midiCreditLinked')}</p>}
     </div>
   );
 };
