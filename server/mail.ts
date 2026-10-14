@@ -1,10 +1,12 @@
 // Outgoing email (optional). Configured in Admin Config (smtp_settings), else
-// through the SMTP_* environment variables; neither = email is off.
+// through the SMTP_* environment variables; neither = email is off. Admins can
+// also switch it off without removing the configuration (email_enabled).
 import nodemailer, { type Transporter } from 'nodemailer';
 import { db } from './db.ts';
 import { env } from './env.ts';
 import { decryptSecret } from './secrets.ts';
 import { branding } from './branding.ts';
+import { instanceSettings } from './settings.ts';
 
 // tls = implicit TLS, starttls = STARTTLS required, none = no encryption,
 // auto = STARTTLS when offered (legacy behaviour of the environment config).
@@ -44,7 +46,9 @@ const envConfig = (): SmtpConfig | null =>
     ? {
         host: env.smtp.host,
         port: env.smtp.port,
-        security: env.smtp.port === 465 ? 'tls' : 'auto',
+        // A password is never sent before encryption is in place, so STARTTLS
+        // is required then; without one it's used whenever it's offered.
+        security: env.smtp.port === 465 ? 'tls' : env.smtp.pass ? 'starttls' : 'auto',
         user: env.smtp.user,
         pass: env.smtp.pass,
         from: env.smtp.from,
@@ -52,15 +56,22 @@ const envConfig = (): SmtpConfig | null =>
       }
     : null;
 
-const rowConfig = (row: SmtpRow): SmtpConfig => ({
-  host: row.host,
-  port: row.port,
-  security: row.security,
-  user: row.username ?? undefined,
-  pass: (row.password_enc && decryptSecret(row.password_enc)) ?? undefined,
-  from: row.from_address,
-  fromName: row.from_name ?? undefined,
-});
+// Null when the stored password can't be decrypted (SECRET_KEY or secret.key
+// changed): every send would fail, so the settings count as incomplete until
+// the password is entered again.
+const rowConfig = (row: SmtpRow): SmtpConfig | null => {
+  const pass = row.password_enc ? decryptSecret(row.password_enc) : undefined;
+  if (pass === null) return null;
+  return {
+    host: row.host,
+    port: row.port,
+    security: row.security,
+    user: row.username ?? undefined,
+    pass,
+    from: row.from_address,
+    fromName: row.from_name ?? undefined,
+  };
+};
 
 // The config in effect: Admin Config first, then the environment.
 export const activeSmtpConfig = (): SmtpConfig | null => {
@@ -69,7 +80,7 @@ export const activeSmtpConfig = (): SmtpConfig | null => {
 };
 
 // Read per call so a change in Admin Config applies without a restart.
-export const mailEnabled = () => activeSmtpConfig() !== null;
+export const mailEnabled = () => instanceSettings().emailEnabled && activeSmtpConfig() !== null;
 
 export const createSmtpTransport = (config: SmtpConfig, timeoutMs = 30_000) =>
   nodemailer.createTransport({
@@ -104,11 +115,11 @@ const transportFor = (config: SmtpConfig) => {
 };
 
 // What an email was for, in the sending statistics (mail_log.kind).
-export type MailKind = 'account' | 'reminder' | 'status' | 'weekly' | 'test';
+export type MailKind = 'account' | 'reminder' | 'status' | 'weekly' | 'test' | 'confirmation';
 
 // Error class only (nodemailer code like EAUTH, or the SMTP status); never the
 // message, which can contain the recipient's address.
-const errorCode = (err: unknown) => {
+export const mailErrorCode = (err: unknown) => {
   const e = err as { code?: unknown; responseCode?: unknown };
   if (typeof e?.code === 'string' && /^[A-Z_]{2,32}$/.test(e.code)) return e.code;
   if (typeof e?.responseCode === 'number') return `SMTP_${e.responseCode}`;
@@ -121,7 +132,7 @@ const logMail = (kind: MailKind, err?: unknown) => {
     db.prepare('insert into mail_log (kind, ok, error) values (?, ?, ?)').run(
       kind,
       err === undefined ? 1 : 0,
-      err === undefined ? null : errorCode(err),
+      err === undefined ? null : mailErrorCode(err),
     );
   } catch (logErr) {
     console.error('Could not record mail statistics:', logErr);
@@ -129,8 +140,8 @@ const logMail = (kind: MailKind, err?: unknown) => {
 };
 
 export const sendMail = async (to: string, subject: string, text: string, kind: MailKind) => {
-  const config = activeSmtpConfig();
-  if (!config) throw new Error('Email is not configured');
+  const config = instanceSettings().emailEnabled ? activeSmtpConfig() : null;
+  if (!config) throw new Error('Email is not configured or switched off');
   try {
     await transportFor(config).sendMail({ from: fromAddress(config), to, subject, text });
   } catch (err) {
@@ -260,6 +271,9 @@ export const mailStatus = () => {
   const fromEnv = envConfig();
   return {
     source: row ? 'settings' : fromEnv ? 'environment' : null,
+    enabled: instanceSettings().emailEnabled,
+    // Without PUBLIC_URL, emailed links are built from the request's host.
+    public_url_set: Boolean(env.publicUrl),
     settings: row
       ? {
           host: row.host,

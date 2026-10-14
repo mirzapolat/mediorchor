@@ -11,6 +11,10 @@ interface SettingsRow {
   signup_requires_approval: number;
   require_admin_2fa: number;
   allow_email_2fa: number;
+  email_enabled: number;
+  mail_registration_received: number;
+  mail_checkin_confirmation: number;
+  mail_signup_welcome: number;
 }
 
 export const MIN_SESSION_DAYS = 1;
@@ -20,7 +24,8 @@ export const instanceSettings = () => {
   const row = db
     .prepare(
       `select allow_self_signup, session_days, signup_allowed_domains,
-              signup_requires_approval, require_admin_2fa, allow_email_2fa
+              signup_requires_approval, require_admin_2fa, allow_email_2fa, email_enabled,
+              mail_registration_received, mail_checkin_confirmation, mail_signup_welcome
        from app_settings where id = 1`,
     )
     .get() as SettingsRow | undefined;
@@ -32,6 +37,11 @@ export const instanceSettings = () => {
     requiresApproval: Boolean(row?.signup_requires_approval),
     requireAdmin2fa: Boolean(row?.require_admin_2fa),
     allowEmail2fa: Boolean(row?.allow_email_2fa),
+    emailEnabled: row ? Boolean(row.email_enabled) : true,
+    // Confirmation emails, each switched on by an admin (see confirmations.ts).
+    mailRegistrationReceived: Boolean(row?.mail_registration_received),
+    mailCheckinConfirmation: Boolean(row?.mail_checkin_confirmation),
+    mailSignupWelcome: Boolean(row?.mail_signup_welcome),
   };
 };
 

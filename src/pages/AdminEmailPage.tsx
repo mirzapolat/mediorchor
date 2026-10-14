@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MailStatsCard } from '@/components/MailStatsCard';
+import { Switch } from '@/components/Switch';
 import { PageSpinner } from '@/components/Spinner';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api, type ApiError } from '@/lib/api';
@@ -26,6 +27,9 @@ interface SmtpValues {
 
 interface SmtpStatus {
   source: 'settings' | 'environment' | null;
+  // Master switch (app_settings.email_enabled); off keeps the settings.
+  enabled: boolean;
+  public_url_set: boolean;
   settings: (SmtpValues & { password_unreadable: boolean; updated_at: string }) | null;
   environment: SmtpValues | null;
 }
@@ -41,6 +45,16 @@ interface Form {
   from_address: string;
   from_name: string;
 }
+
+// Confirmation emails, each switched on here (app_settings).
+type AutoEmailKey = 'mail_registration_received' | 'mail_checkin_confirmation' | 'mail_signup_welcome';
+type AutoEmails = Record<AutoEmailKey, boolean>;
+
+const AUTO_EMAILS: [AutoEmailKey, TranslationKey, TranslationKey][] = [
+  ['mail_registration_received', 'mailRegistrationReceived', 'mailRegistrationReceivedHint'],
+  ['mail_checkin_confirmation', 'mailCheckinConfirmation', 'mailCheckinConfirmationHint'],
+  ['mail_signup_welcome', 'mailSignupWelcome', 'mailSignupWelcomeHint'],
+];
 
 const DEFAULT_PORT: Record<Security, number> = { tls: 465, starttls: 587, none: 25 };
 
@@ -75,6 +89,9 @@ export const AdminEmailPage = () => {
   const [testing, setTesting] = useState<'verify' | 'send' | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [autoEmails, setAutoEmails] = useState<AutoEmails | null>(null);
+  const [autoError, setAutoError] = useState<string | null>(null);
 
   const load = (next: SmtpStatus) => {
     setStatus(next);
@@ -85,6 +102,14 @@ export const AdminEmailPage = () => {
     void api.functions.invoke('admin-smtp-get').then(({ data }) => {
       if (data) load(data as SmtpStatus);
     });
+    void api
+      .from('app_settings')
+      .select('mail_registration_received, mail_checkin_confirmation, mail_signup_welcome')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setAutoEmails(data as AutoEmails);
+      });
   }, []);
 
   useEffect(() => {
@@ -171,12 +196,86 @@ export const AdminEmailPage = () => {
     setNotice({ ok: true, message: t('smtpRemoved') });
   };
 
+  const toggleEnabled = async (enabled: boolean) => {
+    setToggleError(null);
+    const { error } = await api.from('app_settings').update({ email_enabled: enabled }).eq('id', 1);
+    if (error) {
+      setToggleError(error.message);
+      return;
+    }
+    setStatus({ ...status, enabled });
+  };
+
+  const toggleAutoEmail = async (key: AutoEmailKey, value: boolean) => {
+    if (!autoEmails) return;
+    setAutoError(null);
+    const { error } = await api.from('app_settings').update({ [key]: value }).eq('id', 1);
+    if (error) {
+      setAutoError(error.message);
+      return;
+    }
+    setAutoEmails({ ...autoEmails, [key]: value });
+  };
+
+  // Whether email actually goes out (switch on and a server set up).
+  const sending = status.enabled && status.source !== null;
+
   const complete = form.host.trim() && form.port.trim() && form.from_address.trim();
   const busy = saving || testing !== null;
 
   return (
     <>
       <PageHeader title={t('emailSection')} />
+
+      <Card className="mb-6 max-w-5xl space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-medium">{t('emailEnabled')}</h2>
+            <p className="mt-0.5 text-sm text-text-secondary">{t('emailEnabledHint')}</p>
+          </div>
+          <Switch
+            checked={status.enabled}
+            onChange={(v) => void toggleEnabled(v)}
+            label={status.enabled ? t('on') : t('off')}
+            ariaLabel={t('emailEnabled')}
+          />
+        </div>
+        {status.enabled && status.source === null && (
+          <p className="text-sm text-text-secondary">{t('emailEnabledNoServer')}</p>
+        )}
+        {!status.public_url_set && (
+          <p className="flex items-start gap-1.5 text-sm text-danger-strong">
+            <TriangleAlert size={15} className="mt-0.5 flex-shrink-0" />
+            {t('publicUrlMissing')}
+          </p>
+        )}
+        {toggleError && <p className="text-sm text-danger-strong">{toggleError}</p>}
+      </Card>
+
+      {autoEmails && (
+        <Card className="mb-6 max-w-5xl space-y-4">
+          <div>
+            <h2 className="text-base font-medium">{t('autoEmailsSection')}</h2>
+            <p className="mt-0.5 text-sm text-text-secondary">{t('autoEmailsHint')}</p>
+            {!sending && <p className="mt-2 text-sm text-text-secondary">{t('autoEmailsMailOff')}</p>}
+          </div>
+          {AUTO_EMAILS.map(([key, label, hint]) => (
+            <div key={key} className="flex items-start justify-between gap-4 border-t border-border pt-4">
+              <div>
+                <p className="font-medium">{t(label)}</p>
+                <p className="mt-0.5 text-sm text-text-secondary">{t(hint)}</p>
+              </div>
+              <Switch
+                checked={autoEmails[key]}
+                onChange={(v) => void toggleAutoEmail(key, v)}
+                label={autoEmails[key] ? t('on') : t('off')}
+                ariaLabel={t(label)}
+              />
+            </div>
+          ))}
+          {autoError && <p className="text-sm text-danger-strong">{autoError}</p>}
+        </Card>
+      )}
 
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[3fr_2fr] lg:items-start">
         <Card>

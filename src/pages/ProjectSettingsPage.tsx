@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -37,7 +37,29 @@ export const ProjectSettingsPage = () => {
     allow_guest_checkin: project.allow_guest_checkin,
     allow_guest_signup: project.allow_guest_signup,
     allow_participant_pieces: project.allow_participant_pieces,
+    notify_registration_received: project.notify_registration_received,
+    notify_checkin_confirmation: project.notify_checkin_confirmation,
   });
+  // Which confirmation emails go out at all: an admin switches each kind on,
+  // and email must be working. Off there = the project's switch has no effect.
+  const [emailAvailable, setEmailAvailable] = useState<Partial<Record<AccessKey, boolean>>>({});
+  useEffect(() => {
+    void Promise.all([
+      api
+        .from('app_settings')
+        .select('mail_registration_received, mail_checkin_confirmation')
+        .eq('id', 1)
+        .maybeSingle(),
+      api.rpc('get_public_config'),
+    ]).then(([settings, config]) => {
+      const flags = settings.data as { mail_registration_received?: boolean; mail_checkin_confirmation?: boolean } | null;
+      const mail = Boolean((config.data as { mail_enabled?: boolean } | null)?.mail_enabled);
+      setEmailAvailable({
+        notify_registration_received: mail && Boolean(flags?.mail_registration_received),
+        notify_checkin_confirmation: mail && Boolean(flags?.mail_checkin_confirmation),
+      });
+    });
+  }, []);
   const [imageUrl, setImageUrl] = useState<string | null>(project.image_url);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -104,7 +126,7 @@ export const ProjectSettingsPage = () => {
         className="max-w-5xl"
       >
         {/* Balanced columns on wide screens; on phones the cards stack in
-            reading order: general, participants, check-in, sign-up. */}
+            reading order: general, participants, check-in, sign-up, emails. */}
         <CardColumns>
           <Card className="space-y-4">
             <h2 className="text-base font-medium">{t('generalSettings')}</h2>
@@ -224,6 +246,18 @@ export const ProjectSettingsPage = () => {
               <p className="text-sm text-text-secondary">{t('defaultGroupHint')}</p>
             </div>
           </ToggleCard>
+          <ToggleCard
+            title={t('projectEmailSettings')}
+            hint={t('projectEmailSettingsHint')}
+            toggles={[
+              ['notify_registration_received', 'notifyRegistrationReceived', 'notifyRegistrationReceivedHint'],
+              ['notify_checkin_confirmation', 'notifyCheckinConfirmation', 'notifyCheckinConfirmationHint'],
+            ]}
+            values={access}
+            onToggle={toggle}
+            unavailable={(key) => emailAvailable[key] === false}
+            unavailableHint={t('projectEmailOffByAdmin')}
+          />
         </CardColumns>
 
         <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -257,7 +291,9 @@ type AccessKey =
   | 'allow_account_signup'
   | 'allow_guest_checkin'
   | 'allow_guest_signup'
-  | 'allow_participant_pieces';
+  | 'allow_participant_pieces'
+  | 'notify_registration_received'
+  | 'notify_checkin_confirmation';
 
 // One topic of the access settings: a titled card of related switches.
 const ToggleCard = ({
@@ -266,6 +302,8 @@ const ToggleCard = ({
   toggles,
   values,
   onToggle,
+  unavailable,
+  unavailableHint,
   children,
 }: {
   title: string;
@@ -273,6 +311,10 @@ const ToggleCard = ({
   toggles: [AccessKey, TranslationKey, TranslationKey][];
   values: Record<AccessKey, boolean>;
   onToggle: (key: AccessKey, value: boolean) => void;
+  // Switches that currently have no effect (turned off elsewhere), shown dimmed
+  // with `unavailableHint`; their value is kept.
+  unavailable?: (key: AccessKey) => boolean;
+  unavailableHint?: string;
   // Extra settings of the same topic, below the switches.
   children?: ReactNode;
 }) => {
@@ -283,23 +325,31 @@ const ToggleCard = ({
         <h2 className="text-base font-medium">{title}</h2>
         <p className="text-sm text-text-secondary mt-1">{hint}</p>
       </div>
-      {toggles.map(([key, label, toggleHint]) => (
-        <label
-          key={key}
-          className="flex items-center justify-between gap-4 border-t border-border pt-4 cursor-pointer"
-        >
-          <span>
-            <span className="block font-medium">{t(label)}</span>
-            <span className="block text-sm text-text-secondary mt-0.5">{t(toggleHint)}</span>
-          </span>
-          <input
-            type="checkbox"
-            className="h-4 w-4 flex-shrink-0 accent-black"
-            checked={values[key]}
-            onChange={(e) => onToggle(key, e.target.checked)}
-          />
-        </label>
-      ))}
+      {toggles.map(([key, label, toggleHint]) => {
+        const off = unavailable?.(key) ?? false;
+        return (
+          <label
+            key={key}
+            className={`flex items-center justify-between gap-4 border-t border-border pt-4 ${
+              off ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+            }`}
+          >
+            <span>
+              <span className="block font-medium">{t(label)}</span>
+              <span className="block text-sm text-text-secondary mt-0.5">
+                {off && unavailableHint ? `${t(toggleHint)} ${unavailableHint}` : t(toggleHint)}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="h-4 w-4 flex-shrink-0 accent-black"
+              checked={values[key]}
+              disabled={off}
+              onChange={(e) => onToggle(key, e.target.checked)}
+            />
+          </label>
+        );
+      })}
       {children}
     </Card>
   );

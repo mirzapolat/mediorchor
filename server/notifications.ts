@@ -9,7 +9,7 @@
 // server's time zone, so run the server with TZ set (e.g. Europe/Berlin).
 import { db } from './db.ts';
 import { env } from './env.ts';
-import { mailEnabled, sendMail } from './mail.ts';
+import { mailEnabled, mailErrorCode, sendMail } from './mail.ts';
 import { branding } from './branding.ts';
 
 type Lang = 'de' | 'en';
@@ -78,7 +78,8 @@ const deliver = async (
     await sendMail(r.email, `${appName()}: ${subject}`, [...lines, ...footer(lang(r))].join('\n'), kind);
     markSent(r.user_id, kind, ref);
   } catch (err) {
-    console.error(`Sending ${kind} notification to ${r.email} failed:`, err);
+    // The account id, not the address: logs shouldn't collect recipients.
+    console.error(`Sending ${kind} notification to account ${r.user_id} failed:`, mailErrorCode(err));
   }
 };
 

@@ -49,6 +49,8 @@ export interface Project {
   allow_guest_checkin: boolean; // check-in forms work without an account
   allow_guest_signup: boolean; // registration forms work without an account
   allow_participant_pieces: boolean; // participants see the Stücke page
+  notify_registration_received: boolean; // "registration received" emails (when an admin enabled them)
+  notify_checkin_confirmation: boolean; // "check-in confirmed" emails (when an admin enabled them)
   require_signup_group: boolean; // sign-ups must name a group (when the project has any)
   default_group: string | null; // group for new members added without one
   created_at: string;

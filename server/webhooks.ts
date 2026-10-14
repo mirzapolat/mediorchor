@@ -9,6 +9,7 @@
 import { Hono, type Context } from 'hono';
 import { db, nowIso, ApiError } from './db.ts';
 import { rateLimit } from './ratelimit.ts';
+import { queueRegistrationReceived } from './confirmations.ts';
 import { projectGroupNames, registrationToMember } from './rpc.ts';
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 
@@ -169,6 +170,7 @@ webhookRoutes.post('/registrations/:token', async (c) => {
     record('ok');
     return id;
   })();
+  queueRegistrationReceived(page.id, email);
 
   return c.json({ ok: true, transferred: Boolean(memberId) });
 });

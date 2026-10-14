@@ -29,7 +29,7 @@
                        (QR codes to scan, print-like previews)
      tint              background glow of public pages; the accent unless a
                        registration form sets its own color
-     chart-1 … chart-5 categorical chart series, fixed order, validated for
+     chart-1 … chart-6 categorical chart series, fixed order, validated for
                        color-vision deficiency per theme
 
    The active theme is html[data-theme="light" | "dark"], set before first
@@ -77,6 +77,7 @@
   --c-chart-3: 27 175 122;
   --c-chart-4: 237 161 0;
   --c-chart-5: 232 123 164;
+  --c-chart-6: 0 131 0;
 }
 
 :root[data-theme='dark'] {
@@ -108,6 +109,7 @@
   --c-chart-3: 25 158 112;
   --c-chart-4: 201 133 0;
   --c-chart-5: 213 81 129;
+  --c-chart-6: 0 131 0;
 }
 
 /* The app logo (public/favicon.svg) is drawn for light backgrounds; in dark
@@ -134,6 +136,7 @@
   --color-chart-3: rgb(var(--c-chart-3));
   --color-chart-4: rgb(var(--c-chart-4));
   --color-chart-5: rgb(var(--c-chart-5));
+  --color-chart-6: rgb(var(--c-chart-6));
 }
 
 html,

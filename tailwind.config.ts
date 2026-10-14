@@ -44,6 +44,7 @@ export default {
         3: token('chart-3'),
         4: token('chart-4'),
         5: token('chart-5'),
+        6: token('chart-6'),
       },
       // Inverse pair: swaps in dark mode (see index.css).
       black: {

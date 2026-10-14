@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
 type Range = '7d' | '30d' | '90d' | '12m';
-type Kind = 'account' | 'reminder' | 'status' | 'weekly' | 'test';
+type Kind = 'account' | 'reminder' | 'status' | 'weekly' | 'test' | 'confirmation';
 
 interface Bucket {
   key: string; // YYYY-MM-DD or YYYY-MM, in the viewer's local time
@@ -34,6 +34,7 @@ const SERIES: Record<Kind, { color: string; swatch: string; label: TranslationKe
   status: { color: 'bg-chart-3', swatch: 'bg-chart-3', label: 'mailKindStatus' },
   weekly: { color: 'bg-chart-4', swatch: 'bg-chart-4', label: 'mailKindWeekly' },
   test: { color: 'bg-chart-5', swatch: 'bg-chart-5', label: 'mailKindTest' },
+  confirmation: { color: 'bg-chart-6', swatch: 'bg-chart-6', label: 'mailKindConfirmation' },
 };
 
 const RANGES: { value: Range; label: TranslationKey }[] = [

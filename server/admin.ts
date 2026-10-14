@@ -183,7 +183,7 @@ adminRoutes.post('/admin-smtp-test', async (c) => {
 // recipients or content.
 // ---------------------------------------------------------------------------
 
-const MAIL_KINDS = ['account', 'reminder', 'status', 'weekly', 'test'] as const;
+const MAIL_KINDS = ['account', 'reminder', 'status', 'weekly', 'test', 'confirmation'] as const;
 const RANGES = {
   '7d': { days: 7, bucket: 'day' },
   '30d': { days: 30, bucket: 'day' },

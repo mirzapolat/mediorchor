@@ -8,6 +8,7 @@ import { db, asUser, nowIso, uuid, ApiError } from './db.ts';
 import { env } from './env.ts';
 import { branding } from './branding.ts';
 import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
+import { queueSignupWelcome } from './confirmations.ts';
 import { rateLimit } from './ratelimit.ts';
 import { splitName } from './fieldMatching.ts';
 import { auditActor, auditNote } from './audit.ts';
@@ -260,6 +261,9 @@ export const purgeExpired = () => {
   purgeChallenges();
   // The sending statistics look back at most 12 months (plus the comparison).
   db.prepare("delete from mail_log where sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-400 days')").run();
+  // Confirmation emails are deduplicated per Probe/account; older than that
+  // no repeat is possible anyway.
+  db.prepare("delete from confirmation_log where sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-400 days')").run();
 };
 
 const isApproved = (userId: string) => {
@@ -563,7 +567,15 @@ authRoutes.post('/signup', async (c) => {
 
   // With confirmation on, never reveal whether an address is registered.
   if (existing) {
-    if (!existing.email_confirmed_at) await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email));
+    if (!existing.email_confirmed_at) {
+      // A failure here must look like success too, or it would give away that
+      // the address is registered.
+      try {
+        await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email));
+      } catch (err) {
+        console.error('Re-sending confirmation email failed:', err);
+      }
+    }
     return c.json({ ...sessionPayload(null), approval_pending: !approved });
   }
   const id = await createAccount({ email, password, firstName, lastName, confirmed: false, approved });
@@ -608,6 +620,7 @@ authRoutes.get('/confirm', (c) => {
     return true;
   })();
   if (!ok) return c.redirect('/login');
+  if (row.kind === 'confirm_signup') queueSignupWelcome(row.user_id);
   // Confirmed, but an admin still has to approve the account.
   if (!isApproved(row.user_id)) {
     if (row.kind === 'confirm_signup') {

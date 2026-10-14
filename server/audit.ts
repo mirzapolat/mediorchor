@@ -101,6 +101,7 @@ const SKIP_TABLES = new Set([
   'auth_challenges',
   'auth_tokens',
   'mail_log',
+  'confirmation_log',
   'notification_log',
   'notification_outbox',
 ]);

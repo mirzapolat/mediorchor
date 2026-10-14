@@ -679,6 +679,62 @@ const dict: Dict = {
     en: 'The SMTP settings and password will be deleted. The server environment’s configuration applies again.',
   },
   smtpRemoved: { de: 'Einstellungen entfernt', en: 'Settings removed' },
+  emailEnabled: { de: 'E-Mail-Versand aktiv', en: 'Send email' },
+  emailEnabledHint: {
+    de: 'Ausgeschaltet verschickt die App keine E-Mails: Registrierungen und neue Adressen gelten sofort, Benachrichtigungen und Codes per E-Mail entfallen. Die Einstellungen unten bleiben erhalten.',
+    en: 'When off, the app sends no email: sign-ups and address changes apply right away, and notifications and email codes are unavailable. The settings below are kept.',
+  },
+  emailEnabledNoServer: {
+    de: 'Es ist noch kein Mailserver eingerichtet – bis dahin werden keine E-Mails verschickt.',
+    en: 'No mail server is set up yet – no email is sent until there is one.',
+  },
+  autoEmailsSection: { de: 'Bestätigungs-E-Mails', en: 'Confirmation emails' },
+  autoEmailsHint: {
+    de: 'Automatische Bestätigungen an Personen, die sich anmelden, einchecken oder ein Konto erstellen. Projekte können die Anmelde- und Check-in-Bestätigung in ihren Einstellungen wieder ausschalten.',
+    en: 'Automatic confirmations to people who register, check in or create an account. Projects can turn the registration and check-in confirmations off again in their settings.',
+  },
+  autoEmailsMailOff: {
+    de: 'Der E-Mail-Versand ist aus oder nicht eingerichtet – bis dahin werden diese E-Mails nicht verschickt.',
+    en: 'Sending email is off or not set up – these emails aren’t sent until it is.',
+  },
+  mailRegistrationReceived: { de: 'Anmeldung eingegangen', en: 'Registration received' },
+  mailRegistrationReceivedHint: {
+    de: 'An die angegebene Adresse, wenn eine Anmeldung über ein Formular oder einen Webhook eingeht. Höchstens drei pro Adresse und Tag.',
+    en: 'To the address given, when a registration arrives through a form or webhook. At most three per address and day.',
+  },
+  mailCheckinConfirmation: { de: 'Check-in bestätigt', en: 'Check-in confirmed' },
+  mailCheckinConfirmationHint: {
+    de: 'An erkannte Mitglieder mit E-Mail-Adresse (vom Konto oder aus der Mitgliederliste), einmal pro Probe. Nicht erkannte Gäste bekommen keine.',
+    en: 'To recognised members with an email address (from their account or the member list), once per Probe. Unrecognised guests get none.',
+  },
+  mailSignupWelcome: { de: 'Willkommen nach der Registrierung', en: 'Welcome after sign-up' },
+  mailSignupWelcomeHint: {
+    de: 'An neue Konten, sobald die E-Mail-Adresse bestätigt ist – mit Hinweis, falls ein Admin das Konto noch freigeben muss.',
+    en: 'To new accounts once their email address is confirmed – noting it if an admin still has to approve the account.',
+  },
+  projectEmailSettings: { de: 'E-Mails', en: 'Emails' },
+  projectEmailSettingsHint: {
+    de: 'Bestätigungen an Personen, die sich für dieses Projekt anmelden oder einchecken.',
+    en: 'Confirmations to people who register for or check in to this project.',
+  },
+  notifyRegistrationReceived: { de: 'Anmeldebestätigung', en: 'Registration confirmation' },
+  notifyRegistrationReceivedHint: {
+    de: 'Wer sich über ein Anmeldeformular oder einen Webhook anmeldet, bekommt eine Bestätigung an die angegebene Adresse.',
+    en: 'People who register through a form or webhook get a confirmation at the address they gave.',
+  },
+  notifyCheckinConfirmation: { de: 'Check-in-Bestätigung', en: 'Check-in confirmation' },
+  notifyCheckinConfirmationHint: {
+    de: 'Erkannte Mitglieder mit E-Mail-Adresse bekommen nach dem Check-in eine Bestätigung.',
+    en: 'Recognised members with an email address get a confirmation after checking in.',
+  },
+  projectEmailOffByAdmin: {
+    de: 'Derzeit ohne Wirkung: in den Admin-Einstellungen ausgeschaltet oder E-Mail nicht eingerichtet.',
+    en: 'No effect right now: turned off in the admin settings, or email isn’t set up.',
+  },
+  publicUrlMissing: {
+    de: 'PUBLIC_URL ist auf dem Server nicht gesetzt. Links in E-Mails verwenden dann die Adresse der Anfrage, die gefälscht werden kann. Setze PUBLIC_URL in der Server-Umgebung.',
+    en: 'PUBLIC_URL is not set on the server. Links in emails then use the request’s address, which can be forged. Set PUBLIC_URL in the server environment.',
+  },
   smtpSourceSettings: { de: 'Konfiguriert hier in den Admin-Einstellungen.', en: 'Configured here in the admin settings.' },
   smtpSourceEnvironment: {
     de: 'Konfiguriert über die Server-Umgebung (SMTP_*). Speichern überschreibt sie mit diesen Einstellungen.',
@@ -1025,6 +1081,7 @@ const dict: Dict = {
   mailKindStatus: { de: 'Statusänderungen', en: 'Status changes' },
   mailKindWeekly: { de: 'Wochenübersicht', en: 'Weekly summary' },
   mailKindTest: { de: 'Test', en: 'Test' },
+  mailKindConfirmation: { de: 'Bestätigungen', en: 'Confirmations' },
   showTable: { de: 'Als Tabelle', en: 'Show table' },
   showChart: { de: 'Als Diagramm', en: 'Show chart' },
   day: { de: 'Tag', en: 'Day' },

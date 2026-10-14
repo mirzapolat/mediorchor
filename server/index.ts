@@ -222,7 +222,14 @@ startNotifications();
 const server = serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`mediorchor listening on http://localhost:${info.port}`);
   console.log(`Data directory: ${env.dataDir}`);
-  console.log(mailEnabled() ? 'Email confirmation enabled (SMTP configured).' : 'SMTP not configured: sign-ups are confirmed immediately.');
+  console.log(
+    mailEnabled()
+      ? 'Email confirmation enabled (SMTP configured).'
+      : 'Email off or SMTP not configured: sign-ups are confirmed immediately.',
+  );
+  if (!env.publicUrl) {
+    console.warn('PUBLIC_URL is not set: emailed links and passkeys use the request host. Set it in production.');
+  }
 });
 
 const shutdown = () => {

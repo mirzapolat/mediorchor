@@ -15,6 +15,7 @@ import {
 import { extractRegistration, matchFields, parseMapping, type Fields } from './fieldMatching.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled } from './mail.ts';
+import { queueCheckinConfirmation, queueRegistrationReceived } from './confirmations.ts';
 import { email2faAvailable, usersWithSecondFactor } from './mfa.ts';
 import { branding } from './branding.ts';
 import { loadCalendarByToken } from './calendarFeed.ts';
@@ -333,6 +334,7 @@ const submit_public_checkin = (args: Args) => {
       .prepare(`select first_name, last_name, coalesce(group_name, '') as group_name from members where id = ?`)
       .get(memberId) as { first_name: string; last_name: string; group_name: string };
     recordRecognizedSubmission(checkin.event_id, memberId, checkin.attendance_status, member);
+    queueCheckinConfirmation(checkin.event_id, memberId, checkin.attendance_status);
 
     return { state: 'success', recognized: true };
   }
@@ -360,6 +362,7 @@ const submit_public_checkin = (args: Args) => {
       last_name: lastName,
       group_name: groupName,
     });
+    queueCheckinConfirmation(checkin.event_id, match.id, checkin.attendance_status);
     return { state: 'success', recognized: true };
   }
 
@@ -617,6 +620,7 @@ const submit_public_registration = (args: Args) => {
        (registration_page_id, first_name, last_name, email, group_name, note, member_id, transferred, user_id)
      values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(page.id, firstName, lastName, email, groupName, note, memberId, memberId ? 1 : 0, accountId);
+  queueRegistrationReceived(page.id, email);
 
   return { state: 'success' };
 };

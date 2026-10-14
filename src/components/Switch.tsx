@@ -3,11 +3,14 @@ import { cn } from '@/lib/cn';
 
 // An on/off switch with its label next to it — or, with `icon`, a small
 // icon in its place (the label stays for screen readers and the tooltip).
+// `ariaLabel` names it for screen readers when the visible label is just a
+// state like "On".
 export const Switch = ({
   checked,
   onChange,
   label,
   title,
+  ariaLabel,
   icon: Icon,
   className,
 }: {
@@ -15,6 +18,7 @@ export const Switch = ({
   onChange: (checked: boolean) => void;
   label: string;
   title?: string;
+  ariaLabel?: string;
   icon?: LucideIcon;
   className?: string;
 }) => (
@@ -22,7 +26,7 @@ export const Switch = ({
     type="button"
     role="switch"
     aria-checked={checked}
-    aria-label={Icon ? label : undefined}
+    aria-label={ariaLabel ?? (Icon ? label : undefined)}
     title={title ?? (Icon ? label : undefined)}
     onClick={() => onChange(!checked)}
     className={cn(
