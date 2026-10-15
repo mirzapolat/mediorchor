@@ -19,7 +19,9 @@ export const LoginPage = () => {
   const location = useLocation();
   // Deep link the user originally requested before being sent to /login.
   const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  // "Forgot password" sent (the answer is the same whether the address exists).
+  const [resetSent, setResetSent] = useState(false);
   const [allowSelfSignup, setAllowSelfSignup] = useState(false);
   // Whether sign-ups get a confirmation email first (server has SMTP).
   const [mailEnabled, setMailEnabled] = useState(false);
@@ -53,6 +55,17 @@ export const LoginPage = () => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+
+    if (mode === 'forgot') {
+      const { error } = await api.auth.requestPasswordReset(email);
+      setSubmitting(false);
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setResetSent(true);
+      return;
+    }
 
     if (mode === 'signup') {
       const { data, error } = await api.auth.signUp({
@@ -137,9 +150,10 @@ export const LoginPage = () => {
 
   const needsEmailConfirm = signedUp && mailEnabled;
 
-  const switchMode = (next: 'signin' | 'signup') => {
+  const switchMode = (next: 'signin' | 'signup' | 'forgot') => {
     setMode(next);
     setError(null);
+    setResetSent(false);
     setSignedUp(false);
     setApprovalPending(false);
     setMfa(null);
@@ -148,7 +162,18 @@ export const LoginPage = () => {
   return (
     <AuthShell>
       <GlassPanel>
-        {signedUp || approvalPending ? (
+        {resetSent ? (
+          <div className="py-2 text-center" role="status">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-soft text-success">
+              <MailCheck size={28} />
+            </span>
+            <h1 className="mt-5 text-xl font-semibold tracking-tight">{t('resetLinkSentTitle')}</h1>
+            <p className="text-text-secondary text-sm mt-2">{t('resetLinkSentHint')}</p>
+            <Button type="button" variant="secondary" className="mt-6 w-full" onClick={() => switchMode('signin')}>
+              {t('backToSignIn')}
+            </Button>
+          </div>
+        ) : signedUp || approvalPending ? (
           <div className="py-2 text-center" role="status">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-soft text-success">
               <MailCheck size={28} />
@@ -169,8 +194,18 @@ export const LoginPage = () => {
         ) : (
           <>
             <AuthHeading
-              title={mode === 'signup' ? t('signUpTitle') : t('loginTitle')}
-              subtitle={mfaStep ? t('mfaStepSubtitle') : mode === 'signup' ? t('signUpSubtitle') : t('loginSubtitle')}
+              title={
+                mode === 'signup' ? t('signUpTitle') : mode === 'forgot' ? t('forgotPasswordTitle') : t('loginTitle')
+              }
+              subtitle={
+                mfaStep
+                  ? t('mfaStepSubtitle')
+                  : mode === 'signup'
+                    ? t('signUpSubtitle')
+                    : mode === 'forgot'
+                      ? t('forgotPasswordSubtitle')
+                      : t('loginSubtitle')
+              }
             />
 
             {mfa ? (
@@ -216,24 +251,53 @@ export const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <Input
-                  id="password"
-                  type="password"
-                  label={t('password')}
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={mode === 'signup' ? 8 : undefined}
-                  required
-                />
+                {mode !== 'forgot' && (
+                  <div>
+                    <Input
+                      id="password"
+                      type="password"
+                      label={t('password')}
+                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      minLength={mode === 'signup' ? 8 : undefined}
+                      required
+                    />
+                    {mode === 'signin' && mailEnabled && (
+                      <button
+                        type="button"
+                        onClick={() => switchMode('forgot')}
+                        className="mt-1.5 text-sm font-medium text-text-secondary underline-offset-4 transition-colors hover:text-text hover:underline"
+                      >
+                        {t('forgotPassword')}
+                      </button>
+                    )}
+                  </div>
+                )}
                 {error && (
                   <p className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger-strong" role="alert">
                     {error}
                   </p>
                 )}
                 <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? t('loading') : mode === 'signup' ? t('signUp') : t('signIn')}
+                  {submitting
+                    ? t('loading')
+                    : mode === 'signup'
+                      ? t('signUp')
+                      : mode === 'forgot'
+                        ? t('sendResetLink')
+                        : t('signIn')}
                 </Button>
+                {mode === 'forgot' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('signin')}
+                    className="flex w-full items-center justify-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text"
+                  >
+                    <ArrowLeft size={15} />
+                    {t('backToSignIn')}
+                  </button>
+                )}
                 {mode === 'signin' && passkeysSupported() && (
                   <>
                     <div className="flex items-center gap-3 text-[11px] font-medium tracking-wider text-text-tertiary">
@@ -256,7 +320,7 @@ export const LoginPage = () => {
               </form>
             )}
 
-            {allowSelfSignup && !mfaStep && (
+            {allowSelfSignup && !mfaStep && mode !== 'forgot' && (
               <p className="mt-6 border-t border-border/70 pt-5 text-center text-sm text-text-secondary">
                 {mode === 'signup' ? (
                   <>

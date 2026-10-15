@@ -7,7 +7,14 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { db, asUser, nowIso, uuid, ApiError } from './db.ts';
 import { env } from './env.ts';
 import { branding } from './branding.ts';
-import { mailEnabled, sendConfirmEmailChange, sendConfirmSignup, sendPendingSignupNotice } from './mail.ts';
+import {
+  mailEnabled,
+  mailErrorCode,
+  sendConfirmEmailChange,
+  sendConfirmSignup,
+  sendPasswordReset,
+  sendPendingSignupNotice,
+} from './mail.ts';
 import { queueSignupWelcome } from './confirmations.ts';
 import { rateLimit } from './ratelimit.ts';
 import { splitName } from './fieldMatching.ts';
@@ -258,6 +265,7 @@ export const purgeExpired = () => {
   const now = nowIso();
   db.prepare('delete from auth_sessions where expires_at <= ?').run(now);
   db.prepare('delete from auth_tokens where expires_at <= ?').run(now);
+  db.prepare('delete from auth_password_resets where expires_at <= ?').run(now);
   purgeChallenges();
   // The sending statistics look back at most 12 months (plus the comparison).
   db.prepare("delete from mail_log where sent_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-400 days')").run();
@@ -348,6 +356,44 @@ const issueLink = (c: Context, userId: string, kind: 'confirm_signup' | 'email_c
     new Date(Date.now() + DAY).toISOString(),
   );
   return `${baseUrl(c)}/api/auth/confirm?token=${token}`;
+};
+
+// ---------------------------------------------------------------------------
+// Password reset
+// ---------------------------------------------------------------------------
+
+const RESET_TTL = 60 * 60 * 1000;
+// A new link replaces the previous one, but not more often than this, so the
+// form can't be used to flood an inbox.
+const RESET_INTERVAL = 60 * 1000;
+
+// Issues a new reset link (the previous one stops working) and emails it.
+// Returns false when one was sent moments ago and `force` is not set.
+export const sendPasswordResetLink = async (c: Context, userId: string, force = false) => {
+  const account = db.prepare('select email from auth_users where id = ?').get(userId) as
+    | { email: string }
+    | undefined;
+  if (!account) throw new ApiError('User not found', 404);
+  const previous = db.prepare('select created_at from auth_password_resets where user_id = ?').get(userId) as
+    | { created_at: string }
+    | undefined;
+  if (!force && previous && Date.now() - Date.parse(previous.created_at) < RESET_INTERVAL) return false;
+  const token = newToken();
+  db.prepare(
+    `insert into auth_password_resets (user_id, token_hash, created_at, expires_at) values (?, ?, ?, ?)
+     on conflict (user_id) do update set
+       token_hash = excluded.token_hash, created_at = excluded.created_at, expires_at = excluded.expires_at`,
+  ).run(userId, sha256(token), nowIso(), new Date(Date.now() + RESET_TTL).toISOString());
+  await sendPasswordReset(account.email, `${baseUrl(c)}/reset-password?token=${token}`);
+  return true;
+};
+
+const resetFor = (token: unknown) => {
+  if (typeof token !== 'string' || !token) return null;
+  const row = db
+    .prepare('select user_id, expires_at from auth_password_resets where token_hash = ?')
+    .get(sha256(token)) as { user_id: string; expires_at: string } | undefined;
+  return row && Date.parse(row.expires_at) > Date.now() ? row : null;
 };
 
 // ---------------------------------------------------------------------------
@@ -634,6 +680,61 @@ authRoutes.get('/confirm', (c) => {
   // A second factor still has to be entered on the login page.
   if (!hasSecondFactor(row.user_id)) startSession(c, row.user_id, false);
   return c.redirect(target);
+});
+
+// "Forgot password": emails a reset link when the address has an account.
+// The answer is the same either way, and the email goes out after the
+// response, so neither the reply nor its timing tells whether it exists.
+authRoutes.post('/password-reset/request', async (c) => {
+  rateLimit(c, 'password-reset', 5, 15 * 60 * 1000);
+  if (!mailEnabled()) throw new ApiError('Email is not available', 400, 'email_disabled');
+  const { email } = await body(c);
+  const address = normalizeEmail(email);
+  const user = db.prepare('select id from auth_users where email = ? collate nocase').get(address) as
+    | { id: string }
+    | undefined;
+  auditActor(user?.id);
+  auditNote({ force: true, details: { email: address } });
+  // Accounts waiting for approval (or deactivated) couldn't sign in anyway.
+  if (user && isApproved(user.id)) {
+    setImmediate(() => {
+      sendPasswordResetLink(c, user.id).catch((err) =>
+        console.error('Sending password reset failed:', mailErrorCode(err)),
+      );
+    });
+  }
+  return c.json({ ok: true });
+});
+
+// Whether a reset link is still valid (the page checks before asking for the
+// new password).
+authRoutes.post('/password-reset/check', async (c) => {
+  rateLimit(c, 'password-reset-check', 30, 15 * 60 * 1000);
+  const { token } = await body(c);
+  return c.json({ valid: Boolean(resetFor(token)) });
+});
+
+// Sets the new password and signs out every device. The link also proves the
+// address, so an unconfirmed one counts as confirmed. Two-factor
+// authentication stays: the next sign-in asks for it as usual.
+authRoutes.post('/password-reset', async (c) => {
+  rateLimit(c, 'password-reset-check', 30, 15 * 60 * 1000);
+  const { token, password } = await body(c);
+  const reset = resetFor(token);
+  if (!reset) throw new ApiError('This link is invalid or has expired', 400, 'reset_link_invalid');
+  const passwordHash = await hashPassword(validatePassword(password));
+  auditActor(reset.user_id);
+  auditNote({ force: true });
+  db.transaction(() => {
+    db.prepare('delete from auth_password_resets where user_id = ?').run(reset.user_id);
+    db.prepare('update auth_users set password_hash = ?, email_confirmed_at = coalesce(email_confirmed_at, ?) where id = ?').run(
+      passwordHash,
+      nowIso(),
+      reset.user_id,
+    );
+    db.prepare('delete from auth_sessions where user_id = ?').run(reset.user_id);
+  })();
+  return c.json({ ok: true });
 });
 
 // Change the own email and/or password.

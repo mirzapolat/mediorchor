@@ -121,8 +121,11 @@ const ACTIONS: Record<string, Words> = {
   'auth.mfa.email.disable': { de: 'E-Mail-Codes deaktiviert', en: 'Turned off email codes' },
   'auth.mfa.challenge.email': { de: 'Anmeldecode per E-Mail angefordert', en: 'Requested a code by email' },
   'auth.sessions.revoke': { de: 'Geräte abgemeldet', en: 'Signed out devices' },
+  'auth.password-reset.request': { de: 'Passwort-Reset angefordert', en: 'Requested a password reset' },
+  'auth.password-reset': { de: 'Passwort per E-Mail-Link zurückgesetzt', en: 'Reset password via email link' },
   'admin.create-user': { de: 'Konto angelegt', en: 'Created an account' },
   'admin.delete-user': { de: 'Konto gelöscht', en: 'Deleted an account' },
+  'admin.send-password-reset': { de: 'Passwort-Reset-Link verschickt', en: 'Sent a password reset link' },
   'admin.smtp-save': { de: 'E-Mail-Server gespeichert', en: 'Saved mail server' },
   'admin.smtp-delete': { de: 'E-Mail-Server entfernt', en: 'Removed mail server' },
   'admin.smtp-test': { de: 'E-Mail-Server getestet', en: 'Tested mail server' },
@@ -156,6 +159,7 @@ const FAILED_ACTIONS: Record<string, Words> = {
   'auth.passkey.login': { de: 'Passkey-Anmeldung fehlgeschlagen', en: 'Passkey sign-in failed' },
   'auth.signup': { de: 'Registrierung fehlgeschlagen', en: 'Sign-up failed' },
   'auth.reauth': { de: 'Bestätigung fehlgeschlagen', en: 'Confirmation failed' },
+  'auth.password-reset': { de: 'Passwort-Reset fehlgeschlagen', en: 'Password reset failed' },
 };
 
 const COLUMNS: Record<string, Words> = {

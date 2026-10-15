@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, Check, Clock, Crown, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Check, Clock, Crown, KeyRound, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Avatar } from '@/components/Avatar';
@@ -25,14 +25,22 @@ export const UserDetailPage = () => {
   const [twoFactor, setTwoFactor] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  // Whether the server can send email (password reset links need it).
+  const [mailEnabled, setMailEnabled] = useState(false);
+  const [resetState, setResetState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [resetError, setResetError] = useState<string | null>(null);
   // Bumped after access changes so the projects list reloads.
   const [reloadKey, setReloadKey] = useState(0);
 
   const load = async () => {
-    const [{ data }, mfa] = await Promise.all([
+    const [{ data }, mfa, config] = await Promise.all([
       api.from('app_users').select('*').eq('id', userId).maybeSingle(),
       api.rpc('two_factor_users'),
+      api.rpc('get_public_config'),
     ]);
+    setMailEnabled(Boolean((config.data as { mail_enabled?: boolean } | null)?.mail_enabled));
+    setResetState('idle');
+    setResetError(null);
     setTwoFactor(((mfa.data as string[] | null) ?? []).includes(userId ?? ''));
     setUser((data as AppUser) ?? null);
     setLoading(false);
@@ -80,6 +88,20 @@ export const UserDetailPage = () => {
     const { error: deactivateError } = await api.from('app_users').update({ approved: false }).eq('id', user.id);
     if (deactivateError) setError(deactivateError.message);
     else setUser({ ...user, approved: false });
+  };
+
+  const sendPasswordReset = async () => {
+    setResetError(null);
+    setResetState('sending');
+    const { error: resetFailed } = await api.functions.invoke('admin-send-password-reset', {
+      body: { userId: user.id },
+    });
+    if (resetFailed) {
+      setResetState('idle');
+      setResetError(resetFailed.message);
+      return;
+    }
+    setResetState('sent');
   };
 
   const deleteUser = async () => {
@@ -195,6 +217,36 @@ export const UserDetailPage = () => {
       </Card>
 
       <UserProjectsCard user={user} reloadKey={reloadKey} />
+
+      <Card className="max-w-xl mt-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div>
+            <p className="font-medium">{t('sendPasswordReset')}</p>
+            <p className="text-sm text-text-secondary mt-0.5">
+              {mailEnabled ? t('sendPasswordResetHint') : t('sendPasswordResetUnavailable')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            className="sm:flex-shrink-0"
+            onClick={() => void sendPasswordReset()}
+            disabled={!mailEnabled || resetState === 'sending'}
+          >
+            <KeyRound size={15} />
+            {resetState === 'sending' ? t('loading') : t('send')}
+          </Button>
+        </div>
+        {resetState === 'sent' && (
+          <p className="mt-3 text-sm text-success" role="status">
+            {t('passwordResetSent').replace('{email}', user.email)}
+          </p>
+        )}
+        {resetError && (
+          <p className="mt-3 text-sm text-danger-strong" role="alert">
+            {resetError}
+          </p>
+        )}
+      </Card>
 
       {!isSelf && (
         <Card className="max-w-xl mt-6 space-y-4">

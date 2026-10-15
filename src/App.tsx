@@ -6,6 +6,7 @@ import { trackPageview } from '@/lib/analytics';
 import { PageSpinner } from '@/components/Spinner';
 import { WelcomePhotoPrompt } from '@/components/WelcomePhotoPrompt';
 import { LoginPage } from '@/pages/LoginPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AppLayout } from '@/layouts/AppLayout';
 import { PaddedPage } from '@/layouts/PaddedPage';
 import {
@@ -73,6 +74,7 @@ export const App = () => {
     location.pathname.startsWith('/check-in/') ||
     location.pathname.startsWith('/register/') ||
     location.pathname.startsWith('/cal/') ||
+    location.pathname === '/reset-password' ||
     location.pathname === '/impressum' ||
     location.pathname === '/datenschutz'
   ) {
@@ -81,6 +83,7 @@ export const App = () => {
         <Route path="/check-in/:token" element={<PublicCheckinPage />} />
         <Route path="/register/:token" element={<PublicRegistrationPage />} />
         <Route path="/cal/:token" element={<PublicCalendarPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/impressum" element={<LegalPage kind="imprint" />} />
         <Route path="/datenschutz" element={<LegalPage kind="privacy" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

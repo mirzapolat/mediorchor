@@ -218,7 +218,28 @@ export const sendConfirmEmailChange = (to: string, link: string) =>
     'account',
   );
 
-export const sendPendingSignupNotice = (to: string, name: string, email: string, baseUrl?: string) =>
+export const sendPasswordReset = (to: string, link: string) =>
+  sendMail(
+    to,
+    `${appName()}: Passwort zurücksetzen / Reset your password`,
+    [
+      'Hallo,',
+      '',
+      'über diesen Link kannst du ein neues Passwort festlegen:',
+      link,
+      '',
+      'Hello,',
+      '',
+      'you can choose a new password using this link:',
+      link,
+      '',
+      'Der Link ist 1 Stunde gültig. Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.',
+      'The link is valid for 1 hour. If you didn’t ask for this, you can ignore this email.',
+    ].join('\n'),
+    'account',
+  );
+
+export const sendPendingSignupNotice =(to: string, name: string, email: string, baseUrl?: string) =>
   sendMail(
     to,
     `${appName()}: Neues Konto wartet auf Freigabe / New account awaiting approval`,

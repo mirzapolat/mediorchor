@@ -244,6 +244,48 @@ const dict: Dict = {
   },
   haveAccount: { de: 'Du hast bereits ein Konto?', en: 'Already have an account?' },
   noAccount: { de: 'Noch kein Konto?', en: "Don't have an account?" },
+  forgotPassword: { de: 'Passwort vergessen?', en: 'Forgot password?' },
+  forgotPasswordTitle: { de: 'Passwort vergessen', en: 'Forgot your password' },
+  forgotPasswordSubtitle: {
+    de: 'Gib deine E-Mail-Adresse ein. Wir schicken dir einen Link, mit dem du ein neues Passwort festlegen kannst.',
+    en: 'Enter your email address and we’ll send you a link to choose a new password.',
+  },
+  sendResetLink: { de: 'Link senden', en: 'Send link' },
+  resetLinkSentTitle: { de: 'Schau in dein Postfach', en: 'Check your inbox' },
+  resetLinkSentHint: {
+    de: 'Wenn zu dieser Adresse ein Konto existiert, haben wir dir einen Link geschickt. Er ist 1 Stunde gültig.',
+    en: 'If an account exists for this address, we sent you a link. It is valid for 1 hour.',
+  },
+  backToSignIn: { de: 'Zurück zur Anmeldung', en: 'Back to sign in' },
+  resetPasswordTitle: { de: 'Neues Passwort festlegen', en: 'Choose a new password' },
+  resetPasswordSubtitle: {
+    de: 'Danach wirst du auf allen Geräten abgemeldet.',
+    en: 'You’ll be signed out on all devices afterwards.',
+  },
+  repeatPassword: { de: 'Passwort wiederholen', en: 'Repeat password' },
+  passwordsDontMatch: { de: 'Die Passwörter stimmen nicht überein.', en: 'The passwords don’t match.' },
+  setNewPassword: { de: 'Passwort speichern', en: 'Save password' },
+  passwordResetDoneTitle: { de: 'Passwort geändert', en: 'Password changed' },
+  passwordResetDoneHint: {
+    de: 'Du kannst dich jetzt mit deinem neuen Passwort anmelden.',
+    en: 'You can now sign in with your new password.',
+  },
+  resetLinkInvalidTitle: { de: 'Link ungültig', en: 'Link invalid' },
+  resetLinkInvalidHint: {
+    de: 'Dieser Link ist abgelaufen oder wurde schon benutzt. Fordere auf der Anmeldeseite einen neuen an.',
+    en: 'This link has expired or was already used. Request a new one on the sign-in page.',
+  },
+  sendPasswordReset: { de: 'Passwort-Reset senden', en: 'Send password reset' },
+  sendPasswordResetHint: {
+    de: 'Schickt einen Link per E-Mail, mit dem ein neues Passwort festgelegt werden kann. Das bisherige Passwort gilt bis dahin weiter.',
+    en: 'Emails a link to choose a new password. The current password keeps working until then.',
+  },
+  sendPasswordResetUnavailable: {
+    de: 'Nicht verfügbar: Der E-Mail-Versand ist ausgeschaltet oder nicht eingerichtet.',
+    en: 'Not available: email is switched off or not set up.',
+  },
+  passwordResetSent: { de: 'Link an {email} gesendet.', en: 'Link sent to {email}.' },
+  send: { de: 'Senden', en: 'Send' },
 
   // Projects
   newProject: { de: 'Neues Projekt', en: 'New project' },

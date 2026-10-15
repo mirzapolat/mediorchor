@@ -418,6 +418,16 @@ const auth = {
     };
   },
 
+  // "Forgot password": always succeeds (never reveals whether the address
+  // has an account); the emailed link leads to /reset-password.
+  requestPasswordReset: async (email: string) =>
+    request<{ ok: boolean }>('POST', '/api/auth/password-reset/request', { email }),
+  checkPasswordReset: async (token: string) =>
+    request<{ valid: boolean }>('POST', '/api/auth/password-reset/check', { token }),
+  // Sets the new password and signs out every device; sign in afterwards.
+  resetPassword: async (token: string, password: string) =>
+    request<{ ok: boolean }>('POST', '/api/auth/password-reset', { token, password }),
+
   signOut: async () => {
     const { error } = await request('POST', '/api/auth/logout', {});
     emit('SIGNED_OUT', null);

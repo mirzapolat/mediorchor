@@ -2,8 +2,8 @@
 // edge functions). Admin only; reachable as /api/functions/<name>.
 import { Hono, type Context } from 'hono';
 import { db, ApiError, forbidden } from './db.ts';
-import { createAccount, nameInput, requireSession } from './auth.ts';
-import { activeSmtpConfig, mailStatus, testSmtp, type SmtpConfig, type SmtpSecurity } from './mail.ts';
+import { createAccount, nameInput, requireSession, sendPasswordResetLink } from './auth.ts';
+import { activeSmtpConfig, mailEnabled, mailStatus, testSmtp, type SmtpConfig, type SmtpSecurity } from './mail.ts';
 import { encryptSecret } from './secrets.ts';
 import { env } from './env.ts';
 import { rateLimit } from './ratelimit.ts';
@@ -47,6 +47,26 @@ adminRoutes.post('/admin-delete-user', async (c) => {
   const { changes } = db.prepare('delete from auth_users where id = ?').run(userId);
   if (!changes) throw new ApiError('User not found', 404);
   return c.json({ ok: true });
+});
+
+// Emails the account a link to choose a new password (any account, the own
+// included). The previous link stops working; the current password keeps
+// working until the new one is set.
+adminRoutes.post('/admin-send-password-reset', async (c) => {
+  requireAdmin(c);
+  rateLimit(c, 'admin-password-reset', 30, 15 * 60 * 1000);
+  const { userId } = (await c.req.json().catch(() => ({}))) as { userId?: unknown };
+  if (typeof userId !== 'string' || !userId) throw new ApiError('userId is required', 400);
+  if (!mailEnabled()) throw new ApiError('Email is switched off or not configured', 400, 'email_disabled');
+  const target = db.prepare('select email from auth_users where id = ?').get(userId) as { email: string } | undefined;
+  if (!target) throw new ApiError('User not found', 404);
+  auditNote({ force: true, target: userId, details: { email: target.email } });
+  try {
+    await sendPasswordResetLink(c, userId, true);
+  } catch (err) {
+    throw new ApiError(err instanceof Error ? err.message : String(err), 502, 'mail_send_failed');
+  }
+  return c.json({ ok: true, email: target.email });
 });
 
 // Server facts the admin config shows: the session length the environment
