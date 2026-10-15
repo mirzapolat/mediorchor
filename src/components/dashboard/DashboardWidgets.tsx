@@ -4,6 +4,7 @@ import { Avatar } from '@/components/Avatar';
 import { EventWhen } from '@/components/EventWhen';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { localToday } from '@/lib/eventTiming';
 import { EventProgram } from '@/components/EventProgram';
 import { PROJECTS_PREVIEW, REHEARSALS_PREVIEW, type UpcomingRehearsal } from '@/lib/dashboard';
@@ -21,7 +22,7 @@ export const ParticipationWidget = ({
   if (projects.length === 0) return <p className="py-2 text-sm text-text-tertiary">{t('noActiveParticipation')}</p>;
 
   const day = (date: string) =>
-    new Date(`${date}T00:00:00`).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
+    new Date(`${date}T00:00:00`).toLocaleDateString(localeOf(lang), {
       weekday: 'short',
       day: '2-digit',
       month: '2-digit',

@@ -15,6 +15,7 @@ import { db, nowIso, ApiError } from './db.ts';
 import { branding } from './branding.ts';
 import { mailEnabled, sendTwoFactorCode } from './mail.ts';
 import { instanceSettings } from './settings.ts';
+import { accountLanguage } from './i18n.ts';
 
 export type MfaMethod = 'totp' | 'passkey' | 'email';
 
@@ -234,7 +235,7 @@ export const sendChallengeEmail = async (row: Challenge, to: string) => {
     'update auth_challenges set email_code_hash = ?, email_sent_at = ?, expires_at = ? where id_hash = ?',
   ).run(sha256(code), nowIso(), new Date(Date.now() + CHALLENGE_TTL).toISOString(), row.id_hash);
   try {
-    await sendTwoFactorCode(to, code);
+    await sendTwoFactorCode(to, code, accountLanguage(row.user_id));
   } catch (err) {
     console.error('Sending verification code failed:', err);
     throw new ApiError('Error sending the email', 500, 'email_send_failed');

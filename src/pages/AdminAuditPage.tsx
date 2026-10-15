@@ -26,7 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import type { Language } from '@/lib/config';
+import { localeOf, type Language, type Localized } from '@shared/languages';
 import {
   CATEGORY_LABEL,
   actionLabel,
@@ -60,18 +60,18 @@ const OP_STYLE = {
 } as const;
 
 // Labels of the facts a few actions note besides their changes.
-const DETAIL_LABEL: Record<string, { de: string; en: string }> = {
-  method: { de: 'Methode', en: 'Method' },
-  email: { de: 'E-Mail', en: 'Email' },
-  file: { de: 'Datei', en: 'File' },
-  files: { de: 'Dateien', en: 'Files' },
-  size: { de: 'Größe', en: 'Size' },
-  scope: { de: 'Umfang', en: 'Scope' },
-  to: { de: 'Empfänger', en: 'Recipient' },
-  host: { de: 'Server', en: 'Server' },
-  kind: { de: 'Art', en: 'Kind' },
-  denied_rows: { de: 'Zeilen ohne Berechtigung', en: 'Rows without permission' },
-  email_change_requested: { de: 'Neue E-Mail angefragt', en: 'New email requested' },
+const DETAIL_LABEL: Record<string, Localized> = {
+  method: { de: 'Methode', en: 'Method', fi: 'Menetelmä' },
+  email: { de: 'E-Mail', en: 'Email', fi: 'Sähköposti' },
+  file: { de: 'Datei', en: 'File', fi: 'Tiedosto' },
+  files: { de: 'Dateien', en: 'Files', fi: 'Tiedostot' },
+  size: { de: 'Größe', en: 'Size', fi: 'Koko' },
+  scope: { de: 'Umfang', en: 'Scope', fi: 'Laajuus' },
+  to: { de: 'Empfänger', en: 'Recipient', fi: 'Vastaanottaja' },
+  host: { de: 'Server', en: 'Server', fi: 'Palvelin' },
+  kind: { de: 'Art', en: 'Kind', fi: 'Tyyppi' },
+  denied_rows: { de: 'Zeilen ohne Berechtigung', en: 'Rows without permission', fi: 'Rivit ilman oikeutta' },
+  email_change_requested: { de: 'Neue E-Mail angefragt', en: 'New email requested', fi: 'Uutta sähköpostia pyydetty' },
 };
 
 const formatDetail = (key: string, value: unknown, lang: Language) => {
@@ -206,7 +206,7 @@ export const AdminAuditPage = () => {
     if (dayKey(date) === dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) {
       return t('auditYesterday');
     }
-    return date.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US', {
+    return date.toLocaleDateString(localeOf(lang), {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -362,7 +362,7 @@ const AuditRow = ({
         className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-surface-hover sm:px-4"
       >
         <span className="w-14 flex-shrink-0 whitespace-nowrap pt-1 text-xs tabular-nums text-text-tertiary">
-          {new Date(entry.at).toLocaleTimeString(lang === 'de' ? 'de-DE' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(entry.at).toLocaleTimeString(localeOf(lang), { hour: '2-digit', minute: '2-digit' })}
         </span>
         <ActorAvatar entry={entry} />
         <span className="min-w-0 flex-1">
@@ -393,7 +393,7 @@ const AuditRow = ({
               <span>
                 {entry.change_count === 1
                   ? t('auditOneChange')
-                  : t('auditChanges').replace('{n}', entry.change_count.toLocaleString(lang === 'de' ? 'de-DE' : 'en-US'))}
+                  : t('auditChanges').replace('{n}', entry.change_count.toLocaleString(localeOf(lang)))}
               </span>
             )}
             {failed && (
@@ -433,7 +433,7 @@ const AuditDetails = ({
   const facts: [string, ReactNode][] = [
     [
       t('auditTime'),
-      new Date(entry.at).toLocaleString(lang === 'de' ? 'de-DE' : 'en-US', { dateStyle: 'full', timeStyle: 'medium' }),
+      new Date(entry.at).toLocaleString(localeOf(lang), { dateStyle: 'full', timeStyle: 'medium' }),
     ],
     [
       t('auditPerson'),

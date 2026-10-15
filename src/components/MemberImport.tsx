@@ -51,8 +51,8 @@ const guessAssignment = (headers: string[]): Assignment => {
     if (col !== null) taken.add(col);
     return col;
   };
-  const first_name = pick(['vorname', 'first', 'given']);
-  const last_name = pick(['nachname', 'last', 'surname', 'familien']);
+  const first_name = pick(['vorname', 'first', 'given', 'etunimi']);
+  const last_name = pick(['nachname', 'last', 'surname', 'familien', 'sukunimi']);
   // A "name" column without a first/last qualifier is the full name, used only
   // when first and last name aren't both there.
   let full_name: number | null = null;
@@ -61,8 +61,8 @@ const guessAssignment = (headers: string[]): Assignment => {
       const l = h.toLowerCase();
       return (
         !taken.has(i) &&
-        l.includes('name') &&
-        !['vor', 'nach', 'first', 'last', 'sur', 'given', 'familien'].some((q) => l.includes(q))
+        (l.includes('name') || l.includes('nimi')) &&
+        !['vor', 'nach', 'first', 'last', 'sur', 'given', 'familien', 'etu', 'suku'].some((q) => l.includes(q))
       );
     });
     if (idx >= 0) {
@@ -74,8 +74,8 @@ const guessAssignment = (headers: string[]): Assignment => {
     first_name,
     last_name,
     full_name,
-    email: pick(['mail']),
-    group_name: pick(['gruppe', 'group', 'team', 'klasse', 'stimme', 'instrument', 'register']),
+    email: pick(['mail', 'sähköposti', 'sahkoposti']),
+    group_name: pick(['gruppe', 'group', 'team', 'klasse', 'stimme', 'instrument', 'register', 'ryhmä', 'stemma', 'soitin']),
   };
 };
 

@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { PageSpinner } from '@/components/Spinner';
 import { AttendanceChart, type ChartColumn, type ChartSeries } from '@/components/AttendanceChart';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
 import { FALLBACK_GROUP_COLOR, isHexColor } from '@/lib/groupColors';
 import { useProjectContext } from '@/layouts/projectContext';
@@ -185,11 +186,11 @@ export const StatisticsPage = () => {
     [allSeries, events, byEvent, rosterByGroup],
   );
 
-  const percent = new Intl.NumberFormat(lang === 'de' ? 'de-DE' : 'en-US', {
+  const percent = new Intl.NumberFormat(localeOf(lang), {
     style: 'percent',
     maximumFractionDigits: 0,
   });
-  const decimal = new Intl.NumberFormat(lang === 'de' ? 'de-DE' : 'en-US', {
+  const decimal = new Intl.NumberFormat(localeOf(lang), {
     maximumFractionDigits: 1,
   });
 

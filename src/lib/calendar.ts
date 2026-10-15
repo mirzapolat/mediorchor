@@ -1,6 +1,7 @@
 // Kalender (dashboard tab): date helpers for the month grid and date picker,
 // and the merged list of entries — the rehearsals of each calendar's projects
 // plus the calendars' own events.
+import { localeOf, type Language } from '@shared/languages';
 import { api } from '@/lib/api';
 import type { Calendar, CalendarEvent, CalendarEventException, CalendarProject, Event, Project } from '@/types';
 
@@ -36,28 +37,26 @@ export const monthGrid = (iso: string) => {
   return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 };
 
-const locale = (lang: string) => (lang === 'de' ? 'de-DE' : 'en-GB');
-
 // "Mo", "Di", … starting Monday.
-export const weekdayNames = (lang: string, width: 'short' | 'narrow' = 'short') =>
+export const weekdayNames = (lang: Language, width: 'short' | 'narrow' = 'short') =>
   Array.from({ length: 7 }, (_, i) =>
     // 1 January 2024 was a Monday.
-    new Date(2024, 0, 1 + i, 12).toLocaleDateString(locale(lang), { weekday: width }),
+    new Date(2024, 0, 1 + i, 12).toLocaleDateString(localeOf(lang), { weekday: width }),
   );
 
-export const formatMonth = (iso: string, lang: string) =>
-  fromISODate(iso).toLocaleDateString(locale(lang), { month: 'long', year: 'numeric' });
+export const formatMonth = (iso: string, lang: Language) =>
+  fromISODate(iso).toLocaleDateString(localeOf(lang), { month: 'long', year: 'numeric' });
 
-export const formatDay = (iso: string, lang: string, withWeekday = true) =>
-  fromISODate(iso).toLocaleDateString(locale(lang), {
+export const formatDay = (iso: string, lang: Language, withWeekday = true) =>
+  fromISODate(iso).toLocaleDateString(localeOf(lang), {
     ...(withWeekday && { weekday: 'long' }),
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
 
-export const monthNames = (lang: string) =>
-  Array.from({ length: 12 }, (_, i) => new Date(2024, i, 1, 12).toLocaleDateString(locale(lang), { month: 'short' }));
+export const monthNames = (lang: Language) =>
+  Array.from({ length: 12 }, (_, i) => new Date(2024, i, 1, 12).toLocaleDateString(localeOf(lang), { month: 'short' }));
 
 // "19:00–21:00"; an entry without an end shows just its start.
 export const timeRange = (start: string | null, end: string | null) =>

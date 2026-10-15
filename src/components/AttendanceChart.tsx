@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { cn } from '@/lib/cn';
 
 export interface ChartSeries {
@@ -62,7 +63,7 @@ export const AttendanceChart = ({
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
 
-  const locale = lang === 'de' ? 'de-DE' : 'en-US';
+  const locale = localeOf(lang);
   const shortDate = useMemo(
     () => new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' }),
     [locale],

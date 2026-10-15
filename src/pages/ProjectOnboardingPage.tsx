@@ -530,7 +530,7 @@ const Onboarding = () => {
                         >
                           <button
                             type="button"
-                            aria-label="Drag"
+                            aria-label={t('reorder')}
                             onPointerDown={(e) => dnd.startDrag(e, g.id, index)}
                             onPointerMove={dnd.moveDrag}
                             onPointerUp={dnd.endDrag}

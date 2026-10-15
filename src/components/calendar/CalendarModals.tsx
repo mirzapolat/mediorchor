@@ -19,7 +19,7 @@ import { Input, Select, Textarea } from '@/components/Input';
 import { DatePicker } from '@/components/DatePicker';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { cn } from '@/lib/cn';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { GROUP_PALETTE, paletteColor } from '@/lib/groupColors';
 import { formatDay, shiftedEnd, timeRange, type CalendarData, type CalendarEntry } from '@/lib/calendar';
@@ -174,7 +174,7 @@ export const DayPreviewModal = ({
 // Default reminder choices, in minutes before the start.
 const REMINDER_OPTIONS = [0, 10, 30, 60, 120, 1440, 2880, 10080];
 
-const reminderLabel = (minutes: number, t: (key: string) => string) => {
+const reminderLabel = (minutes: number, t: (key: TranslationKey) => string) => {
   if (minutes === 0) return t('reminderAtStart');
   if (minutes < 60) return t('reminderMinutes').replace('{n}', String(minutes));
   if (minutes < 1440) return t(minutes === 60 ? 'reminderHour' : 'reminderHours').replace('{n}', String(minutes / 60));

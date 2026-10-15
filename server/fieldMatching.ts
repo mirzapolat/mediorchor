@@ -20,16 +20,19 @@ const norm = (value: string) =>
 
 // Synonyms per target (normalized). Exact matches win over "contains" matches.
 const SYNONYMS: Record<Target, string[]> = {
-  first_name: ['firstname', 'first', 'vorname', 'givenname', 'forename', 'prenom'],
-  last_name: ['lastname', 'last', 'nachname', 'surname', 'familyname', 'familienname', 'nom'],
-  full_name: ['name', 'fullname', 'vollername', 'vollstaendigername', 'deinname', 'ihrname', 'yourname'],
-  email: ['email', 'emailaddress', 'emailadresse', 'mail', 'mailadresse', 'respondentemail'],
-  group_name: ['group', 'gruppe', 'stimme', 'stimmgruppe', 'stimmlage', 'voice', 'instrument', 'register', 'section'],
+  first_name: ['firstname', 'first', 'vorname', 'givenname', 'forename', 'prenom', 'etunimi'],
+  last_name: ['lastname', 'last', 'nachname', 'surname', 'familyname', 'familienname', 'nom', 'sukunimi'],
+  full_name: ['name', 'fullname', 'vollername', 'vollstaendigername', 'deinname', 'ihrname', 'yourname', 'nimi', 'kokonimi'],
+  email: ['email', 'emailaddress', 'emailadresse', 'mail', 'mailadresse', 'respondentemail', 'sahkoposti', 'sposti'],
+  group_name: [
+    'group', 'gruppe', 'stimme', 'stimmgruppe', 'stimmlage', 'voice', 'instrument', 'register', 'section',
+    'ryhma', 'stemma', 'aaniala', 'soitin',
+  ],
   note: [],
 };
 
 // A "name" field only counts as the full name when it isn't qualified.
-const NAME_QUALIFIERS = ['vor', 'nach', 'first', 'last', 'sur', 'given', 'famil', 'user', 'nick'];
+const NAME_QUALIFIERS = ['vor', 'nach', 'first', 'last', 'sur', 'given', 'famil', 'user', 'nick', 'etu', 'suku'];
 
 // Field whose full key or last path segment matches `wanted`.
 const findKey = (fields: Fields, wanted: string): string | null => {
@@ -51,7 +54,7 @@ const guessKey = (fields: Fields, target: Target, taken: Set<string>): string | 
     keys.find((k) => {
       const n = leaf(k);
       if (target === 'full_name') {
-        return n.includes('name') && !NAME_QUALIFIERS.some((q) => n.includes(q));
+        return (n.includes('name') || n.includes('nimi')) && !NAME_QUALIFIERS.some((q) => n.includes(q));
       }
       // Short synonyms ("last", "mail", "nom") only match exactly.
       return SYNONYMS[target].some((s) => s.length >= 5 && n.includes(s));

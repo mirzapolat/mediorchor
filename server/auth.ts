@@ -20,6 +20,8 @@ import { rateLimit } from './ratelimit.ts';
 import { splitName } from './fieldMatching.ts';
 import { auditActor, auditNote } from './audit.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
+import { accountLanguage } from './i18n.ts';
+import { isLanguage, type Language } from '../shared/languages.ts';
 import {
   base32Encode,
   createChallenge,
@@ -129,6 +131,8 @@ export const createAccount = async (opts: {
   isAdmin?: boolean;
   // false = self sign-up waiting for admin approval.
   approved?: boolean;
+  // For emails; null = the instance default.
+  language?: Language | null;
 }) => {
   const email = normalizeEmail(opts.email);
   const passwordHash = await hashPassword(validatePassword(opts.password));
@@ -142,7 +146,7 @@ export const createAccount = async (opts: {
     ).run(id, email, passwordHash, opts.confirmed ? nowIso() : null);
     // Everyone else starts as a Teilnehmer (the column default).
     db.prepare(
-      'insert into app_users (id, email, first_name, last_name, role, approved) values (?, ?, ?, ?, ?, ?)',
+      'insert into app_users (id, email, first_name, last_name, role, approved, language) values (?, ?, ?, ?, ?, ?, ?)',
     ).run(
       id,
       email,
@@ -150,6 +154,7 @@ export const createAccount = async (opts: {
       opts.lastName.trim().slice(0, 100),
       opts.isAdmin ? 'admin' : 'participant',
       opts.approved === false ? 0 : 1,
+      opts.language ?? null,
     );
   })();
   return id;
@@ -320,13 +325,19 @@ const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
   if (!mailEnabled()) return;
   const admins = db
     .prepare(
-      `select au.email from app_users u join auth_users au on au.id = u.id
+      `select au.email, u.language from app_users u join auth_users au on au.id = u.id
        where u.role = 'admin' and au.email_confirmed_at is not null`,
     )
-    .all() as { email: string }[];
+    .all() as { email: string; language: string | null }[];
   for (const admin of admins) {
     try {
-      await sendPendingSignupNotice(admin.email, name, email, env.publicUrl);
+      await sendPendingSignupNotice(
+        admin.email,
+        isLanguage(admin.language) ? admin.language : null,
+        name,
+        email,
+        env.publicUrl,
+      );
     } catch (err) {
       console.error('Sending approval notice failed:', err);
     }
@@ -384,7 +395,7 @@ export const sendPasswordResetLink = async (c: Context, userId: string, force = 
      on conflict (user_id) do update set
        token_hash = excluded.token_hash, created_at = excluded.created_at, expires_at = excluded.expires_at`,
   ).run(userId, sha256(token), nowIso(), new Date(Date.now() + RESET_TTL).toISOString());
-  await sendPasswordReset(account.email, `${baseUrl(c)}/reset-password?token=${token}`);
+  await sendPasswordReset(account.email, `${baseUrl(c)}/reset-password?token=${token}`, accountLanguage(userId));
   return true;
 };
 
@@ -594,6 +605,8 @@ authRoutes.post('/signup', async (c) => {
   const password = validatePassword(input.password);
   const { firstName, lastName } = nameInput(input);
   const name = `${firstName} ${lastName}`.trim();
+  // The interface language at sign-up, so emails match it from the start.
+  const language = isLanguage(input.language) ? input.language : null;
 
   const existing = db
     .prepare('select id, email_confirmed_at from auth_users where email = ? collate nocase')
@@ -602,7 +615,7 @@ authRoutes.post('/signup', async (c) => {
   if (!mailEnabled()) {
     // No mail server: accounts are confirmed right away.
     if (existing) throw new ApiError('User already registered', 422, 'user_already_exists');
-    const id = await createAccount({ email, password, firstName, lastName, confirmed: true, approved });
+    const id = await createAccount({ email, password, firstName, lastName, confirmed: true, approved, language });
     if (!approved) {
       void notifyAdminsOfPendingSignup(name, email);
       return c.json({ ...sessionPayload(null), approval_pending: true });
@@ -617,16 +630,16 @@ authRoutes.post('/signup', async (c) => {
       // A failure here must look like success too, or it would give away that
       // the address is registered.
       try {
-        await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email));
+        await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email), accountLanguage(existing.id));
       } catch (err) {
         console.error('Re-sending confirmation email failed:', err);
       }
     }
     return c.json({ ...sessionPayload(null), approval_pending: !approved });
   }
-  const id = await createAccount({ email, password, firstName, lastName, confirmed: false, approved });
+  const id = await createAccount({ email, password, firstName, lastName, confirmed: false, approved, language });
   try {
-    await sendConfirmSignup(email, issueLink(c, id, 'confirm_signup', email));
+    await sendConfirmSignup(email, issueLink(c, id, 'confirm_signup', email), language);
   } catch (err) {
     console.error('Sending confirmation email failed:', err);
     db.prepare('delete from auth_users where id = ?').run(id);
@@ -762,7 +775,7 @@ authRoutes.patch('/user', async (c) => {
         throw new ApiError('A user with this email address has already been registered', 422, 'email_exists');
       }
       if (mailEnabled()) {
-        await sendConfirmEmailChange(email, issueLink(c, user.id, 'email_change', email));
+        await sendConfirmEmailChange(email, issueLink(c, user.id, 'email_change', email), accountLanguage(user.id));
         emailChangePending = true;
         auditNote({ force: true, details: { email_change_requested: email } });
       } else {

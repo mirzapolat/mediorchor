@@ -6,6 +6,7 @@ import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
 import { feedUrls } from '@/lib/calendar';
 import type { Calendar, CalendarLink } from '@/types';
@@ -209,7 +210,7 @@ const LinkItem = ({
   const fetched = link.last_fetched_at
     ? t('lastFetched').replace(
         '{when}',
-        new Date(link.last_fetched_at).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB', {
+        new Date(link.last_fetched_at).toLocaleString(localeOf(lang), {
           dateStyle: 'medium',
           timeStyle: 'short',
         }),

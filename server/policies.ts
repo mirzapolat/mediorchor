@@ -9,6 +9,7 @@
 import { ApiError, db } from './db.ts';
 import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
 import { hasSecondFactor } from './mfa.ts';
+import { isLanguage } from '../shared/languages.ts';
 
 type Predicate = (alias: string) => string;
 
@@ -261,6 +262,10 @@ export const policies: Record<string, TablePolicy> = {
       // Only the account holder sets their profile photo.
       if ('photo_url' in patch && !self && normalize(patch.photo_url) !== normalize(oldRow.photo_url)) {
         throw new ApiError('Only the account holder can change the profile photo', 403, '42501');
+      }
+      // One of shared/languages.ts, or null for the instance default.
+      if ('language' in patch && patch.language !== null && !isLanguage(patch.language)) {
+        throw new ApiError('Unknown language', 400, '23514');
       }
     },
   },

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type TouchEvent, type WheelEvent } from 'react';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { localToday } from '@/lib/eventTiming';
 import { fromISODate, monthGrid, monthKey, weekdayNames, type CalendarEntry } from '@/lib/calendar';
 
@@ -35,7 +36,7 @@ export const MonthGrid = ({
   const today = localToday();
   const days = monthGrid(month);
   const shownMonth = monthKey(month);
-  const dateLocale = lang === 'de' ? 'de-DE' : 'en-GB';
+  const dateLocale = localeOf(lang);
 
   const weeks = useRef<HTMLDivElement>(null);
   // How many chips fit when all are shown, and when a "+n more" line follows.

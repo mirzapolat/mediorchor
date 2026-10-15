@@ -403,13 +403,14 @@ const auth = {
   signUp: async (input: {
     email: string;
     password: string;
-    options?: { data?: { first_name?: string; last_name?: string } };
+    options?: { data?: { first_name?: string; last_name?: string; language?: string } };
   }) => {
     const { data, error } = await request<SessionPayload>('POST', '/api/auth/signup', {
       email: input.email,
       password: input.password,
       first_name: input.options?.data?.first_name ?? '',
       last_name: input.options?.data?.last_name ?? '',
+      language: input.options?.data?.language,
     });
     if (data?.session) emit('SIGNED_IN', data.session);
     return {

@@ -13,7 +13,7 @@ import { SecondFactorForm, mfaErrorMessage } from '@/components/SecondFactorForm
 import { safeRedirectPath } from '@/lib/safePath';
 
 export const LoginPage = () => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -72,7 +72,8 @@ export const LoginPage = () => {
         email,
         password,
         options: {
-          data: { first_name: firstName.trim(), last_name: lastName.trim() },
+          // Emails then use the language the account was created in.
+          data: { first_name: firstName.trim(), last_name: lastName.trim(), language: lang },
         },
       });
       setSubmitting(false);

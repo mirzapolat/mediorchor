@@ -4,6 +4,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { ActionCard } from './ActionCard';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { track } from '@/lib/analytics';
 import {
   getOfflineMeta,
@@ -71,7 +72,7 @@ export const OfflineSaveButton = ({ projectId }: { projectId: string }) => {
 
   const busy = progress !== null;
   const savedAt = meta
-    ? new Date(meta.savedAt).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB', {
+    ? new Date(meta.savedAt).toLocaleString(localeOf(lang), {
         dateStyle: 'medium',
         timeStyle: 'short',
       })

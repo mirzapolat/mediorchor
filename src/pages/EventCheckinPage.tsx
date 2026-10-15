@@ -29,6 +29,7 @@ import { RowActionButton } from '@/components/RowActionButton';
 import { PageSpinner } from '@/components/Spinner';
 import { useEventContext } from '@/layouts/eventContext';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import type { AttendanceStatus, CheckinSubmission, EventCheckin, Member } from '@/types';
@@ -275,7 +276,7 @@ export const EventCheckinPage = () => {
   const recognized = useMemo(() => submissions.filter((row) => row.recognized), [submissions]);
   const dateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-US', {
+      new Intl.DateTimeFormat(localeOf(lang), {
         dateStyle: 'medium',
         timeStyle: 'short',
       }),

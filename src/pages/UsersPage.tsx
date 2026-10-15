@@ -12,6 +12,7 @@ import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/hooks/useAuth';
@@ -84,7 +85,7 @@ export const UsersPage = () => {
 
   const narrow = 'w-px whitespace-nowrap';
   // Date over time keeps the timestamp columns narrow.
-  const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+  const locale = localeOf(lang);
   const dateTime = (iso: string) => {
     const d = new Date(iso);
     return (

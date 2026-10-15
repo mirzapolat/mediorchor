@@ -11,8 +11,8 @@ import { db } from './db.ts';
 import { env } from './env.ts';
 import { mailEnabled, mailErrorCode, sendMail } from './mail.ts';
 import { branding } from './branding.ts';
-
-type Lang = 'de' | 'en';
+import { defaultLanguage, formatWhen as formatDate, mailTexts } from './i18n.ts';
+import { toLanguage, type Language } from '../shared/languages.ts';
 
 const HOUR = 60 * 60 * 1000;
 const INTERVAL = 5 * 60 * 1000;
@@ -37,29 +37,20 @@ interface EventRow {
   description: string | null;
 }
 
-const lang = (r: Recipient): Lang =>
-  (r.language ?? env.client.VITE_DEFAULT_LANGUAGE) === 'de' ? 'de' : 'en';
+// Notifications go out in one language: the account's, or the default.
+const lang = (r: Recipient): Language => toLanguage(r.language, defaultLanguage());
 
 const appName = () => branding().appName;
 
 const eventStart = (e: Pick<EventRow, 'date' | 'time'>) => new Date(`${e.date}T${e.time ?? '00:00'}`);
 
-const formatWhen = (e: Pick<EventRow, 'date' | 'time'>, l: Lang) => {
-  const date = new Date(`${e.date}T00:00`).toLocaleDateString(l === 'de' ? 'de-DE' : 'en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-  return e.time ? `${date}, ${e.time}${l === 'de' ? ' Uhr' : ''}` : date;
-};
+const formatWhen = (e: Pick<EventRow, 'date' | 'time'>, l: Language) =>
+  formatDate(l, e.date, e.time, { weekday: 'long', day: 'numeric', month: 'long' });
 
 const participationLink = (projectId: string) =>
   env.publicUrl ? `${env.publicUrl}/projects/${projectId}/participation` : null;
 
-const footer = (l: Lang) =>
-  l === 'de'
-    ? ['', '—', 'Du erhältst diese E-Mail, weil du Benachrichtigungen in deinem Konto aktiviert hast.']
-    : ['', '—', 'You receive this email because you turned on notifications in your account.'];
+const footer = (l: Language) => ['', '—', mailTexts(l).notificationFooter];
 
 const wasSent = (userId: string, kind: string, ref: string) =>
   Boolean(db.prepare('select 1 from notification_log where user_id = ? and kind = ? and ref = ?').get(userId, kind, ref));
@@ -127,33 +118,14 @@ const sendReminders = async (now: Date) => {
       if (now < from || now >= end) continue;
       const l = lang(r);
       const link = participationLink(e.project_id);
-      await deliver(
-        r,
-        'reminder',
-        e.id,
-        l === 'de' ? `Erinnerung: ${e.name}` : `Reminder: ${e.name}`,
-        l === 'de'
-          ? [
-              `Hallo ${r.name || ''},`.replace(' ,', ','),
-              '',
-              `bald ist ${e.name} (${e.project_name}):`,
-              formatWhen(e, l),
-              ...(e.description ? ['', e.description] : []),
-              '',
-              'Falls du nicht kommen kannst, gib bitte rechtzeitig Bescheid.',
-              ...(link ? ['', link] : []),
-            ]
-          : [
-              `Hello ${r.name || ''},`.replace(' ,', ','),
-              '',
-              `${e.name} (${e.project_name}) is coming up:`,
-              formatWhen(e, l),
-              ...(e.description ? ['', e.description] : []),
-              '',
-              "If you can't make it, please let us know in time.",
-              ...(link ? ['', link] : []),
-            ],
-      );
+      const mail = mailTexts(l).reminder(r.name, e.name, e.project_name, formatWhen(e, l));
+      await deliver(r, 'reminder', e.id, mail.subject, [
+        ...mail.lines,
+        ...(e.description ? ['', e.description] : []),
+        '',
+        mail.after,
+        ...(link ? ['', link] : []),
+      ]);
     }
   }
 };
@@ -185,34 +157,15 @@ const sendStatusNotices = async (now: Date) => {
     // Only when the change still stands (not reverted within the debounce).
     if (r && e && e.status === p.status && !wasSent(r.user_id, 'status', String(p.id))) {
       const l = lang(r);
-      const statusText =
-        p.status === 'excused'
-          ? l === 'de' ? 'entschuldigt' : 'excused'
-          : l === 'de' ? 'abwesend' : 'absent';
       const link = participationLink(e.project_id);
-      await deliver(
-        r,
-        'status',
-        String(p.id),
-        l === 'de' ? `Anwesenheit geändert: ${e.name}` : `Attendance changed: ${e.name}`,
-        l === 'de'
-          ? [
-              `Hallo ${r.name || ''},`.replace(' ,', ','),
-              '',
-              `du wurdest für ${e.name} (${e.project_name}${e.date ? `, ${formatWhen(e, l)}` : ''}) als ${statusText} eingetragen.`,
-              '',
-              'Falls das nicht stimmt, wende dich bitte an die Projektleitung.',
-              ...(link ? ['', link] : []),
-            ]
-          : [
-              `Hello ${r.name || ''},`.replace(' ,', ','),
-              '',
-              `you were marked ${statusText} for ${e.name} (${e.project_name}${e.date ? `, ${formatWhen(e, l)}` : ''}).`,
-              '',
-              "If that's not right, please contact the project management.",
-              ...(link ? ['', link] : []),
-            ],
+      const mail = mailTexts(l).statusChanged(
+        r.name,
+        e.name,
+        e.project_name,
+        formatWhen(e, l),
+        p.status === 'excused',
       );
+      await deliver(r, 'status', String(p.id), mail.subject, [...mail.lines, ...(link ? ['', link] : [])]);
     }
   }
   db.prepare('delete from notification_outbox where created_at <= ?').run(cutoff);
@@ -241,20 +194,12 @@ const sendWeekly = async (now: Date) => {
       continue;
     }
     const l = lang(r);
+    const texts = mailTexts(l);
     const statusLabel = (s: string | null) =>
-      s === 'excused' ? (l === 'de' ? ' – entschuldigt' : ' – excused')
-        : s === 'attended' ? (l === 'de' ? ' – als anwesend eingetragen' : ' – marked present')
-          : '';
+      s === 'excused' ? ` – ${texts.weeklyExcused}` : s === 'attended' ? ` – ${texts.weeklyPresent}` : '';
     const lines = events.map((e) => `• ${formatWhen(e, l)}: ${e.name} (${e.project_name})${statusLabel(e.status)}`);
-    await deliver(
-      r,
-      'weekly',
-      week,
-      l === 'de' ? 'Deine Proben diese Woche' : 'Your rehearsals this week',
-      l === 'de'
-        ? [`Hallo ${r.name || ''},`.replace(' ,', ','), '', 'diese Woche stehen an:', '', ...lines]
-        : [`Hello ${r.name || ''},`.replace(' ,', ','), '', 'This week:', '', ...lines],
-    );
+    const mail = texts.weekly(r.name);
+    await deliver(r, 'weekly', week, mail.subject, [...mail.lines, '', ...lines]);
   }
 };
 

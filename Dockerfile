@@ -29,6 +29,7 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY shared ./shared
 COPY docker/entrypoint.sh /entrypoint.sh
 
 # SQLite database (app.db) and uploaded files (storage/) live here.

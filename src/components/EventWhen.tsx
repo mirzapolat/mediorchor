@@ -1,4 +1,5 @@
 import { CalendarDays, Clock, MapPin } from 'lucide-react';
+import { localeOf, type Language } from '@shared/languages';
 
 // Date, time and location on one line, e.g. "Mi., 07.10. · 19:00 · Aula";
 // the year only appears when it is not the current one.
@@ -11,11 +12,11 @@ export const EventWhen = ({
   date: string | null;
   time: string | null;
   location: string | null;
-  lang: string;
+  lang: Language;
 }) => {
   if (!date && !time && !location) return null;
   const d = date ? new Date(`${date}T00:00:00`) : null;
-  const label = d?.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', {
+  const label = d?.toLocaleDateString(localeOf(lang), {
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',

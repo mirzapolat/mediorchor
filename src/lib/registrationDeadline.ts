@@ -1,4 +1,4 @@
-import type { Language } from './config';
+import { localeOf, type Language } from '@shared/languages';
 
 // Registration deadlines are stored as ISO timestamps (UTC) and edited in the
 // browser's local time through <input type="datetime-local">.
@@ -33,11 +33,10 @@ export const registrationState = (page: {
 }): RegistrationState =>
   !page.is_active ? 'inactive' : page.source === 'form' && isPast(page.closes_at) ? 'closed' : 'active';
 
-const locale = (lang: Language) => (lang === 'de' ? 'de-DE' : 'en-US');
 
 // "Fr., 3. Okt. 2025, 23:59"
 export const formatDeadline = (iso: string, lang: Language) =>
-  new Intl.DateTimeFormat(locale(lang), {
+  new Intl.DateTimeFormat(localeOf(lang), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -50,15 +49,15 @@ export const formatDeadline = (iso: string, lang: Language) =>
 export const formatDeadlineParts = (iso: string, lang: Language) => {
   const d = new Date(iso);
   return {
-    month: new Intl.DateTimeFormat(locale(lang), { month: 'short' }).format(d).replace('.', ''),
+    month: new Intl.DateTimeFormat(localeOf(lang), { month: 'short' }).format(d).replace('.', ''),
     day: String(d.getDate()),
-    date: new Intl.DateTimeFormat(locale(lang), {
+    date: new Intl.DateTimeFormat(localeOf(lang), {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}),
     }).format(d),
-    time: new Intl.DateTimeFormat(locale(lang), { hour: '2-digit', minute: '2-digit' }).format(d),
+    time: new Intl.DateTimeFormat(localeOf(lang), { hour: '2-digit', minute: '2-digit' }).format(d),
   };
 };
 
@@ -66,7 +65,7 @@ export const formatDeadlineParts = (iso: string, lang: Language) => {
 export const timeLeft = (iso: string, lang: Language) => {
   const ms = Date.parse(iso) - Date.now();
   if (!(ms > 0) || ms > 14 * 86_400_000) return null;
-  const rtf = new Intl.RelativeTimeFormat(locale(lang), { numeric: 'auto' });
+  const rtf = new Intl.RelativeTimeFormat(localeOf(lang), { numeric: 'auto' });
   if (ms < 3_600_000) return rtf.format(Math.max(1, Math.round(ms / 60_000)), 'minute');
   if (ms < 2 * 86_400_000) return rtf.format(Math.round(ms / 3_600_000), 'hour');
   return rtf.format(Math.round(ms / 86_400_000), 'day');

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, Table2 } from 'lucide-react';
 import { Card } from './Card';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
@@ -101,7 +102,7 @@ export const MailStatsCard = () => {
     };
   }, [range]);
 
-  const locale = lang === 'de' ? 'de-DE' : 'en-US';
+  const locale = localeOf(lang);
   const fmt = useMemo(
     () => ({
       number: new Intl.NumberFormat(locale),

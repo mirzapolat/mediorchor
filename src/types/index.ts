@@ -1,4 +1,4 @@
-import type { Language } from '@/lib/config';
+import type { Language } from '@shared/languages';
 // Shared domain types mirroring the database schema (see server/migrations).
 
 // Every account is the same kind of account; capability flags grant extra

@@ -10,6 +10,9 @@ import { env } from './env.ts';
 import { branding } from './branding.ts';
 import { instanceSettings } from './settings.ts';
 import { mailEnabled, mailErrorCode, sendMail } from './mail.ts';
+import { accountLanguage, composeMail, formatWhen, mailLanguages } from './i18n.ts';
+import type { MailTexts } from './locales/en.ts';
+import type { Language } from '../shared/languages.ts';
 
 type Kind = 'registration' | 'checkin' | 'welcome';
 
@@ -49,18 +52,16 @@ const later = (label: string, send: () => Promise<void>) =>
 
 const appName = () => branding().appName;
 
-const footer = [
-  '',
-  '—',
-  'Diese E-Mail wurde automatisch verschickt. / This email was sent automatically.',
-];
-
-const formatDate = (date: string | null, time: string | null, locale: 'de-DE' | 'en-GB') => {
-  if (!date) return '';
-  const day = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(day.getTime())) return '';
-  const text = new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(day);
-  return time ? `${text}, ${time.slice(0, 5)}` : text;
+// In the recipient's language when they have an account that chose one;
+// otherwise in the instance default and English.
+const send = (
+  to: string,
+  lang: Language | null,
+  build: (texts: MailTexts, lang: Language) => { subject: string; lines: string[] },
+  kind: 'confirmation' | 'account',
+) => {
+  const { subject, text } = composeMail(mailLanguages(lang), build, (m) => m.autoSent);
+  return sendMail(to, `${appName()}: ${subject}`, text, kind);
 };
 
 // After a public registration was saved (form or webhook).
@@ -81,23 +82,7 @@ export const queueRegistrationReceived = (pageId: string, email: string | null) 
     if (sentSince('registration', hash, new Date(Date.now() - DAY)) >= REGISTRATION_DAILY_LIMIT) return;
     record('registration', pageId, hash);
 
-    await sendMail(
-      email,
-      `${appName()}: Anmeldung eingegangen / Registration received`,
-      [
-        'Hallo,',
-        '',
-        `deine Anmeldung „${page.title}“ für ${page.project_name} ist eingegangen. Vielen Dank!`,
-        'Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.',
-        '',
-        'Hello,',
-        '',
-        `your registration "${page.title}" for ${page.project_name} has been received. Thank you!`,
-        'If you didn’t register, you can ignore this email.',
-        ...footer,
-      ].join('\n'),
-      'confirmation',
-    );
+    await send(email, null, (m) => m.registrationReceived(page.title, page.project_name), 'confirmation');
   });
 };
 
@@ -109,7 +94,7 @@ export const queueCheckinConfirmation = (eventId: string, memberId: string, stat
     const row = db
       .prepare(
         `select e.name as event_name, e.date, e.time, p.name as project_name, p.notify_checkin_confirmation,
-                coalesce(au.email, m.email) as email
+                coalesce(au.email, m.email) as email, m.user_id
          from members m
          join events e on e.id = ?
          join projects p on p.id = e.project_id and p.id = m.project_id
@@ -124,6 +109,7 @@ export const queueCheckinConfirmation = (eventId: string, memberId: string, stat
           project_name: string;
           notify_checkin_confirmation: number;
           email: string | null;
+          user_id: string | null;
         }
       | undefined;
     if (!row?.notify_checkin_confirmation || !row.email || !SINGLE_ADDRESS_RE.test(row.email)) return;
@@ -133,25 +119,16 @@ export const queueCheckinConfirmation = (eventId: string, memberId: string, stat
     record('checkin', ref, addressHash(row.email));
 
     const excused = status === 'excused';
-    const whenDe = formatDate(row.date, row.time, 'de-DE');
-    const whenEn = formatDate(row.date, row.time, 'en-GB');
-    await sendMail(
+    await send(
       row.email,
-      `${appName()}: Check-in bestätigt / Check-in confirmed`,
-      [
-        'Hallo,',
-        '',
-        `dein Check-in für „${row.event_name}“ (${row.project_name}${whenDe ? `, ${whenDe}` : ''}) wurde erfasst.`,
-        `Status: ${excused ? 'entschuldigt' : 'anwesend'}`,
-        'Wenn du das nicht warst, wende dich bitte an die Projektleitung.',
-        '',
-        'Hello,',
-        '',
-        `your check-in for "${row.event_name}" (${row.project_name}${whenEn ? `, ${whenEn}` : ''}) was recorded.`,
-        `Status: ${excused ? 'excused' : 'present'}`,
-        'If this wasn’t you, please contact the project’s organisers.',
-        ...footer,
-      ].join('\n'),
+      accountLanguage(row.user_id),
+      (m, lang) =>
+        m.checkinConfirmed(
+          row.event_name,
+          row.project_name,
+          formatWhen(lang, row.date, row.time, { dateStyle: 'long' }),
+          excused,
+        ),
       'confirmation',
     );
   });
@@ -172,26 +149,10 @@ export const queueSignupWelcome = (userId: string) =>
 
     // Only the configured address: a link built from the request could be forged.
     const login = env.publicUrl ? `${env.publicUrl}/login` : null;
-    const name = appName();
-    await sendMail(
+    await send(
       row.email,
-      `${name}: Willkommen / Welcome`,
-      [
-        'Hallo,',
-        '',
-        `dein Konto bei ${name} ist eingerichtet.`,
-        row.approved
-          ? `Du kannst dich jetzt anmelden${login ? `: ${login}` : '.'}`
-          : 'Ein Admin muss es noch freigeben. Danach kannst du dich anmelden.',
-        '',
-        'Hello,',
-        '',
-        `your ${name} account is set up.`,
-        row.approved
-          ? `You can sign in now${login ? `: ${login}` : '.'}`
-          : 'An admin still has to approve it. You can sign in after that.',
-        ...footer,
-      ].join('\n'),
+      accountLanguage(userId),
+      (m) => m.welcome(appName(), Boolean(row.approved), login),
       'account',
     );
   });

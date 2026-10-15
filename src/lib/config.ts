@@ -8,7 +8,7 @@
 //      so a single Docker image can be reconfigured without rebuilding.
 //   2. import.meta.env.VITE_*  — baked in at build time / used by `npm run dev`.
 
-export type Language = 'de' | 'en';
+import { toLanguage, type Language } from '@shared/languages';
 
 interface RuntimeConfig {
   VITE_DEFAULT_LANGUAGE?: string;
@@ -30,8 +30,7 @@ const read = (key: 'VITE_DEFAULT_LANGUAGE' | 'VITE_APP_NAME' | 'VITE_ACCENT_COLO
   return fromBuild || undefined;
 };
 
-const rawLang = read('VITE_DEFAULT_LANGUAGE')?.toLowerCase();
-export const DEFAULT_LANGUAGE: Language = rawLang === 'de' ? 'de' : 'en';
+export const DEFAULT_LANGUAGE: Language = toLanguage(read('VITE_DEFAULT_LANGUAGE'));
 
 export const config = {
   defaultLanguage: DEFAULT_LANGUAGE,

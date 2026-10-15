@@ -7,6 +7,8 @@ import { env } from './env.ts';
 import { decryptSecret } from './secrets.ts';
 import { branding } from './branding.ts';
 import { instanceSettings } from './settings.ts';
+import { composeMail, mailLanguages } from './i18n.ts';
+import type { Language } from '../shared/languages.ts';
 
 // tls = implicit TLS, starttls = STARTTLS required, none = no encryption,
 // auto = STARTTLS when offered (legacy behaviour of the environment config).
@@ -178,112 +180,44 @@ export const testSmtp = async (config: SmtpConfig, to?: string) => {
 
 const appName = () => branding().appName;
 
-export const sendConfirmSignup = (to: string, link: string) =>
-  sendMail(
-    to,
-    `${appName()}: Bitte E-Mail-Adresse bestätigen / Confirm your email`,
-    [
-      'Hallo,',
-      '',
-      'bitte bestätige deine E-Mail-Adresse über diesen Link:',
-      link,
-      '',
-      'Hello,',
-      '',
-      'please confirm your email address using this link:',
-      link,
-      '',
-      'Der Link ist 24 Stunden gültig. / The link is valid for 24 hours.',
-    ].join('\n'),
-    'account',
+// Account emails. `lang` is the account's language; null (not known or not
+// chosen) sends the text in the instance default and English.
+const sendLocalized = (
+  to: string,
+  lang: Language | null,
+  build: Parameters<typeof composeMail>[1],
+) => {
+  const { subject, text } = composeMail(mailLanguages(lang), build);
+  return sendMail(to, `${appName()}: ${subject}`, text, 'account');
+};
+
+export const sendConfirmSignup = (to: string, link: string, lang: Language | null) =>
+  sendLocalized(to, lang, (m) => m.confirmSignup(link));
+
+export const sendConfirmEmailChange = (to: string, link: string, lang: Language | null) =>
+  sendLocalized(to, lang, (m) => m.confirmEmailChange(link));
+
+export const sendPasswordReset = (to: string, link: string, lang: Language | null) =>
+  sendLocalized(to, lang, (m) => m.passwordReset(link));
+
+export const sendPendingSignupNotice = (
+  to: string,
+  lang: Language | null,
+  name: string,
+  email: string,
+  baseUrl?: string,
+) =>
+  sendLocalized(to, lang, (m) =>
+    m.pendingSignup(`${name || email} (${email})`, baseUrl ? `${baseUrl}/admin/users` : null),
   );
 
-export const sendConfirmEmailChange = (to: string, link: string) =>
-  sendMail(
-    to,
-    `${appName()}: Neue E-Mail-Adresse bestätigen / Confirm your new email`,
-    [
-      'Hallo,',
-      '',
-      'bitte bestätige deine neue E-Mail-Adresse über diesen Link:',
-      link,
-      '',
-      'Hello,',
-      '',
-      'please confirm your new email address using this link:',
-      link,
-      '',
-      'Der Link ist 24 Stunden gültig. / The link is valid for 24 hours.',
-    ].join('\n'),
-    'account',
-  );
+export const sendTwoFactorCode = (to: string, code: string, lang: Language | null) =>
+  sendLocalized(to, lang, (m) => m.twoFactorCode(code));
 
-export const sendPasswordReset = (to: string, link: string) =>
-  sendMail(
-    to,
-    `${appName()}: Passwort zurücksetzen / Reset your password`,
-    [
-      'Hallo,',
-      '',
-      'über diesen Link kannst du ein neues Passwort festlegen:',
-      link,
-      '',
-      'Hello,',
-      '',
-      'you can choose a new password using this link:',
-      link,
-      '',
-      'Der Link ist 1 Stunde gültig. Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.',
-      'The link is valid for 1 hour. If you didn’t ask for this, you can ignore this email.',
-    ].join('\n'),
-    'account',
-  );
-
-export const sendPendingSignupNotice =(to: string, name: string, email: string, baseUrl?: string) =>
-  sendMail(
-    to,
-    `${appName()}: Neues Konto wartet auf Freigabe / New account awaiting approval`,
-    [
-      'Hallo,',
-      '',
-      `${name || email} (${email}) hat sich registriert und wartet auf deine Freigabe.`,
-      ...(baseUrl ? ['', `Freigeben: ${baseUrl}/admin/users`] : []),
-      '',
-      'Hello,',
-      '',
-      `${name || email} (${email}) signed up and is waiting for your approval.`,
-      ...(baseUrl ? ['', `Approve: ${baseUrl}/admin/users`] : []),
-    ].join('\n'),
-    'account',
-  );
-
-export const sendTwoFactorCode = (to: string, code: string) =>
-  sendMail(
-    to,
-    `${appName()}: Dein Bestätigungscode / Your verification code`,
-    [
-      'Hallo,',
-      '',
-      `dein Bestätigungscode lautet: ${code}`,
-      '',
-      'Hello,',
-      '',
-      `your verification code is: ${code}`,
-      '',
-      'Der Code ist 10 Minuten gültig. Wenn du das nicht warst, ändere bitte dein Passwort.',
-      'The code is valid for 10 minutes. If this wasn’t you, please change your password.',
-    ].join('\n'),
-    'account',
-  );
-
-const testMail = () => ({
-  subject: `${appName()}: Test-E-Mail / Test email`,
-  text: [
-    'Diese Test-E-Mail bestätigt, dass der E-Mail-Versand funktioniert.',
-    '',
-    'This test email confirms that sending email works.',
-  ].join('\n'),
-});
+const testMail = () => {
+  const { subject, text } = composeMail(mailLanguages(null), (m) => m.testMail());
+  return { subject: `${appName()}: ${subject}`, text };
+};
 
 // What the admin sees about the mail setup. Never the password itself, only
 // whether one is set.

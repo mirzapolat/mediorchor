@@ -1,17 +1,19 @@
 // Step-by-step setup guides for sending registrations to a webhook page.
 // Kept as data (not i18n keys) because they are long, structured and carry
 // code snippets. `text` in backticks is rendered as inline code.
-import type { Language } from '@/lib/config';
-
-type Localized = Record<Language, string>;
+import type { Language, Localized } from '@shared/languages';
 
 export interface WebhookGuide {
   id: string;
-  label: string;
-  steps: Record<Language, string[]>;
+  // Product names stay as they are; anything else is translated.
+  label: string | Localized;
+  steps: Localized<string[]>;
   note?: Localized;
   code?: (url: string) => string;
 }
+
+export const guideLabel = (guide: WebhookGuide, lang: Language) =>
+  typeof guide.label === 'string' ? guide.label : guide.label[lang];
 
 const exampleJson = (url: string) => `curl -X POST '${url}' \\
   -H 'Content-Type: application/json' \\
@@ -34,10 +36,17 @@ export const WEBHOOK_GUIDES: WebhookGuide[] = [
         'On the left, "Triggers" (alarm clock icon) → "Add trigger": function `onFormSubmit`, event source "From form", event type "On form submit". Save and grant access. Create only one trigger, otherwise every registration arrives twice.',
         'Submit a test response and check "Last delivery" below.',
       ],
+      fi: [
+        'Avaa lomake muokkaustilassa ja valitse ⋮ (Lisää) → ”Apps Script” (ei vastausten laskentataulukosta).',
+        'Korvaa olemassa oleva koodi alla olevalla skriptillä ja tallenna.',
+        'Vasemmalta ”Käynnistimet” (herätyskellokuvake) → ”Lisää käynnistin”: funktio `onFormSubmit`, tapahtuman lähde ”Lomakkeesta”, tapahtuman tyyppi ”Lomaketta lähetettäessä”. Tallenna ja salli käyttöoikeus. Luo vain yksi käynnistin, muuten jokainen ilmoittautuminen saapuu kahdesti.',
+        'Lähetä testivastaus ja tarkista alta ”Viimeisin toimitus”.',
+      ],
     },
     note: {
       de: 'Fragen mit Titeln wie „Vorname“, „Nachname“, „E-Mail“ und „Gruppe“ werden automatisch erkannt. Sammelt das Formular E-Mail-Adressen, wird diese mitgesendet. Das Skript funktioniert auch mit einem Trigger aus der Antworttabelle. Startest du es manuell mit ▶, sendet es die letzte Antwort als Test.',
       en: 'Questions titled like "First name", "Last name", "Email" and "Group" are detected automatically. If the form collects email addresses, that address is sent too. The script also works with a trigger from the response spreadsheet. Running it manually with ▶ sends the latest response as a test.',
+      fi: 'Kysymykset, joiden otsikko on esim. ”Etunimi”, ”Sukunimi”, ”Sähköposti” ja ”Ryhmä”, tunnistetaan automaattisesti. Jos lomake kerää sähköpostiosoitteita, osoite lähetetään mukana. Skripti toimii myös vastausten laskentataulukon käynnistimellä. Kun suoritat sen käsin ▶-painikkeella, se lähettää viimeisimmän vastauksen testinä.',
     },
     code: (url) => `const WEBHOOK_URL = '${url}';
 
@@ -85,10 +94,17 @@ function onFormSubmit(e) {
         'Add the action "HTTP": method `POST`, URI = webhook URL, header `Content-Type: application/json`, body e.g. `{"first_name": …, "last_name": …, "email": …, "group": …}` using the response\'s dynamic content.',
         'Save the flow and submit a test response.',
       ],
+      fi: [
+        'Valitse Power Automatessa ”Luo” → ”Automatisoitu pilvityönkulku”, käynnistimeksi ”Kun uusi vastaus lähetetään” (Microsoft Forms), ja valitse lomakkeesi.',
+        'Lisää toiminto ”Hae vastauksen tiedot”: sama lomake, vastauksen tunnus käynnistimestä.',
+        'Lisää toiminto ”HTTP”: menetelmä `POST`, URI = webhook-osoite, otsake `Content-Type: application/json`, runko esim. `{"first_name": …, "last_name": …, "email": …, "group": …}` vastauksen dynaamisella sisällöllä.',
+        'Tallenna työnkulku ja lähetä testivastaus.',
+      ],
     },
     note: {
       de: 'Die HTTP-Aktion ist in Power Automate ein Premium-Connector. Ohne Premium lässt sich Microsoft Forms auch über Zapier oder Make anbinden.',
       en: 'The HTTP action is a premium connector in Power Automate. Without premium, Microsoft Forms can also be connected through Zapier or Make.',
+      fi: 'HTTP-toiminto on Power Automatessa premium-liitin. Ilman premiumia Microsoft Formsin voi yhdistää myös Zapierin tai Maken kautta.',
     },
   },
   {
@@ -107,10 +123,17 @@ function onFormSubmit(e) {
         'URL = webhook URL, payload type `json`. Under "Data" add the fields `first_name`, `last_name`, `email` and `group` and map each to the trigger\'s answer.',
         'Test the action and publish the Zap.',
       ],
+      fi: [
+        'Luo uusi Zap. Käynnistin: lomakesovelluksesi (esim. Google Forms, Microsoft Forms, Typeform, Jotform) ja ”New Response”.',
+        'Toiminto: ”Webhooks by Zapier” → tapahtuma `POST`.',
+        'URL = webhook-osoite, Payload Type `json`. Lisää kohtaan ”Data” kentät `first_name`, `last_name`, `email` ja `group` ja yhdistä kuhunkin käynnistimen vastaus.',
+        'Testaa toiminto ja julkaise Zap.',
+      ],
     },
     note: {
       de: '„Webhooks by Zapier“ ist je nach Zapier-Tarif nur in bezahlten Plänen verfügbar.',
       en: '"Webhooks by Zapier" may only be available on paid Zapier plans.',
+      fi: '”Webhooks by Zapier” voi olla käytettävissä vain Zapierin maksullisissa tilauksissa.',
     },
   },
   {
@@ -129,10 +152,17 @@ function onFormSubmit(e) {
         'URL = webhook URL, method `POST`, content type `application/json`, body e.g. `{"first_name": "{{…}}", "last_name": "{{…}}", "email": "{{…}}", "group": "{{…}}"}` using the trigger\'s ingredients.',
         'Save the applet and trigger a test registration.',
       ],
+      fi: [
+        'Luo uusi applet. ”If This”: käynnistin, esim. Google Sheetsin ”New row added to spreadsheet” Google-lomakkeen vastaustaulukolle.',
+        '”Then That”: ”Webhooks” → ”Make a web request”.',
+        'URL = webhook-osoite, Method `POST`, Content Type `application/json`, Body esim. `{"first_name": "{{…}}", "last_name": "{{…}}", "email": "{{…}}", "group": "{{…}}"}` käynnistimen ainesosilla (Ingredients).',
+        'Tallenna applet ja tee testi-ilmoittautuminen.',
+      ],
     },
     note: {
       de: 'Webhooks sind bei IFTTT je nach Tarif nur mit IFTTT Pro nutzbar.',
       en: 'Depending on the plan, webhooks on IFTTT may require IFTTT Pro.',
+      fi: 'Tilauksesta riippuen IFTTT:n webhookit voivat vaatia IFTTT Pron.',
     },
   },
   {
@@ -151,11 +181,17 @@ function onFormSubmit(e) {
         'As request content enter e.g. `{"first_name": …, "last_name": …, "email": …, "group": …}` with the values from the first module.',
         'Run the scenario once, check it and switch it on.',
       ],
+      fi: [
+        'Luo uusi skenaario. Ensimmäinen moduuli: lomakesovelluksesi (esim. Google Forms, Microsoft Forms, Typeform) ja ”Watch Responses”.',
+        'Lisää moduuli ”HTTP” → ”Make a request”: URL = webhook-osoite, Method `POST`, Body type `Raw`, Content type `JSON (application/json)`.',
+        'Kirjoita Request content -kenttään esim. `{"first_name": …, "last_name": …, "email": …, "group": …}` ensimmäisen moduulin arvoilla.',
+        'Suorita skenaario kerran, tarkista se ja ota se käyttöön.',
+      ],
     },
   },
   {
     id: 'other',
-    label: 'Andere / Other',
+    label: { de: 'Andere', en: 'Other', fi: 'Muu' },
     steps: {
       de: [
         'Jeder Dienst, der HTTP-Anfragen senden kann, funktioniert: eine `POST`-Anfrage pro Anmeldung an die Webhook-URL.',
@@ -168,6 +204,12 @@ function onFormSubmit(e) {
         'Formats: JSON (nested too, or lists like `[{"title": "First name", "answer": "Anna"}]`), `application/x-www-form-urlencoded` or `multipart/form-data`.',
         'Detected fields: first/last name (`first_name`, `last_name`, "First name", "Surname" …) or a full name (`name`), email (`email`, "E-mail") and group (`group`, "Voice", "Section", "Instrument" …).',
         'Responses: `200 {"ok": true}` on success, `422` when no name was found, `409` when the registration is inactive, `404` for an unknown URL.',
+      ],
+      fi: [
+        'Mikä tahansa palvelu, joka osaa lähettää HTTP-pyyntöjä, toimii: yksi `POST`-pyyntö ilmoittautumista kohden webhook-osoitteeseen.',
+        'Muodot: JSON (myös sisäkkäinen, tai listat kuten `[{"title": "Etunimi", "answer": "Anna"}]`), `application/x-www-form-urlencoded` tai `multipart/form-data`.',
+        'Tunnistetut kentät: etu-/sukunimi (`first_name`, `last_name`, ”Etunimi”, ”Sukunimi” …) tai koko nimi (`name`), sähköposti (`email`, ”Sähköposti”) ja ryhmä (`group`, ”Ryhmä”, ”Stemma”, ”Soitin” …).',
+        'Vastaukset: `200 {"ok": true}` onnistuessa, `422` kun nimeä ei löytynyt, `409` kun ilmoittautuminen ei ole käytössä, `404` tuntemattomalle osoitteelle.',
       ],
     },
     code: exampleJson,

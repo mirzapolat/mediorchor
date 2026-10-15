@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { cn } from '@/lib/cn';
 import { FALLBACK_GROUP_COLOR, isHexColor } from '@/lib/groupColors';
 
@@ -68,7 +69,7 @@ export const GroupDonut = ({
   const percent = (value: number) =>
     total === 0
       ? '0 %'
-      : new Intl.NumberFormat(lang === 'de' ? 'de-DE' : 'en-US', {
+      : new Intl.NumberFormat(localeOf(lang), {
           style: 'percent',
           maximumFractionDigits: value / total < 0.1 ? 1 : 0,
         }).format(value / total);

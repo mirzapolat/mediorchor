@@ -98,7 +98,7 @@ Unlinked member rows whose email matches an account's **confirmed** email addres
 - Laid out in two columns when the screen is wide enough (profile left; language and two-factor right), one column otherwise.
 - Edit display name, email address and set a new password.
 - **Name propagation:** changing the display name renames every linked member row across all projects. The name is split into first/last at the last space. A manager may afterwards rename that member within a project; the UI then flags "name differs from account" and shows the account's name.
-- UI language switch (German / English), remembered per browser.
+- UI language switch (German / English / Finnish), remembered per browser; it also sets the account's email language.
 - **Install the app** (hidden when already running as the installed app): a button that opens the browser's install prompt where there is one (Chrome, Edge, Android), two illustrated steps ("Share" → "Add to Home Screen") on iPhone/iPad, otherwise a hint to the browser menu.
 - **Two-factor authentication** with any combination of methods; one active method turns 2FA on:
   - *Authenticator app* (time-based one-time codes): "Set up" shows a QR code (tapping it on a phone opens the authenticator app) and the key for manual entry, grouped in blocks of four with a Copy button, then asks for a 6-digit confirmation code. Remove after a confirmation dialog.
@@ -619,7 +619,7 @@ A piece can pin bars to when they really start: `[{bar, label, at}]` — played-
 
 ## 15. Cross-cutting behaviours
 
-**Internationalisation** — every visible string comes from a German/English dictionary. The default language comes from configuration; the user's choice overrides it and persists per browser. Dates and times are formatted per locale (`de-DE` vs. `en-GB`/`en-US`). Note the domain wording: the German term for "event" is *Probe* (rehearsal).
+**Internationalisation** — the languages (German, English, Finnish) are listed once in `shared/languages.ts`, with their Intl locale (`de-DE`, `en-GB`, `fi-FI`) used for every date and number. Every visible string comes from a per-language dictionary (`src/locales/<code>.ts`, keys defined by `en.ts`); emails come from `server/locales/<code>.ts`. The default language comes from configuration; the user's choice overrides it and persists per browser. A sign-up stores the interface language on the account, and emails go out in the account's language — or, for unknown recipients (public forms) and accounts without one, in the default language followed by English. Adding a language is described at the top of `shared/languages.ts`; TypeScript reports every text still missing. Note the domain wording: the German term for "event" is *Probe* (rehearsal); Finnish uses *harjoitus*.
 
 **Branding** — app name, accent color and default language are deployment configuration, resolvable at container start without rebuilding the frontend. The accent color drives a CSS variable and an auto-darkened hover shade; the app name sets the document title; the logo is the favicon.
 

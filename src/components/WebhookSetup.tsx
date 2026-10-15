@@ -5,9 +5,10 @@ import { Card } from './Card';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TargetSelect, WEBHOOK_TARGETS, targetMeta, type WebhookMapTarget } from './FieldMapper';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { WEBHOOK_GUIDES } from '@/lib/webhookGuides';
+import { WEBHOOK_GUIDES, guideLabel } from '@/lib/webhookGuides';
 import type { RegistrationPage, WebhookMapping } from '@/types';
 
 // Mapping value that switches a target off (no automatic detection either);
@@ -134,7 +135,7 @@ export const WebhookSetup = ({
     return label === key ? (status ?? '') : label;
   };
 
-  const dateFormatter = new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-US', {
+  const dateFormatter = new Intl.DateTimeFormat(localeOf(lang), {
     dateStyle: 'medium',
     timeStyle: 'medium',
   });
@@ -180,7 +181,7 @@ export const WebhookSetup = ({
                 </p>
               ) : null}
             </div>
-            <Button variant="secondary" onClick={onRefresh} aria-label="Refresh">
+            <Button variant="secondary" onClick={onRefresh} aria-label={t('auditRefresh')}>
               <RefreshCw size={15} />
             </Button>
           </div>
@@ -268,7 +269,7 @@ export const WebhookSetup = ({
                   : 'border-border text-text-secondary hover:bg-surface-muted',
               )}
             >
-              {g.label}
+              {guideLabel(g, lang)}
             </button>
           ))}
         </div>

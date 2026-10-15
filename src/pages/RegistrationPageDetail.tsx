@@ -32,6 +32,7 @@ import { HeaderAction } from '@/components/HeaderAction';
 import { RowActionButton } from '@/components/RowActionButton';
 import { RegistrationSelectionDialog } from '@/components/RegistrationSelectionDialog';
 import { useI18n } from '@/lib/i18n';
+import { localeOf } from '@shared/languages';
 import { FALLBACK_GROUP_COLOR, paletteColor } from '@/lib/groupColors';
 import { GroupDonut, type DonutSlice } from '@/components/GroupDonut';
 import { cn } from '@/lib/cn';
@@ -100,7 +101,7 @@ export const RegistrationPageDetail = () => {
     void load();
   }, [load]);
 
-  const dateFormatter = new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-US', {
+  const dateFormatter = new Intl.DateTimeFormat(localeOf(lang), {
     dateStyle: 'medium',
     timeStyle: 'short',
   });

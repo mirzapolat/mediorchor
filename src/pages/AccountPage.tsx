@@ -42,7 +42,7 @@ import { createPasskey, passkeysSupported } from '@/lib/passkeys';
 import { useReauth } from '@/hooks/useReauth';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfilePhoto } from '@/hooks/useProfilePhoto';
-import type { Language } from '@/lib/config';
+import { LANGUAGES, LANGUAGE_CODES, localeOf, type Language } from '@shared/languages';
 import { useTheme, type ThemePreference } from '@/lib/theme';
 import { canPromptInstall, isInstalled, isIos, promptInstall, subscribeInstall } from '@/lib/pwa';
 import { cn } from '@/lib/cn';
@@ -315,8 +315,11 @@ const LanguageCard = () => {
         }}
         className="max-w-[200px]"
       >
-        <option value="en">English</option>
-        <option value="de">Deutsch</option>
+        {LANGUAGE_CODES.map((code) => (
+          <option key={code} value={code}>
+            {LANGUAGES[code].name}
+          </option>
+        ))}
       </Select>
     </Card>
   );
@@ -623,7 +626,7 @@ const PasskeySection = ({ factors, run, done }: MethodSectionProps) => {
   };
 
   const date = (iso: string) =>
-    new Date(iso).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium' });
+    new Date(iso).toLocaleDateString(localeOf(lang), { dateStyle: 'medium' });
 
   return (
     <MethodSection
@@ -1113,7 +1116,7 @@ const SessionsCard = () => {
   const others = sessions.filter((s) => !s.current).length;
   const when = (iso: string | null) =>
     iso
-      ? new Date(iso).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+      ? new Date(iso).toLocaleString(localeOf(lang), { dateStyle: 'medium', timeStyle: 'short' })
       : '—';
 
   return (
