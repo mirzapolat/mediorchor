@@ -10,7 +10,7 @@ import { api, type ApiError, type MfaChallenge } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { passkeysSupported } from '@/lib/passkeys';
 import { SecondFactorForm, mfaErrorMessage } from '@/components/SecondFactorForm';
-import { safeRedirectPath } from '@/lib/safePath';
+import { safeRedirectPath } from '@shared/safePath';
 
 export const LoginPage = () => {
   const { t, lang } = useI18n();
@@ -75,6 +75,8 @@ export const LoginPage = () => {
           // Emails then use the language the account was created in.
           data: { first_name: firstName.trim(), last_name: lastName.trim(), language: lang },
         },
+        // The emailed confirmation link then returns there as well.
+        redirect: from,
       });
       setSubmitting(false);
       if (error) {

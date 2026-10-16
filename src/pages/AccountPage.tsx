@@ -223,7 +223,7 @@ const CredentialsCard = () => {
   );
 };
 
-// Appearance: theme, language and installing the app.
+// Appearance: theme, start page and installing the app.
 export const AccountAppearancePage = () => {
   const { t } = useI18n();
   return (
@@ -232,9 +232,18 @@ export const AccountAppearancePage = () => {
       <div className="space-y-6">
         <AppearanceCard />
         <StartPageCard />
-        <LanguageCard />
         <InstallAppCard />
       </div>
+    </>
+  );
+};
+
+export const AccountLanguagePage = () => {
+  const { t } = useI18n();
+  return (
+    <>
+      <PageHeader title={t('language')} />
+      <LanguageCard />
     </>
   );
 };
@@ -302,7 +311,10 @@ const LanguageCard = () => {
   const { user } = useAuth();
   return (
     <Card className="space-y-4">
-      <h2 className="text-base font-medium">{t('language')}</h2>
+      <div>
+        <h2 className="text-base font-medium">{t('language')}</h2>
+        <p className="text-sm text-text-secondary mt-1">{t('languageHint')}</p>
+      </div>
       <Select
         value={lang}
         aria-label={t('language')}

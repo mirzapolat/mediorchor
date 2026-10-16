@@ -22,6 +22,7 @@ import { auditActor, auditNote } from './audit.ts';
 import { instanceSettings, emailDomainAllowed } from './settings.ts';
 import { accountLanguage } from './i18n.ts';
 import { isLanguage, type Language } from '../shared/languages.ts';
+import { safeRedirectPath } from '../shared/safePath.ts';
 import {
   base32Encode,
   createChallenge,
@@ -356,7 +357,15 @@ export const baseUrl = (c: Context) => {
   return `${proto}://${host}`;
 };
 
-const issueLink = (c: Context, userId: string, kind: 'confirm_signup' | 'email_change', email: string) => {
+// `next`: in-app page to return to once confirmed (e.g. the check-in the
+// account was created from). Not secret, so it simply rides along in the URL.
+const issueLink = (
+  c: Context,
+  userId: string,
+  kind: 'confirm_signup' | 'email_change',
+  email: string,
+  next?: string | null,
+) => {
   const token = newToken();
   db.prepare('delete from auth_tokens where user_id = ? and kind = ?').run(userId, kind);
   db.prepare('insert into auth_tokens (token_hash, user_id, kind, email, expires_at) values (?, ?, ?, ?, ?)').run(
@@ -366,7 +375,9 @@ const issueLink = (c: Context, userId: string, kind: 'confirm_signup' | 'email_c
     email,
     new Date(Date.now() + DAY).toISOString(),
   );
-  return `${baseUrl(c)}/api/auth/confirm?token=${token}`;
+  const params = new URLSearchParams({ token });
+  if (next) params.set('next', next);
+  return `${baseUrl(c)}/api/auth/confirm?${params}`;
 };
 
 // ---------------------------------------------------------------------------
@@ -607,6 +618,7 @@ authRoutes.post('/signup', async (c) => {
   const name = `${firstName} ${lastName}`.trim();
   // The interface language at sign-up, so emails match it from the start.
   const language = isLanguage(input.language) ? input.language : null;
+  const next = safeRedirectPath(typeof input.redirect === 'string' ? input.redirect : null);
 
   const existing = db
     .prepare('select id, email_confirmed_at from auth_users where email = ? collate nocase')
@@ -630,7 +642,7 @@ authRoutes.post('/signup', async (c) => {
       // A failure here must look like success too, or it would give away that
       // the address is registered.
       try {
-        await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email), accountLanguage(existing.id));
+        await sendConfirmSignup(email, issueLink(c, existing.id, 'confirm_signup', email, next), accountLanguage(existing.id));
       } catch (err) {
         console.error('Re-sending confirmation email failed:', err);
       }
@@ -639,7 +651,7 @@ authRoutes.post('/signup', async (c) => {
   }
   const id = await createAccount({ email, password, firstName, lastName, confirmed: false, approved, language });
   try {
-    await sendConfirmSignup(email, issueLink(c, id, 'confirm_signup', email), language);
+    await sendConfirmSignup(email, issueLink(c, id, 'confirm_signup', email, next), language);
   } catch (err) {
     console.error('Sending confirmation email failed:', err);
     db.prepare('delete from auth_users where id = ?').run(id);
@@ -658,7 +670,7 @@ authRoutes.get('/confirm', (c) => {
   auditActor(row.user_id);
   auditNote({ details: { method: 'email_link', kind: row.kind } });
 
-  let target = '/';
+  let target = safeRedirectPath(c.req.query('next')) ?? '/';
   const ok = db.transaction(() => {
     db.prepare('delete from auth_tokens where token_hash = ?').run(sha256(token));
     if (row.kind === 'email_change') {

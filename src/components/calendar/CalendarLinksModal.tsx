@@ -5,6 +5,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { cn } from '@/lib/cn';
+import { track } from '@/lib/analytics';
 import { useI18n } from '@/lib/i18n';
 import { localeOf } from '@shared/languages';
 import { api } from '@/lib/api';
@@ -152,7 +153,17 @@ export const CalendarLinksModal = ({ calendar, onClose }: { calendar: Calendar |
   );
 };
 
-const CopyField = ({ value, label, multiline = false }: { value: string; label: string; multiline?: boolean }) => {
+const CopyField = ({
+  value,
+  label,
+  multiline = false,
+  onCopied,
+}: {
+  value: string;
+  label: string;
+  multiline?: boolean;
+  onCopied?: () => void;
+}) => {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   useEffect(() => setCopied(false), [value]);
@@ -160,6 +171,7 @@ const CopyField = ({ value, label, multiline = false }: { value: string; label: 
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
+      onCopied?.();
     } catch {
       setCopied(false);
     }
@@ -279,13 +291,27 @@ const LinkItem = ({
 
           <div className="space-y-2">
             <p className="text-sm font-medium">{t('subscribeLink')}</p>
-            <CopyField value={urls.https} label={t('subscribeLink')} />
+            <CopyField
+              value={urls.https}
+              label={t('subscribeLink')}
+              onCopied={() => track('calendar-subscribe', { target: 'copy' })}
+            />
             <div className="grid gap-2 sm:grid-cols-2">
-              <a href={urls.google} target="_blank" rel="noopener noreferrer" className={appButton}>
+              <a
+                href={urls.google}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => track('calendar-subscribe', { target: 'google' })}
+                className={appButton}
+              >
                 <ExternalLink size={15} />
                 {t('openInGoogleCalendar')}
               </a>
-              <a href={urls.webcal} className={appButton}>
+              <a
+                href={urls.webcal}
+                onClick={() => track('calendar-subscribe', { target: 'apple' })}
+                className={appButton}
+              >
                 <ExternalLink size={15} />
                 {t('openInAppleCalendar')}
               </a>

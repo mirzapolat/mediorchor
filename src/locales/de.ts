@@ -323,6 +323,7 @@ const de: Messages = {
   twoFactorPrompt: 'Gib den 6-stelligen Code aus deiner Authenticator-App ein.',
   newPassword: 'Neues Passwort',
   language: 'Sprache',
+  languageHint: 'Gilt für die App und für E-Mails an dich.',
   appearance: 'Darstellung',
   notifications: 'E-Mail-Benachrichtigungen',
   notificationsHint: 'Wähle, worüber wir dich per E-Mail informieren sollen.',
@@ -844,6 +845,8 @@ const de: Messages = {
   checkInWithAccountInstead: 'Stattdessen mit Konto einchecken',
   guestCheckInDisabled: 'Der Check-in ohne Konto ist für dieses Projekt deaktiviert.',
   signInToCheckIn: 'Anmelden und mit Konto einchecken',
+  orAsGuest: 'ODER ALS GAST',
+  checkInAsGuest: 'Als Gast einchecken',
   accountCheckInJoinHint:
     'Du bist noch kein Mitglied dieses Projekts. Mit dem Check-in trittst du dem Projekt bei.',
 

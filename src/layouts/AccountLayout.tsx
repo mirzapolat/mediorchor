@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { Bell, CircleUserRound, KeyRound, Palette, TriangleAlert, UserRound } from 'lucide-react';
+import { Bell, CircleUserRound, KeyRound, Languages, Palette, TriangleAlert, UserRound } from 'lucide-react';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
 import { SidebarSectionHeader } from '@/components/SidebarSectionHeader';
@@ -19,6 +19,7 @@ export const AccountLayout = () => {
           <SidebarNavItem to="/account/profile" label={t('accountProfile')} icon={UserRound} />
           <SidebarNavItem to="/account/security" label={t('loginSecurity')} icon={KeyRound} />
           <SidebarNavItem to="/account/appearance" label={t('appearance')} icon={Palette} />
+          <SidebarNavItem to="/account/language" label={t('language')} icon={Languages} />
           <SidebarNavItem to="/account/notifications" label={t('accountNotifications')} icon={Bell} />
           <SidebarNavItem to="/account/danger" label={t('dangerZone')} icon={TriangleAlert} />
         </div>

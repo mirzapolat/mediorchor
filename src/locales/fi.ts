@@ -309,6 +309,7 @@ const fi: Messages = {
   twoFactorPrompt: 'Anna todennussovelluksesi 6-numeroinen koodi.',
   newPassword: 'Uusi salasana',
   language: 'Kieli',
+  languageHint: 'Käytetään sovelluksessa ja sinulle lähetettävissä sähköposteissa.',
   appearance: 'Ulkoasu',
   notifications: 'Sähköposti-ilmoitukset',
   notificationsHint: 'Valitse, mistä haluat saada sähköpostia.',
@@ -819,6 +820,8 @@ const fi: Messages = {
   checkInWithAccountInstead: 'Kuittaa sen sijaan tililläsi',
   guestCheckInDisabled: 'Kuittaus ilman tiliä on poistettu käytöstä tässä projektissa.',
   signInToCheckIn: 'Kirjaudu kuitataksesi tililläsi',
+  orAsGuest: 'TAI VIERAANA',
+  checkInAsGuest: 'Kuittaa vieraana',
   accountCheckInJoinHint: 'Et ole vielä mukana tässä projektissa. Kuittaus lisää sinut projektiin.',
 
   // Participation (Meine Teilnahme)

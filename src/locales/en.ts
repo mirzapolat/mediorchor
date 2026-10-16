@@ -310,6 +310,7 @@ const en = {
   twoFactorPrompt: 'Enter the 6-digit code from your authenticator app.',
   newPassword: 'New password',
   language: 'Language',
+  languageHint: 'Used in the app and for emails sent to you.',
   appearance: 'Appearance',
   notifications: 'Email notifications',
   notificationsHint: 'Choose what we should email you about.',
@@ -820,6 +821,8 @@ const en = {
   checkInWithAccountInstead: 'Check in with your account instead',
   guestCheckInDisabled: 'Checking in without an account is disabled for this project.',
   signInToCheckIn: 'Sign in to check in with your account',
+  orAsGuest: 'OR AS A GUEST',
+  checkInAsGuest: 'Check in as a guest',
   accountCheckInJoinHint: 'You are not part of this project yet. Checking in will add you to the project.',
 
   // Participation (Meine Teilnahme)

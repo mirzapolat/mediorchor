@@ -404,6 +404,8 @@ const auth = {
     email: string;
     password: string;
     options?: { data?: { first_name?: string; last_name?: string; language?: string } };
+    // In-app page the confirmation link returns to.
+    redirect?: string | null;
   }) => {
     const { data, error } = await request<SessionPayload>('POST', '/api/auth/signup', {
       email: input.email,
@@ -411,6 +413,7 @@ const auth = {
       first_name: input.options?.data?.first_name ?? '',
       last_name: input.options?.data?.last_name ?? '',
       language: input.options?.data?.language,
+      redirect: input.redirect ?? undefined,
     });
     if (data?.session) emit('SIGNED_IN', data.session);
     return {

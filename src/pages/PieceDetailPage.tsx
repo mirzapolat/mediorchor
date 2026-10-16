@@ -49,6 +49,7 @@ import { timelineLabels } from '@/lib/pieceTimeline';
 import { ensureScorePreview } from '@/lib/scorePreview';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { cn } from '@/lib/cn';
+import { track } from '@/lib/analytics';
 import type { BarAnchor, Piece, PieceCredit, PieceFile, PieceFileKind, PieceTrack } from '@/types';
 
 type Tab = 'score' | 'credits' | 'files';
@@ -82,6 +83,7 @@ interface DownloadOption {
   key: string;
   label: string;
   href: string;
+  kind: PieceFileKind;
 }
 
 // One download row for several versions of the same thing (a voice's
@@ -101,7 +103,7 @@ const DownloadChoice = ({
 
   if (options.length === 1) {
     return (
-      <a href={options[0].href} className={rowClass}>
+      <a href={options[0].href} onClick={() => track('file-download', { kind: options[0].kind })} className={rowClass}>
         <Icon size={16} className="flex-shrink-0 text-text-secondary" />
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         <Download size={15} className="flex-shrink-0 text-text-tertiary" />
@@ -130,6 +132,7 @@ const DownloadChoice = ({
             <a
               key={o.key}
               href={o.href}
+              onClick={() => track('file-download', { kind: o.kind })}
               aria-label={`${title}: ${o.label}`}
               className="flex min-h-[2.75rem] items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 hover:border-black sm:text-sm"
             >
@@ -160,7 +163,7 @@ const FileList = memo(({ piece, files: allFiles, voices: allVoices }: { piece: P
       const file = files.find((f) => f.id === v[field] && f.file_path);
       if (!file) return [];
       const label = t(VARIANT_LABELS[field]);
-      return [{ key: field, label, href: downloadHref(piece, `${name} (${label})`, file), fileId: file.id }];
+      return [{ key: field, label, href: downloadHref(piece, `${name} (${label})`, file), kind: file.kind, fileId: file.id }];
     });
     return options.length > 0 ? [{ id: v.id, title: name, icon: Music, options }] : [];
   });
@@ -186,7 +189,7 @@ const FileList = memo(({ piece, files: allFiles, voices: allVoices }: { piece: P
     const format = sheetFormat(f);
     const several = sheetFiles.filter((x) => sheetFormat(x) === format).length > 1;
     const label = several && f.title.trim() ? `${format} · ${f.title.trim()}` : format;
-    return { key: f.id, label, href: downloadHref(piece, `${t('sheetMusic')} (${label})`, f) };
+    return { key: f.id, label, href: downloadHref(piece, `${t('sheetMusic')} (${label})`, f), kind: f.kind };
   });
 
   return (
@@ -225,7 +228,9 @@ const FileList = memo(({ piece, files: allFiles, voices: allVoices }: { piece: P
                   <li key={f.id}>
                     <a
                       href={href}
-                      {...(kind === 'link' ? { target: '_blank', rel: 'noreferrer noopener' } : {})}
+                      {...(kind === 'link'
+                        ? { target: '_blank', rel: 'noreferrer noopener' }
+                        : { onClick: () => track('file-download', { kind }) })}
                       className={rowClass}
                     >
                       <Icon size={16} className="flex-shrink-0 text-text-secondary" />

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { safeRedirectPath } from '@/lib/safePath';
+import { safeRedirectPath } from '@shared/safePath';
 import { trackPageview } from '@/lib/analytics';
 import { PageSpinner } from '@/components/Spinner';
 import { WelcomePhotoPrompt } from '@/components/WelcomePhotoPrompt';
@@ -30,6 +30,7 @@ import { AdminAuditPage } from '@/pages/AdminAuditPage';
 import {
   AccountAppearancePage,
   AccountDangerPage,
+  AccountLanguagePage,
   AccountNotificationsPage,
   AccountProfilePage,
   AccountSecurityPage,
@@ -144,6 +145,7 @@ export const App = () => {
           <Route path="profile" element={<AccountProfilePage />} />
           <Route path="security" element={<AccountSecurityPage />} />
           <Route path="appearance" element={<AccountAppearancePage />} />
+          <Route path="language" element={<AccountLanguagePage />} />
           <Route path="notifications" element={<AccountNotificationsPage />} />
           <Route path="danger" element={<AccountDangerPage />} />
         </Route>

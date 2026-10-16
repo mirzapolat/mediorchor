@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, LockKeyhole, LogIn, UserRound } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Button } from '@/components/Button';
+import { Button, buttonClasses } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
@@ -115,6 +115,8 @@ export const PublicCheckinPage = () => {
   // only needs one when the project requires it.
   const groupRequired = !accountMode || Boolean(active?.group_required);
   const noGroups = Boolean(active && active.groups.length === 0);
+  // Signing in is offered first, the guest form below it.
+  const offerSignIn = Boolean(active && active.allow_account_checkin && !active.logged_in);
 
   return (
     <main className="min-h-full px-4 py-10 sm:px-6 sm:py-16">
@@ -170,12 +172,8 @@ export const PublicCheckinPage = () => {
                 <div className="py-7 text-center">
                   <LockKeyhole size={38} className="mx-auto text-text-secondary" />
                   <h2 className="mt-4 text-lg font-semibold">{t('guestCheckInDisabled')}</h2>
-                  {active.allow_account_checkin && !active.logged_in ? (
-                    <Link
-                      to="/login"
-                      state={{ from: location.pathname }}
-                      className="mt-4 inline-flex items-center gap-2 text-sm font-medium underline"
-                    >
+                  {offerSignIn ? (
+                    <Link to="/login" state={{ from: location.pathname }} className={buttonClasses('primary', 'mt-5 w-full')}>
                       <LogIn size={15} />
                       {t('signInToCheckIn')}
                     </Link>
@@ -183,6 +181,19 @@ export const PublicCheckinPage = () => {
                 </div>
               ) : (
                 <form onSubmit={submit} className="space-y-4">
+                  {offerSignIn ? (
+                    <>
+                      <Link to="/login" state={{ from: location.pathname }} className={buttonClasses('primary', 'w-full')}>
+                        <LogIn size={15} />
+                        {t('signInToCheckIn')}
+                      </Link>
+                      <div className="flex items-center gap-3 text-[11px] font-medium tracking-wider text-text-tertiary">
+                        <span className="h-px flex-1 bg-border" />
+                        {t('orAsGuest')}
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                    </>
+                  ) : null}
                   {accountMode && !active.me ? (
                     // Logged in but not yet part of this project: checking in
                     // joins it with the entered details.
@@ -198,7 +209,7 @@ export const PublicCheckinPage = () => {
                     autoComplete="given-name"
                     maxLength={120}
                     required
-                    autoFocus
+                    autoFocus={!offerSignIn}
                   />
                   <Input
                     id="last-name"
@@ -236,23 +247,12 @@ export const PublicCheckinPage = () => {
                   ) : null}
                   <Button
                     type="submit"
+                    variant={offerSignIn ? 'secondary' : 'primary'}
                     className="w-full"
                     disabled={submitting || (noGroups && groupRequired)}
                   >
-                    {submitting ? t('loading') : t('submitCheckIn')}
+                    {submitting ? t('loading') : offerSignIn ? t('checkInAsGuest') : t('submitCheckIn')}
                   </Button>
-                  {active.allow_account_checkin && !active.logged_in ? (
-                    <p className="text-center text-sm text-text-secondary">
-                      <Link
-                        to="/login"
-                        state={{ from: location.pathname }}
-                        className="inline-flex items-center gap-1.5 font-medium underline"
-                      >
-                        <LogIn size={14} />
-                        {t('signInToCheckIn')}
-                      </Link>
-                    </p>
-                  ) : null}
                   {asGuest && user ? (
                     <button
                       type="button"
