@@ -314,6 +314,9 @@ export interface Piece {
   notation_file_id: string | null;
   // The MuseScore bar timing (.mpos) its bars are read from instead.
   timing_file_id: string | null;
+  // The MusicXML the singing trainer reads the voices from; set = the piece
+  // can be practised with the microphone.
+  trainer_file_id: string | null;
   // Marker position of each bar on the score PDF, keyed by bar label.
   bar_anchors: Record<string, BarAnchor>;
   // Where the recordings leave the notation's timing (fermatas, ritardandi):
@@ -353,6 +356,17 @@ export interface PieceFile {
   // Listed for download on the piece page. A recording a voice uses follows
   // the voice's switch instead.
   downloadable: boolean;
+  // Its folder on the "Dateien" page; null = above the folders.
+  folder_id: string | null;
+  position: number;
+  created_at: string;
+}
+
+// A folder of a piece's files ("Dateien" page), in the managers' order.
+export interface PieceFileFolder {
+  id: string;
+  piece_id: string;
+  name: string;
   position: number;
   created_at: string;
 }

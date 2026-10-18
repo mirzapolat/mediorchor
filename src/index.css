@@ -78,6 +78,20 @@
   --c-chart-4: 237 161 0;
   --c-chart-5: 232 123 164;
   --c-chart-6: 0 131 0;
+  /* Singing trainer (src/tonetrainer): pitch feedback — in tune / flat
+     (cool) / sharp (warm) / nearly — and the colors on its always-light
+     score paper (own voice, other voices, graded notes). */
+  --c-tt-tune: 13 150 110;
+  --c-tt-flat: 37 99 235;
+  --c-tt-sharp: 234 88 12;
+  --c-tt-ok: 180 130 10;
+  --c-tt-score-ink: 22 27 61;
+  --c-tt-score-other: 154 160 196;
+  --c-tt-paper-good: 14 156 120;
+  --c-tt-paper-ok: 168 122 30;
+  --c-tt-paper-flat: 47 99 209;
+  --c-tt-paper-sharp: 217 88 31;
+  --c-tt-paper-silent: 138 144 176;
 }
 
 :root[data-theme='dark'] {
@@ -110,6 +124,10 @@
   --c-chart-4: 201 133 0;
   --c-chart-5: 213 81 129;
   --c-chart-6: 0 131 0;
+  --c-tt-tune: 110 240 194;
+  --c-tt-flat: 82 184 255;
+  --c-tt-sharp: 255 159 90;
+  --c-tt-ok: 242 211 166;
 }
 
 /* The app logo (public/favicon.svg) is drawn for light backgrounds; in dark

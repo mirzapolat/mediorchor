@@ -1,25 +1,18 @@
-import { useCallback, useEffect, useState, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   AudioWaveform,
   Check,
   Copy,
   Download,
-  File as FileIcon,
-  FileAudio,
-  FileCode2,
-  FileText,
   Loader2,
   MapPin,
   Plus,
   ListMinus,
   Trash2,
-  Upload,
   X,
-  XCircle,
-  type LucideIcon,
 } from 'lucide-react';
+import { FileName, MultiDropzone, usePieceUploads } from '@/components/PieceFileParts';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
@@ -43,14 +36,15 @@ import {
   pieceFileUrl,
   removePieceFromProject,
   TRACK_RECORDING_FIELDS,
-  uploadPieceFile,
 } from '@/lib/pieceFiles';
 import { NotationError, parseNotation } from '@/lib/musicxml';
-import { TimingError, isMuseScoreFileName, isTimingFileName, mposBarFrames, readMpos } from '@/lib/mpos';
+import { loadTrainerXml, loadVoiceMapping, trainerFile, trainerVoices, type TrainerVoice } from '@/lib/trainer';
+import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { usePieceLayout } from '@/layouts/PieceLayout';
+import { TimingError, isTimingFileName, mposBarFrames, readMpos } from '@/lib/mpos';
 import { pdfPageSizes } from '@/lib/pdfPages';
 import {
   formatTime,
-  guessFileKind,
   syncedDuration,
   timelineLabels,
 } from '@/lib/pieceTimeline';
@@ -59,13 +53,6 @@ import { NoAccess } from '@/components/NoAccess';
 import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
 import type { BarSyncPoint, Piece, PieceCredit, PieceFile, PieceTimeline, PieceTrack } from '@/types';
-
-interface UploadItem {
-  key: string;
-  name: string;
-  state: 'busy' | 'error';
-  note?: string;
-}
 
 
 const Section = ({
@@ -100,99 +87,6 @@ const Section = ({
     <div className={cn('space-y-4', className)}>{body}</div>
   ) : (
     <Card className={cn('space-y-4 p-4 sm:p-5', className)}>{body}</Card>
-  );
-};
-
-// Drop target for many files at once (click opens the picker).
-const MultiDropzone = ({ onFiles }: { onFiles: (files: File[]) => void }) => {
-  const { t } = useI18n();
-  const [dragging, setDragging] = useState(false);
-  return (
-    <label
-      onDragOver={(e: DragEvent) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-        setDragging(true);
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragging(false);
-        onFiles(Array.from(e.dataTransfer.files));
-      }}
-      className={cn(
-        'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-4 py-8 text-center transition-colors duration-150 focus-within:border-black',
-        dragging ? 'border-black bg-surface-muted' : 'border-border bg-surface-subtle hover:border-text-tertiary',
-      )}
-    >
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-hover text-text-secondary">
-        <Upload size={18} />
-      </span>
-      <span className="text-sm font-medium">{dragging ? t('dropzoneRelease') : t('pieceDropTitle')}</span>
-      <span className="max-w-sm text-xs text-text-secondary">{t('pieceDropHint')}</span>
-      <input
-        type="file"
-        multiple
-        className="sr-only"
-        onChange={(e) => {
-          onFiles(Array.from(e.target.files ?? []));
-          e.target.value = '';
-        }}
-      />
-    </label>
-  );
-};
-
-// What a file is, at a glance: score PDF, recording, notation (MusicXML,
-// MuseScore, its bar timing, MIDI) or anything else.
-const fileIcon = (f: PieceFile): LucideIcon => {
-  const name = f.file_name ?? '';
-  if (/\.pdf$/i.test(name) || f.kind === 'score') return FileText;
-  if (f.kind === 'audio') return FileAudio;
-  if (f.kind === 'notation' || f.kind === 'midi' || isMuseScoreFileName(name)) return FileCode2;
-  return FileIcon;
-};
-
-// A file's one name, editable without its ending (".pdf" stays). Renaming
-// changes both the shown name and the stored file name (used for downloads).
-// `beforeEnding` sits between the name and its ending (the download switch).
-const FileName = ({
-  file,
-  onRename,
-  beforeEnding,
-}: {
-  file: PieceFile;
-  onRename: (patch: Partial<PieceFile>) => void;
-  beforeEnding?: ReactNode;
-}) => {
-  const { t } = useI18n();
-  const stored = file.file_name ?? '';
-  const ext = /\.[a-z0-9]{1,8}$/i.exec(stored)?.[0] ?? '';
-  const name = file.title.trim() || stored.slice(0, stored.length - ext.length);
-  const Icon = fileIcon(file);
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2.5 pl-1">
-      <Icon size={18} className="flex-shrink-0 text-text-secondary" aria-hidden />
-      <input
-          key={name}
-          defaultValue={name}
-          aria-label={t('displayName')}
-          onBlur={(e) => {
-            const v = e.target.value.trim();
-            if (!v) {
-              e.target.value = name;
-              return;
-            }
-            if (v !== name || v + ext !== stored) onRename({ title: v, file_name: v + ext });
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
-        />
-      {beforeEnding}
-      {ext && <span className="w-12 flex-shrink-0 text-sm text-text-tertiary">{ext}</span>}
-    </div>
   );
 };
 
@@ -231,7 +125,6 @@ export const PieceSetupPage = () => {
   const [tracks, setTracks] = useState<PieceTrack[]>([]);
   const [credits, setCredits] = useState<PieceCredit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -280,6 +173,67 @@ export const PieceSetupPage = () => {
     void load();
   }, [load]);
 
+  const { addFiles, uploadList } = usePieceUploads(
+    pieceId ?? '',
+    () => files.length,
+    (row) => setFiles((list) => [...list, row]),
+  );
+
+  // What the trainer finds in its connected MusicXML: the voices to sing,
+  // or why it can't be practised.
+  const connectedTrainer = piece ? trainerFile(piece, files) : null;
+  const [trainerInfo, setTrainerInfo] = useState<
+    { state: 'busy' } | { state: 'ok'; voices: TrainerVoice[] } | { state: 'error'; message: string } | null
+  >(null);
+  useEffect(() => {
+    if (!connectedTrainer) return setTrainerInfo(null);
+    let cancelled = false;
+    setTrainerInfo({ state: 'busy' });
+    loadTrainerXml(connectedTrainer)
+      .then((xml) => trainerVoices(xml))
+      .then(
+        (voices) => !cancelled && setTrainerInfo({ state: 'ok', voices }),
+        (e: unknown) => !cancelled && setTrainerInfo({ state: 'error', message: e instanceof Error ? e.message : String(e) }),
+      );
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectedTrainer?.id, connectedTrainer?.file_path]);
+
+  // Which of the project's groups sing which trainer voices (the groups
+  // node; only inside a project).
+  const { groups } = useProjectGroups();
+  const projectGroups = projectId ? groups : [];
+  const [voiceMap, setVoiceMap] = useState<Map<string, string[]>>(new Map());
+  const groupKey = projectGroups.map((g) => g.id).join(',');
+  useEffect(() => {
+    if (!pieceId || !groupKey) return;
+    let cancelled = false;
+    void loadVoiceMapping(pieceId, groupKey.split(',')).then((map) => !cancelled && setVoiceMap(map));
+    return () => {
+      cancelled = true;
+    };
+  }, [pieceId, groupKey]);
+  const mapVoice = async (groupId: string, trackId: string, on: boolean) => {
+    setVoiceMap((map) => {
+      const next = new Map(map);
+      const list = (next.get(groupId) ?? []).filter((id) => id !== trackId);
+      next.set(groupId, on ? [...list, trackId] : list);
+      return next;
+    });
+    if (on) await api.from('piece_trainer_voices').insert({ piece_id: pieceId, group_id: groupId, track_id: trackId });
+    else
+      await api
+        .from('piece_trainer_voices')
+        .delete()
+        .eq('piece_id', pieceId)
+        .eq('group_id', groupId)
+        .eq('track_id', trackId);
+  };
+
+  const layout = usePieceLayout();
+
   const recordings = files.filter((f) => f.kind === 'audio' && f.file_path);
   const canPlaceBars = useCanPlaceBars();
 
@@ -289,6 +243,8 @@ export const PieceSetupPage = () => {
 
   const updatePiece = async (patch: Partial<Piece>) => {
     setPiece((p) => (p ? { ...p, ...patch } : p));
+    // The sidebar shows the name, composer and whether training is set up.
+    layout.patchPiece(patch);
     await api.from('pieces').update(patch).eq('id', piece.id);
   };
 
@@ -359,46 +315,6 @@ export const PieceSetupPage = () => {
 
   // Uploads files; nothing is connected or read by itself — files are wired
   // to the score, the voices and the bars by hand.
-  const addFiles = async (picked: File[]) => {
-    let nextPosition = files.length;
-
-    for (const file of picked) {
-      // Only uploads in progress or failed are listed; a finished one joins
-      // the uploaded files.
-      const key = crypto.randomUUID();
-      const fail = (note: string) =>
-        setUploads((list) => list.map((u) => (u.key === key ? { ...u, state: 'error', note } : u)));
-      setUploads((list) => [...list, { key, name: file.name, state: 'busy' }]);
-
-      const kind = guessFileKind(file);
-      const result = await uploadPieceFile(piece.id, file);
-      if (!result.path) {
-        fail(result.error ?? t('uploadError'));
-        continue;
-      }
-      const position = nextPosition++;
-      const { data, error } = await api
-        .from('piece_files')
-        .insert({
-          piece_id: piece.id,
-          kind,
-          title: file.name.replace(/\.[^.]+$/, ''),
-          file_path: result.path,
-          file_name: file.name,
-          position,
-        })
-        .select('*')
-        .single();
-      if (error || !data) {
-        fail(error?.message ?? t('uploadError'));
-        continue;
-      }
-      const row = data as PieceFile;
-      setFiles((list) => [...list, row]);
-      setUploads((list) => list.filter((u) => u.key !== key));
-    }
-  };
-
   // Takes the bars from the MusicXML or MuseScore's timing again, as
   // uploaded: the fitted bars go; the voices' lead-ins stay as set in the
   // bar editor. `picks` names other files to read than the piece's.
@@ -552,6 +468,7 @@ export const PieceSetupPage = () => {
       return;
     }
     if (target === 'score') void updatePiece({ score_file_id: fileId });
+    else if (target === 'trainer') void updatePiece({ trainer_file_id: fileId });
     // The bars only change when applied.
     else {
       setBarsPick(fileId === appliedBarsFileId ? undefined : fileId);
@@ -654,19 +571,12 @@ export const PieceSetupPage = () => {
   const links = files.filter((f) => f.kind === 'link');
   const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
   return (
-    // A page of its own (no sidebar): wide screens get the room for the wires.
-    <div className="mx-auto max-w-2xl space-y-4 pb-10 lg:max-w-[1600px]">
-      <button
-        onClick={() => navigate(back)}
-        className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
-      >
-        <ArrowLeft size={16} />
-        {piece.name}
-      </button>
-      {/* Title, and on the right what leaves the page: removing, deleting, done. */}
+    // The piece's "Konfiguration" page: wide screens get the room for the wires.
+    <div className="space-y-4 pb-10 lg:max-w-[1600px]">
+      {/* Title, and on the right what takes the piece away: removing, deleting. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold sm:text-2xl">{t('setUpPiece')}</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">{t('pieceConfigTitle')}</h1>
           <p className="mt-1 text-sm text-text-secondary">{t('setUpHint')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -682,10 +592,6 @@ export const PieceSetupPage = () => {
               {t('deletePiece')}
             </Button>
           )}
-          <Button onClick={() => navigate(back)}>
-            <Check size={15} />
-            {t('done')}
-          </Button>
         </div>
       </div>
 
@@ -764,7 +670,29 @@ export const PieceSetupPage = () => {
             picks={{
               score: piece.score_file_id,
               bars: barsFileId,
+              trainer: piece.trainer_file_id,
             }}
+            trainerBody={
+              trainerInfo?.state === 'busy' ? (
+                <p className="flex items-center gap-2 text-sm text-text-secondary">
+                  <Loader2 size={14} className="animate-spin" />
+                  {t('trainerReading')}
+                </p>
+              ) : trainerInfo?.state === 'error' ? (
+                <p className="text-sm text-danger">{trainerInfo.message}</p>
+              ) : trainerInfo?.state === 'ok' ? (
+                // The voices themselves are the node's outputs (listed above).
+                trainerInfo.voices.length === 0 ? (
+                  <p className="text-sm text-danger">{t('trainerNoVoices')}</p>
+                ) : null
+              ) : (
+                <p className="text-xs text-text-secondary">{t('trainerConnectHint')}</p>
+              )
+            }
+            trainerVoices={trainerInfo?.state === 'ok' ? trainerInfo.voices : []}
+            groups={projectGroups}
+            voiceMap={voiceMap}
+            onMapVoice={(groupId, trackId, on) => void mapVoice(groupId, trackId, on)}
             fileLabel={fileLabel}
             onReorderFiles={reorderFiles}
             onReorderTracks={reorderVoices}
@@ -772,21 +700,7 @@ export const PieceSetupPage = () => {
             filesTop={
               <>
                 <MultiDropzone onFiles={(picked) => void addFiles(picked)} />
-                {uploads.length > 0 && (
-                  <ul className="space-y-1.5">
-                    {uploads.map((u) => (
-                      <li key={u.key} className="flex items-center gap-2 text-sm">
-                        {u.state === 'busy' ? (
-                          <Loader2 size={15} className="flex-shrink-0 animate-spin text-text-tertiary" />
-                        ) : (
-                          <XCircle size={15} className="flex-shrink-0 text-danger" />
-                        )}
-                        <span className="min-w-0 flex-1 truncate">{u.name}</span>
-                        {u.note && <span className="flex-shrink-0 text-xs text-danger">{u.note}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {uploadList}
               </>
             }
             renderFile={(f) => {

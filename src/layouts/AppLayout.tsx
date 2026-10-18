@@ -31,13 +31,15 @@ export const AppLayout = () => {
   const { t } = useI18n();
   const { canEditCalendars, isAdmin, hasFullPieceAccess } = useAuth();
   // Setting up a piece takes the whole screen, without the sidebar.
-  const setupOpen = useMatch('/pieces/:pieceId/setup') != null;
+  // An open piece brings its own sidebar (PieceLayout), or none in the
+  // full-screen trainer.
+  const pieceOpen = useMatch('/pieces/:pieceId/*') != null;
 
-  if (setupOpen) {
+  if (pieceOpen) {
     return (
-      <main className="h-full overflow-y-auto">
+      <div className="h-full overflow-y-auto">
         <Outlet />
-      </main>
+      </div>
     );
   }
 

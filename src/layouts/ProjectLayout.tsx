@@ -83,9 +83,9 @@ export const RequireProjectManage = () => {
 export const ProjectLayout = () => {
   const { t } = useI18n();
   const { projectId } = useParams();
-  const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId') != null;
-  // Setting up a piece takes the whole screen, without the sidebar.
-  const setupOpen = useMatch('/projects/:projectId/pieces/:pieceId/setup') != null;
+  // An open piece brings its own sidebar (PieceLayout), or none in the
+  // full-screen trainer: the project's is left out.
+  const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId/*') != null;
   const navigate = useNavigate();
   // Project settings need access to all projects, not just this one.
   const { canManageProjects, soleProjectId } = useAuth();
@@ -142,15 +142,13 @@ export const ProjectLayout = () => {
       ? { access: 'participants' as const, accessLabel: t('pageVisibleToParticipants') }
       : {};
 
-  if (setupOpen) {
+  if (pieceOpen) {
     return (
-      <main className="h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 lg:p-8">
-          <ProjectGroupsProvider projectId={project.id}>
-            <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
-          </ProjectGroupsProvider>
-        </div>
-      </main>
+      <div className="h-full overflow-y-auto">
+        <ProjectGroupsProvider projectId={project.id}>
+          <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
+        </ProjectGroupsProvider>
+      </div>
     );
   }
 
@@ -201,8 +199,7 @@ export const ProjectLayout = () => {
       </Sidebar>
 
       <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
-        {/* A piece's practice page uses the full width: the score grows with the screen. */}
-        <div className={cn('p-4 sm:p-6 lg:p-8', !pieceOpen && 'max-w-[1400px]')}>
+        <div className="max-w-[1400px] p-4 sm:p-6 lg:p-8">
           <ProjectGroupsProvider projectId={project.id}>
             <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
           </ProjectGroupsProvider>

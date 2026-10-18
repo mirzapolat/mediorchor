@@ -1,0 +1,114 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { ArrowLeft, FileMusic, FolderOpen, Mic, Music, Settings2 } from 'lucide-react';
+import { Sidebar, useSidebar } from '@/components/Sidebar';
+import { SidebarNavItem } from '@/components/SidebarNav';
+import { SidebarFooter } from '@/components/SidebarFooter';
+import { FadingText } from '@/components/FadingText';
+import { PageSpinner } from '@/components/Spinner';
+import { NoAccess } from '@/components/NoAccess';
+import { useI18n } from '@/lib/i18n';
+import { cn } from '@/lib/cn';
+import { loadPieceInScope } from '@/lib/pieceFiles';
+import { usePieceScope } from './pieceScope';
+import type { Piece } from '@/types';
+
+// What the piece pages share through the layout: the piece as shown in the
+// sidebar, kept current when its configuration changes it.
+export interface PieceLayoutContext {
+  piece: Piece;
+  patchPiece: (patch: Partial<Piece>) => void;
+}
+
+export const usePieceLayout = () => useOutletContext<{ pieceLayout: PieceLayoutContext }>().pieceLayout;
+
+const PieceHeader = ({ piece, onBack }: { piece: Piece; onBack: () => void }) => {
+  const { t } = useI18n();
+  const { collapsed } = useSidebar();
+  return (
+    <>
+      <button
+        onClick={onBack}
+        title={collapsed ? t('pieces') : undefined}
+        className={cn(
+          'flex h-14 items-center border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
+          collapsed ? 'justify-center px-0' : 'gap-2 px-5',
+        )}
+      >
+        <ArrowLeft size={16} />
+        {!collapsed && <span>{t('pieces')}</span>}
+      </button>
+
+      {collapsed ? (
+        <div className="flex items-center justify-center border-b border-border py-4">
+          <Music size={20} className="text-text-secondary" />
+        </div>
+      ) : (
+        <div className="border-b border-border px-5 py-4">
+          <FadingText className="block font-semibold">{piece.name}</FadingText>
+          {piece.composer && <p className="mt-0.5 truncate text-sm text-text-secondary">{piece.composer}</p>}
+        </div>
+      )}
+    </>
+  );
+};
+
+// A piece opened from a pieces list gets its own sidebar (like an event):
+// back to the list, its title and composer, and its pages — the score and
+// player ("Noten"), training, files and, for those who edit it, its
+// configuration. The full-screen trainer is outside this layout.
+export const PieceLayout = () => {
+  const { t } = useI18n();
+  const parent = useOutletContext<Record<string, unknown>>();
+  const scope = usePieceScope();
+  const { pieceId } = useParams();
+  const navigate = useNavigate();
+  const [piece, setPiece] = useState<Piece | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    loadPieceInScope(pieceId ?? '', scope.projectId).then((loaded) => {
+      if (cancelled) return;
+      setPiece(loaded);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pieceId, scope.projectId]);
+
+  const patchPiece = useCallback((patch: Partial<Piece>) => setPiece((p) => (p ? { ...p, ...patch } : p)), []);
+
+  if (loading) return <PageSpinner />;
+  // Unknown piece or no access (e.g. a shared link opened with another account).
+  if (!piece) return <NoAccess standalone />;
+
+  const base = `${scope.base}/${piece.id}`;
+  const canTrain = piece.trainer_file_id != null;
+
+  return (
+    <div className="flex h-full">
+      <Sidebar>
+        <PieceHeader piece={piece} onBack={() => navigate(scope.base)} />
+
+        <div className="flex-1 space-y-1 overflow-y-auto p-3">
+          <SidebarNavItem to={base} end label={t('pieceSheetPage')} icon={FileMusic} />
+          {/* Participants see training once it's set up; editors also before. */}
+          {(canTrain || scope.canEdit) && <SidebarNavItem to={`${base}/training`} label={t('trainTitle')} icon={Mic} />}
+          <SidebarNavItem to={`${base}/files`} label={t('files')} icon={FolderOpen} />
+          {scope.canEdit && <SidebarNavItem to={`${base}/setup`} label={t('pieceConfigTitle')} icon={Settings2} />}
+        </div>
+
+        <SidebarFooter />
+      </Sidebar>
+
+      <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <Outlet context={{ ...parent, pieceScope: scope, pieceLayout: { piece, patchPiece } }} />
+        </div>
+      </main>
+    </div>
+  );
+};

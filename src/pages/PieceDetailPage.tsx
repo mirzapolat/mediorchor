@@ -1,292 +1,38 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  ChevronDown,
-  Download,
-  ExternalLink,
-  FileCode2,
-  FileMusic,
-  FileText,
-  Link as LinkIcon,
-  MapPin,
-  Maximize2,
-  Minimize2,
-  Music,
-  Paperclip,
-  Settings2,
-  type LucideIcon,
-} from 'lucide-react';
+import { MapPin, Maximize2, Minimize2, Music, Settings2 } from 'lucide-react';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
 import { NoAccess } from '@/components/NoAccess';
-import { Avatar } from '@/components/Avatar';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
-import { isMuseScoreFileName, isTimingFileName } from '@/lib/mpos';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
-import { useI18n, type TranslationKey } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
-  isFileDownloadable,
-  loadPieceCredits,
   loadPieceFiles,
   loadPieceInScope,
   loadPieceTracks,
   pieceScoreFile,
   playerTracks,
-  TRACK_RECORDING_FIELDS,
-  type TrackRecordingField,
-  pieceDownloadName,
-  pieceFileDownloadUrl,
   pieceFileUrl,
 } from '@/lib/pieceFiles';
 import { timelineLabels } from '@/lib/pieceTimeline';
 import { ensureScorePreview } from '@/lib/scorePreview';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { cn } from '@/lib/cn';
-import { track } from '@/lib/analytics';
-import type { BarAnchor, Piece, PieceCredit, PieceFile, PieceFileKind, PieceTrack } from '@/types';
-
-type Tab = 'score' | 'credits' | 'files';
+import type { BarAnchor, Piece, PieceFile, PieceTrack } from '@/types';
 
 const FOLLOW_KEY = 'anwesenheit.pieces.follow';
 
-const FILE_GROUPS: Array<{ kind: PieceFileKind; label: TranslationKey; icon: LucideIcon }> = [
-  { kind: 'score', label: 'fileKindScore', icon: FileText },
-  { kind: 'audio', label: 'fileKindAudio', icon: Music },
-  { kind: 'notation', label: 'fileKindNotation', icon: FileCode2 },
-  { kind: 'midi', label: 'fileKindMidi', icon: FileMusic },
-  { kind: 'other', label: 'fileKindOther', icon: Paperclip },
-  { kind: 'link', label: 'fileKindLink', icon: LinkIcon },
-];
-
-const downloadHref = (piece: Piece, name: string, f: PieceFile) =>
-  f.file_path ? pieceFileDownloadUrl(f.file_path, pieceDownloadName(piece, name, f.file_name ?? f.file_path)) : '#';
-
-const rowClass =
-  'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-surface-subtle';
-
-// What each of a voice's recordings is called in the download choice.
-const VARIANT_LABELS: Record<TrackRecordingField, TranslationKey> = {
-  file_id: 'variantSolo',
-  click_file_id: 'variantSoloClick',
-  quiet_file_id: 'variantWithOthers',
-  quiet_click_file_id: 'variantWithOthersClick',
-};
-
-interface DownloadOption {
-  key: string;
-  label: string;
-  href: string;
-  kind: PieceFileKind;
-}
-
-// One download row for several versions of the same thing (a voice's
-// recordings, the score as PDF and MusicXML): it opens a button per version;
-// with only one it downloads right away.
-const DownloadChoice = ({
-  title,
-  icon: Icon,
-  options,
-}: {
-  title: string;
-  icon: LucideIcon;
-  options: DownloadOption[];
-}) => {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-
-  if (options.length === 1) {
-    return (
-      <a href={options[0].href} onClick={() => track('file-download', { kind: options[0].kind })} className={rowClass}>
-        <Icon size={16} className="flex-shrink-0 text-text-secondary" />
-        <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
-        <Download size={15} className="flex-shrink-0 text-text-tertiary" />
-      </a>
-    );
-  }
-
-  return (
-    <>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={rowClass}>
-        <Icon size={16} className="flex-shrink-0 text-text-secondary" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{title}</span>
-          <span className="block text-xs text-text-tertiary">
-            {t('voiceDownloadVariants').replace('{count}', String(options.length))}
-          </span>
-        </span>
-        <ChevronDown
-          size={16}
-          className={cn('flex-shrink-0 text-text-tertiary transition-transform duration-150', open && 'rotate-180')}
-        />
-      </button>
-      {open && (
-        <div className="grid grid-cols-2 gap-2 border-t border-border bg-surface-subtle p-2.5">
-          {options.map((o) => (
-            <a
-              key={o.key}
-              href={o.href}
-              onClick={() => track('file-download', { kind: o.kind })}
-              aria-label={`${title}: ${o.label}`}
-              className="flex min-h-[2.75rem] items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 hover:border-black sm:text-sm"
-            >
-              <Download size={14} className="flex-shrink-0 text-text-tertiary" />
-              <span className="min-w-0">{o.label}</span>
-            </a>
-          ))}
-        </div>
-      )}
-    </>
-  );
-};
-
-// Downloads and links, grouped by what they are. The score (PDF, MusicXML
-// and MuseScore) is one row, recordings one row per voice; recordings no
-// voice uses are listed on their own after them. Only what is switched to
-// downloadable in the setup is listed.
-const FileList = memo(({ piece, files: allFiles, voices: allVoices }: { piece: Piece; files: PieceFile[]; voices: PieceTrack[] }) => {
-  const { t } = useI18n();
-  const files = allFiles.filter((f) => isFileDownloadable(f, allVoices));
-  const voices = allVoices.filter((v) => v.downloadable);
-  if (files.length === 0) {
-    return <p className="text-sm text-text-secondary">{t('noFiles')}</p>;
-  }
-  const voiceRows = voices.flatMap((v) => {
-    const name = v.title.trim() || t('fileKindAudio');
-    const options = TRACK_RECORDING_FIELDS.flatMap((field) => {
-      const file = files.find((f) => f.id === v[field] && f.file_path);
-      if (!file) return [];
-      const label = t(VARIANT_LABELS[field]);
-      return [{ key: field, label, href: downloadHref(piece, `${name} (${label})`, file), kind: file.kind, fileId: file.id }];
-    });
-    return options.length > 0 ? [{ id: v.id, title: name, icon: Music, options }] : [];
-  });
-  const usedIds = new Set(voiceRows.flatMap((r) => r.options.map((o) => o.fileId)));
-
-  // PDF, MusicXML, MuseScore and its bar timing (.mpos); several of a
-  // format are told apart by their names.
-  const sheetFormat = (f: PieceFile) =>
-    isMuseScoreFileName(f.file_name ?? '')
-      ? 'MuseScore'
-      : isTimingFileName(f.file_name ?? '')
-        ? t('timingFromMuseScore')
-        : f.kind === 'score'
-          ? 'PDF'
-          : 'MusicXML';
-  const sheetFiles = files.filter(
-    (f) =>
-      f.file_path &&
-      (isMuseScoreFileName(f.file_name ?? '') || f.kind === 'score' || f.kind === 'notation'),
-  );
-  const sheetIds = new Set(sheetFiles.map((f) => f.id));
-  const sheetOptions = sheetFiles.map((f) => {
-    const format = sheetFormat(f);
-    const several = sheetFiles.filter((x) => sheetFormat(x) === format).length > 1;
-    const label = several && f.title.trim() ? `${format} · ${f.title.trim()}` : format;
-    return { key: f.id, label, href: downloadHref(piece, `${t('sheetMusic')} (${label})`, f), kind: f.kind };
-  });
-
-  return (
-    <div className="space-y-4">
-      {FILE_GROUPS.map(({ kind, label, icon: Icon }) => {
-        if (kind === 'notation') return null;
-        const choices =
-          kind === 'audio'
-            ? voiceRows
-            : kind === 'score' && sheetOptions.length > 0
-              ? [{ id: 'sheet', title: t('sheetMusic'), icon: FileText, options: sheetOptions }]
-              : [];
-        const group = files.filter(
-          (f) => f.kind === kind && kind !== 'score' && !usedIds.has(f.id) && !sheetIds.has(f.id),
-        );
-        if (group.length === 0 && choices.length === 0) return null;
-        return (
-          <div key={kind}>
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-              {kind === 'score' ? t('sheetMusic') : t(label)}
-            </h3>
-            <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
-              {choices.map((c) => (
-                <li key={c.id}>
-                  <DownloadChoice title={c.title} icon={c.icon} options={c.options} />
-                </li>
-              ))}
-              {group.map((f) => {
-                // Uploaders' file names are never shown: the display name,
-                // or the group's name when there is none.
-                const name = f.title.trim() || (kind === 'link' ? f.url ?? '—' : t(label));
-                // Only plain web links are ever rendered as a clickable href.
-                const href =
-                  kind === 'link' ? (/^https?:\/\//i.test(f.url ?? '') ? (f.url as string) : '#') : downloadHref(piece, name, f);
-                return (
-                  <li key={f.id}>
-                    <a
-                      href={href}
-                      {...(kind === 'link'
-                        ? { target: '_blank', rel: 'noreferrer noopener' }
-                        : { onClick: () => track('file-download', { kind }) })}
-                      className={rowClass}
-                    >
-                      <Icon size={16} className="flex-shrink-0 text-text-secondary" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{name}</span>
-                        {kind === 'link' && name !== f.url && (
-                          <span className="block truncate text-xs text-text-tertiary">{f.url}</span>
-                        )}
-                      </span>
-                      {kind === 'link' ? (
-                        <ExternalLink size={15} className="flex-shrink-0 text-text-tertiary" />
-                      ) : (
-                        <Download size={15} className="flex-shrink-0 text-text-tertiary" />
-                      )}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        );
-      })}
-    </div>
-  );
-});
-FileList.displayName = 'FileList';
-
-// Who worked on the piece, with their profile photo and role ("made the
-// MIDIs" unless set otherwise). Display only: nothing here links anywhere.
-const Credits = memo(({ credits }: { credits: PieceCredit[] }) => {
-  const { t } = useI18n();
-  return (
-    <ul className="space-y-3">
-      {credits.map((c) => (
-        <li key={c.id} className="flex items-center gap-3">
-          <Avatar name={c.name} photoUrl={c.photo_url} size={40} />
-          <div className="min-w-0">
-            <p className="truncate font-medium">{c.name}</p>
-            <p className="text-sm text-text-secondary">{c.role.trim() || t('midiCreditRole')}</p>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-});
-Credits.displayName = 'Credits';
-
-const SectionTitle = ({ children }: { children: string }) => (
-  <h2 className="mb-3 hidden text-sm font-semibold lg:block">{children}</h2>
-);
-
-// A piece's practice page: the score with tappable bars, a player at the
+// A piece's "Noten" page: the score with tappable bars and a player at the
 // bottom that switches voices at the same bar, loops sections and slows
-// down, plus notes and all downloads. Built phone-first: on small screens
-// score / notes / files are tabs; on wide screens notes and files sit beside
-// the score.
+// down. Training, files and configuration are the piece's other pages (its
+// sidebar, PieceLayout).
 export const PieceDetailPage = () => {
   const { t } = useI18n();
   const { base, projectId, canEdit } = usePieceScope();
@@ -297,9 +43,7 @@ export const PieceDetailPage = () => {
   const [piece, setPiece] = useState<Piece | null>(null);
   const [files, setFiles] = useState<PieceFile[]>([]);
   const [voiceRows, setVoiceRows] = useState<PieceTrack[]>([]);
-  const [credits, setCredits] = useState<PieceCredit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('score');
   // Whether the score scrolls along with playback; remembered per browser.
   const [follow, setFollowState] = useState(() => {
     try {
@@ -330,16 +74,14 @@ export const PieceDetailPage = () => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   const load = useCallback(async () => {
-    const [loadedPiece, pieceFiles, pieceTracks, pieceCredits] = await Promise.all([
+    const [loadedPiece, pieceFiles, pieceTracks] = await Promise.all([
       loadPieceInScope(pieceId ?? '', projectId),
       loadPieceFiles(pieceId ?? ''),
       loadPieceTracks(pieceId ?? ''),
-      loadPieceCredits(pieceId ?? ''),
     ]);
     setPiece(loadedPiece);
     setFiles(loadedPiece ? pieceFiles : []);
     setVoiceRows(loadedPiece ? pieceTracks : []);
-    setCredits(loadedPiece ? pieceCredits.filter((c) => c.name.trim()) : []);
     setLoading(false);
   }, [pieceId, projectId]);
 
@@ -348,10 +90,6 @@ export const PieceDetailPage = () => {
   }, [load]);
 
   const tracks = useMemo(() => playerTracks(voiceRows, files), [voiceRows, files]);
-  const downloadCount = useMemo(
-    () => files.filter((f) => isFileDownloadable(f, voiceRows)).length,
-    [files, voiceRows],
-  );
   const score = useMemo(() => (piece ? pieceScoreFile(piece, files) : null), [piece, files]);
 
   // The link-preview image of this piece (top of the score), made once by a
@@ -545,10 +283,10 @@ export const PieceDetailPage = () => {
   if (!piece) return <NoAccess />;
 
   const hasAnchors = labels.some((l) => piece.bar_anchors[l]);
-  const hasCredit = credits.length > 0;
   // The bar grid is only the fallback for pieces without a score PDF.
   const showGrid = bars.length > 0 && !score;
   const nothingYet = !score && bars.length === 0 && tracks.length === 0;
+  const setUpUrl = `${base}/${piece.id}/setup`;
 
   const playerBar =
     tracks.length > 0 && !editingAnchors ? (
@@ -563,25 +301,11 @@ export const PieceDetailPage = () => {
       />
     ) : null;
 
-  const tabs: Array<{ id: Tab; label: string }> = [
-    { id: 'score', label: t('scoreTab') },
-    // Only when someone is credited.
-    ...(hasCredit ? [{ id: 'credits' as const, label: t('credits') }] : []),
-    { id: 'files', label: `${t('files')}${downloadCount ? ` · ${downloadCount}` : ''}` },
-  ];
-
-  const setUpUrl = `${base}/${piece.id}/setup`;
-
-  // Back link on the left, the managers' "⋯" menu on the right.
-  const topRow = (
+  // Above the score: the page's title, fullscreen and the editors' marker
+  // placing (the rest of the piece lives in its sidebar).
+  const toolbar = (
     <div className="mb-4 flex items-center justify-between gap-3">
-      <button
-        onClick={() => navigate(base)}
-        className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text"
-      >
-        <ArrowLeft size={16} />
-        {t('pieces')}
-      </button>
+      <h1 className="text-xl font-bold sm:text-2xl">{t('pieceSheetPage')}</h1>
       <div className="flex items-center gap-1">
         {!nothingYet && (
           <button
@@ -594,39 +318,20 @@ export const PieceDetailPage = () => {
             <Maximize2 size={17} />
           </button>
         )}
-        {canEdit && (
+        {canEdit && score && labels.length > 0 && canPlaceBars && (
           <OverflowMenu
             label={t('moreActions')}
             items={[
-              { icon: Settings2, label: t('setUp'), onSelect: () => navigate(setUpUrl) },
-              ...(score && labels.length > 0 && canPlaceBars
-                ? [
-                    {
-                      icon: MapPin,
-                      label: hasAnchors ? t('editMarkers') : t('placeBars'),
-                      onSelect: () => {
-                        setTab('score');
-                        setSearchParams({ place: '1' }, { replace: true });
-                      },
-                    },
-                  ]
-                : []),
+              {
+                icon: MapPin,
+                label: hasAnchors ? t('editMarkers') : t('placeBars'),
+                onSelect: () => setSearchParams({ place: '1' }, { replace: true }),
+              },
             ]}
           />
         )}
       </div>
     </div>
-  );
-
-  const header = (
-    <header className="mb-4 min-w-0">
-      <h1 className="text-xl font-bold sm:text-2xl">{piece.name}</h1>
-      {(piece.composer || piece.description) && (
-        <p className="mt-1 text-sm text-text-secondary">
-          {[piece.composer, piece.description].filter(Boolean).join(' · ')}
-        </p>
-      )}
-    </header>
   );
 
   const scoreContent = nothingYet ? (
@@ -702,98 +407,22 @@ export const PieceDetailPage = () => {
     </button>
   );
 
-  // In fullscreen the page lifts above the whole app (sidebar, top bar).
-  // The wrapper is always rendered so the score isn't re-mounted.
-  const overlayClass = fullscreen ? 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-bg' : undefined;
-
-  const notesAndFiles = (
-    <>
-      {hasCredit && (
-        <section className={cn(tab !== 'credits' && 'max-lg:hidden')}>
-          <SectionTitle>{t('credits')}</SectionTitle>
-          <Credits credits={credits} />
-        </section>
-      )}
-      <section className={cn(tab !== 'files' && 'max-lg:hidden')}>
-        <SectionTitle>{t('files')}</SectionTitle>
-        <FileList piece={piece} files={files} voices={voiceRows} />
-      </section>
-    </>
-  );
-
-  // Desktop: the score fills the main column; title, controls, notes and
-  // files live in a floating panel on the right (like the left sidebar).
-  if (isDesktop) {
-    return (
-      <div className={overlayClass}>
-        {exitButton}
-        <div
-          className={cn(
-            'grid items-start gap-8',
-            fullscreen
-              ? 'mx-auto min-h-[100dvh] max-w-6xl grid-cols-1 px-8 pt-16'
-              : 'min-h-[calc(100dvh-4rem)] grid-cols-[minmax(0,1fr)_20rem]',
-          )}
-        >
-          <section className="flex flex-col self-stretch">
-            <div className="flex-1">{scoreContent}</div>
-            {playerBar}
-          </section>
-          {!fullscreen && (
-            <aside className="sticky top-3 -mt-5 h-[calc(100dvh-1.5rem)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]">
-              <div>
-                {topRow}
-                {header}
-              </div>
-              <div className="space-y-8 border-t border-border pt-5">{notesAndFiles}</div>
-            </aside>
-          )}
-        </div>
-      </div>
-    );
-  }
-
+  // In fullscreen the page lifts above the whole app (sidebars, top bar).
+  // The wrapper is always rendered so the score isn't re-mounted. Tall
+  // enough that the player sits at the bottom even on short pages.
   return (
-    <div className={overlayClass}>
+    <div className={fullscreen ? 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-bg' : undefined}>
       {exitButton}
-      {/* Tall enough that the player sits at the bottom even on short pages. */}
       <div
         className={cn(
           'flex flex-col',
           fullscreen
-            ? 'min-h-[100dvh] px-4 pb-4 pt-14 sm:px-6 sm:pb-6'
-            : 'min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)]',
+            ? 'mx-auto min-h-[100dvh] max-w-6xl px-4 pb-4 pt-14 sm:px-6 sm:pb-6 lg:px-8 lg:pt-16'
+            : 'min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)] lg:min-h-[calc(100dvh-4rem)]',
         )}
       >
-        {!fullscreen && topRow}
-        {!fullscreen && header}
-
-        {/* Phone/tablet: tabs. */}
-        {!fullscreen && (
-          <div role="tablist" className="mb-4 flex rounded-md border border-border bg-surface-muted p-1">
-            {tabs.map((tb) => (
-              <button
-                key={tb.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === tb.id}
-                onClick={() => setTab(tb.id)}
-                className={cn(
-                  'h-9 flex-1 rounded text-sm font-medium transition-colors duration-150',
-                  tab === tb.id ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
-                )}
-              >
-                {tb.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="mb-6 flex-1">
-          <section className={cn(tab !== 'score' && !fullscreen && 'hidden')}>{scoreContent}</section>
-          {!fullscreen && <div className="space-y-8">{notesAndFiles}</div>}
-        </div>
-
+        {!fullscreen && toolbar}
+        <div className="mb-6 flex-1">{scoreContent}</div>
         {playerBar}
       </div>
     </div>

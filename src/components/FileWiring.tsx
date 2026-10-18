@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { GripVertical, X } from 'lucide-react';
+import { GripVertical, Mic, Users, X } from 'lucide-react';
+import { GroupPill } from '@/components/GroupPill';
+import { noteName } from '@/tonetrainer/core';
+import type { TrainerVoice } from '@/lib/trainer';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { TRACK_RECORDING_FIELDS, type TrackRecordingField } from '@/lib/pieceFiles';
+import { isNotationFileName } from '@/lib/musicxml';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
-import type { PieceFile, PieceTrack } from '@/types';
+import type { PieceFile, PieceTrack, ProjectGroup } from '@/types';
 
 // Where a file can be connected: the piece's score PDF, one of a voice's
-// four recordings, or the bars' source (a MusicXML or MuseScore's bar timing
-// only matter there).
-type NodeTarget = 'score' | 'bars';
+// four recordings, the bars' source (a MusicXML or MuseScore's bar timing
+// only matter there), or the singing trainer's MusicXML.
+type NodeTarget = 'score' | 'bars' | 'trainer';
 export type WireTarget = NodeTarget | `voice:${string}:${TrackRecordingField}`;
 
 export const voiceTarget = (trackId: string, field: TrackRecordingField): WireTarget => `voice:${trackId}:${field}`;
@@ -28,6 +32,7 @@ export const accepts = (file: PieceFile, target: WireTarget): boolean => {
   if (target === 'score') return isScoreFile(file);
   // Bars: from MuseScore's timing, a MusicXML, or spread over a recording.
   if (target === 'bars') return file.kind === 'notation' || file.kind === 'audio';
+  if (target === 'trainer') return file.kind === 'notation' && isNotationFileName(file.file_name ?? '');
   return file.kind === 'audio';
 };
 
@@ -61,6 +66,11 @@ export const FileWiring = ({
   filesBottom,
   voicesBottom,
   barsBody,
+  trainerBody,
+  trainerVoices = [],
+  groups = [],
+  voiceMap,
+  onMapVoice,
   scoreHeader,
   onReorderFiles,
   onReorderTracks,
@@ -77,6 +87,15 @@ export const FileWiring = ({
   voicesBottom?: ReactNode;
   // The bars node's own controls (what was read, apply, fitting, …).
   barsBody?: ReactNode;
+  // Under the trainer node: its state while there are no voices to list.
+  trainerBody?: ReactNode;
+  // The voices the trainer found, each an output wired to the groups that
+  // sing it (a third column; only inside a project, which has groups).
+  trainerVoices?: TrainerVoice[];
+  groups?: ProjectGroup[];
+  // Group id → the voice ids it sings.
+  voiceMap?: Map<string, string[]>;
+  onMapVoice?: (groupId: string, trackId: string, on: boolean) => void;
   // On the score node's title row (the connected PDF's download switch).
   scoreHeader?: ReactNode;
   onReorderFiles: (files: PieceFile[]) => void;
@@ -86,10 +105,25 @@ export const FileWiring = ({
   const { t } = useI18n();
   const wired = useMediaQuery('(min-width: 1024px)');
   const boxRef = useRef<HTMLDivElement>(null);
-  const [ports, setPorts] = useState<{ out: Record<string, Point>; in: Record<string, Point> }>({ out: {}, in: {} });
+  // `trainerTop`: where the trainer node starts, so the groups node beside
+  // it lines up with it.
+  const [ports, setPorts] = useState<{ out: Record<string, Point>; in: Record<string, Point>; trainerTop: number }>({
+    out: {},
+    in: {},
+    trainerTop: 0,
+  });
   // A wire being drawn from a file's point.
   const [drawing, setDrawing] = useState<{ fileId: string; at: Point; over: WireTarget | null } | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  // A wire being drawn from a trainer voice to a group.
+  const [voiceDrawing, setVoiceDrawing] = useState<{ trackId: string; at: Point; over: string | null } | null>(null);
+  // The groups column: inside a project, once the trainer has voices.
+  const mapping = groups.length > 0 && trainerVoices.length > 0 && onMapVoice != null;
+  const voiceLinks = groups.flatMap((g) =>
+    (voiceMap?.get(g.id) ?? [])
+      .filter((trackId) => trainerVoices.some((v) => v.id === trackId))
+      .map((trackId) => ({ groupId: g.id, trackId })),
+  );
 
   const fileDnd = useDragReorder(files, (f) => f.id, onReorderFiles, 0);
   const trackDnd = useDragReorder(tracks, (x) => x.id, onReorderTracks, 12);
@@ -101,7 +135,7 @@ export const FileWiring = ({
         track[field] ? [{ target: voiceTarget(track.id, field), fileId: track[field] as string }] : [],
       ),
     ),
-    ...(['score', 'bars'] as const).flatMap((key) =>
+    ...(['score', 'bars', 'trainer'] as const).flatMap((key) =>
       picks[key] ? [{ target: key as WireTarget, fileId: picks[key] as string }] : [],
     ),
   ];
@@ -127,7 +161,12 @@ export const FileWiring = ({
           });
           return found;
         };
-        const next = { out: read('data-port-out'), in: read('data-port-in') };
+        const trainer = box.querySelector('[data-trainer-node]')?.getBoundingClientRect();
+        const next = {
+          out: read('data-port-out'),
+          in: read('data-port-in'),
+          trainerTop: trainer ? Math.round(trainer.top - origin.top) : 0,
+        };
         const key = JSON.stringify(next);
         if (key !== last) {
           last = key;
@@ -170,6 +209,29 @@ export const FileWiring = ({
   };
 
   const drawnFile = drawing ? fileById(drawing.fileId) : null;
+
+  // Voice → group wires: the same gesture as for files.
+  const groupAt = (clientX: number, clientY: number): string | null =>
+    document.elementFromPoint(clientX, clientY)?.closest('[data-group-input]')?.getAttribute('data-group-input') ??
+    null;
+  const startVoiceWire = (e: PointerEvent, trackId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setVoiceDrawing({ trackId, at: local(e.clientX, e.clientY), over: null });
+  };
+  const moveVoiceWire = (e: PointerEvent) => {
+    if (!voiceDrawing) return;
+    setVoiceDrawing({ ...voiceDrawing, at: local(e.clientX, e.clientY), over: groupAt(e.clientX, e.clientY) });
+  };
+  const endVoiceWire = (e: PointerEvent) => {
+    if (!voiceDrawing) return;
+    const groupId = groupAt(e.clientX, e.clientY);
+    const { trackId } = voiceDrawing;
+    setVoiceDrawing(null);
+    if (groupId && !(voiceMap?.get(groupId) ?? []).includes(trackId)) onMapVoice?.(groupId, trackId, true);
+  };
+  const voiceName = (trackId: string) => trainerVoices.find((v) => v.id === trackId)?.name ?? trackId;
 
   // A soft S-curve from a file's point to an input.
   const curve = (a: Point, b: Point) => {
@@ -268,7 +330,15 @@ export const FileWiring = ({
   );
 
   return (
-    <div ref={boxRef} className="relative grid gap-6 lg:grid-cols-2 lg:gap-x-48">
+    <div
+      ref={boxRef}
+      className={cn(
+        'relative grid gap-6',
+        mapping
+          ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] lg:gap-x-24'
+          : 'lg:grid-cols-2 lg:gap-x-48',
+      )}
+    >
       {/* Files */}
       <div className="min-w-0 space-y-3">
         {filesTop}
@@ -345,6 +415,50 @@ export const FileWiring = ({
           {barsBody && <div className="space-y-3 border-t border-border p-3">{barsBody}</div>}
         </div>
 
+        {/* The singing trainer: a MusicXML connected here opens the piece for
+            practice with the microphone. */}
+        <div data-trainer-node className="rounded-md border border-accent/50 bg-accent/5">
+          <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
+            <Mic size={15} className="flex-shrink-0 text-accent" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('trainerNodeHint')}>
+              {t('trainerNode')}
+            </span>
+          </div>
+          {input('trainer', '')}
+          {/* The voices found: outputs to wire to the groups. */}
+          {trainerVoices.map((v) => {
+            const linked = voiceLinks.some((l) => l.trackId === v.id);
+            return (
+              <div key={v.id} className="relative flex h-9 items-center gap-2 border-t border-border pl-4 pr-4">
+                <span className="min-w-0 flex-1 truncate text-sm">{v.name}</span>
+                <span className="flex-shrink-0 text-xs text-text-tertiary">
+                  {noteName(v.low)}–{noteName(v.high)}
+                </span>
+                {wired && mapping && (
+                  <button
+                    type="button"
+                    data-port-out={`voice:${v.id}`}
+                    aria-label={t('connectVoice').replace('{name}', v.name)}
+                    title={t('voiceWireHint')}
+                    onPointerDown={(e) => startVoiceWire(e, v.id)}
+                    onPointerMove={moveVoiceWire}
+                    onPointerUp={endVoiceWire}
+                    onPointerCancel={() => setVoiceDrawing(null)}
+                    onPointerEnter={() => setHovered(`voice:${v.id}`)}
+                    onPointerLeave={() => setHovered((h) => (h === `voice:${v.id}` ? null : h))}
+                    style={{ touchAction: 'none' }}
+                    className={cn(
+                      'absolute -right-[8px] top-1/2 z-20 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 transition-transform duration-150 hover:scale-125',
+                      linked ? 'border-black bg-black' : 'border-border-strong bg-surface hover:border-black',
+                    )}
+                  />
+                )}
+              </div>
+            );
+          })}
+          {trainerBody && <div className="border-t border-border p-3">{trainerBody}</div>}
+        </div>
+
         <div className="pt-2">{heading(t('voicesTitle'), tracks.length)}</div>
         {tracks.length > 0 && (
           <ul className="flex flex-col gap-2">
@@ -372,6 +486,88 @@ export const FileWiring = ({
         {voicesBottom}
       </div>
 
+      {/* The project's groups: wire the trainer's voices to the groups that
+          sing them (several per group = a choice in the trainer). On small
+          screens the voices are tapped on and off instead. */}
+      {mapping && (
+        // Wide screens: level with the trainer node, its hint above it.
+        <div className="min-w-0 space-y-2" style={wired ? { paddingTop: Math.max(0, ports.trainerTop - 24) } : undefined}>
+          <p className="text-xs text-text-secondary">{t('groupsNodeHint')}</p>
+          <div className="rounded-md border border-border bg-surface">
+            <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
+              <Users size={15} className="flex-shrink-0 text-text-secondary" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t('groupsNode')}</span>
+            </div>
+            {groups.map((g) => {
+              const mapped = voiceMap?.get(g.id) ?? [];
+              const over = voiceDrawing?.over === g.id;
+              return (
+                <div
+                  key={g.id}
+                  data-group-input={g.id}
+                  className={cn(
+                    'relative border-t border-border py-2 pl-4 pr-2 transition-colors duration-150',
+                    voiceDrawing && 'bg-accent/10',
+                    over && 'bg-accent/25',
+                  )}
+                >
+                  {wired && (
+                    <span
+                      data-port-in={`group:${g.id}`}
+                      aria-hidden
+                      className={cn(
+                        'absolute -left-[7px] top-[1.15rem] h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 transition-colors duration-150',
+                        mapped.length ? 'border-black bg-black' : 'border-border-strong bg-surface',
+                        voiceDrawing && 'border-accent',
+                      )}
+                    />
+                  )}
+                  <GroupPill name={g.name} color={g.color} />
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {wired
+                      ? mapped.length === 0
+                        ? <span className="text-xs text-text-tertiary">{t('groupAllVoices')}</span>
+                        : mapped.map((trackId) => (
+                            <span
+                              key={trackId}
+                              className="inline-flex items-center gap-1 rounded-full bg-surface-muted py-0.5 pl-2 pr-0.5 text-xs"
+                            >
+                              {voiceName(trackId)}
+                              <button
+                                type="button"
+                                onClick={() => onMapVoice?.(g.id, trackId, false)}
+                                aria-label={`${t('disconnect')}: ${voiceName(trackId)}`}
+                                className="flex h-5 w-5 items-center justify-center rounded-full text-text-tertiary hover:bg-surface-hover hover:text-text"
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))
+                      : trainerVoices.map((v) => {
+                          const on = mapped.includes(v.id);
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() => onMapVoice?.(g.id, v.id, !on)}
+                              className={cn(
+                                'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-150',
+                                on ? 'border-black bg-black text-white' : 'border-border text-text-secondary hover:text-text',
+                              )}
+                            >
+                              {v.name}
+                            </button>
+                          );
+                        })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* The wires, over everything but never in the way. */}
       {wired && (
         <svg className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible" aria-hidden>
@@ -390,6 +586,35 @@ export const FileWiring = ({
               />
             );
           })}
+          {voiceLinks.map(({ groupId, trackId }) => {
+            const a = ports.out[`voice:${trackId}`];
+            const b = ports.in[`group:${groupId}`];
+            if (!a || !b) return null;
+            const lit = hovered === `voice:${trackId}`;
+            return (
+              <path
+                key={`${groupId}-${trackId}`}
+                d={curve(a, b)}
+                fill="none"
+                stroke={lit ? 'rgb(var(--c-text))' : 'rgb(var(--c-text-tertiary))'}
+                strokeWidth={lit ? 2 : 1.5}
+              />
+            );
+          })}
+          {voiceDrawing && ports.out[`voice:${voiceDrawing.trackId}`] && (
+            <path
+              d={curve(
+                ports.out[`voice:${voiceDrawing.trackId}`],
+                voiceDrawing.over && ports.in[`group:${voiceDrawing.over}`]
+                  ? ports.in[`group:${voiceDrawing.over}`]
+                  : voiceDrawing.at,
+              )}
+              fill="none"
+              stroke="rgb(var(--c-accent))"
+              strokeWidth={2}
+              strokeDasharray="5 4"
+            />
+          )}
           {drawing && ports.out[drawing.fileId] && (
             <path
               d={curve(

@@ -54,6 +54,10 @@ import { CalendarPage } from '@/pages/CalendarPage';
 import { GlobalPiecesLayout } from '@/layouts/GlobalPiecesLayout';
 import { PieceDetailPage } from '@/pages/PieceDetailPage';
 import { PieceSetupPage } from '@/pages/PieceSetupPage';
+import { PieceTrainingPage } from '@/pages/PieceTrainingPage';
+import { PieceTrainingOverviewPage } from '@/pages/PieceTrainingOverviewPage';
+import { PieceFilesPage } from '@/pages/PieceFilesPage';
+import { PieceLayout } from '@/layouts/PieceLayout';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
 import { RegistrationPageSettings } from '@/pages/RegistrationPageSettings';
 import { GroupsPage } from '@/pages/GroupsPage';
@@ -133,8 +137,14 @@ export const App = () => {
             {/* The piece collection shared by all projects. */}
             <Route path="pieces" element={<GlobalPiecesLayout />}>
               <Route index element={<GlobalPiecesPage />} />
-              <Route path=":pieceId" element={<PieceDetailPage />} />
-              <Route path=":pieceId/setup" element={<PieceSetupPage />} />
+              {/* The singing trainer, on the whole screen. */}
+              <Route path=":pieceId/training/run" element={<PieceTrainingPage />} />
+              <Route path=":pieceId" element={<PieceLayout />}>
+                <Route index element={<PieceDetailPage />} />
+                <Route path="training" element={<PieceTrainingOverviewPage />} />
+                <Route path="files" element={<PieceFilesPage />} />
+                <Route path="setup" element={<PieceSetupPage />} />
+              </Route>
             </Route>
           </Route>
         )}
@@ -174,11 +184,18 @@ export const App = () => {
           <Route path="participation" element={<MyParticipationPage />} />
           <Route element={<RequirePiecesAccess />}>
             <Route path="pieces" element={<PiecesPage />} />
-            <Route path="pieces/:pieceId" element={<PieceDetailPage />} />
             {/* Old practice links point at a block; the piece page replaces them. */}
             <Route path="pieces/:pieceId/practice/:blockId" element={<Navigate to="../.." relative="path" replace />} />
-            {/* Needs the pieces permission; the page checks it. */}
-            <Route path="pieces/:pieceId/setup" element={<PieceSetupPage />} />
+            {/* The singing trainer, on the whole screen. */}
+            <Route path="pieces/:pieceId/training/run" element={<PieceTrainingPage />} />
+            {/* A piece with its own sidebar: score, training, files and (with
+                the pieces permission; the page checks it) configuration. */}
+            <Route path="pieces/:pieceId" element={<PieceLayout />}>
+              <Route index element={<PieceDetailPage />} />
+              <Route path="training" element={<PieceTrainingOverviewPage />} />
+              <Route path="files" element={<PieceFilesPage />} />
+              <Route path="setup" element={<PieceSetupPage />} />
+            </Route>
           </Route>
           <Route element={<RequireProjectManage />}>
             <Route path="events" element={<EventsPage />} />

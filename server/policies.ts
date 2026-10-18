@@ -459,6 +459,24 @@ export const policies: Record<string, TablePolicy> = {
     select: (a) => canSeePiece(`${a}.piece_id`),
   },
 
+  // Folders grouping a piece's files on its "Dateien" page.
+  piece_file_folders: {
+    ...all((a) => canEditPiece(`${a}.piece_id`)),
+    select: (a) => canSeePiece(`${a}.piece_id`),
+  },
+
+  // Which trainer voices a project's groups sing: set by the piece's editors
+  // within a project they manage; read by whoever can see the piece there.
+  piece_trainer_voices: {
+    ...all((a) => `${canEditPiece(`${a}.piece_id`)} and exists (
+      select 1 from project_groups _tg where _tg.id = ${a}.group_id and ${canAccessProject('_tg.project_id')}
+    )`),
+    select: (a) => `${canSeePiece(`${a}.piece_id`)} and exists (
+      select 1 from project_groups _tg where _tg.id = ${a}.group_id
+        and ${or(canAccessProject('_tg.project_id'), isProjectParticipant('_tg.project_id'))}
+    )`,
+  },
+
   // A piece's voices (pointing at its recordings) and its credits.
   piece_tracks: {
     ...all((a) => canEditPiece(`${a}.piece_id`)),
@@ -475,6 +493,25 @@ export const policies: Record<string, TablePolicy> = {
     validateUpdate: (oldRow, patch) => {
       if ('photo_url' in patch && normalize(patch.photo_url) !== normalize(oldRow.photo_url)) {
         throw new ApiError('Credit photos come from the linked account', 403, '42501');
+      }
+    },
+  },
+
+  // The singing trainer's history and preferences: each account's own, for
+  // pieces it can open. Runs are only added (and go with the piece).
+  practice_sessions: {
+    select: (a) => `${a}.user_id = auth_uid()`,
+    insert: (a) => `${a}.user_id = auth_uid() and ${canSeePiece(`${a}.piece_id`)}`,
+  },
+
+  practice_prefs: {
+    ...all((a) => `${a}.user_id = auth_uid()`),
+    insert: (a) => `${a}.user_id = auth_uid() and ${canSeePiece(`${a}.piece_id`)}`,
+    validateUpdate: (oldRow, patch) => {
+      for (const field of ['user_id', 'piece_id'] as const) {
+        if (field in patch && patch[field] !== oldRow[field]) {
+          throw new ApiError('Practice preferences stay with their piece', 403, '42501');
+        }
       }
     },
   },

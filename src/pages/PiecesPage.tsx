@@ -125,7 +125,9 @@ export const PiecesPage = () => {
           )}
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
+        // minmax(0,1fr) on phones too: an implicit grid column grows to the
+        // untruncated title width and pushes the list off the right edge.
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
           {visible.length === 0 ? (
             <p className="py-12 text-center text-sm text-text-secondary">{t('noResults')}</p>
           ) : (

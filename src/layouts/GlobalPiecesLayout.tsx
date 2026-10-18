@@ -8,9 +8,8 @@ import type { PieceScope } from './pieceScope';
 // 'all' pieces permission. Its piece pages are the same as inside a project.
 export const GlobalPiecesLayout = () => {
   const { hasFullPieceAccess } = useAuth();
-  // A piece's practice page uses the full width, like inside a project.
-  const setupOpen = useMatch('/pieces/:pieceId/setup') != null;
-  const pieceOpen = useMatch('/pieces/:pieceId') != null || setupOpen;
+  // An open piece has its own layout (PieceLayout) from edge to edge.
+  const pieceOpen = useMatch('/pieces/:pieceId/*') != null;
   if (!hasFullPieceAccess) return <NoAccess />;
   const pieceScope: PieceScope = {
     base: '/pieces',
@@ -20,7 +19,7 @@ export const GlobalPiecesLayout = () => {
     canDelete: true,
   };
   return (
-    <div className={cn('p-4 sm:p-6 lg:p-8', !pieceOpen && 'max-w-[1400px]')}>
+    <div className={cn(pieceOpen ? 'h-full' : 'max-w-[1400px] p-4 sm:p-6 lg:p-8')}>
       <Outlet context={{ pieceScope }} />
     </div>
   );

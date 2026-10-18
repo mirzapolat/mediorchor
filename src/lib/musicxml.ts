@@ -56,7 +56,9 @@ const readZip = async (buf: ArrayBuffer): Promise<Map<string, () => Promise<Uint
   return entries;
 };
 
-const readXmlText = async (file: Blob): Promise<string> => {
+// The score XML of a .musicxml/.xml or zipped .mxl file (also what the
+// singing trainer reads its notes from).
+export const readXmlText = async (file: Blob): Promise<string> => {
   const buf = await file.arrayBuffer();
   const head = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
   const isZip = head[0] === 0x50 && head[1] === 0x4b; // "PK"
