@@ -127,7 +127,7 @@ export const PublicCalendarPage = () => {
           </header>
         )}
 
-        <div className="overflow-hidden rounded-md border border-border bg-surface">
+        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">
             <div className="flex items-center gap-1">
               <h2 className="mr-2 text-lg font-semibold capitalize sm:min-w-[11rem]">{formatMonth(month, lang)}</h2>

@@ -30,7 +30,7 @@ export const SortableList = <T,>({
   return (
     <ul
       className={cn(
-        joined ? 'rounded-xl border border-border bg-surface' : 'flex flex-col gap-2',
+        joined ? 'rounded-2xl border border-border bg-surface' : 'flex flex-col gap-2',
         className,
       )}
     >
@@ -55,9 +55,9 @@ export const SortableList = <T,>({
               'flex items-stretch bg-surface',
               joined
                 ? // Hovering the row's link highlights the whole row, grip included.
-                  'border-b border-border transition-colors duration-150 first:rounded-t-xl last:rounded-b-xl last:border-b-0 [&:has(a:hover)]:bg-surface-subtle'
-                : 'rounded-md border border-border',
-              dragging && (joined ? 'rounded-xl shadow-lg ring-1 ring-border' : 'shadow-lg'),
+                  'border-b border-border transition-colors duration-150 first:rounded-t-2xl last:rounded-b-2xl last:border-b-0 [&:has(a:hover)]:bg-surface-subtle'
+                : 'rounded-2xl border border-border',
+              dragging && (joined ? 'rounded-2xl shadow-lg ring-1 ring-border' : 'shadow-lg'),
             )}
           >
             {onReorder && items.length > 1 && (
@@ -71,7 +71,7 @@ export const SortableList = <T,>({
                 style={{ touchAction: 'none' }}
                 className={cn(
                   'flex w-9 flex-shrink-0 cursor-grab items-center justify-center text-text-tertiary hover:text-text-secondary active:cursor-grabbing',
-                  !joined && 'rounded-l-md border-r border-border',
+                  !joined && 'rounded-l-2xl border-r border-border',
                 )}
               >
                 <GripVertical size={16} />

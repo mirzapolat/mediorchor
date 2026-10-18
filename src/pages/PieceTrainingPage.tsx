@@ -17,12 +17,12 @@ import type { Piece } from '@/types';
 const PracticeView = lazy(() => import('@/tonetrainer/react').then((m) => ({ default: m.PracticeView })));
 
 // A piece practised with the microphone: the whole screen, no sidebar.
-// `?bar=<n>` opens with that measure (0-based) in a loop. Members sing only
-// the voices mapped to their group (the piece's configuration); its editors
-// any.
+// `?bar=<n>` opens with that measure (0-based) in a loop. Everyone in a
+// group sings only the voices mapped to it (the piece's configuration),
+// editors too; without a group, any.
 export const PieceTrainingPage = () => {
   const { t } = useI18n();
-  const { base, projectId, canEdit } = usePieceScope();
+  const { base, projectId } = usePieceScope();
   const { pieceId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -41,7 +41,7 @@ export const PieceTrainingPage = () => {
       const [loaded, files, voices] = await Promise.all([
         loadPieceInScope(pieceId ?? '', projectId),
         loadPieceFiles(pieceId ?? ''),
-        canEdit || !user ? Promise.resolve([]) : allowedTrainerVoices(pieceId ?? '', projectId, user.id),
+        user ? allowedTrainerVoices(pieceId ?? '', projectId, user.id) : Promise.resolve([]),
       ]);
       if (cancelled) return;
       setPiece(loaded);
@@ -60,7 +60,7 @@ export const PieceTrainingPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [pieceId, projectId, canEdit, user, t]);
+  }, [pieceId, projectId, user, t]);
 
   const storage = useMemo(() => (user ? createPracticeStorage(user.id) : null), [user]);
 
@@ -98,8 +98,9 @@ export const PieceTrainingPage = () => {
         theme={theme}
         initialLoopMeasure={loopMeasure}
         allowedTrackIds={allowed}
+        // Back leads to the progress (the piece's Training page), so no
+        // extra button for it.
         onBack={() => navigate(overview)}
-        onOpenProgress={() => navigate(overview)}
       />
     </Suspense>
   );

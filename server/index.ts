@@ -13,6 +13,7 @@ import { splitName } from './fieldMatching.ts';
 import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS, READ_ONLY_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
+import { linkPreviewRoutes } from './linkFetch.ts';
 import { adminRoutes } from './admin.ts';
 import { webhookRoutes } from './webhooks.ts';
 import { calendarFeedRoutes } from './calendarFeed.ts';
@@ -71,7 +72,7 @@ const enforceMfaSetup = async (c: Context, next: () => Promise<void>) => {
   }
   await next();
 };
-for (const prefix of ['/api/db', '/api/rpc/*', '/api/storage/*', '/api/functions/*']) {
+for (const prefix of ['/api/db', '/api/rpc/*', '/api/storage/*', '/api/functions/*', '/api/link-preview']) {
   app.use(prefix, enforceMfaSetup);
 }
 
@@ -119,6 +120,8 @@ app.post('/api/rpc/:name', async (c) => {
 });
 
 app.route('/api/storage', storageRoutes);
+// Previews of the links on a piece's "Dateien" page (fetched by the server).
+app.route('/api/link-preview', linkPreviewRoutes);
 app.route('/api/functions', adminRoutes);
 app.route('/api/webhooks', webhookRoutes);
 // Public iCal subscription links of the Kalender (token-authenticated).

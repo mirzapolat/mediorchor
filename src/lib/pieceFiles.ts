@@ -1,5 +1,14 @@
 import { api } from './api';
-import type { Piece, PieceCredit, PieceFile, PieceFileKind, PieceTrack, ProjectPiece } from '@/types';
+import type {
+  LinkPreview,
+  Piece,
+  PieceCredit,
+  PieceFile,
+  PieceFileFolder,
+  PieceFileKind,
+  PieceTrack,
+  ProjectPiece,
+} from '@/types';
 
 const BUCKET = 'piece-files';
 
@@ -60,8 +69,26 @@ export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => {
   return (data as PieceFile[] | null) ?? [];
 };
 
-// Stored object of a file row (links have none).
-const storedPaths = (file: Pick<PieceFile, 'file_path'>): string[] => (file.file_path ? [file.file_path] : []);
+// Stored objects of a file row: its file, or a link's preview image.
+const storedPaths = (file: Pick<PieceFile, 'file_path' | 'link_preview'>): string[] =>
+  [file.file_path, file.link_preview?.image ?? null].filter((p): p is string => Boolean(p));
+
+// Has the server read (again) what a link points to; the new preview, or
+// the reason it couldn't.
+export const fetchLinkPreview = async (fileId: string): Promise<{ preview: LinkPreview | null; error?: string }> => {
+  try {
+    const res = await fetch('/api/link-preview', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { preview?: LinkPreview; error?: { message?: string } };
+    return res.ok ? { preview: body.preview ?? null } : { preview: null, error: body.error?.message ?? String(res.status) };
+  } catch {
+    return { preview: null, error: 'offline' };
+  }
+};
 
 export const loadPieceTracks = async (pieceId: string): Promise<PieceTrack[]> => {
   const { data } = await api
@@ -135,16 +162,34 @@ export const trackRecordingChoice = (
 export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click: boolean): string | null =>
   trackRecordingChoice(track, quiet, click)?.path ?? null;
 
-// Whether members may download a file: a recording a voice uses follows
-// its voice (downloadable if any voice using it is), every other file its
-// own switch.
-export const isFileDownloadable = (
-  file: Pick<PieceFile, 'id' | 'downloadable'>,
-  tracks: Array<Pick<PieceTrack, 'downloadable' | TrackRecordingField>>,
+// Whether members see a folder: it and every folder above it are switched
+// to downloadable on the "Dateien" page.
+export const isFolderDownloadable = (
+  folderId: string,
+  folders: Array<Pick<PieceFileFolder, 'id' | 'parent_id' | 'downloadable'>>,
 ): boolean => {
-  const users = tracks.filter((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === file.id));
-  return users.length > 0 ? users.some((track) => track.downloadable) : file.downloadable;
+  const seen = new Set<string>();
+  let id: string | null = folderId;
+  while (id && !seen.has(id)) {
+    seen.add(id);
+    const folder = folders.find((d) => d.id === id);
+    // A folder that is gone counts as the top.
+    if (!folder) return true;
+    if (!folder.downloadable) return false;
+    id = folder.parent_id;
+  }
+  return true;
 };
+
+// Whether members may download a file: in a folder, when its folders are
+// switched on; outside any folder, by its own switch.
+export const isFileDownloadable = (
+  file: Pick<PieceFile, 'downloadable' | 'folder_id'>,
+  folders: Array<Pick<PieceFileFolder, 'id' | 'parent_id' | 'downloadable'>>,
+): boolean =>
+  file.folder_id && folders.some((d) => d.id === file.folder_id)
+    ? isFolderDownloadable(file.folder_id, folders)
+    : file.downloadable;
 
 // The score PDF shown on the piece page: the picked one, else the first.
 export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: PieceFile[]): PieceFile | null =>
@@ -273,23 +318,22 @@ export const loadPiecesOverview = async (
   );
   if (pieces.length === 0) return { pieces, files: [] };
   const ids = pieces.map((p) => p.id);
-  const [{ data: files }, { data: tracks }] = await Promise.all([
+  const [{ data: files }, { data: folderRows }] = await Promise.all([
     api
       .from('piece_files')
-      .select('id, piece_id, kind, title, file_name, file_path, downloadable, position')
+      .select('id, piece_id, kind, title, file_name, file_path, downloadable, folder_id, position')
       .in('piece_id', ids)
       .order('position'),
-    api
-      .from('piece_tracks')
-      .select(`piece_id, downloadable, ${TRACK_RECORDING_FIELDS.join(', ')}`)
-      .in('piece_id', ids),
+    api.from('piece_file_folders').select('id, piece_id, parent_id, downloadable').in('piece_id', ids),
   ]);
-  const voices = (tracks as PieceTrack[] | null) ?? [];
+  const folders = (folderRows as PieceFileFolder[] | null) ?? [];
   return {
     pieces,
-    files: ((files as PieceOverviewFile[] | null) ?? []).map((f) => ({
-      ...f,
-      downloadable: isFileDownloadable(f, voices.filter((v) => v.piece_id === f.piece_id)),
-    })),
+    files: ((files as Array<PieceOverviewFile & { folder_id: string | null }> | null) ?? []).map(
+      ({ folder_id, ...f }) => ({
+        ...f,
+        downloadable: isFileDownloadable({ ...f, folder_id }, folders.filter((d) => d.piece_id === f.piece_id)),
+      }),
+    ),
   };
 };

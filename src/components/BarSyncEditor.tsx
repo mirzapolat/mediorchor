@@ -810,7 +810,7 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">{t('syncSelectedTitle')}</h3>
             {selectedBar && selected != null ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface p-2.5">
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-surface p-2.5">
                 <span className="flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-accent px-2 text-sm font-semibold tabular-nums text-white">
                   {selectedBar.shown}
                 </span>
@@ -874,7 +874,7 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
                   : t('syncNoFermatas')}
               </p>
             ) : (
-              <ul className="divide-y divide-border rounded-md border border-border bg-surface">
+              <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
                 {fermatas.map((f) => (
                   <li key={f.bar.index} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
                     <span className="min-w-0 flex-1">

@@ -358,15 +358,32 @@ export interface PieceFile {
   downloadable: boolean;
   // Its folder on the "Dateien" page; null = above the folders.
   folder_id: string | null;
+  // A link's preview of the page it points to, read by the server.
+  link_preview: LinkPreview | null;
   position: number;
   created_at: string;
+}
+
+// What a link points to, as read by the server (server/linkFetch.ts).
+export interface LinkPreview {
+  title: string;
+  description: string;
+  site: string;
+  // A copy of the page's preview image in the piece's files (key), or null.
+  image: string | null;
+  fetched_at: string;
 }
 
 // A folder of a piece's files ("Dateien" page), in the managers' order.
 export interface PieceFileFolder {
   id: string;
   piece_id: string;
+  // The folder it is in; null = at the top.
+  parent_id: string | null;
   name: string;
+  // Members download its files (and those of its folders) only when this
+  // and every folder above are switched on.
+  downloadable: boolean;
   position: number;
   created_at: string;
 }

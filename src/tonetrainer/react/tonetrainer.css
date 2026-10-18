@@ -1307,3 +1307,10 @@
   margin: 0;
   padding: 0;
 }
+
+/* An option with its explanation under the name (the headphones question). */
+.tt-track-option--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}

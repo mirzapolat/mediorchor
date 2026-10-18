@@ -21,10 +21,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 const MIN_ZOOM = 0.4; // below 1 the pages shrink and stay centred
 const MAX_ZOOM = 4;
 const DOUBLE_TAP_ZOOM = 2.5;
-// Where a score opens: a bit smaller than the column on desktop (more fits
-// on screen), the full width on phones.
+// Where a score opens: smaller than the (wide) column on desktop, so more
+// of the page fits on screen; the full width on phones.
 const startZoom = () =>
-  typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 0.8 : 1;
+  typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches ? 0.65 : 1;
 const MAX_CANVAS_PX = 4096; // keeps canvases within mobile memory limits
 
 interface PdfScoreViewProps {

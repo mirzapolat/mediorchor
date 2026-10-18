@@ -307,7 +307,7 @@ const CalendarView = () => {
         {/* Right: the month grid; on desktop it fills the window. */}
         <div
           ref={gridBox}
-          className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-surface"
+          className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface"
           style={gridHeight ? { height: gridHeight } : undefined}
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-3 sm:px-4">

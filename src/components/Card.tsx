@@ -6,7 +6,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export const Card = ({ className, children, ...props }: CardProps) => (
-  <div className={cn('bg-surface border border-border rounded-md p-5', className)} {...props}>
+  <div className={cn('bg-surface border border-border rounded-2xl p-5', className)} {...props}>
     {children}
   </div>
 );

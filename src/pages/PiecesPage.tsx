@@ -109,7 +109,7 @@ export const PiecesPage = () => {
       />
 
       {pieces.length === 0 ? (
-        <div className="flex max-w-3xl flex-col items-center gap-3 rounded-xl border border-dashed border-border px-6 py-16 text-center">
+        <div className="flex max-w-3xl flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-6 py-16 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-secondary">
             <Music size={22} />
           </span>

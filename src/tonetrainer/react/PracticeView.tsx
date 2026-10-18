@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Mode } from '../core/engine'
 import type { PracticeSettings } from '../core/settings'
 import type { PracticeStorage } from '../core/storage'
-import { MixerDialog, ResultsDialog, SettingsDialog, TrackPicker } from './dialogs'
+import { HeadphonesPicker, MixerDialog, ResultsDialog, SettingsDialog, TrackPicker } from './dialogs'
 import PianoRoll from './PianoRoll'
 import ScoreView from './ScoreView'
 import { DEFAULT_COLORS, useTrainerColors } from './theme'
@@ -61,6 +61,7 @@ export default function PracticeView(props: PracticeViewProps) {
   const colors = themeColors ?? DEFAULT_COLORS
   const [mixerOpen, setMixerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [askHeadphones, setAskHeadphones] = useState(true)
 
   const s = usePracticeSession({
     scoreId: props.scoreId,
@@ -139,7 +140,7 @@ export default function PracticeView(props: PracticeViewProps) {
         <div className="tt-practice__score">
           {s.score && themeColors && (
             <ScoreView
-              ref={s.scoreRef}
+              handle={s.scoreRef}
               xml={props.xml}
               ownPartIndex={s.ownPartIndex}
               showAllParts={showAll}
@@ -202,7 +203,16 @@ export default function PracticeView(props: PracticeViewProps) {
         />
       )}
 
-      <TrackPicker open={s.needsTrackPick} tracks={s.pickableTracks} current={s.trackId} naming={settings.naming} onPick={s.setTrackId} onClose={s.dismissTrackPick} />
+      {/* First the headphones (they decide the microphone's filters), then the voice. */}
+      <HeadphonesPicker
+        open={askHeadphones}
+        current={settings.headphones}
+        onPick={(headphones) => {
+          setSettings({ headphones })
+          setAskHeadphones(false)
+        }}
+      />
+      <TrackPicker open={s.needsTrackPick && !askHeadphones} tracks={s.pickableTracks} current={s.trackId} naming={settings.naming} onPick={s.setTrackId} onClose={s.dismissTrackPick} />
       {s.trackId && <MixerDialog open={mixerOpen} onClose={() => setMixerOpen(false)} tracks={s.tracks} ownId={s.trackId} mixer={s.mixer} onChange={s.setMixer} />}
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={settings} onChange={setSettings} micLabel={s.micLabel} />
       <ResultsDialog

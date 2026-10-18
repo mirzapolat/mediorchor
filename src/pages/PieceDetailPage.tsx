@@ -301,11 +301,10 @@ export const PieceDetailPage = () => {
       />
     ) : null;
 
-  // Above the score: the page's title, fullscreen and the editors' marker
-  // placing (the rest of the piece lives in its sidebar).
+  // Above the score, on the right: fullscreen and the editors' marker
+  // placing (no title: the sidebar names the page).
   const toolbar = (
-    <div className="mb-4 flex items-center justify-between gap-3">
-      <h1 className="text-xl font-bold sm:text-2xl">{t('pieceSheetPage')}</h1>
+    <div className="mb-2 flex items-center justify-end gap-3">
       <div className="flex items-center gap-1">
         {!nothingYet && (
           <button

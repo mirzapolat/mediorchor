@@ -332,12 +332,7 @@ export const FileWiring = ({
   return (
     <div
       ref={boxRef}
-      className={cn(
-        'relative grid gap-6',
-        mapping
-          ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] lg:gap-x-24'
-          : 'lg:grid-cols-2 lg:gap-x-48',
-      )}
+      className="relative grid gap-6 lg:grid-cols-2 lg:gap-x-48"
     >
       {/* Files */}
       <div className="min-w-0 space-y-3">
@@ -345,7 +340,7 @@ export const FileWiring = ({
         {files.length === 0 ? (
           <p className="text-sm text-text-secondary">{t('noFiles')}</p>
         ) : (
-          <ul className="rounded-md border border-border bg-surface">
+          <ul className="rounded-2xl border border-border bg-surface">
             {files.map((f, index) => {
               const linked = connections.some((c) => c.fileId === f.id);
               return (
@@ -393,7 +388,7 @@ export const FileWiring = ({
       {/* The score PDF, the bars and the voices */}
       <div className="min-w-0 space-y-2">
         <p className="text-xs text-text-secondary">{wired ? t('wireHint') : t('wireDesktopOnly')}</p>
-        <div className="rounded-md border border-border bg-surface">
+        <div className="rounded-2xl border border-border bg-surface">
           <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
             <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('scoreFileHint')}>
               {t('scoreFileLabel')}
@@ -405,7 +400,7 @@ export const FileWiring = ({
 
         {/* The bars: one source (what is connected picks how they are
             read), applied with the node's own button. */}
-        <div className="rounded-md border border-border bg-surface">
+        <div className="rounded-2xl border border-border bg-surface">
           <div className="flex h-10 items-center pl-3 pr-1.5">
             <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('barsSourceHint')}>
               {t('barsSource')}
@@ -415,9 +410,47 @@ export const FileWiring = ({
           {barsBody && <div className="space-y-3 border-t border-border p-3">{barsBody}</div>}
         </div>
 
-        {/* The singing trainer: a MusicXML connected here opens the piece for
-            practice with the microphone. */}
-        <div data-trainer-node className="rounded-md border border-accent/50 bg-accent/5">
+        <div className="pt-2">{heading(t('voicesTitle'), tracks.length)}</div>
+        {tracks.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {tracks.map((track, index) => (
+              <li
+                key={track.id}
+                ref={(el) => trackDnd.setItemRef(track.id, el)}
+                style={shift(trackDnd, track.id, index)}
+                className={cn('rounded-2xl border border-border bg-surface', trackDnd.isDragging(track.id) && 'shadow-lg')}
+              >
+                <div className="flex items-stretch">
+                  {tracks.length > 1 &&
+                    grip((e) => trackDnd.startDrag(e, track.id, index), trackDnd.moveDrag, trackDnd.endDrag)}
+                  <div className={cn('min-w-0 flex-1 py-1.5 pr-1.5', tracks.length < 2 && 'pl-2')}>
+                    {renderVoiceHeader(track)}
+                  </div>
+                </div>
+                {TRACK_RECORDING_FIELDS.map((field) =>
+                  input(voiceTarget(track.id, field), SLOT_LABELS[field].map((k) => t(k)).join(' – ')),
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {voicesBottom}
+      </div>
+
+      {/* The singing trainer, a row of its own with three columns: what it
+          is, its node (a MusicXML connected here opens the piece for practice
+          with the microphone; its voices are outputs) and, inside a project,
+          the groups the voices are wired to. */}
+      <div className="grid gap-6 lg:col-span-2 lg:grid-cols-3 lg:gap-x-24">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Mic size={15} className="text-accent" aria-hidden />
+            {t('trainerNode')}
+          </h3>
+          <p className="mt-1 text-sm text-text-secondary">{t('trainerNodeHint')}</p>
+          {mapping && <p className="mt-2 text-xs text-text-secondary">{t('groupsNodeHint')}</p>}
+        </div>
+        <div data-trainer-node className="min-w-0 self-start rounded-2xl border border-accent/50 bg-accent/5">
           <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
             <Mic size={15} className="flex-shrink-0 text-accent" aria-hidden />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('trainerNodeHint')}>
@@ -459,41 +492,11 @@ export const FileWiring = ({
           {trainerBody && <div className="border-t border-border p-3">{trainerBody}</div>}
         </div>
 
-        <div className="pt-2">{heading(t('voicesTitle'), tracks.length)}</div>
-        {tracks.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {tracks.map((track, index) => (
-              <li
-                key={track.id}
-                ref={(el) => trackDnd.setItemRef(track.id, el)}
-                style={shift(trackDnd, track.id, index)}
-                className={cn('rounded-md border border-border bg-surface', trackDnd.isDragging(track.id) && 'shadow-lg')}
-              >
-                <div className="flex items-stretch">
-                  {tracks.length > 1 &&
-                    grip((e) => trackDnd.startDrag(e, track.id, index), trackDnd.moveDrag, trackDnd.endDrag)}
-                  <div className={cn('min-w-0 flex-1 py-1.5 pr-1.5', tracks.length < 2 && 'pl-2')}>
-                    {renderVoiceHeader(track)}
-                  </div>
-                </div>
-                {TRACK_RECORDING_FIELDS.map((field) =>
-                  input(voiceTarget(track.id, field), SLOT_LABELS[field].map((k) => t(k)).join(' – ')),
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {voicesBottom}
-      </div>
-
-      {/* The project's groups: wire the trainer's voices to the groups that
-          sing them (several per group = a choice in the trainer). On small
-          screens the voices are tapped on and off instead. */}
-      {mapping && (
-        // Wide screens: level with the trainer node, its hint above it.
-        <div className="min-w-0 space-y-2" style={wired ? { paddingTop: Math.max(0, ports.trainerTop - 24) } : undefined}>
-          <p className="text-xs text-text-secondary">{t('groupsNodeHint')}</p>
-          <div className="rounded-md border border-border bg-surface">
+        {/* The project's groups: wire the trainer's voices to the groups that
+            sing them (several per group = a choice in the trainer). On small
+            screens the voices are tapped on and off instead. */}
+        {mapping && (
+          <div className="min-w-0 self-start rounded-2xl border border-border bg-surface">
             <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
               <Users size={15} className="flex-shrink-0 text-text-secondary" aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t('groupsNode')}</span>
@@ -565,8 +568,8 @@ export const FileWiring = ({
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* The wires, over everything but never in the way. */}
       {wired && (

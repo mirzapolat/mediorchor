@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Mic, Repeat, Target, TrendingDown, TrendingUp, Volume2, VolumeX } from 'lucide-react'
+import { ArrowDown, ArrowUp, Headphones, Mic, Repeat, Target, TrendingDown, TrendingUp, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { listMics } from '../core/audio/mic'
 import type { Channel } from '../core/audio/player'
@@ -9,6 +9,32 @@ import type { SessionRecord } from '../core/types'
 import { accuracyColor, type TrainerColors } from './theme'
 import { Dialog, Segmented, Slider, Switch } from './ui'
 import { activePreset, MIX_PRESETS, presetMix } from './usePracticeSession'
+
+/**
+ * Asked each time the trainer opens: with headphones the microphone hears only the singer; without,
+ * echo cancellation is switched on and the accompaniment's pitches are filtered from the microphone.
+ */
+export function HeadphonesPicker({ open, current, onPick }: { open: boolean; current: boolean; onPick: (headphones: boolean) => void }) {
+  return (
+    <Dialog open={open} onClose={() => onPick(current)} title="Trägst du Kopfhörer?">
+      <ul className="tt-list">
+        {[
+          { value: true, name: 'Ja, mit Kopfhörern', hint: 'Empfohlen: Das Mikrofon hört nur dich.', icon: <Headphones size={18} /> },
+          { value: false, name: 'Nein, über Lautsprecher', hint: 'Die Begleitung wird aus dem Mikrofon herausgefiltert.', icon: <Volume2 size={18} /> },
+        ].map((o) => (
+          <li key={String(o.value)}>
+            <button onClick={() => onPick(o.value)} className="tt-track-option tt-track-option--stacked" aria-pressed={o.value === current}>
+              <span className="tt-track-option__name tt-inline-icon">
+                {o.icon} {o.name}
+              </span>
+              <span className="tt-track-option__range">{o.hint}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Dialog>
+  )
+}
 
 export function TrackPicker({
   open,

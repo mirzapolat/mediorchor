@@ -177,7 +177,7 @@ export const DashboardPage = () => {
                     onDragOver={editing ? onDragOver(widget.id) : undefined}
                     onDragEnd={editing ? onDragEnd : undefined}
                     className={cn(
-                      'rounded-md border bg-surface',
+                      'rounded-2xl border bg-surface',
                       editing ? 'border-dashed border-text-tertiary' : 'border-border',
                       draggingId === widget.id && 'opacity-50',
                     )}

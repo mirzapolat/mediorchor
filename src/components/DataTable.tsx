@@ -322,7 +322,7 @@ export function DataTable<T>({
               )}
             </div>
           )}
-          <ul className="rounded-xl border border-border bg-surface">
+          <ul className="rounded-2xl border border-border bg-surface">
             {processed.map((row, rowIndex) => {
               const rowId = getRowId(row);
               const highlighted = highlightRowId != null && rowId === highlightRowId;
@@ -352,9 +352,9 @@ export function DataTable<T>({
                       : undefined
                   }
                   className={cn(
-                    'flex items-start gap-3 border-b border-border px-3 py-3 first:rounded-t-xl last:rounded-b-xl last:border-b-0',
+                    'flex items-start gap-3 border-b border-border px-3 py-3 first:rounded-t-2xl last:rounded-b-2xl last:border-b-0',
                     dragging
-                      ? 'rounded-xl bg-white shadow-lg'
+                      ? 'rounded-2xl bg-white shadow-lg'
                       : selected
                         ? 'bg-info-soft'
                         : highlighted
@@ -430,7 +430,7 @@ export function DataTable<T>({
           </ul>
         </>
       ) : (
-        <div className="border border-border rounded-md overflow-x-auto bg-surface">
+        <div className="border border-border rounded-2xl overflow-x-auto bg-surface">
           <table className="w-full min-w-[640px] border-collapse">
             <thead>
               <tr className="bg-surface-muted text-sm font-medium text-text-secondary text-left">

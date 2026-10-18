@@ -30,7 +30,7 @@ export const ActionCard = ({
     disabled={disabled || busy}
     title={hint}
     className={cn(
-      'group flex w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors duration-150 enabled:hover:bg-surface-subtle',
+      'group flex w-full items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 text-left transition-colors duration-150 enabled:hover:bg-surface-subtle',
       busy && 'cursor-progress',
       disabled && !busy && 'cursor-not-allowed opacity-60',
     )}

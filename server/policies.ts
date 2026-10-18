@@ -457,6 +457,15 @@ export const policies: Record<string, TablePolicy> = {
   piece_files: {
     ...all((a) => canEditPiece(`${a}.piece_id`)),
     select: (a) => canSeePiece(`${a}.piece_id`),
+    // A link's preview is read by the server (server/linkFetch.ts) only.
+    validateInsert: (row) => {
+      if (row.link_preview != null) throw new ApiError('Link previews are made by the server', 403, '42501');
+    },
+    validateUpdate: (oldRow, patch) => {
+      if ('link_preview' in patch && JSON.stringify(patch.link_preview ?? null) !== JSON.stringify(oldRow.link_preview ?? null)) {
+        throw new ApiError('Link previews are made by the server', 403, '42501');
+      }
+    },
   },
 
   // Folders grouping a piece's files on its "Dateien" page.

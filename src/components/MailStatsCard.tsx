@@ -209,7 +209,7 @@ export const MailStatsCard = () => {
       </div>
 
       {attempts === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border py-12 text-center">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-12 text-center">
           <BarChart3 size={22} className="text-text-tertiary" />
           <p className="text-sm text-text-secondary">{t('noMailsInRange')}</p>
         </div>
@@ -236,7 +236,7 @@ export const MailStatsCard = () => {
           </div>
 
           {asTable ? (
-            <div className="overflow-x-auto rounded-md border border-border">
+            <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-surface-subtle text-left text-text-secondary">
                   <tr>

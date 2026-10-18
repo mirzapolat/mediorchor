@@ -280,7 +280,7 @@ export const AdminAuditPage = () => {
               <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-text-tertiary">
                 {dayTitle(day.date)}
               </h2>
-              <ol className="divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
+              <ol className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
                 {day.entries.map((entry) => (
                   <AuditRow
                     key={entry.id}

@@ -110,7 +110,7 @@ const TipCard = ({
   <button
     type="button"
     onClick={onClick}
-    className="group flex items-start gap-4 rounded-md border border-border bg-surface p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-black/30 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.15)]"
+    className="group flex items-start gap-4 rounded-2xl border border-border bg-surface p-5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-black/30 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.15)]"
   >
     <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-surface-muted text-text">
       <Icon size={19} />
@@ -478,7 +478,7 @@ const Onboarding = () => {
                 <label
                   {...csvDrop.props}
                   className={cn(
-                    'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed bg-surface px-6 py-16 text-center transition-colors duration-150 hover:border-black/40',
+                    'flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-surface px-6 py-16 text-center transition-colors duration-150 hover:border-black/40',
                     csvDrop.over ? 'border-black bg-surface-muted' : 'border-border',
                   )}
                 >
@@ -506,7 +506,7 @@ const Onboarding = () => {
               <StepHeading step={2} title={t('onboardingGroupsTitle')} hint={t('onboardingGroupsHint')} />
               <div className="flex flex-col items-center">
                 {groups.length > 0 ? (
-                  <ul className="w-full overflow-hidden rounded-md border border-border bg-surface">
+                  <ul className="w-full overflow-hidden rounded-2xl border border-border bg-surface">
                     {groups.map((g, index) => {
                       const dragging = dnd.isDragging(g.id);
                       return (
@@ -567,7 +567,7 @@ const Onboarding = () => {
                     })}
                   </ul>
                 ) : (
-                  <div className="flex w-full flex-col items-center rounded-md border border-dashed border-border bg-surface px-6 py-12 text-center">
+                  <div className="flex w-full flex-col items-center rounded-2xl border border-dashed border-border bg-surface px-6 py-12 text-center">
                     <Tags size={24} className="mb-3 text-text-tertiary" />
                     <p className="text-sm text-text-secondary">{t('onboardingNoGroups')}</p>
                   </div>

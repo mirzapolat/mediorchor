@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, FileMusic, FolderOpen, Mic, Music, Settings2 } from 'lucide-react';
+import { ArrowLeft, FileMusic, FolderOpen, Mic, Music, Settings2, Users } from 'lucide-react';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
@@ -47,6 +47,10 @@ const PieceHeader = ({ piece, onBack }: { piece: Piece; onBack: () => void }) =>
         <div className="border-b border-border px-5 py-4">
           <FadingText className="block font-semibold">{piece.name}</FadingText>
           {piece.composer && <p className="mt-0.5 truncate text-sm text-text-secondary">{piece.composer}</p>}
+          {/* The short description, as on the pieces list. */}
+          {piece.description.trim() && (
+            <p className="mt-1.5 line-clamp-3 text-xs text-text-tertiary">{piece.description.trim()}</p>
+          )}
         </div>
       )}
     </>
@@ -95,9 +99,10 @@ export const PieceLayout = () => {
 
         <div className="flex-1 space-y-1 overflow-y-auto p-3">
           <SidebarNavItem to={base} end label={t('pieceSheetPage')} icon={FileMusic} />
-          {/* Participants see training once it's set up; editors also before. */}
-          {(canTrain || scope.canEdit) && <SidebarNavItem to={`${base}/training`} label={t('trainTitle')} icon={Mic} />}
+          {/* Only once a MusicXML is on the trainer node (configuration). */}
+          {canTrain && <SidebarNavItem to={`${base}/training`} label={t('trainTitle')} icon={Mic} />}
           <SidebarNavItem to={`${base}/files`} label={t('files')} icon={FolderOpen} />
+          <SidebarNavItem to={`${base}/credits`} label={t('credits')} icon={Users} />
           {scope.canEdit && <SidebarNavItem to={`${base}/setup`} label={t('pieceConfigTitle')} icon={Settings2} />}
         </div>
 

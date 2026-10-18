@@ -29,7 +29,8 @@ export const usePieceUploads = (
   const { t } = useI18n();
   const [uploads, setUploads] = useState<UploadItem[]>([]);
 
-  const addFiles = async (picked: File[]) => {
+  // `into`: the folder to upload into (a drop onto a folder), else `folderId`.
+  const addFiles = async (picked: File[], into: string | null = folderId) => {
     let position = nextPosition();
     for (const file of picked) {
       // Only uploads in progress or failed are listed; a finished one joins
@@ -52,7 +53,7 @@ export const usePieceUploads = (
           title: file.name.replace(/\.[^.]+$/, ''),
           file_path: result.path,
           file_name: file.name,
-          folder_id: folderId,
+          folder_id: into,
           position: position++,
         })
         .select('*')

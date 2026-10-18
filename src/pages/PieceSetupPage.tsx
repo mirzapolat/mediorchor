@@ -12,14 +12,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { FileName, MultiDropzone, usePieceUploads } from '@/components/PieceFileParts';
+import { FileName } from '@/components/PieceFileParts';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
-import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Switch } from '@/components/Switch';
 import { FileWiring, parseVoiceTarget, type WireTarget } from '@/components/FileWiring';
 import { BarSyncEditor, FermataIcon, type SyncVoice } from '@/components/BarSyncEditor';
 import { useI18n } from '@/lib/i18n';
@@ -27,7 +25,6 @@ import { api } from '@/lib/api';
 import {
   deletePiece,
   deletePieceFile,
-  loadPieceCredits,
   loadPieceFiles,
   loadPieceInScope,
   loadPieceTracks,
@@ -52,7 +49,7 @@ import { usePieceScope } from '@/layouts/pieceScope';
 import { NoAccess } from '@/components/NoAccess';
 import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
-import type { BarSyncPoint, Piece, PieceCredit, PieceFile, PieceTimeline, PieceTrack } from '@/types';
+import type { BarSyncPoint, Piece, PieceFile, PieceTimeline, PieceTrack } from '@/types';
 
 
 const Section = ({
@@ -123,11 +120,7 @@ export const PieceSetupPage = () => {
   const [piece, setPiece] = useState<Piece | null>(null);
   const [files, setFiles] = useState<PieceFile[]>([]);
   const [tracks, setTracks] = useState<PieceTrack[]>([]);
-  const [credits, setCredits] = useState<PieceCredit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [linkTitle, setLinkTitle] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
-  const [linkError, setLinkError] = useState<string | null>(null);
   const [barCount, setBarCount] = useState('');
   const [timingBusy, setTimingBusy] = useState(false);
   const [timingError, setTimingError] = useState<string | null>(null);
@@ -147,14 +140,12 @@ export const PieceSetupPage = () => {
   const back = `${base}/${pieceId}`;
 
   const reloadParts = useCallback(async () => {
-    const [pieceFiles, pieceTracks, pieceCredits] = await Promise.all([
+    const [pieceFiles, pieceTracks] = await Promise.all([
       loadPieceFiles(pieceId ?? ''),
       loadPieceTracks(pieceId ?? ''),
-      loadPieceCredits(pieceId ?? ''),
     ]);
     setFiles(pieceFiles);
     setTracks(pieceTracks);
-    setCredits(pieceCredits);
   }, [pieceId]);
 
   const load = useCallback(async () => {
@@ -172,12 +163,6 @@ export const PieceSetupPage = () => {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const { addFiles, uploadList } = usePieceUploads(
-    pieceId ?? '',
-    () => files.length,
-    (row) => setFiles((list) => [...list, row]),
-  );
 
   // What the trainer finds in its connected MusicXML: the voices to sing,
   // or why it can't be practised.
@@ -258,12 +243,6 @@ export const PieceSetupPage = () => {
     await api.from('piece_tracks').update(patch).eq('id', track.id);
   };
 
-  const updateCredit = async (credit: PieceCredit, patch: Partial<PieceCredit>) => {
-    setCredits((cs) => cs.map((c) => (c.id === credit.id ? { ...c, ...patch } : c)));
-    await api.from('piece_credits').update(patch).eq('id', credit.id);
-    // A linked account brings its photo (set by the database).
-    if ('user_id' in patch) setCredits(await loadPieceCredits(piece.id));
-  };
 
   // New bars for the piece; its length follows them. `reset` drops the
   // fitting to the recordings (see reread); otherwise sync points whose bars
@@ -372,33 +351,6 @@ export const PieceSetupPage = () => {
     else void action();
   };
 
-  const addLink = async () => {
-    const raw = linkUrl.trim();
-    const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
-    let url: string | null = null;
-    try {
-      const parsed = new URL(withScheme);
-      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') url = parsed.toString();
-    } catch {
-      url = null;
-    }
-    if (!url) {
-      setLinkError(t('invalidUrl'));
-      return;
-    }
-    setLinkError(null);
-    await api.from('piece_files').insert({
-      piece_id: piece.id,
-      kind: 'link',
-      title: linkTitle.trim() || url,
-      url,
-      position: files.filter((f) => f.kind === 'link').length,
-    });
-    setLinkTitle('');
-    setLinkUrl('');
-    setFiles(await loadPieceFiles(piece.id));
-  };
-
   // Voices and the piece lose a deleted file by themselves (database).
   const removeFile = async () => {
     if (!toDelete) return;
@@ -476,19 +428,6 @@ export const PieceSetupPage = () => {
     }
   };
 
-  const addCredit = async () => {
-    const { data } = await api
-      .from('piece_credits')
-      .insert({ piece_id: piece.id, name: '', position: credits.length })
-      .select('*')
-      .single();
-    if (data) setCredits((cs) => [...cs, data as PieceCredit]);
-  };
-
-  const removeCredit = async (credit: PieceCredit) => {
-    setCredits((cs) => cs.filter((c) => c.id !== credit.id));
-    await api.from('piece_credits').delete().eq('id', credit.id);
-  };
 
   const timeline = piece.timeline;
   const score = scoreFiles.find((f) => f.id === piece.score_file_id) ?? null;
@@ -568,7 +507,6 @@ export const PieceSetupPage = () => {
     });
   };
   const uploadedFiles = files.filter((f) => f.kind !== 'link');
-  const links = files.filter((f) => f.kind === 'link');
   const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
   return (
     // The piece's "Konfiguration" page: wide screens get the room for the wires.
@@ -634,32 +572,6 @@ export const PieceSetupPage = () => {
                 }
               />
             </div>
-            <div className="min-w-0 space-y-2">
-              <div className="text-sm font-medium" title={t('creditsHint')}>
-                {t('credits')}
-              </div>
-              {credits.length > 0 && (
-                <ul className="space-y-2">
-                  {credits.map((c) => (
-                    <li key={c.id}>
-                      <CreditRow
-                        credit={c}
-                        onChange={(patch) => void updateCredit(c, patch)}
-                        onRemove={() => void removeCredit(c)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button
-                type="button"
-                onClick={() => void addCredit()}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text"
-              >
-                <Plus size={15} />
-                {t('addCredit')}
-              </button>
-            </div>
           </div>
         </Section>
 
@@ -697,38 +609,26 @@ export const PieceSetupPage = () => {
             onReorderFiles={reorderFiles}
             onReorderTracks={reorderVoices}
             onConnect={connect}
+            // Files are uploaded on the "Dateien" page only; here they are
+            // wired.
             filesTop={
-              <>
-                <MultiDropzone onFiles={(picked) => void addFiles(picked)} />
-                {uploadList}
-              </>
+              <p className="text-sm text-text-secondary">
+                {t('uploadOnFilesPage')}{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate(`${back}/files`)}
+                  className="font-medium text-text underline underline-offset-2 hover:no-underline"
+                >
+                  {t('files')}
+                </button>
+              </p>
             }
+            // What members may download is set on the "Dateien" page (per
+            // folder), not here.
             renderFile={(f) => {
-              // A recording a voice uses, and the score PDF, are switched on
-              // their node (right).
-              const managed =
-                f.id === piece.score_file_id ||
-                tracks.some((track) => TRACK_RECORDING_FIELDS.some((field) => track[field] === f.id));
               return (
                 <div className="flex items-center gap-1.5 py-2.5">
-                  <FileName
-                    file={f}
-                    onRename={(patch) => void updateFile(f, patch)}
-                    beforeEnding={
-                      managed ? (
-                        // Keeps the endings in line with the rows that have a switch.
-                        <span className="w-[3.25rem] flex-shrink-0" />
-                      ) : (
-                        <Switch
-                          checked={f.downloadable}
-                          onChange={(downloadable) => void updateFile(f, { downloadable })}
-                          label={t('downloadSwitch')}
-                          title={t('downloadSwitchHint')}
-                          icon={Download}
-                        />
-                      )
-                    }
-                  />
+                  <FileName file={f} onRename={(patch) => void updateFile(f, patch)} />
                   {f.file_path && (
                     <a
                       href={pieceFileDownloadUrl(f.file_path, f.file_name ?? fileLabel(f))}
@@ -760,13 +660,6 @@ export const PieceSetupPage = () => {
                   onBlur={(e) => e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })}
                   className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-semibold hover:border-border focus:border-black focus:outline-none sm:text-sm"
                 />
-                <Switch
-                  checked={track.downloadable}
-                  onChange={(downloadable) => void updateTrack(track, { downloadable })}
-                  label={t('downloadSwitch')}
-                  title={t('downloadVoiceHint')}
-                  icon={Download}
-                />
                 <button
                   type="button"
                   onClick={() => void removeVoice(track)}
@@ -778,17 +671,6 @@ export const PieceSetupPage = () => {
                 </button>
               </div>
             )}
-            scoreHeader={
-              score && (
-                <Switch
-                  checked={score.downloadable}
-                  onChange={(downloadable) => void updateFile(score, { downloadable })}
-                  label={t('downloadSwitch')}
-                  title={t('downloadSwitchHint')}
-                  icon={Download}
-                />
-              )
-            }
             voicesBottom={
               <Button variant="secondary" onClick={() => void addVoice()}>
                 <Plus size={15} />
@@ -949,59 +831,6 @@ export const PieceSetupPage = () => {
                 )}
               </>
             }
-            filesBottom={
-              <div className="space-y-2 pt-3">
-                <h3 className="text-sm font-semibold">{t('fileKindLink')}</h3>
-                {links.length > 0 && (
-                  <ul className="divide-y divide-border rounded-md border border-border">
-                    {links.map((f) => (
-                      <li key={f.id} className="flex items-center gap-2 px-2 py-1.5">
-                        <div className="min-w-0 flex-1">
-                          <input
-                            defaultValue={f.title}
-                            aria-label={t('displayName')}
-                            onBlur={(e) => e.target.value.trim() !== f.title && void updateFile(f, { title: e.target.value.trim() })}
-                            className="h-8 w-full rounded-md border border-transparent bg-transparent px-1.5 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
-                          />
-                          <p className="truncate px-1.5 text-xs text-text-tertiary">{f.url}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setToDelete(f)}
-                          aria-label={t('delete')}
-                          title={t('delete')}
-                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]">
-                  <input
-                    value={linkTitle}
-                    onChange={(e) => setLinkTitle(e.target.value)}
-                    placeholder={t('displayName')}
-                    aria-label={t('displayName')}
-                    className="h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-                  />
-                  <input
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    placeholder="https://"
-                    aria-label={t('linkUrl')}
-                    inputMode="url"
-                    className="h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-                  />
-                  <Button variant="secondary" onClick={() => void addLink()} disabled={!linkUrl.trim()} className="h-10">
-                    <Plus size={15} />
-                    {t('add')}
-                  </Button>
-                </div>
-                {linkError && <p className="text-sm text-danger">{linkError}</p>}
-              </div>
-            }
           />
         </Section>
 
@@ -1132,122 +961,3 @@ const Chip = ({ children }: { children: ReactNode }) => (
     {children}
   </span>
 );
-
-interface AccountResult {
-  id: string;
-  name: string;
-  email: string;
-  photo_url: string | null;
-}
-
-// One credited person: any name, or an existing account picked from the
-// search below the field (its profile photo is then shown), plus what they
-// did ("made the MIDIs" when left empty).
-const CreditRow = ({
-  credit,
-  onChange,
-  onRemove,
-}: {
-  credit: PieceCredit;
-  onChange: (patch: Partial<PieceCredit>) => void;
-  onRemove: () => void;
-}) => {
-  const { t } = useI18n();
-  const [value, setValue] = useState(credit.name);
-  const [linked, setLinked] = useState(credit.user_id);
-  const [results, setResults] = useState<AccountResult[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  // Suggest accounts while typing a name (not for the linked one as is).
-  useEffect(() => {
-    const query = value.trim();
-    if (!searching || !query) {
-      setResults([]);
-      return;
-    }
-    const timer = window.setTimeout(async () => {
-      const { data } = await api.rpc('search_accounts', { p_query: query });
-      setResults((data as AccountResult[] | null) ?? []);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [value, searching]);
-
-  const pick = (account: AccountResult) => {
-    const accountName = account.name || account.email;
-    setValue(accountName);
-    setLinked(account.id);
-    setSearching(false);
-    onChange({ name: accountName, user_id: account.id });
-  };
-
-  // Typed by hand: a plain name, no longer tied to an account.
-  const commit = () => {
-    setSearching(false);
-    const trimmed = value.trim();
-    if (linked) return; // unchanged pick
-    if (trimmed === credit.name && credit.user_id === null) return;
-    onChange({ name: trimmed, user_id: null });
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <span title={linked ? t('midiCreditLinked') : undefined} className="flex-shrink-0">
-          <Avatar name={value || '?'} photoUrl={linked ? credit.photo_url : null} size={32} />
-        </span>
-        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
-          <input
-            value={value}
-            aria-label={t('midiCreditName')}
-            placeholder={t('midiCreditPlaceholder')}
-            onChange={(e) => {
-              setValue(e.target.value);
-              setLinked(null);
-              setSearching(true);
-            }}
-            onBlur={commit}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            className="h-9 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-          />
-          <input
-            defaultValue={credit.role}
-            aria-label={t('creditRole')}
-            placeholder={t('midiCreditRole')}
-            onBlur={(e) => e.target.value.trim() !== credit.role && onChange({ role: e.target.value.trim() })}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            className="h-9 min-w-0 rounded-md border border-border bg-surface px-3 text-base focus:border-black focus:outline-none sm:text-sm"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={t('remove')}
-          title={t('remove')}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-        >
-          <X size={15} />
-        </button>
-      </div>
-      {results.length > 0 && (
-        <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-md border border-border p-1">
-          {results.map((account) => (
-            <button
-              key={account.id}
-              type="button"
-              // Keep the field focused so its blur doesn't save the typed text first.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(account)}
-              className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors duration-150 hover:bg-surface-muted"
-            >
-              <Avatar name={account.name || account.email} photoUrl={account.photo_url} size={24} />
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{account.name || account.email}</span>
-                <span className="block truncate text-xs text-text-secondary">{account.email}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};

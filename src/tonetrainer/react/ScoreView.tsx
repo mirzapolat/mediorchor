@@ -17,7 +17,8 @@ export interface ScoreHandle {
 }
 
 interface Props {
-  ref: Ref<ScoreHandle>
+  /** The handle (not `ref`: React 18 keeps `ref` from function components). */
+  handle: Ref<ScoreHandle>
   xml: string
   ownPartIndex: number
   showAllParts: boolean
@@ -32,12 +33,18 @@ interface Props {
 
 const key = (pi: number, voice: string, mi: number, off: number) => `${pi}:${voice}:${mi}:${off.toFixed(3)}`
 
+/** OSMD takes note and stem colours as #rrggbb; the theme gives rgb(…). */
+function hex(color: string) {
+  const m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(color)
+  return m ? `#${[m[1], m[2], m[3]].map((v) => Number(v).toString(16).padStart(2, '0')).join('')}` : color
+}
+
 /**
  * The engraved score (OpenSheetMusicDisplay) with a cursor that follows playback and graded notes
  * coloured in place. OSMD's iterator follows repeats and voltas, so one walk over the score yields
  * both the play order (for the Timeline) and the mapping time → cursor position / note → SVG.
  */
-export default function ScoreView({ ref, xml, ownPartIndex, showAllParts, zoom, colors, onZoom, onShowAllParts, onLayout, onMeasureClick }: Props) {
+export default function ScoreView({ handle, xml, ownPartIndex, showAllParts, zoom, colors, onZoom, onShowAllParts, onLayout, onMeasureClick }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null)
@@ -124,7 +131,30 @@ export default function ScoreView({ ref, xml, ownPartIndex, showAllParts, zoom, 
     requestAnimationFrame(() =>
       setTimeout(() => {
         try {
-          osmd.Sheet.Instruments.forEach((inst, i) => (inst.Visible = propsRef.current.showAllParts || i === propsRef.current.ownPartIndex))
+          const { showAllParts: all, ownPartIndex: own, colors: c } = propsRef.current
+          osmd.Sheet.Instruments.forEach((inst, i) => (inst.Visible = all || i === own))
+          // Whole notes in their voice's colour — heads, stems, flags and
+          // beams: the own voice in ink, the others pale.
+          const rules = osmd.EngravingRules
+          rules.ColoringEnabled = true
+          rules.ColorStemsLikeNoteheads = true
+          rules.ColorFlags = true
+          rules.ColorBeams = true
+          const ink = hex(c.scoreInk)
+          const other = hex(c.scoreOther)
+          for (const measure of osmd.Sheet.SourceMeasures) {
+            for (const container of measure.VerticalSourceStaffEntryContainers) {
+              for (const entry of container.StaffEntries) {
+                if (!entry) continue
+                const pi = osmd.Sheet.Instruments.indexOf(entry.ParentStaff.ParentInstrument)
+                const color = pi === own || !all ? ink : other
+                for (const ve of entry.VoiceEntries) {
+                  ve.StemColor = color
+                  for (const n of ve.Notes) n.NoteheadColor = color
+                }
+              }
+            }
+          }
           osmd.render()
           layout()
         } catch (e) {
@@ -151,8 +181,8 @@ export default function ScoreView({ ref, xml, ownPartIndex, showAllParts, zoom, 
       drawMeasureNumbers: true,
       drawingParameters: 'compacttight',
       followCursor: false,
-      defaultColorMusic: c.scoreInk,
-      cursorsOptions: [{ type: 0, color: c.scoreCursor, alpha: 0.38, follow: false }],
+      defaultColorMusic: hex(c.scoreInk),
+      cursorsOptions: [{ type: 0, color: hex(c.scoreCursor), alpha: 0.38, follow: false }],
     })
     osmdRef.current = osmd
     osmd
@@ -197,7 +227,7 @@ export default function ScoreView({ ref, xml, ownPartIndex, showAllParts, zoom, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded])
 
-  useImperativeHandle(ref, () => ({
+  useImperativeHandle(handle, () => ({
     setPosition(visit, offsetQ) {
       const steps = visitsRef.current[visit]
       const osmd = osmdRef.current
