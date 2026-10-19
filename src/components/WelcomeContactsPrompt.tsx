@@ -18,15 +18,17 @@ const QUICK_KINDS: ContactKind[] = ['whatsapp', 'signal', 'phone', 'email', 'tel
 
 // Offers every account, once, to add contact details — right after the
 // profile photo prompt (so new accounts see both in a row, and accounts made
-// before contact details existed see this one on their next visit).
-export const WelcomeContactsPrompt = () => {
+// before contact details existed see this one on their next visit), and
+// after a check-in with the account (`afterCheckIn`: without waiting for the
+// photo prompt, which those who only check in may never see).
+export const WelcomeContactsPrompt = ({ afterCheckIn = false }: { afterCheckIn?: boolean }) => {
   const { t } = useI18n();
   const { user, refreshUser } = useAuth();
   const [dismissed, setDismissed] = useState(false);
   const [contacts, setContacts] = useState<AccountContact[]>([]);
   const [dialogKind, setDialogKind] = useState<ContactKind | null>(null);
 
-  const waiting = Boolean(user && user.photo_prompted_at && !user.contacts_prompted_at && !dismissed);
+  const waiting = Boolean(user && (afterCheckIn || user.photo_prompted_at) && !user.contacts_prompted_at && !dismissed);
   const userId = user?.id;
   useEffect(() => {
     if (waiting && userId) void loadContacts(userId).then(setContacts);
@@ -36,7 +38,7 @@ export const WelcomeContactsPrompt = () => {
 
   const done = async (added: boolean) => {
     setDismissed(true);
-    track('contacts-prompt', { added });
+    track('contacts-prompt', { added, from: afterCheckIn ? 'check-in' : 'app' });
     await api.from('app_users').update({ contacts_prompted_at: new Date().toISOString() }).eq('id', user.id);
     await refreshUser();
   };

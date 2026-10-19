@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, LockKeyhole, LogIn, UserRound } from 'lucide-react';
+import { ArrowRight, CheckCircle2, LockKeyhole, LogIn, UserRound } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Button, buttonClasses } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { LegalFooter } from '@/components/LegalLinks';
 import { AppLogo } from '@/components/AppLogo';
+import { WelcomeContactsPrompt } from '@/components/WelcomeContactsPrompt';
 
 type PublicCheckinInfo =
   | { state: 'invalid' }
@@ -24,6 +25,7 @@ type PublicCheckinInfo =
       allow_account_checkin: boolean;
       group_required: boolean;
       logged_in: boolean;
+      project_id: string | null;
       me: {
         first_name: string;
         last_name: string;
@@ -135,6 +137,21 @@ export const PublicCheckinPage = () => {
                 <div className="py-7 text-center" role="status">
                   <CheckCircle2 size={42} className="mx-auto text-success" />
                   <h2 className="mt-4 text-lg font-semibold">{t('checkInSuccess')}</h2>
+                  {/* Checked in with an account: asked once for contact
+                      details, if not yet (people who only check in may never
+                      open the app). */}
+                  {accountMode && <WelcomeContactsPrompt afterCheckIn />}
+                  {/* With an account: on to the project, if wanted. */}
+                  {accountMode && active.project_id && (
+                    <Link
+                      to={`/projects/${active.project_id}`}
+                      onClick={() => track('check-in-to-project')}
+                      className={buttonClasses('secondary', 'mt-6')}
+                    >
+                      {t('checkInToProject')}
+                      <ArrowRight size={16} />
+                    </Link>
+                  )}
                 </div>
               ) : accountMode && active.me ? (
                 // Known member linked to this account: one-tap check-in.

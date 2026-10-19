@@ -20,6 +20,7 @@ import { email2faAvailable, usersWithSecondFactor } from './mfa.ts';
 import { branding } from './branding.ts';
 import { loadCalendarByToken } from './calendarFeed.ts';
 import { pieceFileFunctions } from './pieceFiles.ts';
+import { trainingReportFunctions } from './trainingReport.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -239,6 +240,8 @@ const get_public_checkin = (args: Args) => {
     // Joining by account check-in needs a group only when the project says so.
     group_required: signupGroupRequired(text(checkin.project_id)),
     logged_in: uid !== null,
+    // For a signed-in person: where to go on after checking in.
+    project_id: uid !== null ? checkin.project_id : null,
     me,
   };
 };
@@ -1111,6 +1114,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   create_piece,
   piece_catalog,
   ...pieceFileFunctions,
+  ...trainingReportFunctions,
 };
 
 // Public functions are rate limited by the HTTP layer.
@@ -1119,6 +1123,7 @@ export const PUBLIC_WRITE_FUNCTIONS = new Set(['submit_public_checkin', 'submit_
 // Functions that only read; a failed call to one is no failed action
 // (see audit.ts).
 export const READ_ONLY_FUNCTIONS = new Set([
+  'piece_training_report',
   'get_public_config',
   'get_legal_pages',
   'get_public_checkin',

@@ -60,6 +60,7 @@ import { PieceTrainingOverviewPage } from '@/pages/PieceTrainingOverviewPage';
 import { PieceFilesPage } from '@/pages/PieceFilesPage';
 import { PieceDetailsPage } from '@/pages/PieceDetailsPage';
 import { PieceSettingsPage } from '@/pages/PieceSettingsPage';
+import { PieceReportPage } from '@/pages/PieceReportPage';
 import { PieceLayout } from '@/layouts/PieceLayout';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
 import { RegistrationPageSettings } from '@/pages/RegistrationPageSettings';
@@ -153,6 +154,7 @@ export const App = () => {
                 <Route path="credits" element={<Navigate to="../details" relative="path" replace />} />
                 <Route path="setup" element={<PieceSetupPage />} />
                 <Route path="settings" element={<PieceSettingsPage />} />
+                <Route path="report" element={<PieceReportPage />} />
               </Route>
             </Route>
           </Route>
@@ -208,6 +210,7 @@ export const App = () => {
               <Route path="credits" element={<Navigate to="../details" relative="path" replace />} />
               <Route path="setup" element={<PieceSetupPage />} />
               <Route path="settings" element={<PieceSettingsPage />} />
+              <Route path="report" element={<PieceReportPage />} />
             </Route>
           </Route>
           <Route element={<RequireProjectManage />}>

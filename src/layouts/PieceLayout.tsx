@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, FileMusic, FolderOpen, Info, Mic, Music, Settings, Workflow } from 'lucide-react';
+import { ArrowLeft, BarChart3, FileMusic, FolderOpen, Info, Mic, Music, Settings, Workflow } from 'lucide-react';
 import { Sidebar, useSidebar } from '@/components/Sidebar';
 import { SidebarNavItem } from '@/components/SidebarNav';
 import { SidebarFooter } from '@/components/SidebarFooter';
@@ -103,6 +103,10 @@ export const PieceLayout = () => {
           {canTrain && <SidebarNavItem to={`${base}/training`} label={t('trainTitle')} icon={Mic} />}
           <SidebarNavItem to={`${base}/files`} label={t('files')} icon={FolderOpen} />
           <SidebarNavItem to={`${base}/details`} label={t('pieceDetailsPage')} icon={Info} />
+          {/* The project's training report: its managers only. */}
+          {scope.projectId && scope.canManageProject && (
+            <SidebarNavItem to={`${base}/report`} label={t('reportTitle')} icon={BarChart3} />
+          )}
           {scope.canEdit && <SidebarNavItem to={`${base}/setup`} label={t('pieceConfigTitle')} icon={Workflow} />}
           {(scope.canEdit || scope.canDelete || (scope.projectId && scope.canManageProject)) && (
             <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
