@@ -210,7 +210,7 @@ const fi: Messages = {
   roleManagerHint:
     'Kaikki paitsi ylläpidon asetukset: projektien luonti, muokkaus ja poisto, kappalekokoelma ja kalenterit.',
   roleMusicDirector: 'Musiikillinen johto',
-  roleMusicDirectorHint: 'Näkee ja muokkaa kaikkia projekteja ja kappaleita kuten hallinto, mutta ei osallistu projekteihin (ei osallistumista, ei läsnäoloa) eikä voi poistaa projekteja.',
+  roleMusicDirectorHint: 'Näkee ja muokkaa kaikkia projekteja ja kappaleita kuten hallinto, mutta ei osallistu projekteihin (ei osallistumista, ei läsnäoloa) eikä hänellä ole koontinäkymää eikä projektiasetuksia.',
   roleAdmin: 'Ylläpitäjä',
   roleAdminHint: 'Täydet oikeudet kaikkeen, myös käyttäjiin ja sovelluksen asetuksiin.',
   deactivateUser: 'Poista tili käytöstä',
@@ -778,6 +778,7 @@ const fi: Messages = {
   copyEmailList: 'Kopioi sähköpostiosoitteet',
   emailListCopied: '{n} sähköpostiosoitetta kopioitu.',
   membersWithoutEmail: '{n} ilman sähköpostiosoitetta.',
+  exportMenu: 'Vie',
   exportError: 'Vienti epäonnistui.',
   configureCheckIn: 'Määritä kuittaus',
   checkInResult: 'Tila kuittauksen jälkeen',

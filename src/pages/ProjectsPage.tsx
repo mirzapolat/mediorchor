@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Minus, Pencil, Trash2, Users } from 'lucide-react';
 import { DeleteProjectDialog } from '@/components/DeleteProjectDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, type Column } from '@/components/DataTable';
+import { DataTable, MobileMeta, renderCell, type Column } from '@/components/DataTable';
 import { RowActionButton } from '@/components/RowActionButton';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
 import { HeaderAction } from '@/components/HeaderAction';
@@ -16,7 +16,7 @@ import type { Project } from '@/types';
 
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { canAccessAllProjects, canManageProjects, canDeleteProjects, user } = useAuth();
+  const { canAccessAllProjects, canManageProjects, canParticipate, user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   // Projects I take part in myself: an active member row linked to my account.
@@ -73,22 +73,27 @@ export const ProjectsPage = () => {
       header: t('projectLabel'),
       accessor: (p) => p.name,
       // Name and description in one column: the description is the name's
-      // secondary line (one line, clipped).
+      // secondary line (one line, cut).
       render: (p) => (
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Avatar name={p.name} photoUrl={p.image_url} size={p.description ? 36 : 28} square />
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={p.name} photoUrl={p.image_url} size={36} square />
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{p.name}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate font-medium" title={p.name}>
+                {p.name}
+              </span>
               {p.status === 'archived' && (
-                <span className="text-xs text-text-tertiary border border-border rounded-md px-1.5 py-0.5">
+                <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-tertiary">
+                  <Archive size={12} />
                   {t('archived')}
                 </span>
               )}
             </div>
-            {p.description ? (
-              <p className="line-clamp-1 text-sm text-text-secondary">{p.description}</p>
-            ) : null}
+            {p.description && (
+              <p className="mt-0.5 truncate text-xs text-text-secondary" title={p.description}>
+                {p.description}
+              </p>
+            )}
           </div>
         </div>
       ),
@@ -99,34 +104,39 @@ export const ProjectsPage = () => {
             id: 'activeMembers',
             header: t('activeMembers'),
             accessor: (p: Project) => activeCounts.get(p.id) ?? null,
-            className: 'w-px whitespace-nowrap text-center',
+            className: 'w-40 whitespace-nowrap',
+            render: (p: Project) => (
+              <span className="inline-flex items-center gap-1.5 tabular-nums text-text-secondary">
+                <Users size={14} />
+                {activeCounts.get(p.id) ?? 0}
+              </span>
+            ),
+          } satisfies Column<Project>,
+        ]
+      : []),
+    // The music director takes part in no project: no such column.
+    ...(canParticipate
+      ? [
+          {
+            id: 'participating',
+            header: t('myParticipation'),
+            accessor: (p: Project) => (participating.has(p.id) ? 1 : 0),
+            className: 'w-44 whitespace-nowrap',
             render: (p: Project) =>
-              activeCounts.has(p.id) ? (
-                <span className="inline-flex items-center gap-1.5 tabular-nums text-text-secondary">
-                  <Users size={14} />
-                  {activeCounts.get(p.id)}
+              participating.has(p.id) ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success-strong">
+                  <Check size={13} />
+                  {t('participatingYes')}
                 </span>
               ) : (
-                <span className="text-text-tertiary">—</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-tertiary">
+                  <Minus size={13} />
+                  {t('participatingNo')}
+                </span>
               ),
           } satisfies Column<Project>,
         ]
       : []),
-    {
-      id: 'participating',
-      header: t('myParticipation'),
-      accessor: (p) => (participating.has(p.id) ? 1 : 0),
-      className: 'w-px whitespace-nowrap',
-      render: (p) =>
-        participating.has(p.id) ? (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success-strong">
-            <Check size={15} />
-            {t('participatingYes')}
-          </span>
-        ) : (
-          <span className="text-text-tertiary">—</span>
-        ),
-    },
   ];
 
   const filters = tf.bind<Project>([
@@ -139,15 +149,19 @@ export const ProjectsPage = () => {
       ],
       predicate: (p, v) => p.status === v,
     },
-    {
-      id: 'participating',
-      label: t('myParticipation'),
-      options: [
-        { value: 'yes', label: t('participatingYes') },
-        { value: 'no', label: t('participatingNo') },
-      ],
-      predicate: (p, v) => participating.has(p.id) === (v === 'yes'),
-    },
+    ...(canParticipate
+      ? [
+          {
+            id: 'participating',
+            label: t('myParticipation'),
+            options: [
+              { value: 'yes', label: t('participatingYes') },
+              { value: 'no', label: t('participatingNo') },
+            ],
+            predicate: (p: Project, v: string) => participating.has(p.id) === (v === 'yes'),
+          },
+        ]
+      : []),
   ]);
 
   return (
@@ -174,7 +188,20 @@ export const ProjectsPage = () => {
         filters={filters}
         query={tf.query}
         hideToolbar
+        variant="modern"
         emptyMessage={t('noProjects')}
+        // Phones: the name (with picture and description), then the figures.
+        mobileCard={(p) => (
+          <>
+            <div className="text-base">{renderCell(columns, 'name', p)}</div>
+            {(activeCounts.size > 0 || canParticipate) && (
+              <MobileMeta className="pl-12">
+                {activeCounts.size > 0 && renderCell(columns, 'activeMembers', p)}
+                {canParticipate && renderCell(columns, 'participating', p)}
+              </MobileMeta>
+            )}
+          </>
+        )}
         emptyIcon={FolderKanban}
         // Settings, archiving and deletion need Verwaltung; Stimmeltern only
         // work with a project's content.
@@ -191,11 +218,9 @@ export const ProjectsPage = () => {
                   <RowActionButton label={t('archive')} onClick={() => toggleArchive(p)}>
                     {p.status === 'archived' ? <ArchiveRestore size={15} /> : <Archive size={15} />}
                   </RowActionButton>
-                  {canDeleteProjects && (
-                    <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
-                      <Trash2 size={15} />
-                    </RowActionButton>
-                  )}
+                  <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
+                    <Trash2 size={15} />
+                  </RowActionButton>
                 </>
               )
             : undefined

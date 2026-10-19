@@ -220,7 +220,7 @@ const de: Messages = {
   roleManagerHint:
     'Alles außer der Admin-Konfiguration: Projekte anlegen, bearbeiten und löschen, Stückesammlung und Kalender.',
   roleMusicDirector: 'Musikalische Leitung',
-  roleMusicDirectorHint: 'Sieht und bearbeitet alle Projekte und Stücke wie die Verwaltung, nimmt aber an keinem Projekt teil (keine Teilnahme, keine Anwesenheit) und kann keine Projekte löschen.',
+  roleMusicDirectorHint: 'Sieht und bearbeitet alle Projekte und Stücke wie die Verwaltung, nimmt aber an keinem Projekt teil (keine Teilnahme, keine Anwesenheit) und hat weder Dashboard noch Projekteinstellungen.',
   roleAdmin: 'Admin',
   roleAdminHint: 'Voller Zugriff auf alles, auch Benutzer und App-Einstellungen.',
   deactivateUser: 'Konto deaktivieren',
@@ -802,6 +802,7 @@ const de: Messages = {
   copyEmailList: 'E-Mail-Adressen kopieren',
   emailListCopied: '{n} E-Mail-Adressen wurden kopiert.',
   membersWithoutEmail: '{n} ohne E-Mail-Adresse.',
+  exportMenu: 'Exportieren',
   exportError: 'Der Export ist fehlgeschlagen.',
   configureCheckIn: 'Check-in konfigurieren',
   checkInResult: 'Status nach dem Check-in',

@@ -211,7 +211,7 @@ const en = {
   roleManagerHint:
     'Everything except the admin configuration: create, edit and delete projects, the piece collection and calendars.',
   roleMusicDirector: 'Music director',
-  roleMusicDirectorHint: 'Sees and edits every project and piece like management, but takes part in no project (no participation, no attendance) and cannot delete projects.',
+  roleMusicDirectorHint: 'Sees and edits every project and piece like management, but takes part in no project (no participation, no attendance) and has neither a dashboard nor project settings.',
   roleAdmin: 'Admin',
   roleAdminHint: 'Full access to everything, including users and app settings.',
   deactivateUser: 'Deactivate account',
@@ -779,6 +779,7 @@ const en = {
   copyEmailList: 'Copy email addresses',
   emailListCopied: '{n} email addresses copied.',
   membersWithoutEmail: '{n} without an email address.',
+  exportMenu: 'Export',
   exportError: 'Export failed.',
   configureCheckIn: 'Configure check-in',
   checkInResult: 'Status after check-in',

@@ -29,7 +29,7 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
 
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canEditCalendars, isAdmin, hasFullPieceAccess } = useAuth();
+  const { canEditCalendars, isAdmin, hasFullPieceAccess, hasDashboard } = useAuth();
   // Setting up a piece takes the whole screen, without the sidebar.
   // An open piece brings its own sidebar (PieceLayout), or none in the
   // full-screen trainer.
@@ -54,7 +54,7 @@ export const AppLayout = () => {
         <AppHeader withActions={isAdmin} />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <SidebarNavItem to="/dashboard" label={t('dashboard')} icon={LayoutDashboard} />
+          {hasDashboard && <SidebarNavItem to="/dashboard" label={t('dashboard')} icon={LayoutDashboard} />}
           <SidebarNavItem to="/projects" end label={t('projects')} icon={FolderKanban} />
           {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
           {canEditCalendars && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}

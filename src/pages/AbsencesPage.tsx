@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { useNavigate } from 'react-router-dom';
 import {
   Bookmark,
+  Download,
   CalendarX2,
   AtSign,
   ClipboardCopy,
@@ -20,7 +21,7 @@ import { Card } from '@/components/Card';
 import { DataTable, type Column, type FilterDef } from '@/components/DataTable';
 import { MobilePerson } from '@/components/MobilePerson';
 import { TableFilterMenu, useTableFilters } from '@/components/TableFilterMenu';
-import { HeaderAction } from '@/components/HeaderAction';
+import { OverflowMenu } from '@/components/OverflowMenu';
 import { Input, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { PageHeader } from '@/components/PageHeader';
@@ -286,15 +287,17 @@ export const AbsencesPage = () => {
         header: t('name'),
         accessor: (row) => `${row.member.last_name} ${row.member.first_name}`,
         render: (row) => (
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <Avatar
               name={`${row.member.first_name} ${row.member.last_name}`}
               photoUrl={row.member.photo_url}
               size={28}
             />
-            <span>{row.member.first_name} {row.member.last_name}</span>
+            <span className="min-w-0 truncate font-medium" title={`${row.member.first_name} ${row.member.last_name}`}>
+              {row.member.first_name} {row.member.last_name}
+            </span>
             {row.member.status === 'archived' ? (
-              <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-text-tertiary">
+              <span className="flex-shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-tertiary">
                 {t('archived')}
               </span>
             ) : null}
@@ -305,34 +308,50 @@ export const AbsencesPage = () => {
         id: 'group',
         header: t('group'),
         accessor: (row) => row.member.group_name,
-        render: (row) => <GroupPill name={row.member.group_name} />,
+        className: 'w-36',
+        render: (row) =>
+          row.member.group_name ? (
+            <span className="block min-w-0 truncate">
+              <GroupPill name={row.member.group_name} />
+            </span>
+          ) : (
+            <span className="text-text-tertiary">—</span>
+          ),
       },
       {
         id: 'email',
         header: t('email'),
         accessor: (row) => row.member.email,
-        render: (row) => <span className="text-text-secondary">{row.member.email ?? '—'}</span>,
+        className: 'w-60 max-xl:hidden',
+        render: (row) =>
+          row.member.email ? (
+            <span className="block truncate text-text-secondary" title={row.member.email}>
+              {row.member.email}
+            </span>
+          ) : (
+            <span className="text-text-tertiary">—</span>
+          ),
       },
       {
         id: 'attended',
         header: t('attended'),
         accessor: (row) => row.counts.attended,
         render: (row) => <span className="font-medium text-success-strong">{row.counts.attended}</span>,
-        className: 'w-px text-center whitespace-nowrap',
+        className: 'w-36 text-center whitespace-nowrap',
       },
       {
         id: 'excused',
         header: t('excused'),
         accessor: (row) => row.counts.excused,
         render: (row) => <span className="font-medium text-text-secondary">{row.counts.excused}</span>,
-        className: 'w-px text-center whitespace-nowrap',
+        className: 'w-36 text-center whitespace-nowrap',
       },
       {
         id: 'absent',
         header: t('notAttended'),
         accessor: (row) => row.counts.absent,
         render: (row) => <span className="font-medium text-text-secondary">{row.counts.absent}</span>,
-        className: 'w-px text-center whitespace-nowrap',
+        className: 'w-36 text-center whitespace-nowrap',
       },
       ...(hasAuditionRule
         ? [
@@ -350,7 +369,7 @@ export const AbsencesPage = () => {
                   onChange={() => void toggleAuditioned(row.member)}
                 />
               ),
-              className: 'w-px text-center whitespace-nowrap',
+              className: 'w-36 text-center whitespace-nowrap',
             } satisfies Column<ResultRow>,
           ]
         : []),
@@ -692,42 +711,33 @@ export const AbsencesPage = () => {
       )}
 
       {/* Search, filters and exports apply to the results table below. */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-semibold">{t('matchingMembers')}</h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            {visibleRows.length} {t('matchingMembers').toLowerCase()}
-          </p>
-        </div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+          {t('matchingMembers')} · {visibleRows.length}
+        </h2>
+        {/* The exports in one menu, so the row never runs out of room. */}
         <div className="flex flex-shrink-0 items-center gap-2">
           <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={boundFilters} />
-          <HeaderAction
-            icon={FileDown}
-            label={t('downloadCsv')}
-            variant="secondary"
-            disabled={visibleRows.length === 0}
-            onClick={downloadCsv}
-          />
-          <HeaderAction
-            icon={FileText}
-            label={exportingPdf ? t('loading') : t('downloadPdf')}
-            variant="secondary"
-            disabled={visibleRows.length === 0 || exportingPdf}
-            onClick={downloadPdf}
-          />
-          <HeaderAction
-            icon={ClipboardCopy}
-            label={t('copyNameList')}
-            variant="secondary"
-            disabled={visibleRows.length === 0}
-            onClick={copyNames}
-          />
-          <HeaderAction
-            icon={AtSign}
-            label={t('copyEmailList')}
-            variant="secondary"
-            disabled={emails.length === 0}
-            onClick={copyEmails}
+          <OverflowMenu
+            label={t('exportMenu')}
+            buttonIcon={Download}
+            items={[
+              { icon: FileDown, label: t('downloadCsv'), onSelect: downloadCsv, disabled: visibleRows.length === 0 },
+              {
+                icon: FileText,
+                label: exportingPdf ? t('loading') : t('downloadPdf'),
+                onSelect: () => void downloadPdf(),
+                disabled: visibleRows.length === 0 || exportingPdf,
+              },
+              {
+                icon: ClipboardCopy,
+                label: t('copyNameList'),
+                onSelect: () => void copyNames(),
+                disabled: visibleRows.length === 0,
+                separated: true,
+              },
+              { icon: AtSign, label: t('copyEmailList'), onSelect: () => void copyEmails(), disabled: emails.length === 0 },
+            ]}
           />
         </div>
       </div>
@@ -744,6 +754,7 @@ export const AbsencesPage = () => {
         filters={boundFilters}
         query={tf.query}
         hideToolbar
+        variant="modern"
         emptyMessage={t('noAbsenceResults')}
         emptyIcon={CalendarX2}
         onVisibleRowsChange={setVisibleRows}

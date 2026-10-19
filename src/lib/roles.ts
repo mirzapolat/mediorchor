@@ -5,8 +5,9 @@ import type { UserRole } from '@/types';
 //   participant  (Teilnehmer)  "Meine Teilnahme" and Stücke of their projects
 //   section_lead (Stimmeltern) the content of every project, no project settings
 //   manager      (Verwaltung)  everything except the admin configuration
-//   music_director (Musikalische Leitung) Verwaltung's access, but never a
-//                              project member and no deleting projects
+//   music_director (Musikalische Leitung) the content of every project and
+//                              every piece, but never a project member, no
+//                              project settings and no dashboard
 //   admin                      everything
 export const ROLES: readonly UserRole[] = ['participant', 'section_lead', 'manager', 'music_director', 'admin'];
 
@@ -20,13 +21,14 @@ export interface Permissions {
   canAccessAllProjects: boolean;
   // Creating projects, their settings, archiving and deleting them.
   canManageProjects: boolean;
+  // The personal dashboard (not the music director, who has no projects of
+  // their own).
+  hasDashboard: boolean;
   canEditCalendars: boolean;
   // Edits every piece and opens the collection page.
   hasFullPieceAccess: boolean;
   // Edits the pieces of the projects one manages.
   canEditProjectPieces: boolean;
-  // Deleting projects (not the music director).
-  canDeleteProjects: boolean;
   // Takes part in projects: "Meine Teilnahme", joining, attendance.
   canParticipate: boolean;
 }
@@ -34,11 +36,11 @@ export interface Permissions {
 export const permissionsFor = (role: UserRole | null | undefined): Permissions => ({
   isAdmin: hasRole(role, 'admin'),
   canAccessAllProjects: hasRole(role, 'section_lead'),
-  canManageProjects: hasRole(role, 'manager'),
+  canManageProjects: role === 'manager' || role === 'admin',
+  hasDashboard: role !== 'music_director',
   canEditCalendars: hasRole(role, 'manager'),
   hasFullPieceAccess: hasRole(role, 'manager'),
   canEditProjectPieces: hasRole(role, 'section_lead'),
-  canDeleteProjects: role === 'manager' || role === 'admin',
   canParticipate: role !== 'music_director',
 });
 

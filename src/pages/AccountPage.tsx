@@ -275,7 +275,7 @@ export const AccountDangerPage = () => {
 // Where signing in and opening the app lead.
 const StartPageCard = () => {
   const { t } = useI18n();
-  const { user, canEditCalendars, hasFullPieceAccess, refreshUser, soleProjectId } = useAuth();
+  const { user, canEditCalendars, hasFullPieceAccess, hasDashboard, refreshUser, soleProjectId } = useAuth();
   // A participant of a single project always starts in it.
   if (!user || soleProjectId) return null;
   const labels: Record<HomePage, string> = {
@@ -284,7 +284,7 @@ const StartPageCard = () => {
     pieces: t('pieces'),
     calendar: t('calendars'),
   };
-  const pages = availableHomePages({ hasFullPieceAccess, canEditCalendars });
+  const pages = availableHomePages({ hasDashboard, hasFullPieceAccess, canEditCalendars });
   return (
     <Card className="space-y-4">
       <div>
@@ -292,7 +292,7 @@ const StartPageCard = () => {
         <p className="text-sm text-text-secondary mt-1">{t('startPageHint')}</p>
       </div>
       <Select
-        value={pages.includes(user.home_page) ? user.home_page : 'dashboard'}
+        value={pages.includes(user.home_page) ? user.home_page : pages[0]}
         aria-label={t('startPage')}
         onChange={async (e) => {
           await api.from('app_users').update({ home_page: e.target.value }).eq('id', user.id);

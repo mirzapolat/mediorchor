@@ -72,7 +72,7 @@ import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
 
 export const App = () => {
-  const { session, user, loading, mfaSetupRequired, soleProjectId } = useAuth();
+  const { session, user, loading, mfaSetupRequired, soleProjectId, hasDashboard } = useAuth();
   const location = useLocation();
 
   useEffect(() => {
@@ -135,7 +135,7 @@ export const App = () => {
           <Route element={<AppLayout />}>
             <Route index element={<Navigate to={home} replace />} />
             <Route element={<PaddedPage />}>
-              <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="dashboard" element={hasDashboard ? <DashboardPage /> : <Navigate to="/projects" replace />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="calendar" element={<CalendarPage />} />
             </Route>
