@@ -6,6 +6,7 @@ import { NoAccess } from '@/components/NoAccess';
 import { useAuth } from '@/hooks/useAuth';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { useI18n } from '@/lib/i18n';
+import { track } from '@/lib/analytics';
 import { useTheme } from '@/lib/theme';
 import { loadPieceFiles, loadPieceInScope } from '@/lib/pieceFiles';
 import { createPracticeStorage } from '@/lib/practiceStorage';
@@ -98,6 +99,7 @@ export const PieceTrainingPage = () => {
         theme={theme}
         initialLoopMeasure={loopMeasure}
         allowedTrackIds={allowed}
+        onTrack={track}
         // Back leads to the progress (the piece's Training page), so no
         // extra button for it.
         onBack={() => navigate(overview)}

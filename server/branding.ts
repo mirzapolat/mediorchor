@@ -32,6 +32,8 @@ export const clientConfig = () => {
     VITE_ACCENT_COLOR: b.accentColor,
     LOGO_URL: b.logoUrl,
     LOGO_INVERT: b.logoInvert,
+    // Largest file the server accepts (checked before uploading).
+    MAX_UPLOAD_BYTES: env.maxUploadBytes,
   };
 };
 

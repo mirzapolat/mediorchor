@@ -536,42 +536,27 @@ export const PieceSetupPage = () => {
       {/* The piece and who worked on it; below, files wired to the score,
           the bars and the voices. */}
       <div className="grid gap-4 lg:grid-cols-2">
+        {/* Title and composer, side by side; the short description and the
+            piece's information are edited on its "Details" page. */}
         <Section title={t('details')} className="lg:col-span-2">
-          <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Input
-                  id="piece-name"
-                  label={t('pieceName')}
-                  defaultValue={piece.name}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v && v !== piece.name) void updatePiece({ name: v });
-                  }}
-                />
-                <Input
-                  id="piece-composer"
-                  label={t('composer')}
-                  defaultValue={piece.composer}
-                  onBlur={(e) =>
-                    e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })
-                  }
-                />
-              </div>
-              <Input
-                id="piece-description"
-                label={
-                  <>
-                    {t('shortDescription')} <span className="font-normal text-text-tertiary">({t('optional')})</span>
-                  </>
-                }
-                placeholder={t('shortDescriptionPlaceholder')}
-                defaultValue={piece.description}
-                onBlur={(e) =>
-                  e.target.value.trim() !== piece.description && void updatePiece({ description: e.target.value.trim() })
-                }
-              />
-            </div>
+          <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
+          <Input
+            id="piece-name"
+            label={t('pieceName')}
+            defaultValue={piece.name}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== piece.name) void updatePiece({ name: v });
+            }}
+          />
+          <Input
+            id="piece-composer"
+            label={t('composer')}
+            defaultValue={piece.composer}
+            onBlur={(e) =>
+              e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })
+            }
+          />
           </div>
         </Section>
 

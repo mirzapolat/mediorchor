@@ -7,6 +7,8 @@ import { cn } from '@/lib/cn';
 // A vertical list that can be reordered by dragging the grip (mouse and
 // touch). Without onReorder the grips are hidden and the list is static.
 // `cards`: separate bordered cards; `joined`: one panel with dividers.
+// `header` (joined only): column titles above the rows, indented like them
+// when the grips are shown, so table-like rows line up with it.
 export const SortableList = <T,>({
   items,
   getId,
@@ -14,6 +16,7 @@ export const SortableList = <T,>({
   renderItem,
   className,
   variant = 'cards',
+  header,
 }: {
   items: T[];
   getId: (item: T) => string;
@@ -21,11 +24,13 @@ export const SortableList = <T,>({
   renderItem: (item: T, index: number) => ReactNode;
   className?: string;
   variant?: 'cards' | 'joined';
+  header?: ReactNode;
 }) => {
   const { t } = useI18n();
   const joined = variant === 'joined';
   // Vertical gap between items in px; must match the layout below (gap-2).
   const dnd = useDragReorder(items, getId, (next) => onReorder?.(next), joined ? 0 : 8);
+  const grips = Boolean(onReorder) && items.length > 1;
 
   return (
     <ul
@@ -34,6 +39,12 @@ export const SortableList = <T,>({
         className,
       )}
     >
+      {joined && header && (
+        <li aria-hidden className="flex items-stretch rounded-t-2xl border-b border-border bg-surface-subtle">
+          {grips && <span className="w-9 flex-shrink-0" />}
+          <div className="min-w-0 flex-1">{header}</div>
+        </li>
+      )}
       {items.map((item, index) => {
         const id = getId(item);
         const dragging = dnd.isDragging(id);
@@ -55,12 +66,13 @@ export const SortableList = <T,>({
               'flex items-stretch bg-surface',
               joined
                 ? // Hovering the row's link highlights the whole row, grip included.
-                  'border-b border-border transition-colors duration-150 first:rounded-t-2xl last:rounded-b-2xl last:border-b-0 [&:has(a:hover)]:bg-surface-subtle'
+                  'border-b border-border transition-colors duration-150 last:rounded-b-2xl last:border-b-0 [&:has(a:hover)]:bg-surface-subtle'
                 : 'rounded-2xl border border-border',
+              joined && !header && 'first:rounded-t-2xl',
               dragging && (joined ? 'rounded-2xl shadow-lg ring-1 ring-border' : 'shadow-lg'),
             )}
           >
-            {onReorder && items.length > 1 && (
+            {grips && (
               <button
                 type="button"
                 aria-label={t('reorder')}

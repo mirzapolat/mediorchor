@@ -14,6 +14,7 @@ import { executeDbRequest, type DbRequest } from './rest.ts';
 import { callFunction, PUBLIC_WRITE_FUNCTIONS, READ_ONLY_FUNCTIONS } from './rpc.ts';
 import { storageRoutes, fileRoutes } from './storage.ts';
 import { linkPreviewRoutes } from './linkFetch.ts';
+import { pieceZipRoutes, startPieceFileMaintenance } from './pieceFiles.ts';
 import { adminRoutes } from './admin.ts';
 import { webhookRoutes } from './webhooks.ts';
 import { calendarFeedRoutes } from './calendarFeed.ts';
@@ -72,7 +73,7 @@ const enforceMfaSetup = async (c: Context, next: () => Promise<void>) => {
   }
   await next();
 };
-for (const prefix of ['/api/db', '/api/rpc/*', '/api/storage/*', '/api/functions/*', '/api/link-preview']) {
+for (const prefix of ['/api/db', '/api/rpc/*', '/api/storage/*', '/api/functions/*', '/api/link-preview', '/api/piece-zip/*']) {
   app.use(prefix, enforceMfaSetup);
 }
 
@@ -122,6 +123,8 @@ app.post('/api/rpc/:name', async (c) => {
 app.route('/api/storage', storageRoutes);
 // Previews of the links on a piece's "Dateien" page (fetched by the server).
 app.route('/api/link-preview', linkPreviewRoutes);
+// A piece's files (a folder, a selection) as one ZIP, streamed.
+app.route('/api/piece-zip', pieceZipRoutes);
 app.route('/api/functions', adminRoutes);
 app.route('/api/webhooks', webhookRoutes);
 // Public iCal subscription links of the Kalender (token-authenticated).
@@ -220,6 +223,7 @@ const bootstrapAdmin = async () => {
 await bootstrapAdmin();
 purgeExpired();
 setInterval(purgeExpired, 60 * 60 * 1000).unref();
+startPieceFileMaintenance();
 startNotifications();
 
 const server = serve({ fetch: app.fetch, port: env.port }, (info) => {

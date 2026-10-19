@@ -304,7 +304,8 @@ export interface Piece {
   composer: string;
   // Short line shown in the list; notes are Markdown shown on the piece page.
   description: string;
-  notes: string; // no longer shown (kept so no text is lost)
+  // The piece's information on its "Details" page (Markdown).
+  notes: string;
   timeline: PieceTimeline | null;
   // Length in seconds: set from the MusicXML, editable; null = unknown.
   duration_s: number | null;
@@ -353,15 +354,31 @@ export interface PieceFile {
   file_name: string | null;
   // Unused: a voice's lead-in is set in the bar editor (piece_tracks).
   offset_s: number;
-  // Listed for download on the piece page. A recording a voice uses follows
-  // the voice's switch instead.
+  // Public (members see and download it, when its folders are public too)
+  // or private (only the piece's editors; the server enforces it).
   downloadable: boolean;
-  // Its folder on the "Dateien" page; null = above the folders.
+  // Its folder on the "Dateien" page; null = at the top.
   folder_id: string | null;
   // A link's preview of the page it points to, read by the server.
   link_preview: LinkPreview | null;
   position: number;
   created_at: string;
+  // Set by the server: bytes stored, who uploaded it, when it was last
+  // replaced by a new version, and whether the stored object went missing.
+  size: number | null;
+  uploaded_by_name: string;
+  replaced_at: string | null;
+  file_missing: boolean;
+}
+
+// A deleted file waiting 30 days in its piece's trash (see migration 0063).
+export interface PieceFileTrashEntry {
+  id: string;
+  piece_id: string;
+  file_id: string;
+  row: PieceFile;
+  deleted_by_name: string;
+  deleted_at: string;
 }
 
 // What a link points to, as read by the server (server/linkFetch.ts).
@@ -381,8 +398,8 @@ export interface PieceFileFolder {
   // The folder it is in; null = at the top.
   parent_id: string | null;
   name: string;
-  // Members download its files (and those of its folders) only when this
-  // and every folder above are switched on.
+  // Public or private: what is in it is public only when it and every
+  // folder above are.
   downloadable: boolean;
   position: number;
   created_at: string;

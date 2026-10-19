@@ -1,8 +1,9 @@
 // File storage on the local filesystem: <DATA_DIR>/storage/<bucket>/<key>.
 //
 // Buckets are public for reading (served from /files/<bucket>/<key>, like the
-// former public Supabase buckets); writes need a session and pass the same
-// checks as the former storage policies.
+// former public Supabase buckets), except a piece's private files (see
+// mayReadPieceObject); writes need a session and pass the same checks as the
+// former storage policies.
 import { Hono, type Context, type Next } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import fs from 'node:fs';
@@ -12,6 +13,7 @@ import { env } from './env.ts';
 import { requireSession } from './auth.ts';
 import { canEditPiece } from './policies.ts';
 import { auditNote } from './audit.ts';
+import { mayReadPieceObject } from './pieceFiles.ts';
 
 interface Bucket {
   canWrite: (key: string) => boolean;
@@ -133,6 +135,16 @@ const contentDisposition = (type: string, fileName: string) => {
 const fileHeaders = async (c: Context, next: Next) => {
   const bucket = c.req.param('bucket') ?? '';
   if (!Object.hasOwn(BUCKETS, bucket)) return c.notFound();
+  // A piece's private (or trashed) files only for those who may read them.
+  let guarded = false;
+  if (bucket === 'piece-files') {
+    // App keys never need encoding: the key checked is the path served.
+    const key = c.req.path.slice('/files/piece-files/'.length);
+    if (key.includes('%')) return c.notFound();
+    const access = mayReadPieceObject(c, key);
+    if (!access.allowed) return c.notFound();
+    guarded = access.guarded;
+  }
   await next();
   if (c.res.status >= 400 || !c.res.headers.has('last-modified')) return;
 
@@ -149,7 +161,8 @@ const fileHeaders = async (c: Context, next: Next) => {
   headers.set('X-Content-Type-Options', 'nosniff');
   // Chrome's PDF viewer refuses sandboxed documents; PDFs cannot run page script anyway.
   if (!type.startsWith('application/pdf')) headers.set('Content-Security-Policy', "sandbox; default-src 'none'");
-  headers.set('Cache-Control', 'public, max-age=3600');
+  // Guarded files are kept by the browser only, never by shared caches.
+  headers.set('Cache-Control', guarded ? 'private, max-age=3600' : 'public, max-age=3600');
 };
 
 export const fileRoutes = new Hono();

@@ -27,7 +27,13 @@ export interface PracticeSessionOptions {
   initialLoopMeasure?: number
   /** The voices the singer may pick (the host's group mapping); empty or omitted = all. One = no choice. */
   allowedTrackIds?: string[]
+  /** Usage analytics of the host (small fixed values only, never names or ids). */
+  onTrack?: (event: string, data?: Record<string, string | number | boolean>) => void
 }
+
+// Coarse buckets, so analytics only ever see a few fixed values.
+const accuracyBucket = (a: number) => (a >= 0.8 ? '80-100' : a >= 0.5 ? '50-79' : '0-49')
+const tempoBucket = (f: number) => (f < 0.95 ? 'slower' : f > 1.05 ? 'faster' : 'normal')
 
 const SILENT_LIVE: Live = { sung: null, target: null, cents: null, inTune: false, levelDb: -100, blocked: false, beat: 0, hold: 0 }
 
@@ -60,6 +66,9 @@ export function activePreset(trackIds: string[], ownId: string, mixer: Record<st
  * layout on top of this hook; a host with its own design system can build its own view the same way.
  */
 export function usePracticeSession(o: PracticeSessionOptions) {
+  const trackRef = useRef(o.onTrack)
+  trackRef.current = o.onTrack
+  const trackEvent = (event: string, data?: Record<string, string | number | boolean>) => trackRef.current?.(event, data)
   const { scoreId, xml, storage, settings, compact, colors } = o
   const [order, setOrder] = useState<number[] | null>(null)
   const [trackId, setTrackIdState] = useState<string | null>(null)
@@ -165,6 +174,7 @@ export function usePracticeSession(o: PracticeSessionOptions) {
       } else if (ev.type === 'finished') {
         const s = saveSession(e)
         if (s) {
+          trackEvent('training-finish', { mode: s.mode, accuracy: accuracyBucket(s.accuracy), tempo: tempoBucket(s.tempoFactor) })
           storage.sessions(scoreId).then((all) => {
             const previous = all.filter((x) => x.trackId === s.trackId && x.id !== s.id && x.notes > 0).slice(-1)[0] ?? null
             setResults({ session: s, previous })
@@ -231,9 +241,11 @@ export function usePracticeSession(o: PracticeSessionOptions) {
       if (engineRef.current) engineRef.current.mic = mic
       setMicLabel(mic.deviceLabel)
       setMicState('on')
+      trackEvent('training-mic', { result: 'on', headphones: s.headphones })
       return true
     } catch (err) {
       const name = (err as Error).name
+      trackEvent('training-mic', { result: name === 'NotAllowedError' ? 'denied' : name === 'NotFoundError' ? 'not-found' : 'error' })
       setMicError(
         name === 'NotAllowedError'
           ? 'Der Mikrofonzugriff wurde blockiert. Erlaube ihn in den Website-Einstellungen deines Browsers und versuche es erneut.'
@@ -283,7 +295,10 @@ export function usePracticeSession(o: PracticeSessionOptions) {
     if (!e) return
     await audioContext().resume()
     if (!micRef.current && !(await enableMic())) return
+    const starting = !e.running
     e.toggle()
+    if (starting) trackEvent('training-play', { mode: e.mode, tempo: tempoBucket(e.player.factor) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableMic])
 
   useEffect(() => {
@@ -324,6 +339,7 @@ export function usePracticeSession(o: PracticeSessionOptions) {
       e.pause()
       saveSession(e)
       e.setMode(m)
+      trackEvent('training-mode', { mode: m })
     },
     [saveSession],
   )

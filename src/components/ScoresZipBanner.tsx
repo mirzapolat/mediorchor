@@ -1,23 +1,14 @@
-import { useState } from 'react';
-import { FileArchive, FolderArchive } from 'lucide-react';
-import { ActionCard } from './ActionCard';
+import { useEffect, useState } from 'react';
+import { FileArchive, Loader2 } from 'lucide-react';
+import { Button } from './Button';
 import { useI18n } from '@/lib/i18n';
 import { track } from '@/lib/analytics';
 import { pieceFileUrl, type PieceOverviewFile } from '@/lib/pieceFiles';
 import { createZip, safeFileName } from '@/lib/zip';
-import { isTimingFileName } from '@/lib/mpos';
 import type { Piece } from '@/types';
 
 const isPdf = (f: PieceOverviewFile) =>
   Boolean(f.file_path) && f.downloadable && (f.kind === 'score' || /\.pdf$/i.test(f.file_name ?? ''));
-const isMidi = (f: PieceOverviewFile) =>
-  Boolean(f.file_path) && f.downloadable && (f.kind === 'midi' || /\.midi?$/i.test(f.file_name ?? ''));
-const isAudio = (f: PieceOverviewFile) => Boolean(f.file_path) && f.downloadable && f.kind === 'audio';
-const isMusicXml = (f: PieceOverviewFile) =>
-  Boolean(f.file_path) &&
-  f.downloadable &&
-  !isTimingFileName(f.file_name ?? '') &&
-  (f.kind === 'notation' || /\.(musicxml|mxl|xml)$/i.test(f.file_name ?? ''));
 
 const extension = (f: PieceOverviewFile, fallback: string) =>
   /\.[a-z0-9]{1,8}$/i.exec(f.file_name ?? f.file_path ?? '')?.[0].toLowerCase() ?? fallback;
@@ -94,112 +85,52 @@ const useZipDownload = (zipName: string, trackEvent: string) => {
   return { progress, error, missing, download };
 };
 
-// One click: every score PDF of every piece as one ZIP.
-export const ScoresZipBanner = ({
+// One click in the page header: every score PDF of every piece as one ZIP.
+// Collapses to its icon on phones; `onStatus` hears what to tell afterwards
+// (a failure, or PDFs that were missing on the server).
+export const ScoresZipButton = ({
   projectName,
   pieces,
   files,
+  onStatus,
 }: {
   projectName: string;
   pieces: Piece[];
   files: PieceOverviewFile[];
+  onStatus: (status: { text: string; error: boolean } | null) => void;
 }) => {
   const { t } = useI18n();
   const { progress, error, missing, download } = useZipDownload(
     `${projectName} – ${t('scoresZipName')}`,
     'scores-zip',
   );
+  useEffect(() => {
+    if (progress) return;
+    onStatus(
+      error
+        ? { text: t('scoresZipError'), error: true }
+        : missing
+          ? { text: t('scoresZipMissing').replace('{n}', String(missing)), error: true }
+          : null,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, missing, progress]);
 
   const entries = entriesFor(pieces, files, isPdf, '.pdf');
-  const pieceCount = new Set(files.filter(isPdf).map((f) => f.piece_id)).size;
   if (entries.length === 0) return null;
+  const label = progress ? `${t('scoresZipLoading')} ${progress.done}/${progress.total}` : t('scoresZipTitle');
 
   return (
-    <ActionCard
-      icon={FileArchive}
-      title={t('scoresZipTitle')}
-      busy={progress !== null}
+    <Button
+      variant="secondary"
       onClick={() => void download(entries)}
-      statusTone={error || missing ? 'danger' : 'muted'}
-      status={
-        error
-          ? t('scoresZipError')
-          : missing && !progress
-            ? t('scoresZipMissing').replace('{n}', String(missing))
-            : progress
-              ? `${t('scoresZipLoading')} ${progress.done}/${progress.total}`
-              : `${entries.length} ${entries.length === 1 ? 'PDF' : 'PDFs'} · ${pieceCount} ${
-                  pieceCount === 1 ? t('pieceSingular') : t('pieces')
-                } · ZIP`
-      }
-    />
-  );
-};
-
-// Scores, MIDIs, MusicXML and recordings (with and without metronome) of
-// every piece as one ZIP, one folder per kind ("Noten/", "MIDI/",
-// "MusicXML/", "Aufnahmen/"). Only shown when there is more than PDFs.
-export const AllFilesZipBanner = ({
-  projectName,
-  pieces,
-  files,
-}: {
-  projectName: string;
-  pieces: Piece[];
-  files: PieceOverviewFile[];
-}) => {
-  const { t } = useI18n();
-  const { progress, error, missing, download } = useZipDownload(
-    `${projectName} – ${t('allFilesZipName')}`,
-    'all-files-zip',
-  );
-
-  const pdfs = entriesFor(pieces, files, isPdf, '.pdf', `${safeFileName(t('scoresZipName'))}/`);
-  // A PDF is never also counted as MIDI/MusicXML, a MIDI never as MusicXML.
-  const midis = entriesFor(pieces, files, (f) => !isPdf(f) && isMidi(f), '.mid', 'MIDI/');
-  const xmls = entriesFor(
-    pieces,
-    files,
-    (f) => !isPdf(f) && !isMidi(f) && isMusicXml(f),
-    '.musicxml',
-    'MusicXML/',
-  );
-  // Recordings are named by their voice ("01 Ave – Sopran (Mit Metronom).mp3").
-  const audios = entriesFor(
-    pieces,
-    files,
-    (f) => !isPdf(f) && isAudio(f),
-    '.mp3',
-    `${safeFileName(t('recordingsFolder'))}/`,
-  );
-  if (midis.length === 0 && xmls.length === 0 && audios.length === 0) return null;
-  const entries = [...pdfs, ...midis, ...xmls, ...audios];
-
-  const counts = [
-    pdfs.length ? `${pdfs.length} PDF` : null,
-    midis.length ? `${midis.length} MIDI` : null,
-    xmls.length ? `${xmls.length} MusicXML` : null,
-    audios.length ? `${audios.length} ${t('recordingsShort')}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  return (
-    <ActionCard
-      icon={FolderArchive}
-      title={t('allFilesZipTitle')}
-      busy={progress !== null}
-      onClick={() => void download(entries)}
-      statusTone={error || missing ? 'danger' : 'muted'}
-      status={
-        error
-          ? t('scoresZipError')
-          : missing && !progress
-            ? t('allFilesZipMissing').replace('{n}', String(missing))
-            : progress
-              ? `${t('scoresZipLoading')} ${progress.done}/${progress.total}`
-              : `${counts} · ZIP`
-      }
-    />
+      disabled={progress !== null}
+      aria-label={label}
+      title={`${label} · ${entries.length} ${entries.length === 1 ? 'PDF' : 'PDFs'} · ZIP`}
+      className="h-9 max-sm:w-9 max-sm:px-0"
+    >
+      {progress ? <Loader2 size={16} className="animate-spin" /> : <FileArchive size={16} />}
+      <span className="hidden sm:inline">{label}</span>
+    </Button>
   );
 };

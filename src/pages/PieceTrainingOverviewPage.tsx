@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePieceLayout } from '@/layouts/PieceLayout';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { useI18n } from '@/lib/i18n';
+import { track } from '@/lib/analytics';
 import { createPracticeStorage } from '@/lib/practiceStorage';
 import type { SessionRecord } from '@/tonetrainer/core';
 
@@ -33,7 +34,10 @@ export const PieceTrainingOverviewPage = () => {
   }, [storage, piece.id, ready]);
 
   const run = `${base}/${piece.id}/training/run`;
-  const start = (measure?: number) => navigate(measure != null ? `${run}?bar=${measure}` : run);
+  const start = (measure?: number) => {
+    track('training-start', { from: measure != null ? 'bar' : 'overview', returning: (sessions?.length ?? 0) > 0 });
+    navigate(measure != null ? `${run}?bar=${measure}` : run);
+  };
 
   if (!ready) {
     return (

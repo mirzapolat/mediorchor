@@ -1,4 +1,5 @@
 import { api } from './api';
+import { config } from './config';
 import type {
   LinkPreview,
   Piece,
@@ -6,29 +7,51 @@ import type {
   PieceFile,
   PieceFileFolder,
   PieceFileKind,
+  PieceFileTrashEntry,
   PieceTrack,
   ProjectPiece,
 } from '@/types';
 
 const BUCKET = 'piece-files';
 
-// Uploads an attachment to the public "piece-files" bucket. Like uploadImage,
-// the object key is a fresh UUID + sanitised extension; raw file names (spaces,
-// umlauts, …) are never used as storage keys.
-export const uploadPieceFile = async (
+// Whether a file is too large for the server (checked before uploading).
+export const exceedsUploadLimit = (file: Blob) => file.size > config.maxUploadBytes;
+
+// Uploads an attachment to the "piece-files" bucket, reporting progress
+// (0…1). Like uploadImage, the object key is a fresh UUID + sanitised
+// extension; raw file names (spaces, umlauts, …) are never storage keys.
+// `error` is 'too-large' for a file over the server's limit.
+export const uploadPieceFile = (
   pieceId: string,
   file: File,
+  onProgress?: (share: number) => void,
 ): Promise<{ path: string | null; error: string | null }> => {
+  if (exceedsUploadLimit(file)) return Promise.resolve({ path: null, error: 'too-large' });
   const rawExt = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
   const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
   const path = `${pieceId}/${crypto.randomUUID()}.${ext}`;
 
-  const { error } = await api.storage.from(BUCKET).upload(path, file, {
-    cacheControl: '3600',
-    contentType: file.type || undefined,
+  // XMLHttpRequest, as fetch can't report upload progress.
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/storage/${BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('x-upsert', 'false');
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve({ path, error: null });
+      let message = xhr.statusText || 'Upload failed';
+      try {
+        message = (JSON.parse(xhr.responseText) as { error?: { message?: string } }).error?.message ?? message;
+      } catch {
+        /* not JSON */
+      }
+      resolve({ path: null, error: xhr.status === 413 ? 'too-large' : message });
+    };
+    xhr.onerror = () => resolve({ path: null, error: 'Network error: the server is unreachable' });
+    xhr.send(file);
   });
-  if (error) return { path: null, error: error.message };
-  return { path, error: null };
 };
 
 export const pieceFileUrl = (path: string): string =>
@@ -59,15 +82,18 @@ export const removePieceFiles = async (paths: string[]): Promise<void> => {
   await api.storage.from(BUCKET).remove(paths);
 };
 
-export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => {
-  const { data } = await api
+// A piece's file rows, or why they couldn't be read.
+export const queryPieceFiles = async (pieceId: string): Promise<{ files: PieceFile[]; error: string | null }> => {
+  const { data, error } = await api
     .from('piece_files')
     .select('*')
     .eq('piece_id', pieceId)
     .order('position')
     .order('created_at');
-  return (data as PieceFile[] | null) ?? [];
+  return { files: (data as PieceFile[] | null) ?? [], error: error?.message ?? null };
 };
+
+export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => (await queryPieceFiles(pieceId)).files;
 
 // Stored objects of a file row: its file, or a link's preview image.
 const storedPaths = (file: Pick<PieceFile, 'file_path' | 'link_preview'>): string[] =>
@@ -162,8 +188,9 @@ export const trackRecordingChoice = (
 export const trackRecording = (track: PlayerTrack | null, quiet: boolean, click: boolean): string | null =>
   trackRecordingChoice(track, quiet, click)?.path ?? null;
 
-// Whether members see a folder: it and every folder above it are switched
-// to downloadable on the "Dateien" page.
+// Whether a folder is public (members see it): it and every folder above it
+// are public on the "Dateien" page. Mirrors folderIsPublic in
+// server/policies.ts, which enforces it.
 export const isFolderDownloadable = (
   folderId: string,
   folders: Array<Pick<PieceFileFolder, 'id' | 'parent_id' | 'downloadable'>>,
@@ -181,15 +208,12 @@ export const isFolderDownloadable = (
   return true;
 };
 
-// Whether members may download a file: in a folder, when its folders are
-// switched on; outside any folder, by its own switch.
+// Whether a file is public (members see and download it): it is, and so
+// are its folders.
 export const isFileDownloadable = (
   file: Pick<PieceFile, 'downloadable' | 'folder_id'>,
   folders: Array<Pick<PieceFileFolder, 'id' | 'parent_id' | 'downloadable'>>,
-): boolean =>
-  file.folder_id && folders.some((d) => d.id === file.folder_id)
-    ? isFolderDownloadable(file.folder_id, folders)
-    : file.downloadable;
+): boolean => file.downloadable && (!file.folder_id || isFolderDownloadable(file.folder_id, folders));
 
 // The score PDF shown on the piece page: the picked one, else the first.
 export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: PieceFile[]): PieceFile | null =>
@@ -197,10 +221,65 @@ export const pieceScoreFile = (piece: Pick<Piece, 'score_file_id'>, files: Piece
   files.find((f) => f.kind === 'score' && f.file_path) ??
   null;
 
-// Deletes a file row together with its stored objects.
-export const deletePieceFile = async (file: PieceFile): Promise<void> => {
-  await api.from('piece_files').delete().eq('id', file.id);
-  void removePieceFiles(storedPaths(file));
+// Moves files to their piece's trash (restorable for 30 days; the server
+// removes the stored objects after that). The trash entries, or the error.
+export const trashPieceFiles = async (
+  ids: string[],
+): Promise<{ trashIds: string[]; error: string | null }> => {
+  const { data, error } = await api.rpc('trash_piece_files', { p_ids: ids });
+  return {
+    trashIds: ((data as Array<{ trash_id: string }> | null) ?? []).map((d) => d.trash_id),
+    error: error?.message ?? null,
+  };
+};
+
+// Deletes a file (into the trash). The error, if any.
+export const deletePieceFile = async (file: PieceFile): Promise<string | null> =>
+  (await trashPieceFiles([file.id])).error;
+
+export const restorePieceFiles = async (trashIds: string[]): Promise<string | null> =>
+  (await api.rpc('restore_piece_files', { p_ids: trashIds })).error?.message ?? null;
+
+// Deletes trashed files for good.
+export const purgePieceTrash = async (trashIds: string[]): Promise<string | null> =>
+  (await api.rpc('purge_piece_file_trash', { p_ids: trashIds })).error?.message ?? null;
+
+export const loadPieceTrash = async (pieceId: string): Promise<PieceFileTrashEntry[]> => {
+  const { data } = await api
+    .from('piece_file_trash')
+    .select('*')
+    .eq('piece_id', pieceId)
+    .order('deleted_at', { ascending: false });
+  return (data as PieceFileTrashEntry[] | null) ?? [];
+};
+
+// Where folders and files of a piece sit, written all at once (one refused
+// change keeps everything as it was). The error, if any.
+export const arrangePieceFiles = async (
+  pieceId: string,
+  folders: Array<Pick<PieceFileFolder, 'id' | 'parent_id' | 'position'>>,
+  files: Array<Pick<PieceFile, 'id' | 'folder_id' | 'position'>>,
+): Promise<string | null> => {
+  if (folders.length === 0 && files.length === 0) return null;
+  const { error } = await api.rpc('arrange_piece_files', { p_piece_id: pieceId, p_folders: folders, p_files: files });
+  return error?.message ?? null;
+};
+
+// A ZIP of a folder (null = all of the piece) or of a selection, built and
+// streamed by the server with what the caller may download.
+export const pieceZipUrl = (
+  pieceId: string,
+  what: { folder: string | null } | { folders: string[]; files: string[] },
+  name: string,
+): string => {
+  const query = new URLSearchParams({ name });
+  if ('folder' in what) {
+    if (what.folder) query.set('folder', what.folder);
+  } else {
+    if (what.folders.length) query.set('folders', what.folders.join(','));
+    if (what.files.length) query.set('files', what.files.join(','));
+  }
+  return `/api/piece-zip/${encodeURIComponent(pieceId)}?${query}`;
 };
 
 // Writes the list order into `position` for rows whose position changed.
@@ -303,10 +382,10 @@ export interface ProjectPieceItem extends Piece {
 }
 
 // A project's pieces in its running order, plus the file rows the list
-// summarises.
+// summarises and which pieces have recordings to play along with the score.
 export const loadPiecesOverview = async (
   projectId: string,
-): Promise<{ pieces: ProjectPieceItem[]; files: PieceOverviewFile[] }> => {
+): Promise<{ pieces: ProjectPieceItem[]; files: PieceOverviewFile[]; withRecordings: Set<string> }> => {
   const { data } = await api
     .from('project_pieces')
     .select('*, pieces(*)')
@@ -316,19 +395,26 @@ export const loadPiecesOverview = async (
   const pieces = ((data as Array<ProjectPiece & { pieces: Piece | null }> | null) ?? []).flatMap(
     ({ pieces: piece, ...link }) => (piece ? [{ ...piece, link }] : []),
   );
-  if (pieces.length === 0) return { pieces, files: [] };
+  if (pieces.length === 0) return { pieces, files: [], withRecordings: new Set() };
   const ids = pieces.map((p) => p.id);
-  const [{ data: files }, { data: folderRows }] = await Promise.all([
+  const [{ data: files }, { data: folderRows }, { data: trackRows }] = await Promise.all([
     api
       .from('piece_files')
       .select('id, piece_id, kind, title, file_name, file_path, downloadable, folder_id, position')
       .in('piece_id', ids)
       .order('position'),
     api.from('piece_file_folders').select('id, piece_id, parent_id, downloadable').in('piece_id', ids),
+    api.from('piece_tracks').select(`piece_id, ${TRACK_RECORDING_FIELDS.join(', ')}`).in('piece_id', ids),
   ]);
   const folders = (folderRows as PieceFileFolder[] | null) ?? [];
+  const withRecordings = new Set(
+    ((trackRows as Array<Pick<PieceTrack, 'piece_id' | TrackRecordingField>> | null) ?? [])
+      .filter((t) => TRACK_RECORDING_FIELDS.some((field) => t[field]))
+      .map((t) => t.piece_id),
+  );
   return {
     pieces,
+    withRecordings,
     files: ((files as Array<PieceOverviewFile & { folder_id: string | null }> | null) ?? []).map(
       ({ folder_id, ...f }) => ({
         ...f,

@@ -31,6 +31,8 @@ export interface PracticeViewProps {
   theme?: string
   /** The voices this singer may pick (empty or omitted = all); see usePracticeSession. */
   allowedTrackIds?: string[]
+  /** Usage analytics of the host; see usePracticeSession. */
+  onTrack?: (event: string, data?: Record<string, string | number | boolean>) => void
 }
 
 const COMPACT_QUERY = '(max-width: 1023px)'
@@ -72,6 +74,7 @@ export default function PracticeView(props: PracticeViewProps) {
     colors,
     initialLoopMeasure: props.initialLoopMeasure,
     allowedTrackIds: props.allowedTrackIds,
+    onTrack: props.onTrack,
   })
 
   if (s.parseError) {

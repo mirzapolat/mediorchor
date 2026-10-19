@@ -19,6 +19,7 @@ import { queueCheckinConfirmation, queueRegistrationReceived } from './confirmat
 import { email2faAvailable, usersWithSecondFactor } from './mfa.ts';
 import { branding } from './branding.ts';
 import { loadCalendarByToken } from './calendarFeed.ts';
+import { pieceFileFunctions } from './pieceFiles.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -1109,6 +1110,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   unlock_piece_markers,
   create_piece,
   piece_catalog,
+  ...pieceFileFunctions,
 };
 
 // Public functions are rate limited by the HTTP layer.

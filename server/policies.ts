@@ -6,7 +6,10 @@
 //   delete → target rows must satisfy `delete`
 //   insert → new rows must satisfy `insert`
 // A missing predicate denies the operation. auth_uid() is the calling user.
-import { ApiError, db } from './db.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { ApiError, authUid, db, nowIso } from './db.ts';
+import { env } from './env.ts';
 import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
 import { hasSecondFactor } from './mfa.ts';
 import { isLanguage } from '../shared/languages.ts';
@@ -93,6 +96,41 @@ export const canEditPiece = (pieceId: string) => or(
   `exists (
     select 1 from project_pieces _pe where _pe.piece_id = ${pieceId} and ${canAccessProject('_pe.project_id')}
   )`,
+);
+
+// --- a piece's files: public / private (see migrations 0060 and 0063) ------
+
+// A folder is public when it and every folder above it are.
+export const folderIsPublic = (folderId: string) => `not exists (
+  with recursive _up (id) as (
+    select ${folderId}
+    union select _d.parent_id from _up join piece_file_folders _d on _d.id = _up.id where _d.parent_id is not null
+  ) select 1 from _up join piece_file_folders _d on _d.id = _up.id where not _d.downloadable
+)`;
+
+// A file is public when it is and its folders are.
+export const fileIsPublic = (a: string) => `(${a}.downloadable and (${a}.folder_id is null or ${folderIsPublic(`${a}.folder_id`)}))`;
+
+// What the piece itself shows or plays: its score (the picked one, else its
+// first), notation, bar timing, trainer file and its voices' recordings.
+// Members need those even when they are private on the "Dateien" page.
+export const fileIsUsed = (a: string) => or(
+  `exists (select 1 from pieces _pc where _pc.id = ${a}.piece_id
+    and ${a}.id in (_pc.score_file_id, _pc.notation_file_id, _pc.timing_file_id, _pc.trainer_file_id))`,
+  `exists (select 1 from piece_tracks _ut where _ut.piece_id = ${a}.piece_id
+    and ${a}.id in (_ut.file_id, _ut.click_file_id, _ut.quiet_file_id, _ut.quiet_click_file_id))`,
+  `${a}.kind = 'score' and ${a}.file_path is not null
+    and not exists (select 1 from pieces _us join piece_files _sf on _sf.id = _us.score_file_id
+      where _us.id = ${a}.piece_id and _sf.file_path is not null)
+    and ${a}.id = (select _ff.id from piece_files _ff where _ff.piece_id = ${a}.piece_id
+      and _ff.kind = 'score' and _ff.file_path is not null order by _ff.position, _ff.created_at limit 1)`,
+);
+
+// Who may read a file row (and its stored object): the piece's editors, and
+// whoever can see the piece for public and used files.
+export const canReadPieceFile = (a: string) => or(
+  canEditPiece(`${a}.piece_id`),
+  `${canSeePiece(`${a}.piece_id`)} and ${or(fileIsPublic(a), fileIsUsed(a))}`,
 );
 
 // Kalender page: Verwaltung.
@@ -454,24 +492,72 @@ export const policies: Record<string, TablePolicy> = {
     },
   },
 
+  // Editors see all of a piece's files; others only public ones and those
+  // the piece itself uses (see canReadPieceFile).
   piece_files: {
     ...all((a) => canEditPiece(`${a}.piece_id`)),
-    select: (a) => canSeePiece(`${a}.piece_id`),
-    // A link's preview is read by the server (server/linkFetch.ts) only.
+    select: (a) => canReadPieceFile(a),
+    // Server-made fields: a link's preview (server/linkFetch.ts), the size
+    // and uploader (set here from the stored object and the caller) and the
+    // maintenance job's findings.
     validateInsert: (row) => {
       if (row.link_preview != null) throw new ApiError('Link previews are made by the server', 403, '42501');
+      validateFolderOfPiece(row.folder_id, row.piece_id);
+      validateStoredKey(row.file_path, row.piece_id);
+      const uid = authUid();
+      const user = uid
+        ? (db.prepare('select name from app_users where id = ?').get(uid) as { name: string } | undefined)
+        : undefined;
+      Object.assign(row, {
+        size: storedSize(row.file_path),
+        uploaded_by: uid,
+        uploaded_by_name: user?.name ?? '',
+        replaced_at: null,
+        file_missing: false,
+      });
     },
     validateUpdate: (oldRow, patch) => {
       if ('link_preview' in patch && JSON.stringify(patch.link_preview ?? null) !== JSON.stringify(oldRow.link_preview ?? null)) {
         throw new ApiError('Link previews are made by the server', 403, '42501');
       }
+      if ('piece_id' in patch && patch.piece_id !== oldRow.piece_id) {
+        throw new ApiError('A file stays with its piece', 400, '23514');
+      }
+      for (const key of ['size', 'uploaded_by', 'uploaded_by_name', 'replaced_at', 'file_missing']) {
+        if (key in patch && normalize(patch[key]) !== normalize(oldRow[key])) {
+          throw new ApiError(`${key} is set by the server`, 403, '42501');
+        }
+      }
+      if ('folder_id' in patch) validateFolderOfPiece(patch.folder_id, oldRow.piece_id);
+      // A new stored object (the file replaced): its size, and when.
+      if ('file_path' in patch && patch.file_path !== oldRow.file_path) {
+        validateStoredKey(patch.file_path, oldRow.piece_id);
+        Object.assign(patch, { size: storedSize(patch.file_path), replaced_at: nowIso(), file_missing: false });
+      }
     },
   },
 
-  // Folders grouping a piece's files on its "Dateien" page.
+  // Folders grouping a piece's files on its "Dateien" page: a tree within
+  // the piece (see migration 0062). Others than editors see public ones.
   piece_file_folders: {
     ...all((a) => canEditPiece(`${a}.piece_id`)),
-    select: (a) => canSeePiece(`${a}.piece_id`),
+    select: (a) => or(canEditPiece(`${a}.piece_id`), `${canSeePiece(`${a}.piece_id`)} and ${folderIsPublic(`${a}.id`)}`),
+    validateInsert: (row) => validateFolderOfPiece(row.parent_id, row.piece_id),
+    validateUpdate: (oldRow, patch) => {
+      if ('piece_id' in patch && patch.piece_id !== oldRow.piece_id) {
+        throw new ApiError('A folder stays with its piece', 400, '23514');
+      }
+      if (!('parent_id' in patch) || patch.parent_id == null) return;
+      validateFolderOfPiece(patch.parent_id, oldRow.piece_id);
+      if (folderWithin(String(patch.parent_id), String(oldRow.id))) {
+        throw new ApiError('A folder cannot move into itself', 400, '23514');
+      }
+    },
+  },
+
+  // Deleted files of a piece, for its editors (written by the trash RPCs).
+  piece_file_trash: {
+    select: (a) => canEditPiece(`${a}.piece_id`),
   },
 
   // Which trainer voices a project's groups sing: set by the piece's editors
@@ -569,3 +655,45 @@ export const policies: Record<string, TablePolicy> = {
 };
 
 const normalize = (v: unknown) => (typeof v === 'boolean' ? (v ? 1 : 0) : v ?? null);
+
+// Whether folder `folderId` is `ancestorId` or lies inside it.
+export const folderWithin = (folderId: string, ancestorId: string) =>
+  Boolean(
+    (
+      db
+        .prepare(
+          `with recursive up (id) as (
+             select ? union select d.parent_id from up join piece_file_folders d on d.id = up.id where d.parent_id is not null
+           ) select exists (select 1 from up where id = ?) as inside`,
+        )
+        .get(folderId, ancestorId) as { inside: number }
+    ).inside,
+  );
+
+// Stored objects of a piece live under "<pieceId>/": a row can't point at
+// another piece's file (and so open it to that piece's readers).
+const validateStoredKey = (key: unknown, pieceId: unknown) => {
+  if (key == null) return;
+  if (typeof key !== 'string' || !key.startsWith(`${String(pieceId)}/`) || key.includes('..')) {
+    throw new ApiError('The file is not part of this piece', 400, '23514');
+  }
+};
+
+// Size in bytes of a stored piece file, or null when there is none.
+export const storedSize = (key: unknown): number | null => {
+  if (typeof key !== 'string' || !key) return null;
+  try {
+    return fs.statSync(path.join(env.storageDir, 'piece-files', ...key.split('/'))).size;
+  } catch {
+    return null;
+  }
+};
+
+// A file's folder or a folder's parent: none, or a folder of the same piece.
+const validateFolderOfPiece = (folderId: unknown, pieceId: unknown) => {
+  if (folderId == null) return;
+  const found = db
+    .prepare('select 1 from piece_file_folders where id = ? and piece_id = ?')
+    .get(String(folderId), String(pieceId));
+  if (!found) throw new ApiError('The folder is not part of this piece', 400, '23503');
+};

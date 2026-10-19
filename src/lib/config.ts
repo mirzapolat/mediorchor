@@ -17,6 +17,8 @@ interface RuntimeConfig {
   // Set by the server from Admin Config → Branding (no build-time fallback).
   LOGO_URL?: string | null;
   LOGO_INVERT?: boolean;
+  // Largest upload the server accepts, in bytes.
+  MAX_UPLOAD_BYTES?: number;
 }
 
 const runtime: RuntimeConfig =
@@ -42,4 +44,6 @@ export const config = {
   logoUrl: typeof runtime.LOGO_URL === 'string' && runtime.LOGO_URL ? runtime.LOGO_URL : null,
   // Flip the logo's lightness in dark mode (always for the bundled line art).
   logoInvert: runtime.LOGO_URL ? Boolean(runtime.LOGO_INVERT) : true,
+  // Checked before uploading (the server checks again); the server's default.
+  maxUploadBytes: typeof runtime.MAX_UPLOAD_BYTES === 'number' ? runtime.MAX_UPLOAD_BYTES : 100 * 1024 * 1024,
 };

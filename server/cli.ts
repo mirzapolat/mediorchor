@@ -4,12 +4,14 @@
 //   node server/cli.ts make-admin <email>
 //   node server/cli.ts reset-password <email> <new password>
 //   node server/cli.ts disable-2fa <email>
+//   node server/cli.ts check-files [--fix]
 //
 // In Docker: docker compose exec web node server/cli.ts <command> …
 import { db, migrate, loadTableMeta } from './db.ts';
 import { createAccount, hashPassword, validatePassword } from './auth.ts';
 import { splitName } from './fieldMatching.ts';
 import { installAuditTriggers, runAudited } from './audit.ts';
+import { runPieceFileMaintenance } from './pieceFiles.ts';
 
 migrate();
 loadTableMeta();
@@ -55,6 +57,18 @@ const main = async () => {
       db.prepare('update auth_users set password_hash = ? where id = ?').run(hash, id);
       db.prepare('delete from auth_sessions where user_id = ?').run(id);
       console.log(`Password reset for ${args[0]}; all sessions signed out`);
+      break;
+    }
+    case 'check-files': {
+      // Piece files whose stored object is missing, and stored objects no
+      // file points at (removed with --fix; the server also does this every
+      // six hours).
+      const report = runPieceFileMaintenance({ dryRun: !args.includes('--fix') });
+      console.log(`Missing on disk (${report.missing.length}):`);
+      for (const key of report.missing) console.log(`  ${key}`);
+      console.log(`Not used by any file (${report.orphans.length})${args.includes('--fix') ? ', removed' : ''}:`);
+      for (const key of report.orphans) console.log(`  ${key}`);
+      if (report.purged) console.log(`Purged from the trash: ${report.purged}`);
       break;
     }
     case 'disable-2fa': {
