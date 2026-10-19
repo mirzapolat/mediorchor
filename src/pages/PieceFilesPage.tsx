@@ -47,7 +47,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Modal } from '@/components/Modal';
 import { OverflowMenu, type OverflowMenuItem } from '@/components/OverflowMenu';
 import { PageSpinner } from '@/components/Spinner';
-import { MultiDropzone, fileIcon, pickedFromDrop, usePieceUploads, type PickedFile } from '@/components/PieceFileParts';
+import { MultiDropzone, fileIcon, fileTone, pickedFromDrop, usePieceUploads, type PickedFile } from '@/components/PieceFileParts';
 import { usePieceLayout } from '@/layouts/PieceLayout';
 import { usePieceScope } from '@/layouts/pieceScope';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -145,18 +145,6 @@ const formatSize = (bytes: number | null, locale: string) => {
     unit++;
   }
   return `${value.toLocaleString(locale, { maximumFractionDigits: unit > 1 ? 1 : 0 })} ${units[unit]}`;
-};
-
-// What a file is, by colour (theme tokens): scores, recordings, notation …
-const fileTone = (f: PieceFile) => {
-  if (f.kind === 'link') return 'text-chart-2';
-  const name = f.file_name ?? '';
-  if (/\.pdf$/i.test(name) || f.kind === 'score') return 'text-danger';
-  if (f.kind === 'audio') return 'text-chart-4';
-  if (f.kind === 'midi' || /\.midi?$/i.test(name)) return 'text-chart-3';
-  if (f.kind === 'notation') return 'text-chart-1';
-  if (/\.(png|jpe?g|gif|webp|avif)$/i.test(name)) return 'text-chart-5';
-  return 'text-text-secondary';
 };
 
 // Opened in the browser rather than downloaded.

@@ -67,6 +67,10 @@ interface DataTableProps<T> {
   mobileCard?: (row: T) => ReactNode;
   // Phones: leave the action icons out (the mobileCard shows its own buttons).
   hideMobileActions?: boolean;
+  // `modern`: lines between rows only, a light header, smaller text and fixed
+  // column widths (a column without a width takes the rest), so cells cut
+  // long text instead of wrapping — the look of the pieces tables.
+  variant?: 'classic' | 'modern';
 }
 
 // Renders one column's cell for a row — lets a mobileCard reuse the table's
@@ -123,8 +127,12 @@ export function DataTable<T>({
   hideToolbar = false,
   mobileCard,
   hideMobileActions = false,
+  variant = 'classic',
 }: DataTableProps<T>) {
   const { t } = useI18n();
+  const modern = variant === 'modern';
+  const headCell = modern ? 'h-10 border-b border-border px-4' : 'border-b border-r border-border px-4 py-3';
+  const bodyCell = modern ? 'border-b border-border px-4 py-3' : 'border-b border-r border-border px-4 py-3';
   const isPhone = useMediaQuery('(max-width: 639px)');
   const reorderable = Boolean(onReorder);
   const [ownQuery, setQuery] = useState('');
@@ -431,9 +439,14 @@ export function DataTable<T>({
         </>
       ) : (
         <div className="border border-border rounded-2xl overflow-x-auto bg-surface">
-          <table className="w-full min-w-[640px] border-collapse">
+          <table className={cn('w-full min-w-[640px] border-collapse', modern && 'table-fixed')}>
             <thead>
-              <tr className="bg-surface-muted text-sm font-medium text-text-secondary text-left">
+              <tr
+                className={cn(
+                  'font-medium text-text-secondary text-left',
+                  modern ? 'bg-surface-subtle text-xs' : 'bg-surface-muted text-sm',
+                )}
+              >
                 {reorderable && (
                   <th className="w-px border-b border-r border-border px-2 py-3">
                     <ArrowUpDown size={14} className="mx-auto text-text-tertiary" aria-label={t('reorder')} />
@@ -457,10 +470,7 @@ export function DataTable<T>({
                   const sortable = !reorderable && (c.sortable ?? Boolean(c.accessor));
                   const active = sortId === c.id;
                   return (
-                    <th
-                      key={c.id}
-                      className={cn('border-b border-r border-border px-4 py-3', c.className)}
-                    >
+                    <th key={c.id} className={cn(headCell, c.className)}>
                       {sortable ? (
                         <button
                           type="button"
@@ -485,7 +495,9 @@ export function DataTable<T>({
                   );
                 })}
                 {actions && (
-                  <th className="border-b border-border px-4 py-3 text-right">{t('actions')}</th>
+                  <th className={cn('border-b border-border px-4 text-right', modern ? 'h-10 w-28' : 'py-3')}>
+                    {modern ? <span className="sr-only">{t('actions')}</span> : t('actions')}
+                  </th>
                 )}
               </tr>
             </thead>
@@ -514,7 +526,7 @@ export function DataTable<T>({
                       : undefined
                   }
                   className={cn(
-                    'text-base',
+                    modern ? 'text-sm [&:last-child>td]:border-b-0' : 'text-base',
                     dragging
                       ? 'bg-white shadow-lg'
                       : selected
@@ -563,16 +575,13 @@ export function DataTable<T>({
                     </td>
                   )}
                   {columns.map((c) => (
-                    <td
-                      key={c.id}
-                      className={cn('border-b border-r border-border px-4 py-3', c.className)}
-                    >
+                    <td key={c.id} className={cn(bodyCell, c.className)}>
                       {c.render ? c.render(row) : formatValue(c.accessor?.(row))}
                     </td>
                   ))}
                   {actions && (
                     <td
-                      className="border-b border-border px-4 py-3 align-middle"
+                      className={cn('border-b border-border px-4 align-middle', modern ? 'py-2' : 'py-3')}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1">{actions(row)}</div>

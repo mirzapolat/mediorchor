@@ -381,6 +381,16 @@ export interface ProjectPieceItem extends Piece {
   link: ProjectPiece;
 }
 
+// Pieces with at least one recorded voice: their score plays with audio.
+const piecesWithRecordingsOf = (tracks: Array<Pick<PieceTrack, 'piece_id' | TrackRecordingField>>) =>
+  new Set(tracks.filter((t) => TRACK_RECORDING_FIELDS.some((field) => t[field])).map((t) => t.piece_id));
+
+// The same for any pieces one can see (the collection's table).
+export const loadPiecesWithRecordings = async (): Promise<Set<string>> => {
+  const { data } = await api.from('piece_tracks').select(`piece_id, ${TRACK_RECORDING_FIELDS.join(', ')}`);
+  return piecesWithRecordingsOf((data as Array<Pick<PieceTrack, 'piece_id' | TrackRecordingField>> | null) ?? []);
+};
+
 // A project's pieces in its running order, plus the file rows the list
 // summarises and which pieces have recordings to play along with the score.
 export const loadPiecesOverview = async (
@@ -407,10 +417,8 @@ export const loadPiecesOverview = async (
     api.from('piece_tracks').select(`piece_id, ${TRACK_RECORDING_FIELDS.join(', ')}`).in('piece_id', ids),
   ]);
   const folders = (folderRows as PieceFileFolder[] | null) ?? [];
-  const withRecordings = new Set(
-    ((trackRows as Array<Pick<PieceTrack, 'piece_id' | TrackRecordingField>> | null) ?? [])
-      .filter((t) => TRACK_RECORDING_FIELDS.some((field) => t[field]))
-      .map((t) => t.piece_id),
+  const withRecordings = piecesWithRecordingsOf(
+    (trackRows as Array<Pick<PieceTrack, 'piece_id' | TrackRecordingField>> | null) ?? [],
   );
   return {
     pieces,

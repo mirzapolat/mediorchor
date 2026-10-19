@@ -58,6 +58,7 @@ import { PieceTrainingPage } from '@/pages/PieceTrainingPage';
 import { PieceTrainingOverviewPage } from '@/pages/PieceTrainingOverviewPage';
 import { PieceFilesPage } from '@/pages/PieceFilesPage';
 import { PieceDetailsPage } from '@/pages/PieceDetailsPage';
+import { PieceSettingsPage } from '@/pages/PieceSettingsPage';
 import { PieceLayout } from '@/layouts/PieceLayout';
 import { RegistrationPageDetail } from '@/pages/RegistrationPageDetail';
 import { RegistrationPageSettings } from '@/pages/RegistrationPageSettings';
@@ -148,6 +149,7 @@ export const App = () => {
                 {/* Formerly "Credits". */}
                 <Route path="credits" element={<Navigate to="../details" relative="path" replace />} />
                 <Route path="setup" element={<PieceSetupPage />} />
+                <Route path="settings" element={<PieceSettingsPage />} />
               </Route>
             </Route>
           </Route>
@@ -199,9 +201,10 @@ export const App = () => {
               <Route path="training" element={<PieceTrainingOverviewPage />} />
               <Route path="files" element={<PieceFilesPage />} />
               <Route path="details" element={<PieceDetailsPage />} />
-                {/* Formerly "Credits". */}
-                <Route path="credits" element={<Navigate to="../details" relative="path" replace />} />
+              {/* Formerly "Credits". */}
+              <Route path="credits" element={<Navigate to="../details" relative="path" replace />} />
               <Route path="setup" element={<PieceSetupPage />} />
+              <Route path="settings" element={<PieceSettingsPage />} />
             </Route>
           </Route>
           <Route element={<RequireProjectManage />}>

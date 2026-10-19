@@ -369,6 +369,10 @@ export interface PieceFile {
   uploaded_by_name: string;
   replaced_at: string | null;
   file_missing: boolean;
+  // A node on the piece's "Konfiguration" (added there by its editors), and
+  // its place among the nodes.
+  in_setup: boolean;
+  setup_position: number;
 }
 
 // A deleted file waiting 30 days in its piece's trash (see migration 0063).

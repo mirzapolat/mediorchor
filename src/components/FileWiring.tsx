@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { GripVertical, Mic, Users, X } from 'lucide-react';
+import { AudioLines as AudioLinesIcon, FileText, GripVertical, Mic, Ruler, Users, X, type LucideIcon } from 'lucide-react';
+import { fileIcon, fileTone } from '@/components/PieceFileParts';
 import { GroupPill } from '@/components/GroupPill';
 import { noteName } from '@/tonetrainer/core';
 import type { TrainerVoice } from '@/lib/trainer';
@@ -37,13 +38,66 @@ export const accepts = (file: PieceFile, target: WireTarget): boolean => {
 };
 
 // The four recordings in reading order: other voices muted / quiet, each
-// without and with metronome.
-const SLOT_LABELS: Record<TrackRecordingField, [TranslationKey, TranslationKey]> = {
-  file_id: ['slotOthersMuted', 'slotWithoutMetronome'],
-  click_file_id: ['slotOthersMuted', 'slotWithMetronome'],
-  quiet_file_id: ['slotOthersQuiet', 'slotWithoutMetronome'],
-  quiet_click_file_id: ['slotOthersQuiet', 'slotWithMetronome'],
+// without and with metronome — said shortly, the metronome as a badge.
+const SLOT_LABELS: Record<TrackRecordingField, { others: TranslationKey; click: boolean; full: [TranslationKey, TranslationKey] }> = {
+  file_id: { others: 'slotMutedShort', click: false, full: ['slotOthersMuted', 'slotWithoutMetronome'] },
+  click_file_id: { others: 'slotMutedShort', click: true, full: ['slotOthersMuted', 'slotWithMetronome'] },
+  quiet_file_id: { others: 'slotQuietShort', click: false, full: ['slotOthersQuiet', 'slotWithoutMetronome'] },
+  quiet_click_file_id: { others: 'slotQuietShort', click: true, full: ['slotOthersQuiet', 'slotWithMetronome'] },
 };
+
+// A node on the right: a tinted icon tile, its title and state, actions,
+// and its inputs (or outputs) as rows below.
+const NodeCard = ({
+  icon: Icon,
+  tone = 'text-text-secondary',
+  title,
+  hint,
+  status,
+  actions,
+  accent = false,
+  children,
+  ...rest
+}: {
+  icon: LucideIcon;
+  tone?: string;
+  title: ReactNode;
+  hint?: string;
+  status?: ReactNode;
+  actions?: ReactNode;
+  accent?: boolean;
+  children?: ReactNode;
+  'data-trainer-node'?: boolean;
+}) => (
+  <div {...rest} className={cn('min-w-0 rounded-2xl border bg-surface', accent ? 'border-accent/50' : 'border-border')}>
+    <div className="flex min-h-[3.25rem] items-center gap-3 py-2 pl-3 pr-2">
+      <span
+        className={cn(
+          'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg',
+          accent ? 'bg-accent/15 text-accent' : cn('bg-surface-muted', tone),
+        )}
+      >
+        <Icon size={16} aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold" title={hint}>
+          {title}
+        </div>
+        {status && <div className="truncate text-xs text-text-tertiary">{status}</div>}
+      </div>
+      {actions}
+    </div>
+    {children}
+  </div>
+);
+
+// A small caps label over a group of nodes, with room for an action.
+const SectionLabel = ({ children, action }: { children: ReactNode; action?: ReactNode }) => (
+  <div className="flex min-h-[2rem] items-center justify-between gap-3">
+    <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">{children}</h3>
+    {action}
+  </div>
+);
 
 interface Point {
   x: number;
@@ -63,8 +117,11 @@ export const FileWiring = ({
   renderFile,
   renderVoiceHeader,
   filesTop,
+  filesEmpty,
   filesBottom,
   voicesBottom,
+  voicesAction,
+  barsStatus,
   barsBody,
   trainerBody,
   trainerVoices = [],
@@ -83,8 +140,14 @@ export const FileWiring = ({
   renderFile: (file: PieceFile) => ReactNode;
   renderVoiceHeader: (track: PieceTrack) => ReactNode;
   filesTop?: ReactNode;
+  // In place of the nodes while there are none.
+  filesEmpty?: ReactNode;
   filesBottom?: ReactNode;
   voicesBottom?: ReactNode;
+  // On the voices' label (e.g. "Add voice").
+  voicesAction?: ReactNode;
+  // Under the bars node's title: how the bars are read.
+  barsStatus?: ReactNode;
   // The bars node's own controls (what was read, apply, fitting, …).
   barsBody?: ReactNode;
   // Under the trainer node: its state while there are no voices to list.
@@ -125,7 +188,7 @@ export const FileWiring = ({
       .map((trackId) => ({ groupId: g.id, trackId })),
   );
 
-  const fileDnd = useDragReorder(files, (f) => f.id, onReorderFiles, 0);
+  const fileDnd = useDragReorder(files, (f) => f.id, onReorderFiles, 8);
   const trackDnd = useDragReorder(tracks, (x) => x.id, onReorderTracks, 12);
 
   // Every connection: input → file.
@@ -239,20 +302,22 @@ export const FileWiring = ({
     return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
   };
 
-  // One input: its point (wide screens), what it is, and what is connected.
-  const input = (target: WireTarget, label: string) => {
+  // One input: its point (wide screens), what it is, and what is connected
+  // (a chip with the file's icon), or where to drag a file.
+  const input = (target: WireTarget, label?: ReactNode, name = '') => {
     const voice = parseVoiceTarget(target);
     const fileId = voice
       ? (tracks.find((x) => x.id === voice.trackId)?.[voice.field] ?? null)
       : picks[target as NodeTarget];
     const file = fileById(fileId);
     const fits = drawnFile ? accepts(drawnFile, target) : false;
+    const Icon = file ? fileIcon(file) : null;
     return (
       <div
         key={target}
         data-input={target}
         className={cn(
-          'relative flex h-9 items-center gap-2 border-t border-border pl-4 pr-1 transition-colors duration-150',
+          'group/input relative flex h-10 items-center gap-2 border-t border-border pl-4 pr-2 transition-colors duration-150',
           drawing && fits && 'bg-accent/10',
           drawing && fits && drawing.over === target && 'bg-accent/25',
           drawing && !fits && 'opacity-40',
@@ -269,24 +334,27 @@ export const FileWiring = ({
             )}
           />
         )}
-        {/* What the input is, and what is connected to it, on one line. */}
-        {label && <span className="flex-shrink-0 text-xs text-text-secondary">{label}</span>}
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate text-sm',
-            label && 'text-right',
-            file ? 'text-text' : 'text-text-tertiary',
+        {label && <span className="flex flex-shrink-0 items-center gap-1.5 text-xs text-text-secondary">{label}</span>}
+        <span className={cn('flex min-w-0 flex-1', label ? 'justify-end' : 'justify-start')}>
+          {file && Icon ? (
+            <span
+              className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg bg-surface-muted px-2 py-1 text-xs font-medium"
+              title={fileLabel(file)}
+            >
+              <Icon size={13} className={cn('flex-shrink-0', fileTone(file))} aria-hidden />
+              <span className="truncate">{fileLabel(file)}</span>
+            </span>
+          ) : (
+            <span className="truncate text-xs text-text-tertiary">{wired ? t('dropFileHere') : t('notConnected')}</span>
           )}
-        >
-          {file ? fileLabel(file) : t('notConnected')}
         </span>
         {file ? (
           <button
             type="button"
             onClick={() => onConnect(target, null)}
-            aria-label={`${t('disconnect')}: ${label || fileLabel(file)}`}
+            aria-label={`${t('disconnect')}: ${name || fileLabel(file)}`}
             title={t('disconnect')}
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary opacity-0 transition-opacity duration-150 hover:bg-surface-hover hover:text-text focus:opacity-100 group-hover/input:opacity-100 max-lg:opacity-100"
           >
             <X size={14} />
           </button>
@@ -322,25 +390,22 @@ export const FileWiring = ({
         }
       : undefined;
 
-  const heading = (title: string, count?: number) => (
-    <h3 className="text-sm font-semibold">
-      {title}
-      {count ? <span className="font-normal text-text-secondary"> · {count}</span> : null}
-    </h3>
-  );
-
   return (
     <div
       ref={boxRef}
-      className="relative grid gap-6 lg:grid-cols-2 lg:gap-x-48"
+      // Files: a narrow column of tall nodes, leaving room for the wires and
+      // the score, bars and voices.
+      className="relative grid gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:gap-x-40 xl:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:gap-x-48"
     >
       {/* Files */}
-      <div className="min-w-0 space-y-3">
-        {filesTop}
+      <div className="min-w-0 space-y-2">
+        <SectionLabel action={filesTop}>{t('files')}</SectionLabel>
         {files.length === 0 ? (
-          <p className="text-sm text-text-secondary">{t('noFiles')}</p>
+          (filesEmpty ?? <p className="text-sm text-text-secondary">{t('noFiles')}</p>)
         ) : (
-          <ul className="rounded-2xl border border-border bg-surface">
+          // Each file its own node (a card like the voices), its output on
+          // the right edge.
+          <ul className="flex flex-col gap-2">
             {files.map((f, index) => {
               const linked = connections.some((c) => c.fileId === f.id);
               return (
@@ -351,13 +416,17 @@ export const FileWiring = ({
                   onPointerEnter={() => setHovered(f.id)}
                   onPointerLeave={() => setHovered((h) => (h === f.id ? null : h))}
                   className={cn(
-                    'relative flex items-stretch border-b border-border bg-surface first:rounded-t-md last:rounded-b-md last:border-b-0',
-                    fileDnd.isDragging(f.id) && 'rounded-md shadow-lg ring-1 ring-border',
+                    'group/node relative flex items-stretch rounded-2xl border bg-surface transition-[border-color,box-shadow] duration-150 hover:shadow-sm',
+                    linked ? 'border-border-strong' : 'border-border',
+                    fileDnd.isDragging(f.id) && 'shadow-lg ring-1 ring-border',
                   )}
                 >
-                  {files.length > 1 &&
-                    grip((e) => fileDnd.startDrag(e, f.id, index), fileDnd.moveDrag, fileDnd.endDrag)}
-                  <div className={cn('min-w-0 flex-1', files.length < 2 && 'pl-2', wired && 'pr-3')}>
+                  {files.length > 1 && (
+                    <span className="flex opacity-40 transition-opacity duration-150 group-hover/node:opacity-100">
+                      {grip((e) => fileDnd.startDrag(e, f.id, index), fileDnd.moveDrag, fileDnd.endDrag)}
+                    </span>
+                  )}
+                  <div className={cn('min-w-0 flex-1', files.length < 2 && 'pl-3', wired && 'pr-2')}>
                     {renderFile(f)}
                   </div>
                   {wired && f.file_path && (
@@ -385,190 +454,208 @@ export const FileWiring = ({
         {filesBottom}
       </div>
 
-      {/* The score PDF, the bars and the voices */}
-      <div className="min-w-0 space-y-2">
-        <p className="text-xs text-text-secondary">{wired ? t('wireHint') : t('wireDesktopOnly')}</p>
-        <div className="rounded-2xl border border-border bg-surface">
-          <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('scoreFileHint')}>
-              {t('scoreFileLabel')}
-            </span>
-            {scoreHeader}
-          </div>
-          {input('score', '')}
-        </div>
+      {/* Right: what the files feed — the score and the bars, the voices,
+          and the singing trainer with the groups its voices are sung by. */}
+      <div className="min-w-0 space-y-6">
+        {!wired && <p className="text-xs text-text-secondary">{t('wireDesktopOnly')}</p>}
 
-        {/* The bars: one source (what is connected picks how they are
-            read), applied with the node's own button. */}
-        <div className="rounded-2xl border border-border bg-surface">
-          <div className="flex h-10 items-center pl-3 pr-1.5">
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('barsSourceHint')}>
-              {t('barsSource')}
-            </span>
-          </div>
-          {input('bars', '')}
-          {barsBody && <div className="space-y-3 border-t border-border p-3">{barsBody}</div>}
-        </div>
+        <section className="space-y-2">
+          <SectionLabel>{t('sectionScoreAndBars')}</SectionLabel>
+          <NodeCard
+            icon={FileText}
+            tone="text-danger"
+            title={t('scoreFileLabel')}
+            hint={t('scoreFileHint')}
+            status={picks.score ? t('connected') : t('notConnected')}
+            actions={scoreHeader}
+          >
+            {input('score')}
+          </NodeCard>
+          {/* The bars: one source (what is connected picks how they are
+              read), applied with the node's own button. */}
+          <NodeCard icon={Ruler} tone="text-chart-1" title={t('barsSource')} hint={t('barsSourceHint')} status={barsStatus}>
+            {input('bars')}
+            {barsBody && <div className="space-y-3 border-t border-border p-3">{barsBody}</div>}
+          </NodeCard>
+        </section>
 
-        <div className="pt-2">{heading(t('voicesTitle'), tracks.length)}</div>
-        {tracks.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {tracks.map((track, index) => (
-              <li
-                key={track.id}
-                ref={(el) => trackDnd.setItemRef(track.id, el)}
-                style={shift(trackDnd, track.id, index)}
-                className={cn('rounded-2xl border border-border bg-surface', trackDnd.isDragging(track.id) && 'shadow-lg')}
-              >
-                <div className="flex items-stretch">
-                  {tracks.length > 1 &&
-                    grip((e) => trackDnd.startDrag(e, track.id, index), trackDnd.moveDrag, trackDnd.endDrag)}
-                  <div className={cn('min-w-0 flex-1 py-1.5 pr-1.5', tracks.length < 2 && 'pl-2')}>
-                    {renderVoiceHeader(track)}
-                  </div>
-                </div>
-                {TRACK_RECORDING_FIELDS.map((field) =>
-                  input(voiceTarget(track.id, field), SLOT_LABELS[field].map((k) => t(k)).join(' – ')),
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {voicesBottom}
-      </div>
+        <section className="space-y-2">
+          <SectionLabel action={voicesAction}>
+            {t('voicesTitle')}
+            {tracks.length > 0 && <span className="ml-1.5 font-normal normal-case tracking-normal">{tracks.length}</span>}
+          </SectionLabel>
+          {tracks.length > 0 && (
+            <ul className="flex flex-col gap-2">
+              {tracks.map((track, index) => {
+                const recorded = TRACK_RECORDING_FIELDS.filter((field) => track[field]).length;
+                return (
+                  <li
+                    key={track.id}
+                    ref={(el) => trackDnd.setItemRef(track.id, el)}
+                    style={shift(trackDnd, track.id, index)}
+                    className={cn('group/node rounded-2xl', trackDnd.isDragging(track.id) && 'shadow-lg')}
+                  >
+                    <NodeCard
+                      icon={AudioLinesIcon}
+                      tone="text-chart-4"
+                      title={renderVoiceHeader(track)}
+                      status={`${recorded}/4 ${t('recordingsShort')}`}
+                      actions={
+                        tracks.length > 1 && (
+                          <span className="flex self-stretch opacity-40 transition-opacity duration-150 group-hover/node:opacity-100">
+                            {grip((e) => trackDnd.startDrag(e, track.id, index), trackDnd.moveDrag, trackDnd.endDrag)}
+                          </span>
+                        )
+                      }
+                    >
+                      {TRACK_RECORDING_FIELDS.map((field) => {
+                        const slot = SLOT_LABELS[field];
+                        const full = slot.full.map((k) => t(k)).join(' – ');
+                        return input(
+                          voiceTarget(track.id, field),
+                          <span title={full} className="flex items-center gap-1.5">
+                            {t(slot.others)}
+                            {slot.click && (
+                              <span className="rounded bg-surface-muted px-1.5 py-px text-[10px] font-semibold text-text-secondary">
+                                {t('slotClick')}
+                              </span>
+                            )}
+                          </span>,
+                          full,
+                        );
+                      })}
+                    </NodeCard>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {voicesBottom}
+        </section>
 
-      {/* The singing trainer, a row of its own with three columns: what it
-          is, its node (a MusicXML connected here opens the piece for practice
-          with the microphone; its voices are outputs) and, inside a project,
-          the groups the voices are wired to. */}
-      <div className="grid gap-6 lg:col-span-2 lg:grid-cols-3 lg:gap-x-24">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Mic size={15} className="text-accent" aria-hidden />
-            {t('trainerNode')}
-          </h3>
-          <p className="mt-1 text-sm text-text-secondary">{t('trainerNodeHint')}</p>
-          {mapping && <p className="mt-2 text-xs text-text-secondary">{t('groupsNodeHint')}</p>}
-        </div>
-        <div data-trainer-node className="min-w-0 self-start rounded-2xl border border-accent/50 bg-accent/5">
-          <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
-            <Mic size={15} className="flex-shrink-0 text-accent" aria-hidden />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={t('trainerNodeHint')}>
-              {t('trainerNode')}
-            </span>
-          </div>
-          {input('trainer', '')}
-          {/* The voices found: outputs to wire to the groups. */}
-          {trainerVoices.map((v) => {
-            const linked = voiceLinks.some((l) => l.trackId === v.id);
-            return (
-              <div key={v.id} className="relative flex h-9 items-center gap-2 border-t border-border pl-4 pr-4">
-                <span className="min-w-0 flex-1 truncate text-sm">{v.name}</span>
-                <span className="flex-shrink-0 text-xs text-text-tertiary">
-                  {noteName(v.low)}–{noteName(v.high)}
-                </span>
-                {wired && mapping && (
-                  <button
-                    type="button"
-                    data-port-out={`voice:${v.id}`}
-                    aria-label={t('connectVoice').replace('{name}', v.name)}
-                    title={t('voiceWireHint')}
-                    onPointerDown={(e) => startVoiceWire(e, v.id)}
-                    onPointerMove={moveVoiceWire}
-                    onPointerUp={endVoiceWire}
-                    onPointerCancel={() => setVoiceDrawing(null)}
-                    onPointerEnter={() => setHovered(`voice:${v.id}`)}
-                    onPointerLeave={() => setHovered((h) => (h === `voice:${v.id}` ? null : h))}
-                    style={{ touchAction: 'none' }}
-                    className={cn(
-                      'absolute -right-[8px] top-1/2 z-20 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 transition-transform duration-150 hover:scale-125',
-                      linked ? 'border-black bg-black' : 'border-border-strong bg-surface hover:border-black',
+        {/* The singing trainer: a MusicXML connected here opens the piece for
+            practice with the microphone; its voices are outputs, wired to
+            the project's groups that sing them (several per group = a
+            choice in the trainer). On small screens the voices are tapped
+            on and off instead. */}
+        <section className="space-y-2">
+          <SectionLabel>{t('trainTitle')}</SectionLabel>
+          <div className={cn('grid items-start gap-4', mapping && 'md:grid-cols-2 md:gap-x-16')}>
+            <NodeCard
+              data-trainer-node
+              icon={Mic}
+              accent
+              title={t('trainerNode')}
+              hint={t('trainerNodeHint')}
+              status={trainerVoices.length ? `${trainerVoices.length} ${t('voicesTitle')}` : t('trainerSubtitle')}
+            >
+              {input('trainer')}
+              {/* The voices found: outputs to wire to the groups. */}
+              {trainerVoices.map((v) => {
+                const linked = voiceLinks.some((l) => l.trackId === v.id);
+                return (
+                  <div key={v.id} className="relative flex h-10 items-center gap-2 border-t border-border pl-4 pr-4">
+                    <span className="min-w-0 flex-1 truncate text-sm">{v.name}</span>
+                    <span className="flex-shrink-0 rounded bg-surface-muted px-1.5 py-px text-[10px] font-semibold tabular-nums text-text-secondary">
+                      {noteName(v.low)}–{noteName(v.high)}
+                    </span>
+                    {wired && mapping && (
+                      <button
+                        type="button"
+                        data-port-out={`voice:${v.id}`}
+                        aria-label={t('connectVoice').replace('{name}', v.name)}
+                        title={t('voiceWireHint')}
+                        onPointerDown={(e) => startVoiceWire(e, v.id)}
+                        onPointerMove={moveVoiceWire}
+                        onPointerUp={endVoiceWire}
+                        onPointerCancel={() => setVoiceDrawing(null)}
+                        onPointerEnter={() => setHovered(`voice:${v.id}`)}
+                        onPointerLeave={() => setHovered((h) => (h === `voice:${v.id}` ? null : h))}
+                        style={{ touchAction: 'none' }}
+                        className={cn(
+                          'absolute -right-[8px] top-1/2 z-20 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 transition-transform duration-150 hover:scale-125',
+                          linked ? 'border-black bg-black' : 'border-border-strong bg-surface hover:border-black',
+                        )}
+                      />
                     )}
-                  />
-                )}
-              </div>
-            );
-          })}
-          {trainerBody && <div className="border-t border-border p-3">{trainerBody}</div>}
-        </div>
-
-        {/* The project's groups: wire the trainer's voices to the groups that
-            sing them (several per group = a choice in the trainer). On small
-            screens the voices are tapped on and off instead. */}
-        {mapping && (
-          <div className="min-w-0 self-start rounded-2xl border border-border bg-surface">
-            <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
-              <Users size={15} className="flex-shrink-0 text-text-secondary" aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t('groupsNode')}</span>
-            </div>
-            {groups.map((g) => {
-              const mapped = voiceMap?.get(g.id) ?? [];
-              const over = voiceDrawing?.over === g.id;
-              return (
-                <div
-                  key={g.id}
-                  data-group-input={g.id}
-                  className={cn(
-                    'relative border-t border-border py-2 pl-4 pr-2 transition-colors duration-150',
-                    voiceDrawing && 'bg-accent/10',
-                    over && 'bg-accent/25',
-                  )}
-                >
-                  {wired && (
-                    <span
-                      data-port-in={`group:${g.id}`}
-                      aria-hidden
-                      className={cn(
-                        'absolute -left-[7px] top-[1.15rem] h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 transition-colors duration-150',
-                        mapped.length ? 'border-black bg-black' : 'border-border-strong bg-surface',
-                        voiceDrawing && 'border-accent',
-                      )}
-                    />
-                  )}
-                  <GroupPill name={g.name} color={g.color} />
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {wired
-                      ? mapped.length === 0
-                        ? <span className="text-xs text-text-tertiary">{t('groupAllVoices')}</span>
-                        : mapped.map((trackId) => (
-                            <span
-                              key={trackId}
-                              className="inline-flex items-center gap-1 rounded-full bg-surface-muted py-0.5 pl-2 pr-0.5 text-xs"
-                            >
-                              {voiceName(trackId)}
-                              <button
-                                type="button"
-                                onClick={() => onMapVoice?.(g.id, trackId, false)}
-                                aria-label={`${t('disconnect')}: ${voiceName(trackId)}`}
-                                className="flex h-5 w-5 items-center justify-center rounded-full text-text-tertiary hover:bg-surface-hover hover:text-text"
-                              >
-                                <X size={12} />
-                              </button>
-                            </span>
-                          ))
-                      : trainerVoices.map((v) => {
-                          const on = mapped.includes(v.id);
-                          return (
-                            <button
-                              key={v.id}
-                              type="button"
-                              aria-pressed={on}
-                              onClick={() => onMapVoice?.(g.id, v.id, !on)}
-                              className={cn(
-                                'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-150',
-                                on ? 'border-black bg-black text-white' : 'border-border text-text-secondary hover:text-text',
-                              )}
-                            >
-                              {v.name}
-                            </button>
-                          );
-                        })}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+              {trainerBody && <div className="border-t border-border p-3">{trainerBody}</div>}
+            </NodeCard>
+
+            {mapping && (
+              <NodeCard icon={Users} title={t('groupsNode')} status={t('groupsNodeHint')}>
+                {groups.map((g) => {
+                  const mapped = voiceMap?.get(g.id) ?? [];
+                  const over = voiceDrawing?.over === g.id;
+                  return (
+                    <div
+                      key={g.id}
+                      data-group-input={g.id}
+                      className={cn(
+                        'relative border-t border-border py-2 pl-4 pr-2 transition-colors duration-150',
+                        voiceDrawing && 'bg-accent/10',
+                        over && 'bg-accent/25',
+                      )}
+                    >
+                      {wired && (
+                        <span
+                          data-port-in={`group:${g.id}`}
+                          aria-hidden
+                          className={cn(
+                            'absolute -left-[7px] top-[1.15rem] h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 transition-colors duration-150',
+                            mapped.length ? 'border-black bg-black' : 'border-border-strong bg-surface',
+                            voiceDrawing && 'border-accent',
+                          )}
+                        />
+                      )}
+                      <GroupPill name={g.name} color={g.color} />
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {wired
+                          ? mapped.length === 0
+                            ? <span className="text-xs text-text-tertiary">{t('groupAllVoices')}</span>
+                            : mapped.map((trackId) => (
+                                <span
+                                  key={trackId}
+                                  className="inline-flex items-center gap-1 rounded-full bg-surface-muted py-0.5 pl-2 pr-0.5 text-xs"
+                                >
+                                  {voiceName(trackId)}
+                                  <button
+                                    type="button"
+                                    onClick={() => onMapVoice?.(g.id, trackId, false)}
+                                    aria-label={`${t('disconnect')}: ${voiceName(trackId)}`}
+                                    className="flex h-5 w-5 items-center justify-center rounded-full text-text-tertiary hover:bg-surface-hover hover:text-text"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </span>
+                              ))
+                          : trainerVoices.map((v) => {
+                              const on = mapped.includes(v.id);
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  aria-pressed={on}
+                                  onClick={() => onMapVoice?.(g.id, v.id, !on)}
+                                  className={cn(
+                                    'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-150',
+                                    on ? 'border-black bg-black text-white' : 'border-border text-text-secondary hover:text-text',
+                                  )}
+                                >
+                                  {v.name}
+                                </button>
+                              );
+                            })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </NodeCard>
+            )}
           </div>
-        )}
+        </section>
       </div>
 
       {/* The wires, over everything but never in the way. */}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock, Users, MapPin } from 'lucide-react';
+import { AlertTriangle, Plus, CalendarDays, Pencil, Trash2, Clock, MapPin } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
@@ -27,8 +27,6 @@ export const EventsPage = () => {
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [warningCounts, setWarningCounts] = useState<Record<string, number>>({});
-  // Present people per rehearsal (members and guests).
-  const [presentCounts, setPresentCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   // The next/today rehearsal is pinned + highlighted until the user resets filters.
   const [highlightNext, setHighlightNext] = useState(true);
@@ -41,7 +39,7 @@ export const EventsPage = () => {
   const [toDelete, setToDelete] = useState<Event | null>(null);
 
   const load = useCallback(async () => {
-    const [eventsResult, warningsResult, presentResult] = await Promise.all([
+    const [eventsResult, warningsResult] = await Promise.all([
       api
         .from('events')
         .select('*')
@@ -54,11 +52,6 @@ export const EventsPage = () => {
         .select('event_id, events!inner(project_id)')
         .eq('recognized', false)
         .eq('events.project_id', project.id),
-      api
-        .from('attendance')
-        .select('event_id, events!inner(project_id)')
-        .eq('status', 'attended')
-        .eq('events.project_id', project.id),
     ]);
 
     const counts: Record<string, number> = {};
@@ -67,11 +60,6 @@ export const EventsPage = () => {
     }
     setEvents((eventsResult.data as Event[]) ?? []);
     setWarningCounts(counts);
-    const present: Record<string, number> = {};
-    for (const row of (presentResult.data as Array<{ event_id: string }> | null) ?? []) {
-      present[row.event_id] = (present[row.event_id] ?? 0) + 1;
-    }
-    setPresentCounts(present);
     setLoading(false);
   }, [project.id]);
 
@@ -140,22 +128,26 @@ export const EventsPage = () => {
       accessor: (ev) => ev.name,
       render: (ev) => (
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="min-w-0 break-words">{ev.name}</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-medium" title={ev.name}>
+              {ev.name}
+            </span>
             {highlightRowId === ev.id ? (
               <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-success-soft-strong px-2 py-0.5 text-xs font-semibold text-success-strong">
                 {ev.date === today() ? t('todayRehearsal') : t('nextRehearsal')}
               </span>
             ) : null}
             {(warningCounts[ev.id] ?? 0) > 0 ? (
-              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-danger-soft px-2 py-1 text-xs font-semibold text-danger-strong">
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger-strong">
                 <AlertTriangle size={13} />
                 {warningCounts[ev.id]} {t('unrecognizedCheckIns').toLowerCase()}
               </span>
             ) : null}
           </div>
           {ev.description && (
-            <p className="mt-0.5 line-clamp-2 text-xs text-text-secondary">{ev.description}</p>
+            <p className="mt-0.5 truncate text-xs text-text-secondary" title={ev.description}>
+              {ev.description}
+            </p>
           )}
         </div>
       ),
@@ -165,10 +157,10 @@ export const EventsPage = () => {
       header: t('dateAndTime'),
       // Sorts by date, then time; undated Proben sort last.
       accessor: (ev) => (ev.date ? `${ev.date} ${ev.time ?? ''}` : null),
-      className: 'w-px whitespace-nowrap',
+      className: 'w-72 whitespace-nowrap',
       render: (ev) =>
         ev.date || ev.time ? (
-          <span className="inline-flex items-center gap-3 text-text-secondary">
+          <span className="flex min-w-0 items-center gap-3 overflow-hidden text-text-secondary">
             {ev.date && (
               <span className="inline-flex items-center gap-1.5">
                 <CalendarDays size={14} />
@@ -190,27 +182,16 @@ export const EventsPage = () => {
       id: 'location',
       header: t('eventLocation'),
       accessor: (ev) => ev.location,
+      className: 'w-56',
       render: (ev) =>
         ev.location ? (
-          <span className="inline-flex min-w-0 items-start gap-1.5 text-text-secondary">
-            <MapPin size={14} className="mt-[3px] flex-shrink-0" />
-            <span className="break-words">{ev.location}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-text-secondary" title={ev.location}>
+            <MapPin size={14} className="flex-shrink-0" />
+            <span className="truncate">{ev.location}</span>
           </span>
         ) : (
           <span className="text-text-secondary">—</span>
         ),
-    },
-    {
-      id: 'present',
-      header: t('attended'),
-      accessor: (ev) => presentCounts[ev.id] ?? 0,
-      className: 'w-px text-center whitespace-nowrap',
-      render: (ev) => (
-        <span className="inline-flex items-center gap-1.5 tabular-nums text-text-secondary">
-          <Users size={14} />
-          {presentCounts[ev.id] ?? 0}
-        </span>
-      ),
     },
   ];
 
@@ -259,18 +240,18 @@ export const EventsPage = () => {
         query={tf.query}
         hideToolbar
         highlightRowId={highlightRowId}
+        variant="modern"
         onClearFilters={() => setHighlightNext(false)}
         emptyMessage={t('noEvents')}
         emptyIcon={CalendarDays}
         // Phones: name (with badges, description), then date, time, location
-        // and the number present on one line.
+        // on one line.
         mobileCard={(ev) => (
           <>
             <div className="text-base font-medium">{renderCell(columns, 'name', ev)}</div>
             <MobileMeta>
               {renderCell(columns, 'when', ev)}
               {ev.location && renderCell(columns, 'location', ev)}
-              {renderCell(columns, 'present', ev)}
             </MobileMeta>
           </>
         )}

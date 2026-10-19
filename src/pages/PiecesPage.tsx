@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AudioLines, ChevronRight, Mic, MicOff, Music, Plus, VolumeX, X, type LucideIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Music, Plus, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
@@ -11,8 +11,8 @@ import { PieceForm } from '@/components/PieceForm';
 import { AddPieceModal } from '@/components/AddPieceModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ScoresZipButton } from '@/components/ScoresZipBanner';
+import { PieceTableHeader, PieceTableRow } from '@/components/PieceTable';
 import { useI18n } from '@/lib/i18n';
-import { cn } from '@/lib/cn';
 import {
   loadPiecesOverview,
   persistOrder,
@@ -20,46 +20,9 @@ import {
   type PieceOverviewFile,
   type ProjectPieceItem,
 } from '@/lib/pieceFiles';
-import { formatTime, pieceDuration } from '@/lib/pieceTimeline';
+import { pieceDuration } from '@/lib/pieceTimeline';
 import { useProjectContext } from '@/layouts/projectContext';
 import { usePieceScope } from '@/layouts/pieceScope';
-
-// Whether something is set up for a piece, at a glance: a green pill for
-// yes, a grey one for no, each with its icon and the word.
-const Availability = ({
-  on,
-  icon: Icon,
-  offIcon: OffIcon,
-  label,
-  title,
-}: {
-  on: boolean;
-  icon: LucideIcon;
-  offIcon: LucideIcon;
-  label: string;
-  title: string;
-}) => (
-  <span
-    title={title}
-    aria-label={title}
-    className={cn(
-      'inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium',
-      on ? 'bg-success-soft text-success-strong' : 'bg-surface-muted text-text-tertiary',
-    )}
-  >
-    {on ? <Icon size={14} /> : <OffIcon size={14} />}
-    {label}
-  </span>
-);
-
-// Column widths, shared by the header and the rows so they line up.
-const COL = {
-  composer: 'hidden w-48 flex-shrink-0 md:block lg:w-64',
-  duration: 'hidden w-16 flex-shrink-0 sm:block',
-  flag: 'hidden w-24 flex-shrink-0 sm:flex xl:w-28',
-  chevron: 'w-[18px] flex-shrink-0',
-  remove: 'w-10 flex-shrink-0',
-};
 
 // The project's pieces as a concert programme, a table across the page:
 // title, composer, length, whether it can be practised with
@@ -190,91 +153,28 @@ export const PiecesPage = () => {
               getId={(p) => p.id}
               // Reordering a filtered subset would scramble positions.
               onReorder={canManage && !query ? reorder : undefined}
-              header={
-                <div
-                  className={cn(
-                    'flex h-10 items-center gap-3 px-3 text-xs font-medium text-text-secondary sm:gap-4 sm:px-4',
-                    // The rows' remove button sits outside their padded link.
-                    canManage && 'pr-0 sm:pr-0',
-                  )}
-                >
-                  <span className="min-w-0 flex-1">{t('columnTitle')}</span>
-                  <span className={COL.composer}>{t('columnComposer')}</span>
-                  <span className={cn(COL.duration, 'text-right')}>{t('columnDuration')}</span>
-                  <span className={COL.flag}>{t('columnTraining')}</span>
-                  <span className={COL.flag}>{t('columnTracks')}</span>
-                  <span className={COL.chevron} />
-                  {canManage && <span className={COL.remove} />}
-                </div>
-              }
-              renderItem={(p) => {
-                const duration = pieceDuration(p);
-                const training = p.trainer_file_id != null;
-                const tracks = withRecordings.has(p.id);
-                return (
-                  <div className="flex items-center">
-                    <Link
-                      to={`/projects/${project.id}/pieces/${p.id}`}
-                      className="group flex min-h-[3.75rem] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4"
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{p.name}</span>
-                        {/* Smaller screens: what has no column yet goes below the title. */}
-                        <span className="flex min-w-0 items-center gap-2 text-sm text-text-secondary md:hidden">
-                          {p.composer && <span className="truncate">{p.composer}</span>}
-                          {duration != null && <span className="flex-shrink-0 tabular-nums sm:hidden">{formatTime(duration)}</span>}
-                          <span className="flex flex-shrink-0 items-center gap-1 sm:hidden">
-                            {training && <Mic size={13} className="text-success" aria-label={t('trainingAvailable')} />}
-                            {tracks && <AudioLines size={13} className="text-success" aria-label={t('tracksAvailable')} />}
-                          </span>
-                        </span>
-                      </span>
-                      <span className={cn(COL.composer, 'truncate text-sm text-text-secondary')}>{p.composer || '—'}</span>
-                      <span className={cn(COL.duration, 'text-right text-sm tabular-nums text-text-secondary')}>
-                        {duration != null ? formatTime(duration) : '—'}
-                      </span>
-                      <span className={COL.flag}>
-                        <Availability
-                          on={training}
-                          icon={Mic}
-                          offIcon={MicOff}
-                          label={training ? t('yes') : t('no')}
-                          title={training ? t('trainingAvailable') : t('trainingUnavailable')}
-                        />
-                      </span>
-                      <span className={COL.flag}>
-                        <Availability
-                          on={tracks}
-                          icon={AudioLines}
-                          offIcon={VolumeX}
-                          label={tracks ? t('yes') : t('no')}
-                          title={tracks ? t('tracksAvailable') : t('tracksUnavailable')}
-                        />
-                      </span>
-                      <ChevronRight
-                        size={18}
-                        className={cn(
-                          COL.chevron,
-                          'text-text-tertiary transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-text-secondary',
-                        )}
-                      />
-                    </Link>
-                    {canManage && (
-                      <span className={cn(COL.remove, 'flex justify-center')}>
-                        <button
-                          type="button"
-                          onClick={() => setToRemove(p)}
-                          aria-label={t('removeFromProject')}
-                          title={t('removeFromProject')}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                        >
-                          <X size={15} />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                );
-              }}
+              header={<PieceTableHeader actionsWidth={canManage ? 'w-10' : undefined} />}
+              renderItem={(p) => (
+                <PieceTableRow
+                  piece={p}
+                  to={`/projects/${project.id}/pieces/${p.id}`}
+                  hasRecordings={withRecordings.has(p.id)}
+                  actionsWidth="w-10"
+                  actions={
+                    canManage && (
+                      <button
+                        type="button"
+                        onClick={() => setToRemove(p)}
+                        aria-label={t('removeFromProject')}
+                        title={t('removeFromProject')}
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                      >
+                        <X size={15} />
+                      </button>
+                    )
+                  }
+                />
+              )}
             />
           )}
         </div>

@@ -3,19 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   AudioWaveform,
   Check,
+  ChevronRight,
   Copy,
-  Download,
   Loader2,
   MapPin,
   Plus,
-  ListMinus,
-  Trash2,
   X,
 } from 'lucide-react';
-import { FileName } from '@/components/PieceFileParts';
+import { AddFileNodes, FileNodeCard, FileNodesEmpty } from '@/components/SetupFileNodes';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FileWiring, parseVoiceTarget, type WireTarget } from '@/components/FileWiring';
@@ -23,15 +20,11 @@ import { BarSyncEditor, FermataIcon, type SyncVoice } from '@/components/BarSync
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import {
-  deletePiece,
-  deletePieceFile,
   loadPieceFiles,
   loadPieceInScope,
   loadPieceTracks,
   persistOrder,
-  pieceFileDownloadUrl,
   pieceFileUrl,
-  removePieceFromProject,
   TRACK_RECORDING_FIELDS,
 } from '@/lib/pieceFiles';
 import { NotationError, parseNotation } from '@/lib/musicxml';
@@ -51,41 +44,6 @@ import { useCanPlaceBars } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
 import type { BarSyncPoint, Piece, PieceFile, PieceTimeline, PieceTrack } from '@/types';
 
-
-const Section = ({
-  title,
-  hint,
-  children,
-  action,
-  className,
-  plain = false,
-}: {
-  title: string;
-  hint?: ReactNode;
-  children: ReactNode;
-  action?: ReactNode;
-  className?: string;
-  // Without the card: its parts bring their own (the files and nodes).
-  plain?: boolean;
-}) => {
-  const body = (
-    <>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-semibold">{title}</h2>
-          {hint && <p className="mt-0.5 text-sm text-text-secondary">{hint}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </>
-  );
-  return plain ? (
-    <div className={cn('space-y-4', className)}>{body}</div>
-  ) : (
-    <Card className={cn('space-y-4 p-4 sm:p-5', className)}>{body}</Card>
-  );
-};
 
 // A recording's length in seconds (metadata only), null when unreadable.
 const recordingLength = (file: PieceFile): Promise<number | null> =>
@@ -113,7 +71,7 @@ const parseDuration = (value: string): number | null | undefined => {
 // PDF, MusicXML and links.
 export const PieceSetupPage = () => {
   const { t } = useI18n();
-  const { base, projectId, canEdit, canManageProject, canDelete } = usePieceScope();
+  const { base, projectId, canEdit } = usePieceScope();
   const { pieceId } = useParams();
   const navigate = useNavigate();
 
@@ -127,9 +85,6 @@ export const PieceSetupPage = () => {
   // The bars' source as connected, until applied (undefined: as applied).
   const [barsPick, setBarsPick] = useState<string | null | undefined>(undefined);
   const [durationError, setDurationError] = useState(false);
-  const [toDelete, setToDelete] = useState<PieceFile | null>(null);
-  const [deletePieceOpen, setDeletePieceOpen] = useState(false);
-  const [removeOpen, setRemoveOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [placeNote, setPlaceNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -233,10 +188,6 @@ export const PieceSetupPage = () => {
     await api.from('pieces').update(patch).eq('id', piece.id);
   };
 
-  const updateFile = async (file: PieceFile, patch: Partial<PieceFile>) => {
-    setFiles((fs) => fs.map((f) => (f.id === file.id ? { ...f, ...patch } : f)));
-    await api.from('piece_files').update(patch).eq('id', file.id);
-  };
 
   const updateTrack = async (track: PieceTrack, patch: Partial<PieceTrack>) => {
     setTracks((ts) => ts.map((x) => (x.id === track.id ? { ...x, ...patch } : x)));
@@ -351,15 +302,6 @@ export const PieceSetupPage = () => {
     else void action();
   };
 
-  // Voices and the piece lose a deleted file by themselves (database).
-  const removeFile = async () => {
-    if (!toDelete) return;
-    await deletePieceFile(toDelete);
-    setToDelete(null);
-    const fresh = await loadPieceInScope(piece.id, projectId);
-    if (fresh) setPiece(fresh);
-    await reloadParts();
-  };
 
   const addVoice = async () => {
     const { data } = await api
@@ -383,16 +325,52 @@ export const PieceSetupPage = () => {
     arrangeAudio(next);
   };
 
-  // The uploaded files in a new order (links keep theirs).
+  // The file nodes in a new order (their own, apart from the "Dateien"
+  // page's).
   const reorderFiles = (next: PieceFile[]) => {
-    setFiles((fs) => [...next.map((f, i) => ({ ...f, position: i })), ...fs.filter((f) => f.kind === 'link')]);
-    void persistOrder('piece_files', next);
+    const at = new Map(next.map((f, i) => [f.id, i]));
+    setFiles((fs) => fs.map((f) => (at.has(f.id) ? { ...f, setup_position: at.get(f.id) as number } : f)));
+    void Promise.all(
+      next.map((f, i) =>
+        f.setup_position === i ? null : api.from('piece_files').update({ setup_position: i }).eq('id', f.id),
+      ),
+    );
+  };
+
+  // Files become nodes (at the end), or stop being one.
+  const addNodes = (added: PieceFile[]) => {
+    let end = Math.max(-1, ...files.filter((f) => f.in_setup).map((f) => f.setup_position));
+    const placed = new Map(added.map((f) => [f.id, ++end]));
+    setFiles((fs) => fs.map((f) => (placed.has(f.id) ? { ...f, in_setup: true, setup_position: placed.get(f.id) as number } : f)));
+    void Promise.all(
+      added.map((f) =>
+        api.from('piece_files').update({ in_setup: true, setup_position: placed.get(f.id) }).eq('id', f.id),
+      ),
+    );
+  };
+  // Taking a node off disconnects it (the applied bar source stays: it is
+  // changed by applying another).
+  const removeNode = (file: PieceFile) => {
+    if (piece.score_file_id === file.id) void updatePiece({ score_file_id: null });
+    if (piece.trainer_file_id === file.id) void updatePiece({ trainer_file_id: null });
+    if (barsPick === file.id) setBarsPick(undefined);
+    for (const track of tracks) {
+      const cleared = Object.fromEntries(
+        TRACK_RECORDING_FIELDS.filter((field) => track[field] === file.id).map((field) => [field, null]),
+      );
+      if (Object.keys(cleared).length) void updateTrack(track, cleared);
+    }
+    setFiles((fs) => fs.map((f) => (f.id === file.id ? { ...f, in_setup: false } : f)));
+    // (The API runs a query once it is awaited or then'd.)
+    void api.from('piece_files').update({ in_setup: false }).eq('id', file.id).then(() => undefined);
   };
 
   // Keeps the recordings together, where the first one is: those the voices
   // use in the voices' order (each voice's four in a row), then the rest.
   const arrangeAudio = (voices: PieceTrack[]) => {
-    const list = files.filter((f) => f.kind !== 'link');
+    const list = files
+      .filter((f) => f.kind !== 'link' && f.in_setup)
+      .sort((a, b) => a.setup_position - b.setup_position || a.position - b.position);
     const audio = list.filter((f) => f.kind === 'audio');
     if (audio.length === 0) return;
     const used: PieceFile[] = [];
@@ -411,6 +389,8 @@ export const PieceSetupPage = () => {
 
   // A wire from a file to an input (null: the input is disconnected).
   const connect = (target: WireTarget, fileId: string | null) => {
+    const wiredFile = fileId ? files.find((f) => f.id === fileId) : null;
+    if (wiredFile && !wiredFile.in_setup) addNodes([wiredFile]);
     const voice = parseVoiceTarget(target);
     if (voice) {
       const track = tracks.find((x) => x.id === voice.trackId);
@@ -506,63 +486,36 @@ export const PieceSetupPage = () => {
       setBarsPick(undefined);
     });
   };
-  const uploadedFiles = files.filter((f) => f.kind !== 'link');
+  const uploadedFiles = files.filter((f) => f.kind !== 'link' && f.file_path);
+  // Nodes: the files added here, and any file already wired (older pieces).
+  const wiredIds = new Set(
+    [
+      piece.score_file_id,
+      piece.trainer_file_id,
+      barsFileId,
+      appliedBarsFileId,
+      ...tracks.flatMap((track) => TRACK_RECORDING_FIELDS.map((field) => track[field])),
+    ].filter((id): id is string => Boolean(id)),
+  );
+  const nodeFiles = uploadedFiles
+    .filter((f) => f.in_setup || wiredIds.has(f.id))
+    .sort((a, b) => a.setup_position - b.setup_position || a.position - b.position);
+  const addableFiles = uploadedFiles.filter((f) => !nodeFiles.includes(f));
   const fileLabel = (f: PieceFile) => f.title.trim() || f.file_name || '—';
   return (
     // The piece's "Konfiguration" page: wide screens get the room for the wires.
     <div className="space-y-4 pb-10 lg:max-w-[1600px]">
-      {/* Title, and on the right what takes the piece away: removing, deleting. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold sm:text-2xl">{t('pieceConfigTitle')}</h1>
-          <p className="mt-1 text-sm text-text-secondary">{t('setUpHint')}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {projectId && canManageProject && (
-            <Button variant="secondary" onClick={() => setRemoveOpen(true)}>
-              <ListMinus size={15} />
-              {t('removeFromProject')}
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="secondary" onClick={() => setDeletePieceOpen(true)}>
-              <Trash2 size={15} />
-              {t('deletePiece')}
-            </Button>
-          )}
-        </div>
+      <div className="min-w-0">
+        <h1 className="text-xl font-bold sm:text-2xl">{t('pieceConfigTitle')}</h1>
+        <p className="mt-1 text-sm text-text-secondary">{t('setUpHint')}</p>
       </div>
 
-      {/* The piece and who worked on it; below, files wired to the score,
-          the bars and the voices. */}
+      {/* The files wired to the score, the bars, the voices and the trainer.
+          Title, composer, removing and deleting are on "Einstellungen". */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Title and composer, side by side; the short description and the
-            piece's information are edited on its "Details" page. */}
-        <Section title={t('details')} className="lg:col-span-2">
-          <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
-          <Input
-            id="piece-name"
-            label={t('pieceName')}
-            defaultValue={piece.name}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v && v !== piece.name) void updatePiece({ name: v });
-            }}
-          />
-          <Input
-            id="piece-composer"
-            label={t('composer')}
-            defaultValue={piece.composer}
-            onBlur={(e) =>
-              e.target.value.trim() !== piece.composer && void updatePiece({ composer: e.target.value.trim() })
-            }
-          />
-          </div>
-        </Section>
-
-        <Section title={t('filesAndVoicesTitle')} hint={t('filesAndVoicesHint')} className="py-2 lg:col-span-2" plain>
+        <div className="pt-2 lg:col-span-2">
           <FileWiring
-            files={uploadedFiles}
+            files={nodeFiles}
             tracks={tracks}
             picks={{
               score: piece.score_file_id,
@@ -597,45 +550,19 @@ export const PieceSetupPage = () => {
             // Files are uploaded on the "Dateien" page only; here they are
             // wired.
             filesTop={
-              <p className="text-sm text-text-secondary">
-                {t('uploadOnFilesPage')}{' '}
-                <button
-                  type="button"
-                  onClick={() => navigate(`${back}/files`)}
-                  className="font-medium text-text underline underline-offset-2 hover:no-underline"
-                >
-                  {t('files')}
-                </button>
-              </p>
+              <button
+                type="button"
+                onClick={() => navigate(`${back}/files`)}
+                className="text-xs font-medium text-text-secondary underline-offset-2 hover:text-text hover:underline"
+              >
+                {t('uploadOnFilesPageShort')}
+              </button>
             }
-            // What members may download is set on the "Dateien" page (per
-            // folder), not here.
-            renderFile={(f) => {
-              return (
-                <div className="flex items-center gap-1.5 py-2.5">
-                  <FileName file={f} onRename={(patch) => void updateFile(f, patch)} />
-                  {f.file_path && (
-                    <a
-                      href={pieceFileDownloadUrl(f.file_path, f.file_name ?? fileLabel(f))}
-                      aria-label={t('downloadFile')}
-                      title={t('downloadFile')}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                    >
-                      <Download size={15} />
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setToDelete(f)}
-                    aria-label={t('delete')}
-                    title={t('delete')}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              );
-            }}
+            renderFile={(f) => (
+              <FileNodeCard file={f} onRemove={f.id === appliedBarsFileId ? undefined : () => removeNode(f)} />
+            )}
+            filesEmpty={<FileNodesEmpty />}
+            filesBottom={<AddFileNodes available={addableFiles} onAdd={addNodes} />}
             renderVoiceHeader={(track) => (
               <div className="flex items-center gap-1.5">
                 <input
@@ -643,40 +570,37 @@ export const PieceSetupPage = () => {
                   aria-label={t('voiceName')}
                   placeholder={t('voiceName')}
                   onBlur={(e) => e.target.value.trim() !== track.title && void updateTrack(track, { title: e.target.value.trim() })}
-                  className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-semibold hover:border-border focus:border-black focus:outline-none sm:text-sm"
+                  // Aligned with the status line below (the padding shows on hover).
+                  className="-ml-2 h-7 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-semibold hover:border-border focus:border-black focus:outline-none sm:text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => void removeVoice(track)}
                   aria-label={t('removeVoice')}
                   title={t('removeVoice')}
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary opacity-0 transition-opacity duration-150 hover:bg-surface-hover hover:text-text focus:opacity-100 group-hover/node:opacity-100 max-lg:opacity-100"
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               </div>
             )}
-            voicesBottom={
-              <Button variant="secondary" onClick={() => void addVoice()}>
-                <Plus size={15} />
+            voicesAction={
+              <button
+                type="button"
+                onClick={() => void addVoice()}
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-text-secondary hover:bg-surface-hover hover:text-text"
+              >
+                <Plus size={14} />
                 {t('addVoice')}
-              </Button>
+              </button>
+            }
+            barsStatus={
+              barsFile
+                ? `${t('barsReadAs')} ${t(mode === 'mscore' ? 'timingFromMuseScore' : mode === 'notation' ? 'timingFromNotation' : 'timingEven')}`
+                : t('barsConnectHint')
             }
             barsBody={
               <>
-                <p className="text-sm">
-                  {barsFile ? (
-                    <>
-                      <span className="text-text-secondary">{t('barsReadAs')} </span>
-                      <span className="font-medium">
-                        {t(mode === 'mscore' ? 'timingFromMuseScore' : mode === 'notation' ? 'timingFromNotation' : 'timingEven')}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-text-secondary">{t('barsConnectHint')}</span>
-                  )}
-                </p>
-                <p className="text-xs text-text-secondary">{t('timingRecommended')}</p>
                 {timingFiles.length === 0 && <MuseScoreTip name={piece.name} />}
                 {/* The piece's length: follows the applied source (its bars, or
                     the recording even bars are spread over), editable. */}
@@ -817,7 +741,7 @@ export const PieceSetupPage = () => {
               </>
             }
           />
-        </Section>
+        </div>
 
       </div>
 
@@ -854,40 +778,6 @@ export const PieceSetupPage = () => {
         }}
         onCancel={() => setPendingReset(null)}
       />
-      <ConfirmDialog
-        open={!!toDelete}
-        title={t('delete')}
-        message={toDelete?.kind === 'audio' ? t('confirmDeleteRecording') : t('confirmDelete')}
-        confirmLabel={t('delete')}
-        destructive
-        onConfirm={removeFile}
-        onCancel={() => setToDelete(null)}
-      />
-      <ConfirmDialog
-        open={deletePieceOpen}
-        title={t('deletePiece')}
-        message={t('confirmDeletePiece')}
-        confirmLabel={t('delete')}
-        destructive
-        onConfirm={async () => {
-          await deletePiece(piece.id);
-          navigate(base);
-        }}
-        onCancel={() => setDeletePieceOpen(false)}
-      />
-      {projectId && (
-        <ConfirmDialog
-          open={removeOpen}
-          title={t('removeFromProject')}
-          message={t('confirmRemoveFromProject')}
-          confirmLabel={t('removeFromProject')}
-          onConfirm={async () => {
-            await removePieceFromProject(projectId, piece.id);
-            navigate(base);
-          }}
-          onCancel={() => setRemoveOpen(false)}
-        />
-      )}
     </div>
   );
 };
@@ -902,13 +792,19 @@ const MuseScoreTip = ({ name }: { name: string }) => {
     { os: 'Windows (PowerShell)', line: `& "C:\\Program Files\\MuseScore 4\\bin\\MuseScore4.exe" -o "${base}.mpos" "${base}.mscz"` },
   ];
   return (
-    <div className="space-y-2.5 rounded-md border border-border bg-surface-subtle p-3 text-sm">
-      <p>{t('timingTip')}</p>
-      {commands.map((c) => (
-        <CommandLine key={c.os} label={c.os} line={c.line} />
-      ))}
-      <p className="text-text-secondary">{t('timingTipAfter')}</p>
-    </div>
+    <details className="group rounded-xl border border-border bg-surface-subtle text-sm [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs text-text-secondary hover:text-text">
+        <ChevronRight size={14} className="flex-shrink-0 transition-transform duration-150 group-open:rotate-90" />
+        <span className="min-w-0 flex-1">{t('timingRecommended')}</span>
+      </summary>
+      <div className="space-y-2.5 border-t border-border p-3">
+        <p>{t('timingTip')}</p>
+        {commands.map((c) => (
+          <CommandLine key={c.os} label={c.os} line={c.line} />
+        ))}
+        <p className="text-text-secondary">{t('timingTipAfter')}</p>
+      </div>
+    </details>
   );
 };
 

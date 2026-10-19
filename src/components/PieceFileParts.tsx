@@ -318,17 +318,32 @@ export const fileIcon = (f: PieceFile): LucideIcon => {
   return FileIcon;
 };
 
+// What a file is, by colour (theme tokens): scores, recordings, notation …
+export const fileTone = (f: PieceFile): string => {
+  if (f.kind === 'link') return 'text-chart-2';
+  const name = f.file_name ?? '';
+  if (/\.pdf$/i.test(name) || f.kind === 'score') return 'text-danger';
+  if (f.kind === 'audio') return 'text-chart-4';
+  if (f.kind === 'midi' || /\.midi?$/i.test(name)) return 'text-chart-3';
+  if (f.kind === 'notation') return 'text-chart-1';
+  if (/\.(png|jpe?g|gif|webp|avif)$/i.test(name)) return 'text-chart-5';
+  return 'text-text-secondary';
+};
+
 // A file's one name, editable without its ending (".pdf" stays). Renaming
 // changes both the shown name and the stored file name (used for downloads).
 // `beforeEnding` sits between the name and its ending (the download switch).
+// `hideEnding`: the ending is shown elsewhere (a narrow node's second line).
 export const FileName = ({
   file,
   onRename,
   beforeEnding,
+  hideEnding = false,
 }: {
   file: PieceFile;
   onRename: (patch: Partial<PieceFile>) => void;
   beforeEnding?: ReactNode;
+  hideEnding?: boolean;
 }) => {
   const { t } = useI18n();
   const stored = file.file_name ?? '';
@@ -354,7 +369,7 @@ export const FileName = ({
         className="h-9 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-base font-medium hover:border-border focus:border-black focus:outline-none sm:text-sm"
       />
       {beforeEnding}
-      {ext && <span className="w-12 flex-shrink-0 text-sm text-text-tertiary">{ext}</span>}
+      {ext && !hideEnding && <span className="w-12 flex-shrink-0 text-sm text-text-tertiary">{ext}</span>}
     </div>
   );
 };
