@@ -28,8 +28,6 @@ export const EventsPage = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [warningCounts, setWarningCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  // The next/today rehearsal is pinned + highlighted until the user resets filters.
-  const [highlightNext, setHighlightNext] = useState(true);
   const tf = useTableFilters();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -117,7 +115,8 @@ export const EventsPage = () => {
     return upcoming[0]?.id ?? null;
   }, [events]);
 
-  const highlightRowId = highlightNext ? nextEventId : null;
+  // The next/today rehearsal is highlighted where it is in the list.
+  const highlightRowId = nextEventId;
 
   if (loading) return <PageSpinner />;
 
@@ -221,9 +220,6 @@ export const EventsPage = () => {
               query={tf.query}
               onQueryChange={tf.setQuery}
               filters={filters}
-              // Resetting also releases the pinned next rehearsal.
-              onReset={() => setHighlightNext(false)}
-              canReset={Boolean(highlightRowId)}
             />
             <HeaderAction icon={Plus} label={t('newEvent')} onClick={openCreate} />
           </>
@@ -240,8 +236,8 @@ export const EventsPage = () => {
         query={tf.query}
         hideToolbar
         highlightRowId={highlightRowId}
+        pinHighlight={false}
         variant="modern"
-        onClearFilters={() => setHighlightNext(false)}
         emptyMessage={t('noEvents')}
         emptyIcon={CalendarDays}
         // Phones: name (with badges, description), then date, time, location

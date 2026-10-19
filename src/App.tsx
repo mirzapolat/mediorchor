@@ -5,6 +5,7 @@ import { safeRedirectPath } from '@shared/safePath';
 import { trackPageview } from '@/lib/analytics';
 import { PageSpinner } from '@/components/Spinner';
 import { WelcomePhotoPrompt } from '@/components/WelcomePhotoPrompt';
+import { WelcomeContactsPrompt } from '@/components/WelcomeContactsPrompt';
 import { LoginPage } from '@/pages/LoginPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AppLayout } from '@/layouts/AppLayout';
@@ -122,6 +123,8 @@ export const App = () => {
   return (
     <>
       <WelcomePhotoPrompt />
+      {/* Shows once the photo prompt is done. */}
+      <WelcomeContactsPrompt />
       <Routes>
         <Route path="/login" element={<Navigate to={from ?? home} replace />} />
 

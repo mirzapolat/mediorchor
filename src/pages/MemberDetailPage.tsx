@@ -177,24 +177,28 @@ export const MemberDetailPage = () => {
         </div>
       </div>
 
-      {/* The linked account's contact details (for those who manage). */}
-      {member.user_id && <ContactList userId={member.user_id} className="mb-6 max-w-xl" />}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <p className="text-sm text-text-secondary">{t('attended')}</p>
-          <p className="text-2xl font-bold mt-1">{attendedCount}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-text-secondary">{t('excused')}</p>
-          <p className="text-2xl font-bold mt-1">
-            {held.filter((h) => h.status === 'excused').length}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-text-secondary">{t('events')}</p>
-          <p className="text-2xl font-bold mt-1">{held.length}</p>
-        </Card>
+      {/* The linked account's contact details (for those who manage) on the
+          left, the attendance numbers beside them; without contacts the
+          numbers take the whole row. The numbers' top lines up with the
+          contacts' list, below its label. */}
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:[&:has(>section)>div]:mt-6">
+        {member.user_id && <ContactList userId={member.user_id} className="min-w-0 lg:w-96 lg:flex-shrink-0" />}
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card>
+            <p className="text-sm text-text-secondary">{t('attended')}</p>
+            <p className="text-2xl font-bold mt-1">{attendedCount}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-text-secondary">{t('excused')}</p>
+            <p className="text-2xl font-bold mt-1">
+              {held.filter((h) => h.status === 'excused').length}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-sm text-text-secondary">{t('events')}</p>
+            <p className="text-2xl font-bold mt-1">{held.length}</p>
+          </Card>
+        </div>
       </div>
 
       <div className="mb-3 flex items-center justify-between gap-3">

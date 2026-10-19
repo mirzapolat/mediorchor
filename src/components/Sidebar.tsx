@@ -17,7 +17,7 @@ import { AppLogo } from './AppLogo';
 const COLLAPSED_WIDTH = 64;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 440;
-const DEFAULT_WIDTH = 240;
+const DEFAULT_WIDTH = 272;
 const WIDTH_KEY = 'anwesenheit.sidebar.width';
 const COLLAPSED_KEY = 'anwesenheit.sidebar.collapsed';
 const DESKTOP_QUERY = '(min-width: 768px)';
@@ -172,6 +172,9 @@ export const Sidebar = ({
         style={isDesktop ? { width: collapsed ? COLLAPSED_WIDTH : width } : undefined}
         className={[
           'flex h-full w-[280px] max-w-[85vw] flex-col border-r border-border bg-surface',
+          // Phones: room at the bottom for rounded display corners (the safe
+          // area where the browser reports one).
+          'pb-[max(1.25rem,env(safe-area-inset-bottom))] md:pb-0',
           'fixed inset-y-0 left-0 z-50 transform transition-transform duration-200',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           'md:relative md:z-auto md:w-auto md:max-w-none md:translate-x-0 md:flex-shrink-0 md:transition-none',

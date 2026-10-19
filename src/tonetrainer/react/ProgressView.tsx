@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowLeft, ArrowUp, Play, Repeat, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { formatMinutes, measureTrends, type MeasureTrend } from '../core/stats'
+import { formatMinutes, GOOD_MEASURE, mastery, measureTrends, pieceMeasuresOf, runScore, type MeasureTrend, type RunScore } from '../core/stats'
 import type { PracticeStorage } from '../core/storage'
 import type { SessionRecord } from '../core/types'
 import { accuracyColor, DEFAULT_COLORS, useTrainerColors, type TrainerColors } from './theme'
@@ -42,12 +42,20 @@ export default function ProgressView({ scoreId, title, storage, onBack, onPracti
   }, [scoreId, storage])
 
   const all = sessions ?? []
-  const graded = useMemo(() => all.filter((s) => s.trackId === trackId && s.notes > 0).slice(-MAX_SESSIONS), [all, trackId])
-  const trends = useMemo(() => measureTrends(graded), [graded])
+  // Every graded run of the voice (for how well the piece is known) and the
+  // latest ones (charts and lists).
+  const trackRuns = useMemo(() => all.filter((s) => s.trackId === trackId && s.notes > 0), [all, trackId])
+  const graded = useMemo(() => trackRuns.slice(-MAX_SESSIONS), [trackRuns])
+  // Runs are judged against the whole piece, not only the part sung.
+  const piece = useMemo(() => pieceMeasuresOf(trackRuns), [trackRuns])
+  const scores = useMemo(() => graded.map((s) => runScore(s, piece.measures)), [graded, piece])
+  const known = useMemo(() => mastery(trackRuns, piece.measures), [trackRuns, piece])
+  const trends = useMemo(() => measureTrends(graded, piece.measures), [graded, piece])
   const practicedTracks = useMemo(() => [...new Map(all.map((s) => [s.trackId, s.trackName])).entries()], [all])
   const totalMin = all.reduce((a, s) => a + s.practiceSec / 60, 0)
-  const latest = graded[graded.length - 1]
-  const best = graded.reduce((a, s) => Math.max(a, s.accuracy), 0)
+  const latest = scores[scores.length - 1]
+  const best = scores.reduce((a, s) => Math.max(a, s.score), 0)
+  const pct = (v: number) => `${Math.round(v * 100)} %`
 
   return (
     <div ref={rootRef} className={embedded ? 'tt-root tt-progress tt-progress--embedded' : 'tt-root tt-progress'}>
@@ -74,16 +82,44 @@ export default function ProgressView({ scoreId, title, storage, onBack, onPracti
         )}
       </header>
 
+      {/* The overall guide: how much of the piece is known well. */}
+      {graded.length > 0 && (
+        <section className="tt-mastery tt-surface" aria-label="So gut kannst du das Stück">
+          <div className="tt-mastery__head">
+            <div>
+              <h2 className="tt-mastery__label">So gut kannst du das Stück</h2>
+              <p className="tt-muted tt-mastery__sub">
+                {known.good} von {known.total} Takten sicher
+                {known.unsung > 0 && ` · ${known.unsung} noch nicht gesungen`}
+              </p>
+            </div>
+            <p className="tt-mastery__value" style={{ color: accuracyColor(colors, known.share) }}>
+              {pct(known.share)}
+            </p>
+          </div>
+          <div className="tt-mastery__bar" aria-hidden>
+            <span style={{ width: `${known.share * 100}%`, background: accuracyColor(colors, known.share) }} />
+          </div>
+          <p className="tt-muted tt-mastery__hint">
+            Ein Takt zählt als sicher, wenn du ihn bei deinen letzten drei Versuchen im Schnitt zu mindestens {Math.round(GOOD_MEASURE * 100)} % triffst. Takte, die du noch nicht gesungen hast, zählen nicht.
+            {!piece.complete && ' Gezählt werden vorerst die bisher gesungenen Takte – nach deinem nächsten Durchgang kennt der Trainer das ganze Stück.'}
+          </p>
+        </section>
+      )}
+
       <dl className="tt-stats">
-        {[
-          ['Geübt insgesamt', formatMinutes(totalMin)],
-          ['Durchgänge', String(graded.length)],
-          ['Zuletzt', latest ? `${Math.round(latest.accuracy * 100)} %` : '–'],
-          ['Bestwert', graded.length ? `${Math.round(best * 100)} %` : '–'],
-        ].map(([k, v]) => (
+        {(
+          [
+            ['Geübt insgesamt', formatMinutes(totalMin), null],
+            ['Durchgänge', String(graded.length), null],
+            ['Zuletzt', latest ? pct(latest.score) : '–', latest ? `${pct(latest.coverage)} des Stücks gesungen` : null],
+            ['Bestwert', graded.length ? pct(best) : '–', graded.length ? 'aufs ganze Stück' : null],
+          ] as const
+        ).map(([k, v, sub]) => (
           <div key={k} className="tt-stat tt-surface">
             <dt>{k}</dt>
             <dd>{v}</dd>
+            {sub && <p className="tt-stat__sub tt-muted">{sub}</p>}
           </div>
         ))}
       </dl>
@@ -93,8 +129,9 @@ export default function ProgressView({ scoreId, title, storage, onBack, onPracti
       ) : graded.length > 0 ? (
         <>
           <section className="tt-surface tt-pad" aria-label="Genauigkeit pro Durchgang">
-            <h2 className="tt-card-title">Genauigkeit pro Durchgang</h2>
-            <AccuracyChart sessions={graded} colors={colors} />
+            <h2 className="tt-card-title">Ergebnis pro Durchgang</h2>
+            <p className="tt-muted tt-card-hint">Aufs ganze Stück gerechnet: Was du nicht gesungen hast, zählt als nicht getroffen.</p>
+            <AccuracyChart sessions={graded} scores={scores} colors={colors} />
           </section>
 
           <div className="tt-trends">
@@ -134,7 +171,7 @@ function useWidth(ref: RefObject<Element | null>, fallback: number) {
   return width
 }
 
-function AccuracyChart({ sessions, colors }: { sessions: SessionRecord[]; colors: TrainerColors }) {
+function AccuracyChart({ sessions, scores, colors }: { sessions: SessionRecord[]; scores: RunScore[]; colors: TrainerColors }) {
   // Drawn at its real width (not scaled down), so the labels stay readable on a phone.
   const ref = useRef<HTMLDivElement>(null)
   const W = useWidth(ref, 640)
@@ -142,12 +179,12 @@ function AccuracyChart({ sessions, colors }: { sessions: SessionRecord[]; colors
   const pad = { l: 34, r: 12, t: 12, b: 24 }
   const xs = (i: number) => pad.l + (sessions.length === 1 ? (W - pad.l - pad.r) / 2 : (i / (sessions.length - 1)) * (W - pad.l - pad.r))
   const ys = (v: number) => pad.t + (1 - v) * (H - pad.t - pad.b)
-  const d = sessions.map((s, i) => `${i ? 'L' : 'M'} ${xs(i)} ${ys(s.accuracy)}`).join(' ')
+  const d = scores.map((s, i) => `${i ? 'L' : 'M'} ${xs(i)} ${ys(s.score)}`).join(' ')
   // Every n-th date where they would overlap, counted from the latest one.
   const step = Math.max(1, Math.ceil(44 / ((W - pad.l - pad.r) / Math.max(1, sessions.length - 1))))
   return (
     <div ref={ref}>
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="tt-chart" role="img" aria-label={`Genauigkeit von ${Math.round(sessions[0].accuracy * 100)} % bis ${Math.round(sessions[sessions.length - 1].accuracy * 100)} %`}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="tt-chart" role="img" aria-label={`Ergebnis von ${Math.round(scores[0].score * 100)} % bis ${Math.round(scores[scores.length - 1].score * 100)} %`}>
         {[0, 0.5, 1].map((v) => (
           <g key={v}>
             <line className="tt-chart__grid" x1={pad.l} x2={W - pad.r} y1={ys(v)} y2={ys(v)} />
@@ -159,8 +196,8 @@ function AccuracyChart({ sessions, colors }: { sessions: SessionRecord[]; colors
         <path className="tt-chart__line" d={d} />
         {sessions.map((s, i) => (
           <g key={s.id}>
-            <circle cx={xs(i)} cy={ys(s.accuracy)} r={4.5} fill={accuracyColor(colors, s.accuracy)}>
-              <title>{`${new Date(s.startedAt).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}: ${Math.round(s.accuracy * 100)} % (${s.mode === 'wait' ? 'Warte-Modus' : `Mitsingen, ${Math.round(s.tempoFactor * 100)} % Tempo`})`}</title>
+            <circle cx={xs(i)} cy={ys(scores[i].score)} r={4.5} fill={accuracyColor(colors, scores[i].score)}>
+              <title>{`${new Date(s.startedAt).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}: ${Math.round(scores[i].score * 100)} % des Stücks (${Math.round(scores[i].coverage * 100)} % gesungen, davon ${Math.round(scores[i].accuracy * 100)} % getroffen; ${s.mode === 'wait' ? 'Warte-Modus' : `Mitsingen, ${Math.round(s.tempoFactor * 100)} % Tempo`})`}</title>
             </circle>
             {(sessions.length - 1 - i) % step === 0 && (
               <text className="tt-chart__label" x={xs(i)} y={H - 6} textAnchor="middle">

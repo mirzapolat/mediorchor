@@ -1053,7 +1053,6 @@ const de: Messages = {
   fullscreen: 'Vollbild',
   exitFullscreen: 'Vollbild beenden',
   followHint: 'Die Noten scrollen beim Abspielen zum aktuellen Takt mit.',
-  noMarkers: 'In diesen Noten sind noch keine Takte markiert – nutze die Ansicht „Takte“, um zu springen.',
   markersLockedBy: '{name} bearbeitet gerade die Takte dieses Stücks. Versuch es später noch einmal.',
   someoneElse: 'Jemand anderes',
   noMarkersManagerPhone:
@@ -1154,6 +1153,10 @@ const de: Messages = {
   trainerSubtitle: 'Üben mit dem Mikrofon',
   uploadOnFilesPageShort: 'Hochladen unter Dateien',
   connected: 'Verbunden',
+  welcomeContactsTitle: 'Wie erreicht man dich?',
+  welcomeContactsHint: 'Füge Kontaktdaten hinzu, z. B. WhatsApp oder Signal, damit dich die Projektleitung schnell erreicht.',
+  welcomeContactsMore: 'Weitere …',
+  welcomeContactsWhere: 'Du kannst sie jederzeit in deinem Profil ändern.',
   // Contact details (profile)
   contactDetails: 'Kontaktdaten',
   contactDetailsHint: 'Wie man dich erreicht. Sichtbar für dich und für alle, die Projekte verwalten.',

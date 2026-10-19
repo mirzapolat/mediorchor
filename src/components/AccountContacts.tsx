@@ -10,21 +10,22 @@ import { useI18n } from '@/lib/i18n';
 import { track } from '@/lib/analytics';
 import { cn } from '@/lib/cn';
 import { CONTACT_INFO, contactActionLabel, contactKindLabel, opensNewTab } from '@/lib/contacts';
-import { CONTACT_KINDS, CONTACT_LABEL_MAX, CONTACT_VALUE_MAX, type ContactKind } from '@shared/contactKinds';
+import { CONTACT_KINDS, CONTACT_LABEL_MAX, CONTACT_VALUE_MAX, isContactKind, type ContactKind } from '@shared/contactKinds';
 import type { AccountContact } from '@/types';
 
 // An account's contact details: edited in its profile settings, shown to
 // those who manage projects on the member and account pages. Each becomes
 // a one-click link where it can (call, write, open the chat or profile).
 
-const loadContacts = async (userId: string): Promise<AccountContact[]> => {
+export const loadContacts = async (userId: string): Promise<AccountContact[]> => {
   const { data } = await api
     .from('account_contacts')
     .select('*')
     .eq('user_id', userId)
     .order('position')
     .order('created_at');
-  return (data as AccountContact[] | null) ?? [];
+  // A kind the app no longer offers is shown as "other" (never a crash).
+  return ((data as AccountContact[] | null) ?? []).map((c) => (isContactKind(c.kind) ? c : { ...c, kind: 'other' }));
 };
 
 // The kind's tinted icon tile.
@@ -60,7 +61,7 @@ const CopyButton = ({ value }: { value: string }) => {
 
 // One contact: its icon, the value (a link where it can be one), its label
 // and kind; `actions` on the right.
-const ContactRow = ({ contact, actions }: { contact: AccountContact; actions?: ReactNode }) => {
+export const ContactRow = ({ contact, actions }: { contact: AccountContact; actions?: ReactNode }) => {
   const { t } = useI18n();
   const info = CONTACT_INFO[contact.kind];
   const href = info.href(contact.value);
@@ -105,14 +106,17 @@ const ContactRow = ({ contact, actions }: { contact: AccountContact; actions?: R
 
 // Adding or changing one contact: its kind (tiles), the value with an
 // example for the kind, an optional label, and what link it becomes.
-const ContactDialog = ({
+export const ContactDialog = ({
   open,
   contact,
+  initialKind = 'phone',
   onClose,
   onSave,
 }: {
   open: boolean;
   contact: AccountContact | null;
+  // A new contact's kind to start with.
+  initialKind?: ContactKind;
   onClose: () => void;
   onSave: (fields: { kind: ContactKind; value: string; label: string }) => Promise<string | null>;
 }) => {
@@ -125,11 +129,11 @@ const ContactDialog = ({
 
   useEffect(() => {
     if (!open) return;
-    setKind(contact?.kind ?? 'phone');
+    setKind(contact?.kind ?? initialKind);
     setValue(contact?.value ?? '');
     setLabel(contact?.label ?? '');
     setError(null);
-  }, [open, contact]);
+  }, [open, contact, initialKind]);
 
   const info = CONTACT_INFO[kind];
   const href = value.trim() ? info.href(value) : null;
@@ -315,11 +319,11 @@ export const ContactsEditor = ({ userId }: { userId: string }) => {
             getId={(c) => c.id}
             onReorder={(next) => void reorder(next)}
             renderItem={(c) => (
-              <div className="group/contact">
+              <div>
                 <ContactRow
                   contact={c}
                   actions={
-                    <span className="flex items-center transition-opacity duration-150 lg:opacity-0 lg:focus-within:opacity-100 lg:group-hover/contact:opacity-100">
+                    <span className="flex items-center">
                       <button
                         type="button"
                         onClick={() => openDialog(c)}

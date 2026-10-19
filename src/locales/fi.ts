@@ -1019,7 +1019,6 @@ const fi: Messages = {
   fullscreen: 'Koko näyttö',
   exitFullscreen: 'Poistu koko näytöstä',
   followHint: 'Nuotit vierivät soiton aikana nykyisen tahdin kohdalle.',
-  noMarkers: 'Näihin nuotteihin ei vielä ole merkitty tahteja – siirry ”Tahdit”-näkymän avulla.',
   markersLockedBy: '{name} muokkaa parhaillaan tämän kappaleen tahteja. Yritä myöhemmin uudelleen.',
   someoneElse: 'Joku muu',
   noMarkersManagerPhone: 'Näihin nuotteihin ei vielä ole merkitty tahteja – merkitse ne tietokoneella (”Merkitse tahdit”).',
@@ -1118,6 +1117,10 @@ const fi: Messages = {
   trainerSubtitle: 'Harjoittele mikrofonilla',
   uploadOnFilesPageShort: 'Lataa Tiedostot-sivulla',
   connected: 'Yhdistetty',
+  welcomeContactsTitle: 'Miten sinut tavoittaa?',
+  welcomeContactsHint: 'Lisää yhteystietoja, esim. WhatsApp tai Signal, jotta projektin vetäjät tavoittavat sinut nopeasti.',
+  welcomeContactsMore: 'Lisää …',
+  welcomeContactsWhere: 'Voit muuttaa niitä milloin tahansa profiilissasi.',
   // Contact details (profile)
   contactDetails: 'Yhteystiedot',
   contactDetailsHint: 'Miten sinut tavoittaa. Näkyy sinulle ja kaikille, jotka hallinnoivat projekteja.',

@@ -110,8 +110,10 @@ export interface MeasureTrend {
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 
 /** Per-measure accuracy across sessions, with a verdict on what keeps going wrong and what improved. */
-export function measureTrends(sessions: SessionRecord[]): MeasureTrend[] {
+export function measureTrends(sessions: SessionRecord[], piece?: PieceMeasures): MeasureTrend[] {
   const indices = new Map<number, string>()
+  // Every measure of the piece (unsung ones too), else those sung.
+  if (piece) for (const [k, m] of piece) indices.set(k, m.label)
   for (const s of sessions) for (const [k, m] of Object.entries(s.measures)) indices.set(Number(k), m.label)
   return [...indices.entries()]
     .sort((a, b) => a[0] - b[0])
@@ -137,6 +139,93 @@ export function measureTrends(sessions: SessionRecord[]): MeasureTrend[] {
       }
       return { measureIndex: mi, label, values, latest, status, bias: biases.length ? mean(biases) : null }
     })
+}
+
+// --- the piece as a whole ---------------------------------------------------
+
+/** A measure counts as known from this accuracy on (as "solid" above). */
+export const GOOD_MEASURE = 0.85
+
+export type PieceMeasures = Map<number, { label: string; notes: number }>
+
+/**
+ * The voice's measures: from the newest session that recorded them, else
+ * (sessions saved before that) the measures sung so far. `complete` tells
+ * whether the list is the whole piece.
+ */
+export function pieceMeasuresOf(sessions: SessionRecord[]): { measures: PieceMeasures; complete: boolean } {
+  const known = [...sessions].reverse().find((s) => s.pieceMeasures && Object.keys(s.pieceMeasures).length)
+  if (known?.pieceMeasures) {
+    return {
+      measures: new Map(Object.entries(known.pieceMeasures).map(([k, m]) => [Number(k), m])),
+      complete: true,
+    }
+  }
+  const measures: PieceMeasures = new Map()
+  for (const s of sessions) {
+    for (const [k, m] of Object.entries(s.measures)) {
+      const prev = measures.get(Number(k))
+      // Without the piece's note counts, the most notes sung there is the best guess.
+      if (!prev || m.n > prev.notes) measures.set(Number(k), { label: m.label, notes: m.n })
+    }
+  }
+  return { measures, complete: false }
+}
+
+const measureAccuracy = (s: SessionRecord, mi: number) => {
+  const m = s.measures[mi]
+  return m && m.n ? m.score / m.n : null
+}
+
+export interface RunScore {
+  /** The run against the whole piece: unsung measures count as 0, so 100 % needs all of it. */
+  score: number
+  /** Share of the piece's notes that were sung in the run. */
+  coverage: number
+  /** How well the sung part went (the run's own hit rate). */
+  accuracy: number
+}
+
+/** One run seen against the whole piece (its measures weighted by their notes). */
+export function runScore(session: SessionRecord, piece: PieceMeasures): RunScore {
+  let total = 0
+  let sung = 0
+  let points = 0
+  for (const [mi, { notes }] of piece) {
+    total += notes
+    const acc = measureAccuracy(session, mi)
+    if (acc === null) continue
+    sung += notes
+    points += acc * notes
+  }
+  if (total === 0) return { score: session.accuracy, coverage: 1, accuracy: session.accuracy }
+  return { score: points / total, coverage: sung / total, accuracy: session.accuracy }
+}
+
+export interface Mastery {
+  /** Share of the piece's measures known well (0..1). */
+  share: number
+  good: number
+  total: number
+  /** Measures never sung yet. */
+  unsung: number
+}
+
+/**
+ * How well the piece is known: a measure counts when its last `attempts`
+ * tries (the runs that sang it) average GOOD_MEASURE or better; measures
+ * not sung yet don't count. Practising section by section adds up.
+ */
+export function mastery(sessions: SessionRecord[], piece: PieceMeasures, attempts = 3): Mastery {
+  let good = 0
+  let unsung = 0
+  for (const mi of piece.keys()) {
+    const tries = sessions.map((s) => measureAccuracy(s, mi)).filter((v): v is number => v !== null).slice(-attempts)
+    if (tries.length === 0) unsung++
+    else if (mean(tries) >= GOOD_MEASURE) good++
+  }
+  const total = piece.size
+  return { share: total ? good / total : 0, good, total, unsung }
 }
 
 export function formatMinutes(min: number) {

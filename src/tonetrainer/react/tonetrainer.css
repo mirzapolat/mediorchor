@@ -1144,6 +1144,59 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.tt-stat__sub {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+}
+.tt-card-hint {
+  margin: -0.25rem 0 0.5rem;
+  font-size: 0.8125rem;
+}
+/* The overall guide: how much of the piece is known well, highlighted. */
+.tt-mastery {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: inset 0 0 0 1.5px var(--tt-accent), var(--tt-shadow);
+}
+.tt-mastery__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.tt-mastery__label {
+  font-family: var(--tt-font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.tt-mastery__sub {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+}
+.tt-mastery__value {
+  flex-shrink: 0;
+  font-family: var(--tt-font-display);
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.tt-mastery__bar {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--tt-control-bg);
+}
+.tt-mastery__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 300ms ease;
+}
+.tt-mastery__hint {
+  font-size: 0.8125rem;
+}
 .tt-trends {
   display: grid;
   gap: 1rem;

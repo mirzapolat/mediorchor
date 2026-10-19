@@ -25,6 +25,7 @@ export interface AppUser {
   role: UserRole; // permissions; new accounts are Teilnehmer ('participant')
   photo_url: string | null; // set by the account holder, mirrored onto linked members
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
+  contacts_prompted_at: string | null; // when the one-time contact details prompt was shown (null = not yet)
   approved: boolean; // false = self sign-up waiting for admin approval
   notify_reminders: boolean; // email: reminder before a Probe (opt-in)
   notify_status: boolean; // email: someone marked me excused/absent (opt-in)

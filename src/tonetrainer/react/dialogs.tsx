@@ -8,6 +8,7 @@ import type { PracticeSettings, Sensitivity } from '../core/settings'
 import type { TTrack } from '../core/timeline'
 import type { SessionRecord } from '../core/types'
 import { accuracyColor, type TrainerColors } from './theme'
+import { pieceMeasuresOf, runScore } from '../core/stats'
 import { Dialog, Segmented, Slider, Switch } from './ui'
 import { activePreset, MIX_PRESETS, presetMix } from './usePracticeSession'
 
@@ -268,17 +269,21 @@ export function ResultsDialog({
     .map(([k, m]) => ({ mi: Number(k), ...m, acc: m.n ? m.score / m.n : 0 }))
     .sort((a, b) => a.mi - b.mi)
   const problems = measures.filter((m) => m.acc < 0.7).sort((a, b) => a.acc - b.acc).slice(0, 4)
-  const delta = previous && previous.notes ? session.accuracy - previous.accuracy : null
+  // Judged against the whole piece: only all of it, all hit, makes 100 %.
+  const piece = pieceMeasuresOf(previous ? [previous, session] : [session]).measures
+  const run = runScore(session, piece)
+  const delta = previous && previous.notes ? run.score - runScore(previous, piece).score : null
 
   return (
     <Dialog open={open} onClose={onClose} title="Auswertung" wide>
       <div className="tt-result__summary">
         <div>
-          <p className="tt-result__score" style={{ color: accuracyColor(colors, session.accuracy) }}>
-            {pct(session.accuracy)}
+          <p className="tt-result__score" style={{ color: accuracyColor(colors, run.score) }}>
+            {pct(run.score)}
           </p>
           <p className="tt-muted">
-            der Noten getroffen ({session.notes} bewertet, {session.trackName})
+            des ganzen Stücks ({session.trackName}): {pct(run.coverage)} gesungen, davon {pct(run.accuracy)} der Noten
+            getroffen
           </p>
         </div>
         {delta !== null && (

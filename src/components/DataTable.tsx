@@ -45,8 +45,10 @@ interface DataTableProps<T> {
   emptyMessage: string;
   emptyIcon?: LucideIcon;
   onVisibleRowsChange?: (rows: T[]) => void;
-  // Row id pinned to the top and visually highlighted (e.g. the next event).
+  // Row id visually highlighted (e.g. the next event) and, unless
+  // `pinHighlight` is false, pinned to the top.
   highlightRowId?: string | null;
+  pinHighlight?: boolean;
   // Called when the user resets filters, so callers can also clear any pin.
   onClearFilters?: () => void;
   // Enables a leading checkbox column. Selection is controlled by the caller.
@@ -118,6 +120,7 @@ export function DataTable<T>({
   emptyIcon,
   onVisibleRowsChange,
   highlightRowId,
+  pinHighlight = true,
   onClearFilters,
   selectedIds,
   onSelectedIdsChange,
@@ -168,7 +171,7 @@ export function DataTable<T>({
       }
     }
     // Pin the highlighted row to the very top, regardless of sort order.
-    if (highlightRowId) {
+    if (highlightRowId && pinHighlight) {
       const pinned = out.filter((r) => getRowId(r) === highlightRowId);
       if (pinned.length > 0) {
         out = [...pinned, ...out.filter((r) => getRowId(r) !== highlightRowId)];
@@ -176,7 +179,7 @@ export function DataTable<T>({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, columns, filters, JSON.stringify(filterValues), query, search, sortId, sortDir, highlightRowId, getRowId, reorderable]);
+  }, [rows, columns, filters, JSON.stringify(filterValues), query, search, sortId, sortDir, highlightRowId, pinHighlight, getRowId, reorderable]);
 
   useEffect(() => {
     onVisibleRowsChange?.(processed);
@@ -201,7 +204,7 @@ export function DataTable<T>({
   const hasActiveFilters =
     query.trim() !== '' ||
     filters.some((f) => (filterValues[f.id] ?? '') !== '') ||
-    Boolean(highlightRowId);
+    (Boolean(highlightRowId) && pinHighlight);
 
   const clearAll = () => {
     setQuery('');

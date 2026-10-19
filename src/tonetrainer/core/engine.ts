@@ -284,6 +284,12 @@ export class PracticeEngine {
       n += m.n
       score += m.score
     }
+    // The whole piece for this voice, to judge the run against.
+    const pieceMeasures: Record<number, { label: string; notes: number }> = {}
+    for (const note of this.notes) {
+      const m = (pieceMeasures[note.measureIndex] ??= { label: this.timeline.visits[note.visit].number, notes: 0 })
+      m.notes++
+    }
     return {
       id: crypto.randomUUID(),
       songId,
@@ -297,6 +303,7 @@ export class PracticeEngine {
       accuracy: n ? score / n : 0,
       tempoFactor: this.player.factor,
       measures: Object.fromEntries(this.measureAgg),
+      pieceMeasures,
     }
   }
 

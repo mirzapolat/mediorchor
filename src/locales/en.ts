@@ -1020,7 +1020,6 @@ const en = {
   fullscreen: 'Fullscreen',
   exitFullscreen: 'Exit fullscreen',
   followHint: 'The score scrolls along to the current bar while playing.',
-  noMarkers: 'No bars are marked in this score yet — use the “Bars” view to jump around.',
   markersLockedBy: '{name} is editing the bars of this piece right now. Please try again later.',
   someoneElse: 'Someone else',
   noMarkersManagerPhone: 'No bars are marked in this score yet — place them on a computer (“Place bars”).',
@@ -1119,6 +1118,10 @@ const en = {
   trainerSubtitle: 'Practice with the microphone',
   uploadOnFilesPageShort: 'Upload under Files',
   connected: 'Connected',
+  welcomeContactsTitle: 'How can people reach you?',
+  welcomeContactsHint: 'Add contact details, e.g. WhatsApp or Signal, so the project leads can reach you quickly.',
+  welcomeContactsMore: 'More …',
+  welcomeContactsWhere: 'You can change them any time in your profile.',
   // Contact details (profile)
   contactDetails: 'Contact details',
   contactDetailsHint: 'How to reach you. Visible to you and to everyone who manages projects.',

@@ -36,6 +36,13 @@ export interface SessionRecord {
   tempoFactor: number
   /** Keyed by 0-based source measure index. */
   measures: Record<number, MeasureStat>
+  /**
+   * Every measure of the piece in which this voice sings (0-based source
+   * index → printed number and how many of its notes are there, repeats
+   * counted), so a run is judged against the whole piece, not only the
+   * part that was sung. Missing in sessions saved before it existed.
+   */
+  pieceMeasures?: Record<number, { label: string; notes: number }>
 }
 
 /** Per-score view preferences remembered between visits. */

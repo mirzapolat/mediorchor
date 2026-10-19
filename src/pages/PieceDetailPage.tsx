@@ -360,9 +360,10 @@ export const PieceDetailPage = () => {
           </button>
         </div>
       )}
-      {score && !hasAnchors && bars.length > 0 && !editingAnchors && (
+      {/* Editors learn they can place the bars; members see the score as it is. */}
+      {canEdit && score && !hasAnchors && bars.length > 0 && !editingAnchors && (
         <p className="mb-3 rounded-md bg-surface-muted px-3 py-2 text-sm text-text-secondary">
-          {canEdit ? t(canPlaceBars ? 'noMarkersManager' : 'noMarkersManagerPhone') : t('noMarkers')}
+          {t(canPlaceBars ? 'noMarkersManager' : 'noMarkersManagerPhone')}
         </p>
       )}
 
