@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { useNavigate } from 'react-router-dom';
 import {
   Bookmark,
+  Check,
   Download,
   CalendarX2,
   AtSign,
@@ -12,6 +13,8 @@ import {
   Plus,
   Settings2,
   Mic,
+  Minus,
+  Speech,
   Trash2,
   X,
 } from 'lucide-react';
@@ -335,29 +338,33 @@ export const AbsencesPage = () => {
       {
         id: 'attended',
         header: t('attended'),
+        headerIcon: <Check size={16} strokeWidth={2.5} className="text-success-strong" />,
         accessor: (row) => row.counts.attended,
         render: (row) => <span className="font-medium text-success-strong">{row.counts.attended}</span>,
-        className: 'w-36 text-center whitespace-nowrap',
+        className: 'w-20 text-center whitespace-nowrap',
       },
       {
         id: 'excused',
         header: t('excused'),
+        headerIcon: <Minus size={16} strokeWidth={2.5} className="text-accent" />,
         accessor: (row) => row.counts.excused,
         render: (row) => <span className="font-medium text-text-secondary">{row.counts.excused}</span>,
-        className: 'w-36 text-center whitespace-nowrap',
+        className: 'w-20 text-center whitespace-nowrap',
       },
       {
         id: 'absent',
         header: t('notAttended'),
+        headerIcon: <X size={16} strokeWidth={2.5} className="text-text-tertiary" />,
         accessor: (row) => row.counts.absent,
         render: (row) => <span className="font-medium text-text-secondary">{row.counts.absent}</span>,
-        className: 'w-36 text-center whitespace-nowrap',
+        className: 'w-20 text-center whitespace-nowrap',
       },
       ...(hasAuditionRule
         ? [
             {
               id: 'auditioned',
               header: t('auditioned'),
+              headerIcon: <Speech size={16} className="text-text-secondary" />,
               accessor: (row) => (row.member.auditioned ? 1 : 0),
               render: (row) => (
                 <input
@@ -369,7 +376,7 @@ export const AbsencesPage = () => {
                   onChange={() => void toggleAuditioned(row.member)}
                 />
               ),
-              className: 'w-36 text-center whitespace-nowrap',
+              className: 'w-20 text-center whitespace-nowrap',
             } satisfies Column<ResultRow>,
           ]
         : []),

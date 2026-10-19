@@ -10,6 +10,9 @@ import { cn } from '@/lib/cn';
 export interface Column<T> {
   id: string;
   header: string;
+  // Shown instead of `header` in the desktop column header (the text stays as
+  // tooltip and screen-reader label, and on phones and in the sort menu).
+  headerIcon?: ReactNode;
   // Value used for sorting and, when no `render` is given, for the cell text.
   accessor?: (row: T) => string | number | null;
   render?: (row: T) => ReactNode;
@@ -472,6 +475,14 @@ export function DataTable<T>({
                 {columns.map((c) => {
                   const sortable = !reorderable && (c.sortable ?? Boolean(c.accessor));
                   const active = sortId === c.id;
+                  const label = c.headerIcon ? (
+                    <span className="inline-flex items-center" title={c.header}>
+                      {c.headerIcon}
+                      <span className="sr-only">{c.header}</span>
+                    </span>
+                  ) : (
+                    c.header
+                  );
                   return (
                     <th key={c.id} className={cn(headCell, c.className)}>
                       {sortable ? (
@@ -480,7 +491,7 @@ export function DataTable<T>({
                           onClick={() => toggleSort(c.id)}
                           className="inline-flex items-center gap-1.5 font-medium hover:text-text transition-colors duration-150"
                         >
-                          {c.header}
+                          {label}
                           {active ? (
                             sortDir === 'asc' ? (
                               <ChevronUp size={14} />
@@ -492,7 +503,7 @@ export function DataTable<T>({
                           )}
                         </button>
                       ) : (
-                        c.header
+                        label
                       )}
                     </th>
                   );
