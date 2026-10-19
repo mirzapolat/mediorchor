@@ -375,6 +375,18 @@ export interface PieceFile {
   setup_position: number;
 }
 
+// A contact detail an account added in its profile (see migration 0065).
+export interface AccountContact {
+  id: string;
+  user_id: string;
+  kind: import('@shared/contactKinds').ContactKind;
+  // Its own name, e.g. "Mobil", "Arbeit"; empty = the kind's name.
+  label: string;
+  value: string;
+  position: number;
+  created_at: string;
+}
+
 // A deleted file waiting 30 days in its piece's trash (see migration 0063).
 export interface PieceFileTrashEntry {
   id: string;

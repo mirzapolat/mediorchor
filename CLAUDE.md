@@ -29,7 +29,9 @@ Reference implementations — copy from these rather than inventing:
   `title` tooltip); give the main column the free space (`min-w-0 flex-1`,
   or the one column without a width in a `table-fixed` table) and the others
   fixed widths shared by header and rows (one `COL` map, see `PieceTable`).
-- **Smaller type in data:** table rows `text-sm`, headers and meta `text-xs`.
+- **Type in tables** matches the app's other tables: rows `text-base`,
+  column headers `text-sm`; only secondary lines and meta are smaller
+  (`text-xs`/`text-sm`).
 - **Actions appear where they act.** Secondary row/node actions (remove ✕,
   grips) are faded until hover (`opacity-0 group-hover/…:opacity-100`,
   always visible below `lg` and on `focus`). Several toolbar options

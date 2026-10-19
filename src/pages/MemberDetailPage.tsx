@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, UserRound } from 'lucide-react';
 import { Card } from '@/components/Card';
+import { ContactList } from '@/components/AccountContacts';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { MemberForm } from '@/components/MemberForm';
@@ -175,6 +176,9 @@ export const MemberDetailPage = () => {
           <HeaderAction icon={Pencil} label={t('edit')} variant="secondary" onClick={() => setEditOpen(true)} />
         </div>
       </div>
+
+      {/* The linked account's contact details (for those who manage). */}
+      {member.user_id && <ContactList userId={member.user_id} className="mb-6 max-w-xl" />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <Card>

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PageHeader } from '@/components/PageHeader';
+import { ContactsEditor } from '@/components/AccountContacts';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
@@ -51,7 +52,7 @@ import type { HomePage } from '@/types';
 
 // Account settings, one page per section of the account sidebar.
 
-// Profile: photo, first and last name.
+// Profile: photo, first and last name, and contact details.
 export const AccountProfilePage = () => {
   const { t } = useI18n();
   const { user, refreshUser } = useAuth();
@@ -140,6 +141,9 @@ export const AccountProfilePage = () => {
           </div>
         </Card>
       </form>
+      <div className="mt-6">
+        <ContactsEditor userId={user.id} />
+      </div>
       {photo.cropper}
     </>
   );

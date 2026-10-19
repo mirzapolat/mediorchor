@@ -67,7 +67,7 @@ interface DataTableProps<T> {
   mobileCard?: (row: T) => ReactNode;
   // Phones: leave the action icons out (the mobileCard shows its own buttons).
   hideMobileActions?: boolean;
-  // `modern`: lines between rows only, a light header, smaller text and fixed
+  // `modern`: lines between rows only, a light header and fixed
   // column widths (a column without a width takes the rest), so cells cut
   // long text instead of wrapping — the look of the pieces tables.
   variant?: 'classic' | 'modern';
@@ -444,7 +444,7 @@ export function DataTable<T>({
               <tr
                 className={cn(
                   'font-medium text-text-secondary text-left',
-                  modern ? 'bg-surface-subtle text-xs' : 'bg-surface-muted text-sm',
+                  modern ? 'bg-surface-subtle text-sm' : 'bg-surface-muted text-sm',
                 )}
               >
                 {reorderable && (
@@ -526,7 +526,7 @@ export function DataTable<T>({
                       : undefined
                   }
                   className={cn(
-                    modern ? 'text-sm [&:last-child>td]:border-b-0' : 'text-base',
+                    modern ? 'text-base [&:last-child>td]:border-b-0' : 'text-base',
                     dragging
                       ? 'bg-white shadow-lg'
                       : selected

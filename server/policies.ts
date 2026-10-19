@@ -13,6 +13,7 @@ import { env } from './env.ts';
 import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
 import { hasSecondFactor } from './mfa.ts';
 import { isLanguage } from '../shared/languages.ts';
+import { CONTACT_LABEL_MAX, CONTACT_VALUE_MAX, isContactKind } from '../shared/contactKinds.ts';
 
 type Predicate = (alias: string) => string;
 
@@ -599,6 +600,18 @@ export const policies: Record<string, TablePolicy> = {
     insert: (a) => `${a}.user_id = auth_uid() and ${canSeePiece(`${a}.piece_id`)}`,
   },
 
+  // An account's own contact details (profile settings): written by the
+  // account only, seen by it and by those who manage projects.
+  account_contacts: {
+    select: (a) => or(`${a}.user_id = auth_uid()`, canManageAnyProject()),
+    insert: (a) => `${a}.user_id = auth_uid()`,
+    update: (a) => `${a}.user_id = auth_uid()`,
+    check: (a) => `${a}.user_id = auth_uid()`,
+    delete: (a) => `${a}.user_id = auth_uid()`,
+    validateInsert: (row) => validateContact(row, true),
+    validateUpdate: (_oldRow, patch) => validateContact(patch, false),
+  },
+
   practice_prefs: {
     ...all((a) => `${a}.user_id = auth_uid()`),
     insert: (a) => `${a}.user_id = auth_uid() and ${canSeePiece(`${a}.piece_id`)}`,
@@ -703,6 +716,20 @@ export const storedSize = (key: unknown): number | null => {
     return fs.statSync(file).size;
   } catch {
     return null;
+  }
+};
+
+// A contact detail: a known kind, a value and a short optional label.
+const validateContact = (row: Record<string, unknown>, complete: boolean) => {
+  if ((complete || 'kind' in row) && !isContactKind(row.kind)) {
+    throw new ApiError('Unknown kind of contact', 400, '23514');
+  }
+  if (complete || 'value' in row) {
+    const value = typeof row.value === 'string' ? row.value.trim() : '';
+    if (!value || value.length > CONTACT_VALUE_MAX) throw new ApiError('Invalid contact', 400, '23514');
+  }
+  if ('label' in row && row.label != null && (typeof row.label !== 'string' || row.label.length > CONTACT_LABEL_MAX)) {
+    throw new ApiError('Invalid label', 400, '23514');
   }
 };
 

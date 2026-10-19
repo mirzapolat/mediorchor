@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, Check, Clock, Crown, KeyRound, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
+import { ContactList } from '@/components/AccountContacts';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -182,6 +183,8 @@ export const UserDetailPage = () => {
           </div>
         </dl>
       </Card>
+
+      <ContactList userId={user.id} className="max-w-xl mb-6" />
 
       <Card className="max-w-xl">
         <p className="font-medium">{t('role')}</p>
