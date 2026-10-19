@@ -149,6 +149,40 @@ export const PieceReportPage = () => {
   };
 
   const sectionTitle = 'text-xs font-semibold uppercase tracking-wide text-text-tertiary';
+  type Group = Report['groups'][number];
+  const groupTooFew = t('reportGroupTooFew').replace('{min}', String(report.minPeople));
+  const groupName = (g: Group) =>
+    g.name ? (
+      <span className="min-w-0 truncate">
+        <GroupPill name={g.name} color={g.color ?? undefined} />
+      </span>
+    ) : (
+      <span className="truncate text-text-secondary">{t('reportNoGroup')}</span>
+    );
+  const practisedCell = (g: Group) =>
+    g.trained != null ? (
+      <div className="flex items-center gap-3">
+        <span className="w-12 flex-shrink-0 whitespace-nowrap tabular-nums">
+          {g.trained}/{g.members}
+        </span>
+        <Meter value={g.members ? g.trained / g.members : 0} className="bg-text-secondary" />
+      </div>
+    ) : (
+      <span className="block truncate text-xs text-text-tertiary" title={groupTooFew}>
+        {t('reportSmallGroup')}
+      </span>
+    );
+  const sitsCell = (g: Group) =>
+    g.mastery != null ? (
+      <div className="flex items-center gap-3">
+        <span className={cn('w-12 flex-shrink-0 whitespace-nowrap font-medium tabular-nums', toneText(g.mastery))}>{pct(g.mastery)}</span>
+        <Meter value={g.mastery} className={tone(g.mastery)} />
+      </div>
+    ) : (
+      <span className="block truncate text-xs text-text-tertiary" title={groupTooFew}>
+        {t('reportGroupTooFewShort')}
+      </span>
+    );
   const outcomes = [
     ['good', 'bg-success', 'reportOutcomeGood'],
     ['ok', 'bg-success/50', 'reportOutcomeClose'],
@@ -180,7 +214,7 @@ export const PieceReportPage = () => {
             {report.overall ? (
               <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
                 <div>
-                  <p className={cn('text-6xl font-bold tabular-nums leading-none', toneText(report.overall.mastery))}>
+                  <p className={cn('text-5xl font-bold tabular-nums leading-none sm:text-6xl', toneText(report.overall.mastery))}>
                     {pct(report.overall.mastery)}
                   </p>
                   <p className="mt-2 text-base font-medium">{t('reportMasteryLabel')}</p>
@@ -195,7 +229,7 @@ export const PieceReportPage = () => {
                     {(['reportBucket0', 'reportBucket1', 'reportBucket2', 'reportBucket3'] as const).map((key, i) => {
                       const n = report.overall?.buckets[i] ?? 0;
                       return (
-                        <li key={key} className="grid grid-cols-[6.5rem_minmax(0,1fr)_2rem] items-center gap-3 text-sm">
+                        <li key={key} className="grid grid-cols-[5.5rem_minmax(0,1fr)_1.5rem] sm:grid-cols-[6.5rem_minmax(0,1fr)_2rem] items-center gap-3 text-sm">
                           <span className="text-text-secondary">{t(key)}</span>
                           <Meter
                             value={report.trained ? n / report.trained : 0}
@@ -225,60 +259,47 @@ export const PieceReportPage = () => {
           {report.groups.length > 0 && (
             <section className="space-y-3">
               <h2 className={sectionTitle}>{t('reportGroupsTitle')}</h2>
-              <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-                <table className="w-full min-w-[34rem] table-fixed text-sm">
+              {/* Phones: one card row per group, the figures side by side. */}
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface sm:hidden">
+                {report.groups.map((g) => (
+                  <li key={g.name ?? '—'} className="space-y-3 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      {groupName(g)}
+                      {g.runs != null && (
+                        <span className="flex-shrink-0 text-xs tabular-nums text-text-tertiary">
+                          {g.runs} {t('reportRuns')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-xs text-text-tertiary">{t('reportPractised')}</p>
+                        {practisedCell(g)}
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-xs text-text-tertiary">{t('reportSits')}</p>
+                        {sitsCell(g)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-hidden rounded-2xl border border-border bg-surface sm:block">
+                <table className="w-full table-fixed text-sm">
                   <thead>
                     <tr className="bg-surface-subtle text-left text-xs text-text-secondary">
                       <th className="h-10 px-4 font-medium">{t('reportGroup')}</th>
-                      <th className="h-10 w-48 px-4 font-medium">{t('reportPractised')}</th>
-                      <th className="h-10 w-48 px-4 font-medium">{t('reportSits')}</th>
-                      <th className="h-10 w-28 px-4 text-right font-medium">{t('reportRuns')}</th>
+                      <th className="h-10 w-[30%] px-4 font-medium">{t('reportPractised')}</th>
+                      <th className="h-10 w-[30%] px-4 font-medium">{t('reportSits')}</th>
+                      <th className="h-10 w-24 px-4 text-right font-medium">{t('reportRuns')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {report.groups.map((g) => (
                       <tr key={g.name ?? '—'} className="border-t border-border">
-                        <td className="px-4 py-3">
-                          {g.name ? (
-                            <GroupPill name={g.name} color={g.color ?? undefined} />
-                          ) : (
-                            <span className="text-text-secondary">{t('reportNoGroup')}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {g.trained != null ? (
-                            <div className="flex items-center gap-3">
-                              <span className="w-14 flex-shrink-0 tabular-nums">
-                                {g.trained}/{g.members}
-                              </span>
-                              <Meter value={g.members ? g.trained / g.members : 0} className="bg-text-secondary" />
-                            </div>
-                          ) : (
-                            <span
-                              className="text-xs text-text-tertiary"
-                              title={t('reportGroupTooFew').replace('{min}', String(report.minPeople))}
-                            >
-                              {t('reportSmallGroup')}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {g.mastery != null ? (
-                            <div className="flex items-center gap-3">
-                              <span className={cn('w-14 flex-shrink-0 font-medium tabular-nums', toneText(g.mastery))}>
-                                {pct(g.mastery)}
-                              </span>
-                              <Meter value={g.mastery} className={tone(g.mastery)} />
-                            </div>
-                          ) : (
-                            <span
-                              className="text-xs text-text-tertiary"
-                              title={t('reportGroupTooFew').replace('{min}', String(report.minPeople))}
-                            >
-                              {t('reportGroupTooFewShort')}
-                            </span>
-                          )}
-                        </td>
+                        <td className="px-4 py-3">{groupName(g)}</td>
+                        <td className="px-4 py-3">{practisedCell(g)}</td>
+                        <td className="px-4 py-3">{sitsCell(g)}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-text-secondary">{g.runs ?? '—'}</td>
                       </tr>
                     ))}
@@ -330,8 +351,10 @@ export const PieceReportPage = () => {
                   {/* One cell per bar: its colour is how well it sits. */}
                   <div className="rounded-2xl border border-border bg-surface p-4">
                     <div className="flex items-end gap-px overflow-x-auto pb-1">
-                      {track.measures.map((m) => {
+                      {track.measures.map((m, i) => {
                         const active = bar?.index === m.index;
+                        // On phones only every fourth number (and the chosen one) fits.
+                        const labelled = active || i % 4 === 0 || i === track.measures.length - 1;
                         return (
                           <button
                             key={m.index}
@@ -348,7 +371,13 @@ export const PieceReportPage = () => {
                                 active && 'opacity-100 ring-2 ring-black ring-offset-1',
                               )}
                             />
-                            <span className={cn('text-[10px] tabular-nums', active ? 'font-semibold text-text' : 'text-text-tertiary')}>
+                            <span
+                              className={cn(
+                                'text-[10px] tabular-nums',
+                                active ? 'font-semibold text-text' : 'text-text-tertiary',
+                                !labelled && 'invisible sm:visible',
+                              )}
+                            >
                               {m.label}
                             </span>
                           </button>
@@ -374,7 +403,7 @@ export const PieceReportPage = () => {
 
                   {/* The chosen bar: what happens there, and how much stands behind it. */}
                   {bar && (
-                    <div className="grid gap-6 rounded-2xl border border-border bg-surface p-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                    <div className="grid gap-6 rounded-2xl border border-border bg-surface p-4 sm:p-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
                       <div>
                         <p className="text-sm text-text-secondary">
                           {t('reportBar')} {bar.label}
@@ -431,9 +460,9 @@ export const PieceReportPage = () => {
                                 <button
                                   type="button"
                                   onClick={() => setBarIndex(m.index)}
-                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-subtle"
+                                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-subtle sm:px-4"
                                 >
-                                  <span className="w-16 flex-shrink-0 text-sm font-medium">
+                                  <span className="w-14 flex-shrink-0 text-sm font-medium sm:w-16">
                                     {t('reportBar')} {m.label}
                                   </span>
                                   <span className="min-w-0 flex-1">
