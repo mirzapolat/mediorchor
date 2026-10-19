@@ -104,7 +104,7 @@ export default function PracticeView(props: PracticeViewProps) {
         )}
         <h1 className="tt-practice__title">{props.title}</h1>
         {s.pickableTracks.length === 1 ? (
-          <span className="tt-select tt-practice__track">{s.pickableTracks[0].name}</span>
+          <span className="tt-select tt-select--static tt-practice__track">{s.pickableTracks[0].name}</span>
         ) : s.pickableTracks.length > 0 && (
           <select className="tt-select tt-practice__track" value={s.trackId ?? ''} onChange={(e) => s.setTrackId(e.target.value)} aria-label="Deine Stimme">
             {!s.trackId && <option value="">Stimme wählen</option>}

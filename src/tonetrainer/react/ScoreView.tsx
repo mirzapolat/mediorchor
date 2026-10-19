@@ -227,6 +227,28 @@ export default function ScoreView({ handle, xml, ownPartIndex, showAllParts, zoo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded])
 
+  /** Vertical extent (px, in the scroll box's content) of the own part's staves in a measure; falls back to the cursor. */
+  const ownStaffSpan = (mi: number) => {
+    const osmd = osmdRef.current
+    const box = scrollRef.current
+    const svg = hostRef.current?.querySelector('svg')
+    if (!osmd || !box || !svg) return null
+    const own = osmd.Sheet.Instruments[propsRef.current.ownPartIndex]
+    const unit = 10 * osmd.Zoom
+    const origin = svg.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    let top = Infinity
+    let bottom = -Infinity
+    for (const gm of osmd.GraphicSheet.MeasureList[mi] ?? []) {
+      if (!gm || gm.ParentStaff?.ParentInstrument !== own) continue
+      const b = gm.PositionAndShape
+      top = Math.min(top, origin + (b.AbsolutePosition.y + b.BorderTop) * unit)
+      bottom = Math.max(bottom, origin + (b.AbsolutePosition.y + b.BorderBottom) * unit)
+    }
+    if (top <= bottom) return { top, bottom }
+    const el = osmd.cursor.cursorElement
+    return el ? { top: el.offsetTop, bottom: el.offsetTop + el.offsetHeight } : null
+  }
+
   useImperativeHandle(handle, () => ({
     setPosition(visit, offsetQ) {
       const steps = visitsRef.current[visit]
@@ -242,14 +264,13 @@ export default function ScoreView({ handle, xml, ownPartIndex, showAllParts, zoo
       } catch {
         return
       }
-      const el = osmd.cursor.cursorElement
       const box = scrollRef.current
-      if (!el || !box) return
-      const top = el.offsetTop
+      const span = ownStaffSpan(step.iter.CurrentMeasureIndex)
+      if (!box || !span) return
+      // Keep the own voice's staff in the middle of the view, even inside tall systems.
       const h = box.clientHeight
-      if (top < box.scrollTop + h * 0.08 || top + el.offsetHeight > box.scrollTop + h * 0.85) {
-        box.scrollTo({ top: Math.max(0, top - h * 0.15), behavior: 'smooth' })
-      }
+      const target = Math.max(0, (span.top + span.bottom) / 2 - h / 2)
+      if (Math.abs(target - box.scrollTop) > h * 0.04) box.scrollTo({ top: target, behavior: 'smooth' })
     },
     colorNote(partIndex, voice, measureIndex, offsetQ, color) {
       let k = key(partIndex, voice, measureIndex, offsetQ)

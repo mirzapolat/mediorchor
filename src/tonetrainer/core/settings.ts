@@ -15,6 +15,8 @@ export interface PracticeSettings {
   naming: NoteNaming
   a4: number
   micDeviceId: string | null
+  /** Speakers/headphones for playback; null = system default. Only where AudioContext.setSinkId exists. */
+  outputDeviceId: string | null
   countIn: boolean
   metronome: boolean
   /** Wait mode: play each new target note briefly. */
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: PracticeSettings = {
   naming: 'de',
   a4: 440,
   micDeviceId: null,
+  outputDeviceId: null,
   countIn: true,
   metronome: false,
   refTone: true,

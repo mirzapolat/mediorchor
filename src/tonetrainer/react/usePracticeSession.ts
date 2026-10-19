@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Mic } from '../core/audio/mic'
 import { Player, type Channel } from '../core/audio/player'
-import { audioContext } from '../core/audio/synth'
+import { audioContext, setOutputDevice } from '../core/audio/synth'
 import { PracticeEngine, type EngineConfig, type Live, type Mode } from '../core/engine'
 import { parseScore, type ParsedScore } from '../core/musicxml/parse'
 import { CLARITY, type PracticeSettings } from '../core/settings'
@@ -251,6 +251,10 @@ export function usePracticeSession(o: PracticeSessionOptions) {
     if (micState === 'on') void enableMic()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.micDeviceId, settings.headphones])
+
+  useEffect(() => {
+    void setOutputDevice(settings.outputDeviceId)
+  }, [settings.outputDeviceId])
 
   useEffect(() => () => micRef.current?.close(), [])
 

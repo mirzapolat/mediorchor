@@ -75,7 +75,11 @@ export class Mic {
   }
 }
 
-export async function listMics() {
+export async function listAudioDevices() {
   const devices = await navigator.mediaDevices.enumerateDevices()
-  return devices.filter((d) => d.kind === 'audioinput')
+  return {
+    inputs: devices.filter((d) => d.kind === 'audioinput'),
+    // The "default" entry duplicates another device; our own "Standard" option stands for it.
+    outputs: devices.filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default'),
+  }
 }

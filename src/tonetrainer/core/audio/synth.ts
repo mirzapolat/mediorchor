@@ -8,6 +8,22 @@ export function audioContext() {
   return shared
 }
 
+type SinkContext = AudioContext & { setSinkId?: (id: string) => Promise<void> }
+
+/** Whether the browser can route playback to a chosen device (Chromium; not Safari/Firefox yet). */
+export const canPickOutput = typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype
+
+/** Routes all playback to `deviceId` (null = system default). Falls back to the default if the device is gone. */
+export async function setOutputDevice(deviceId: string | null) {
+  const ctx = audioContext() as SinkContext
+  if (!ctx.setSinkId) return
+  try {
+    await ctx.setSinkId(deviceId ?? '')
+  } catch {
+    await ctx.setSinkId('').catch(() => {})
+  }
+}
+
 export interface Voice {
   stop(at?: number): void
 }

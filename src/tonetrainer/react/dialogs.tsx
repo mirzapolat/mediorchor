@@ -1,6 +1,7 @@
-import { ArrowDown, ArrowUp, Headphones, Mic, Repeat, Target, TrendingDown, TrendingUp, Volume2, VolumeX } from 'lucide-react'
+import { ArrowDown, ArrowUp, Headphones, Mic, Repeat, Speaker, Target, TrendingDown, TrendingUp, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { listMics } from '../core/audio/mic'
+import { listAudioDevices } from '../core/audio/mic'
+import { canPickOutput } from '../core/audio/synth'
 import type { Channel } from '../core/audio/player'
 import { noteName } from '../core/music'
 import type { PracticeSettings, Sensitivity } from '../core/settings'
@@ -144,8 +145,19 @@ export function SettingsDialog({
   micLabel: string
 }) {
   const [mics, setMics] = useState<MediaDeviceInfo[]>([])
+  const [outputs, setOutputs] = useState<MediaDeviceInfo[]>([])
   useEffect(() => {
-    if (open) listMics().then(setMics, () => setMics([]))
+    if (!open) return
+    listAudioDevices().then(
+      (d) => {
+        setMics(d.inputs)
+        setOutputs(d.outputs)
+      },
+      () => {
+        setMics([])
+        setOutputs([])
+      },
+    )
   }, [open, micLabel])
 
   return (
@@ -184,6 +196,26 @@ export function SettingsDialog({
           ]}
         />
       </div>
+
+      {canPickOutput && (
+        <>
+          <h3 className="tt-section-title">
+            <Speaker size={15} /> Ausgabe
+          </h3>
+          {outputs.some((o) => o.label) ? (
+            <select className="tt-select tt-select--full" value={s.outputDeviceId ?? ''} onChange={(e) => onChange({ outputDeviceId: e.target.value || null })} aria-label="Ausgabegerät">
+              <option value="">Standard-Ausgabe</option>
+              {outputs.map((o) => (
+                <option key={o.deviceId} value={o.deviceId}>
+                  {o.label || 'Lautsprecher'}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="tt-muted">Aktiviere das Mikrofon, um ein Ausgabegerät auszuwählen.</p>
+          )}
+        </>
+      )}
 
       <h3 className="tt-section-title">
         <Target size={15} /> Bewertung

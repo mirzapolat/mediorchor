@@ -276,6 +276,15 @@
     no-repeat right 0.75rem center;
   box-shadow: inset 0 0 0 1px var(--tt-border);
 }
+.tt-select--static {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding-right: 0.875rem;
+  overflow: hidden;
+  white-space: nowrap;
+  background-image: none;
+}
 .tt-select option {
   background: var(--tt-raised);
 }
@@ -622,11 +631,13 @@
 .tt-score__scroll {
   height: 100%;
   overflow-y: auto;
+  container-type: size;
   overscroll-behavior: contain;
 }
 .tt-score__host {
   min-height: 100%;
-  padding: 0 0.25rem 2.5rem;
+  /* Room below the last system so it can still scroll to the middle. */
+  padding: 0 0.25rem 50cqh;
   cursor: pointer;
 }
 .tt-score__host svg {

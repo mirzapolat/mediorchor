@@ -1,7 +1,7 @@
 // Framework-independent core: pitch detection, audio, MusicXML, timeline, practice engine, statistics.
 export { McLeodDetector } from './pitch/mpm'
 export { PitchTracker, freqToMidi, type TrackerFrame } from './pitch/tracker'
-export { Mic, listMics } from './audio/mic'
+export { Mic, listAudioDevices } from './audio/mic'
 export { Player, type Channel } from './audio/player'
 export { audioContext, playTone } from './audio/synth'
 export { parseScore, type ParsedScore, type ParsedTrack } from './musicxml/parse'
