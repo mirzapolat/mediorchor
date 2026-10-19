@@ -16,7 +16,7 @@ import type { Project } from '@/types';
 
 export const ProjectsPage = () => {
   const { t } = useI18n();
-  const { canAccessAllProjects, canManageProjects, user } = useAuth();
+  const { canAccessAllProjects, canManageProjects, canDeleteProjects, user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   // Projects I take part in myself: an active member row linked to my account.
@@ -191,9 +191,11 @@ export const ProjectsPage = () => {
                   <RowActionButton label={t('archive')} onClick={() => toggleArchive(p)}>
                     {p.status === 'archived' ? <ArchiveRestore size={15} /> : <Archive size={15} />}
                   </RowActionButton>
-                  <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
-                    <Trash2 size={15} />
-                  </RowActionButton>
+                  {canDeleteProjects && (
+                    <RowActionButton label={t('delete')} onClick={() => setToDelete(p)}>
+                      <Trash2 size={15} />
+                    </RowActionButton>
+                  )}
                 </>
               )
             : undefined

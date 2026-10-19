@@ -42,8 +42,11 @@ const or = (...parts: string[]) => `(${parts.map((p) => `(${p})`).join(' or ')})
 //   participant  (Teilnehmer)  only what isProjectParticipant() opens
 //   section_lead (Stimmeltern) the content of every project
 //   manager      (Verwaltung)  everything except the admin configuration
+//   music_director (Musikalische Leitung, migration 0067) what Verwaltung
+//                              has, but never a project member (no joining,
+//                              no attendance) and no deleting projects
 //   admin                      everything
-export const ROLES = ['participant', 'section_lead', 'manager', 'admin'] as const;
+export const ROLES = ['participant', 'section_lead', 'manager', 'music_director', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
 
 // The calling account holds `role` or a higher one.
@@ -56,6 +59,10 @@ export const isAdmin = () => hasRole('admin');
 
 // Creating projects, their settings, archiving and deletion: Verwaltung.
 export const canManageProjects = () => hasRole('manager');
+
+// Deleting a project: Verwaltung and admins (not the music director).
+export const canDeleteProjects = () =>
+  `exists (select 1 from app_users _u where _u.id = auth_uid() and _u.role in ('manager', 'admin'))`;
 
 // The content of a project (members, Proben, attendance, registrations,
 // labels, its pieces): Stimmeltern and up, for every project.
@@ -351,7 +358,7 @@ export const policies: Record<string, TablePolicy> = {
     insert: canManageProjects,
     update: canManageProjects,
     check: () => 'true',
-    delete: canManageProjects,
+    delete: canDeleteProjects,
   },
 
   // The info box on "Meine Teilnahme": edited by Stimmeltern and up, read by

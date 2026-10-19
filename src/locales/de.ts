@@ -219,6 +219,8 @@ const de: Messages = {
   roleManager: 'Verwaltung',
   roleManagerHint:
     'Alles außer der Admin-Konfiguration: Projekte anlegen, bearbeiten und löschen, Stückesammlung und Kalender.',
+  roleMusicDirector: 'Musikalische Leitung',
+  roleMusicDirectorHint: 'Sieht und bearbeitet alle Projekte und Stücke wie die Verwaltung, nimmt aber an keinem Projekt teil (keine Teilnahme, keine Anwesenheit) und kann keine Projekte löschen.',
   roleAdmin: 'Admin',
   roleAdminHint: 'Voller Zugriff auf alles, auch Benutzer und App-Einstellungen.',
   deactivateUser: 'Konto deaktivieren',

@@ -70,7 +70,7 @@ export const ProjectSettingsPage = () => {
     setAccess((current) => ({ ...current, [key]: value }));
     setSaved(false);
   };
-  const { canManageProjects } = useAuth();
+  const { canManageProjects, canDeleteProjects } = useAuth();
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -260,6 +260,7 @@ export const ProjectSettingsPage = () => {
           />
         </CardColumns>
 
+        {canDeleteProjects && (
         <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-medium">{t('deleteProject')}</h2>
@@ -270,6 +271,7 @@ export const ProjectSettingsPage = () => {
             {t('delete')}
           </Button>
         </Card>
+        )}
       </form>
 
       <DeleteProjectDialog

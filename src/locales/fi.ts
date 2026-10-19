@@ -209,6 +209,8 @@ const fi: Messages = {
   roleManager: 'Hallinto',
   roleManagerHint:
     'Kaikki paitsi ylläpidon asetukset: projektien luonti, muokkaus ja poisto, kappalekokoelma ja kalenterit.',
+  roleMusicDirector: 'Musiikillinen johto',
+  roleMusicDirectorHint: 'Näkee ja muokkaa kaikkia projekteja ja kappaleita kuten hallinto, mutta ei osallistu projekteihin (ei osallistumista, ei läsnäoloa) eikä voi poistaa projekteja.',
   roleAdmin: 'Ylläpitäjä',
   roleAdminHint: 'Täydet oikeudet kaikkeen, myös käyttäjiin ja sovelluksen asetuksiin.',
   deactivateUser: 'Poista tili käytöstä',

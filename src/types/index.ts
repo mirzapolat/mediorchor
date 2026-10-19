@@ -6,7 +6,7 @@ import type { Language } from '@shared/languages';
 // it participates in (via a members row linked through members.user_id).
 // An account's permissions (see src/lib/roles.ts): Teilnehmer, Stimmeltern,
 // Verwaltung, Admin.
-export type UserRole = 'participant' | 'section_lead' | 'manager' | 'admin';
+export type UserRole = 'participant' | 'section_lead' | 'manager' | 'music_director' | 'admin';
 
 // Pages an account can pick as its start page (see app_users.home_page).
 export type HomePage = 'dashboard' | 'projects' | 'pieces' | 'calendar';

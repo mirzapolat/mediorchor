@@ -1,3 +1,4 @@
+import { Navigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Bookmark, ChevronDown, CircleCheck, LogIn, LogOut, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -32,7 +33,7 @@ export const MyParticipationPage = () => {
   const { t, lang } = useI18n();
   const { project, canManage } = useProjectContext();
   const { names: groups } = useProjectGroups();
-  const { user } = useAuth();
+  const { user, canParticipate } = useAuth();
   const [member, setMember] = useState<Member | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   // Programmes (pieces to prepare) of the upcoming Proben.
@@ -199,6 +200,8 @@ export const MyParticipationPage = () => {
     setGroupSaved(true);
   };
 
+  // The music director takes part in no project: on to its Proben.
+  if (!canParticipate) return <Navigate to="../events" replace />;
   if (loading) return <PageSpinner />;
 
   return (

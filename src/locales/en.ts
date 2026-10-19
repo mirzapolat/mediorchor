@@ -210,6 +210,8 @@ const en = {
   roleManager: 'Management',
   roleManagerHint:
     'Everything except the admin configuration: create, edit and delete projects, the piece collection and calendars.',
+  roleMusicDirector: 'Music director',
+  roleMusicDirectorHint: 'Sees and edits every project and piece like management, but takes part in no project (no participation, no attendance) and cannot delete projects.',
   roleAdmin: 'Admin',
   roleAdminHint: 'Full access to everything, including users and app settings.',
   deactivateUser: 'Deactivate account',

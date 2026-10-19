@@ -72,6 +72,10 @@ const resolveGroup = (projectId: unknown, name: string | null) => {
   return { name: row?.name ?? name, known: Boolean(row) };
 };
 
+// The music director (migration 0067) is never a project member.
+const isMusicDirector = (uid: string | null) =>
+  Boolean(uid && db.prepare(`select 1 from app_users where id = ? and role = 'music_director'`).get(uid));
+
 const accountEmail = (uid: string) =>
   (db.prepare('select email from auth_users where id = ?').get(uid) as { email: string } | undefined)?.email ?? null;
 
@@ -303,7 +307,7 @@ const submit_public_checkin = (args: Args) => {
 
   // Account check-in: use (or create) the caller's linked member row.
   if (args.p_as_account === true && uid) {
-    if (!checkin.allow_account_checkin) return { state: 'not_allowed' };
+    if (!checkin.allow_account_checkin || isMusicDirector(uid)) return { state: 'not_allowed' };
 
     const existing = db
       .prepare('select id, status from members where project_id = ? and user_id = ?')
@@ -866,6 +870,7 @@ const remap_webhook_registrations = (args: Args) => {
 // email: the oldest matching row per project, never a second link.
 const claim_my_memberships = () => {
   const uid = requireUser();
+  if (isMusicDirector(uid)) return null;
   const account = db
     .prepare('select email from auth_users where id = ? and email_confirmed_at is not null')
     .get(uid) as { email: string } | undefined;
@@ -894,6 +899,7 @@ const claim_my_memberships = () => {
 // may only re-activate an existing link.
 const join_project = (args: Args) => {
   const uid = requireUser();
+  if (isMusicDirector(uid)) throw forbidden('The music director takes part in no project');
   const project = db.prepare('select id from projects where id = ?').get(text(args.p_project_id)) as
     | { id: string }
     | undefined;

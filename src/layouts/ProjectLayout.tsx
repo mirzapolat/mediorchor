@@ -51,9 +51,11 @@ const ProjectHeader = ({ project, onBack }: { project: Project; onBack?: () => v
   );
 };
 
-// Index route: opening a project always starts on "Meine Teilnahme".
+// Index route: opening a project starts on "Meine Teilnahme" — or, for the
+// music director who takes part in no project, on its Proben.
 export const ProjectIndexRedirect = () => {
-  return <Navigate to="participation" replace />;
+  const { canParticipate } = useAuth();
+  return <Navigate to={canParticipate ? 'participation' : 'events'} replace />;
 };
 
 // Wraps the Stücke pages: participants only get in while the project shows
@@ -88,7 +90,7 @@ export const ProjectLayout = () => {
   const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId/*') != null;
   const navigate = useNavigate();
   // Project settings need access to all projects, not just this one.
-  const { canManageProjects, soleProjectId } = useAuth();
+  const { canManageProjects, canParticipate, soleProjectId } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [unrecognizedCount, setUnrecognizedCount] = useState(0);
@@ -158,12 +160,14 @@ export const ProjectLayout = () => {
         <ProjectHeader project={project} onBack={soleProjectId ? undefined : () => navigate('/projects')} />
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <SidebarNavItem
-            to={`${base}/participation`}
-            label={t('myParticipation')}
-            icon={UserRound}
-            {...visibleTo(true)}
-          />
+          {canParticipate && (
+            <SidebarNavItem
+              to={`${base}/participation`}
+              label={t('myParticipation')}
+              icon={UserRound}
+              {...visibleTo(true)}
+            />
+          )}
           {canManage && (
             <SidebarNavItem
               to={`${base}/events`}
