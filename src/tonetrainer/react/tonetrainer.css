@@ -1108,6 +1108,8 @@
   margin: 0 auto;
   padding: 1.25rem 1rem 4rem;
   display: grid;
+  /* minmax(0, …): the wide heatmap scrolls inside its card instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
 }
 .tt-progress__header {
@@ -1158,6 +1160,10 @@
   background: var(--tt-control-bg);
   text-align: left;
 }
+.tt-trend > :last-child {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .tt-trend:hover {
   background: var(--tt-hover);
 }
@@ -1185,17 +1191,19 @@
   stroke: var(--tt-accent);
   stroke-width: 2.5;
   stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: tt-draw 0.9s ease-out forwards;
+  animation: tt-draw 0.9s ease-out both;
 }
 @keyframes tt-draw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
   to {
-    stroke-dashoffset: 0;
+    clip-path: inset(0 0 0 0);
   }
 }
 .tt-heatmap {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding-bottom: 0.5rem;
 }
 .tt-heatmap table {
@@ -1211,6 +1219,8 @@
 .tt-heatmap tbody th {
   position: sticky;
   left: 0;
+  z-index: 1;
+  background: var(--tt-surface-2);
   padding-right: 0.5rem;
   text-align: right;
   white-space: nowrap;
@@ -1226,6 +1236,35 @@
   height: 1.5rem;
   border-radius: 0.375rem;
   background: rgb(var(--c-text) / 0.05);
+}
+@media (max-width: 640px) {
+  .tt-progress {
+    gap: 1rem;
+  }
+  .tt-progress .tt-pad,
+  .tt-time.tt-pad {
+    padding: 1rem;
+  }
+  .tt-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .tt-stat {
+    padding: 0.75rem 1rem;
+  }
+  .tt-stat dd {
+    font-size: 1.25rem;
+  }
+  .tt-trend {
+    padding: 0.625rem 0.75rem;
+  }
+  .tt-heatmap__cell {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .tt-time__head {
+    flex-wrap: wrap;
+  }
 }
 .tt-time__head,
 .tt-time__summary {

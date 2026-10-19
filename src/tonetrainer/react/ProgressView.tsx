@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowLeft, ArrowUp, Play, Repeat, TrendingDown, TrendingUp } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { formatMinutes, measureTrends, type MeasureTrend } from '../core/stats'
 import type { PracticeStorage } from '../core/storage'
 import type { SessionRecord } from '../core/types'
@@ -121,35 +121,56 @@ export default function ProgressView({ scoreId, title, storage, onBack, onPracti
   )
 }
 
+/** Width of an element, following resizes. */
+function useWidth(ref: RefObject<Element | null>, fallback: number) {
+  const [width, setWidth] = useState(fallback)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width) || fallback))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref, fallback])
+  return width
+}
+
 function AccuracyChart({ sessions, colors }: { sessions: SessionRecord[]; colors: TrainerColors }) {
-  const W = 640
-  const H = 160
+  // Drawn at its real width (not scaled down), so the labels stay readable on a phone.
+  const ref = useRef<HTMLDivElement>(null)
+  const W = useWidth(ref, 640)
+  const H = W < 480 ? 140 : 160
   const pad = { l: 34, r: 12, t: 12, b: 24 }
   const xs = (i: number) => pad.l + (sessions.length === 1 ? (W - pad.l - pad.r) / 2 : (i / (sessions.length - 1)) * (W - pad.l - pad.r))
   const ys = (v: number) => pad.t + (1 - v) * (H - pad.t - pad.b)
   const d = sessions.map((s, i) => `${i ? 'L' : 'M'} ${xs(i)} ${ys(s.accuracy)}`).join(' ')
+  // Every n-th date where they would overlap, counted from the latest one.
+  const step = Math.max(1, Math.ceil(44 / ((W - pad.l - pad.r) / Math.max(1, sessions.length - 1))))
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="tt-chart" role="img" aria-label={`Genauigkeit von ${Math.round(sessions[0].accuracy * 100)} % bis ${Math.round(sessions[sessions.length - 1].accuracy * 100)} %`}>
-      {[0, 0.5, 1].map((v) => (
-        <g key={v}>
-          <line className="tt-chart__grid" x1={pad.l} x2={W - pad.r} y1={ys(v)} y2={ys(v)} />
-          <text className="tt-chart__label" x={pad.l - 6} y={ys(v) + 4} textAnchor="end">
-            {v * 100}%
-          </text>
-        </g>
-      ))}
-      <path className="tt-chart__line" d={d} pathLength={1} />
-      {sessions.map((s, i) => (
-        <g key={s.id}>
-          <circle cx={xs(i)} cy={ys(s.accuracy)} r={4.5} fill={accuracyColor(colors, s.accuracy)}>
-            <title>{`${new Date(s.startedAt).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}: ${Math.round(s.accuracy * 100)} % (${s.mode === 'wait' ? 'Warte-Modus' : `Mitsingen, ${Math.round(s.tempoFactor * 100)} % Tempo`})`}</title>
-          </circle>
-          <text className="tt-chart__label" x={xs(i)} y={H - 6} textAnchor="middle">
-            {sessionLabel(s, sessions)}
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div ref={ref}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="tt-chart" role="img" aria-label={`Genauigkeit von ${Math.round(sessions[0].accuracy * 100)} % bis ${Math.round(sessions[sessions.length - 1].accuracy * 100)} %`}>
+        {[0, 0.5, 1].map((v) => (
+          <g key={v}>
+            <line className="tt-chart__grid" x1={pad.l} x2={W - pad.r} y1={ys(v)} y2={ys(v)} />
+            <text className="tt-chart__label" x={pad.l - 6} y={ys(v) + 4} textAnchor="end">
+              {v * 100}%
+            </text>
+          </g>
+        ))}
+        <path className="tt-chart__line" d={d} />
+        {sessions.map((s, i) => (
+          <g key={s.id}>
+            <circle cx={xs(i)} cy={ys(s.accuracy)} r={4.5} fill={accuracyColor(colors, s.accuracy)}>
+              <title>{`${new Date(s.startedAt).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}: ${Math.round(s.accuracy * 100)} % (${s.mode === 'wait' ? 'Warte-Modus' : `Mitsingen, ${Math.round(s.tempoFactor * 100)} % Tempo`})`}</title>
+            </circle>
+            {(sessions.length - 1 - i) % step === 0 && (
+              <text className="tt-chart__label" x={xs(i)} y={H - 6} textAnchor="middle">
+                {sessionLabel(s, sessions)}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }
 
