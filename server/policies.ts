@@ -670,20 +670,37 @@ export const folderWithin = (folderId: string, ancestorId: string) =>
     ).inside,
   );
 
+// Keys of the piece-files bucket as the app makes them: "<pieceId>/<name>",
+// lower case, plain segments ("<uuid>.pdf", "preview-….jpg", "link-….jpg").
+const CANONICAL_KEY = /^[a-z0-9][a-z0-9-]{0,63}\/[a-z0-9][a-z0-9._-]{0,199}$/;
+export const isCanonicalKey = (key: unknown): key is string =>
+  typeof key === 'string' && CANONICAL_KEY.test(key) && !key.includes('..');
+
+// Where a piece-files key is stored, or null for anything that isn't a
+// canonical key or would leave the bucket: no stored key, old or new, ever
+// reaches the file system unchecked.
+export const pieceObjectPath = (key: unknown): string | null => {
+  if (!isCanonicalKey(key)) return null;
+  const base = path.resolve(env.storageDir, 'piece-files');
+  const full = path.resolve(base, key);
+  return full.startsWith(base + path.sep) ? full : null;
+};
+
 // Stored objects of a piece live under "<pieceId>/": a row can't point at
 // another piece's file (and so open it to that piece's readers).
 const validateStoredKey = (key: unknown, pieceId: unknown) => {
   if (key == null) return;
-  if (typeof key !== 'string' || !key.startsWith(`${String(pieceId)}/`) || key.includes('..')) {
+  if (!isCanonicalKey(key) || !key.startsWith(`${String(pieceId)}/`)) {
     throw new ApiError('The file is not part of this piece', 400, '23514');
   }
 };
 
 // Size in bytes of a stored piece file, or null when there is none.
 export const storedSize = (key: unknown): number | null => {
-  if (typeof key !== 'string' || !key) return null;
+  const file = pieceObjectPath(key);
+  if (!file) return null;
   try {
-    return fs.statSync(path.join(env.storageDir, 'piece-files', ...key.split('/'))).size;
+    return fs.statSync(file).size;
   } catch {
     return null;
   }

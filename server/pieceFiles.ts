@@ -10,13 +10,21 @@ import zlib from 'node:zlib';
 import { db, asUser, authUid, ApiError, forbidden } from './db.ts';
 import { env } from './env.ts';
 import { requireSession, sessionUser } from './auth.ts';
-import { canEditPiece, canReadPieceFile, canSeePiece, fileIsPublic, folderIsPublic, folderWithin } from './policies.ts';
+import {
+  canEditPiece,
+  canReadPieceFile,
+  canSeePiece,
+  fileIsPublic,
+  folderIsPublic,
+  folderWithin,
+  isCanonicalKey,
+  pieceObjectPath,
+} from './policies.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
 
 const bucketDir = () => path.join(env.storageDir, 'piece-files');
-const objectPath = (key: string) => path.join(bucketDir(), ...key.split('/'));
 const TRASH_DAYS = 30;
 
 const text = (value: unknown) => (typeof value === 'string' ? value : value == null ? '' : String(value));
@@ -191,8 +199,10 @@ const unusedObjects = (row: Row): string[] => {
 
 const removeObjects = (keys: string[]) => {
   for (const key of keys) {
+    const file = pieceObjectPath(key);
+    if (!file) continue;
     try {
-      fs.unlinkSync(objectPath(key));
+      fs.unlinkSync(file);
     } catch {
       /* already gone */
     }
@@ -236,10 +246,6 @@ export const pieceFileFunctions = {
 // Reading stored objects
 // ---------------------------------------------------------------------------
 
-// Keys as the app makes them: "<pieceId>/<name>", lower case, plain
-// segments. Only these are looked up, so the key checked is exactly the file
-// served (no "a//b", "a/./b", other casing or encoded slashes).
-const CANONICAL_KEY = /^[a-z0-9][a-z0-9-]{0,63}\/[a-z0-9][a-z0-9._-]{0,199}$/;
 
 // Whether this request may read a stored object of the piece-files bucket.
 // Default deny: an object of a file row (or a link's preview image) follows
@@ -247,7 +253,9 @@ const CANONICAL_KEY = /^[a-z0-9][a-z0-9-]{0,63}\/[a-z0-9][a-z0-9._-]{0,199}$/;
 // trashed one is for editors; a score's preview image ("preview-<file>.jpg",
 // shown in link previews of the piece) is public. Anything else is refused.
 export const mayReadPieceObject = (c: Context, key: string): { allowed: boolean; guarded: boolean } => {
-  if (!CANONICAL_KEY.test(key)) return { allowed: false, guarded: true };
+  // Only app-made keys are looked up, so the key checked is exactly the file
+  // served (no "a//b", "a/./b", other casing or encoded slashes).
+  if (!isCanonicalKey(key)) return { allowed: false, guarded: true };
   if (/^[^/]+\/preview-[a-z0-9-]+\.jpg$/.test(key)) return { allowed: true, guarded: false };
   const ofRow = `(t.file_path = @key or json_extract(t.link_preview, '$.image') = @key)`;
   const live = db.prepare(`select 1 from piece_files t where ${ofRow} limit 1`).get({ key });
@@ -498,7 +506,8 @@ pieceZipRoutes.get('/:pieceId', async (c) => {
   const entries: ZipEntry[] = [];
   let offset = 0;
   for (const entry of picked.entries) {
-    const file = objectPath(entry.key);
+    const file = pieceObjectPath(entry.key);
+    if (!file) continue;
     let size: number;
     try {
       size = fs.statSync(file).size;
@@ -573,9 +582,10 @@ export const runPieceFileMaintenance = (options: { dryRun?: boolean } = {}): Mai
   const update = db.prepare('update piece_files set size = ?, file_missing = ? where id = ?');
   db.transaction(() => {
     for (const row of rows) {
-      let size: number | null;
+      let size: number | null = null;
+      const file = pieceObjectPath(row.file_path);
       try {
-        size = fs.statSync(objectPath(row.file_path)).size;
+        if (file) size = fs.statSync(file).size;
       } catch {
         size = null;
       }
