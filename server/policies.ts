@@ -948,6 +948,7 @@ const validateContact = (row: Record<string, unknown>, complete: boolean) => {
   if ('label' in row && row.label != null && (typeof row.label !== 'string' || row.label.length > CONTACT_LABEL_MAX)) {
     throw new ApiError('Invalid label', 400, '23514');
   }
+  if ('public' in row && typeof row.public !== 'boolean') throw new ApiError('Invalid visibility', 400, '23514');
 };
 
 // A file's folder or a folder's parent: none, or a folder of the same piece.
@@ -962,8 +963,11 @@ const validateFolderOfPiece = (folderId: unknown, pieceId: unknown) => {
 // --- groups and concerts (migrations 0068, 0069) ----------------------------
 
 const validateGroupNote = (row: Record<string, unknown>) => {
-  if ('note' in row && (typeof row.note !== 'string' || row.note.length > 4000)) {
-    throw new ApiError('The note is too long', 400, '23514');
+  for (const field of ['note', 'public_note'] as const) {
+    const value = row[field];
+    if (field in row && (typeof value !== 'string' || value.length > 4000)) {
+      throw new ApiError('The note is too long', 400, '23514');
+    }
   }
 };
 

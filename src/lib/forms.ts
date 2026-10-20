@@ -11,6 +11,7 @@ import {
   Heading,
   Image as ImageIcon,
   ListChecks,
+  ListOrdered,
   SlidersHorizontal,
   Star,
   TextCursorInput,
@@ -33,6 +34,7 @@ import {
   type FormStructure,
   type GuestFieldMode,
   type ItemType,
+  type RunoffResult,
   type StructureProblemCode,
   type FormNotifyMode,
 } from '@shared/forms';
@@ -146,6 +148,8 @@ export interface FormSummaryItem {
   max_label?: string;
   answered: number;
   counts: Record<string, number>;
+  // ranking: the instant runoff over the ballots.
+  runoff?: RunoffResult;
 }
 
 export interface FormSummary {
@@ -177,6 +181,7 @@ export const ITEM_META: Record<ItemType, { icon: LucideIcon; label: TranslationK
   single: { icon: CircleDot, label: 'formTypeSingle', group: 'choice' },
   multi: { icon: CheckSquare, label: 'formTypeMulti', group: 'choice' },
   dropdown: { icon: ListChecks, label: 'formTypeDropdown', group: 'choice' },
+  ranking: { icon: ListOrdered, label: 'formTypeRanking', group: 'choice' },
   scale: { icon: SlidersHorizontal, label: 'formTypeScale', group: 'choice' },
   stars: { icon: Star, label: 'formTypeStars', group: 'choice' },
   grid: { icon: Grid3x3, label: 'formTypeGrid', group: 'choice' },
@@ -191,7 +196,7 @@ const option = (label: string) => ({ id: newId(), label });
 // A new item of a type, with sensible starting values.
 export const blankItem = (type: ItemType, t: (key: TranslationKey) => string): FormItem => {
   const item: FormItem = { id: newId(), type, title: '', help: '' };
-  if (['single', 'multi', 'dropdown'].includes(type)) item.options = [option(`${t('formOption')} 1`), option(`${t('formOption')} 2`)];
+  if (['single', 'multi', 'dropdown', 'ranking'].includes(type)) item.options = [option(`${t('formOption')} 1`), option(`${t('formOption')} 2`)];
   if (type === 'scale') Object.assign(item, { scale_min: 1, scale_max: 5, min_label: '', max_label: '' });
   if (type === 'stars') item.scale_max = 5;
   if (type === 'grid') Object.assign(item, { rows: [option(`${t('formRow')} 1`)], columns: [option(`${t('formColumn')} 1`), option(`${t('formColumn')} 2`)] });

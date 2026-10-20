@@ -497,6 +497,7 @@ const TypeEditor = ({
     case 'single':
     case 'dropdown':
     case 'multi':
+    case 'ranking':
       return (
         <div className="space-y-3">
           <OptionsEditor
@@ -522,24 +523,25 @@ const TypeEditor = ({
           {BRANCH_TYPES.includes(item.type) && targets.length === 0 && (
             <p className="text-xs text-text-tertiary">{t('formJumpHint')}</p>
           )}
-          {item.type === 'multi' && (
+          {(item.type === 'multi' || item.type === 'ranking') && (
             <div className="grid grid-cols-2 gap-3 sm:max-w-md">
               <Input
                 type="number"
                 min={0}
-                label={t('formMinSelect')}
+                label={item.type === 'ranking' ? t('formMinRank') : t('formMinSelect')}
                 value={item.min_select ?? ''}
                 onChange={(e) => onChange({ min_select: numberOrNull(e.target.value) })}
               />
               <Input
                 type="number"
                 min={1}
-                label={t('formMaxSelect')}
+                label={item.type === 'ranking' ? t('formMaxRank') : t('formMaxSelect')}
                 value={item.max_select ?? ''}
                 onChange={(e) => onChange({ max_select: numberOrNull(e.target.value) })}
               />
             </div>
           )}
+          {item.type === 'ranking' && <p className="text-xs text-text-tertiary">{t('formRankingHint')}</p>}
         </div>
       );
     case 'grid':

@@ -29,6 +29,7 @@ const SETTINGS = [
   'show_surveys',
   'show_weekend',
   'show_concerts',
+  'show_responsibles',
   'allow_account_checkin',
   'allow_guest_checkin',
   'allow_account_signup',

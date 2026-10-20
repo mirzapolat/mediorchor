@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, StickyNote, Trash2, Users, UserRoundCheck } from 'lucide-react';
+import { ArrowLeft, Globe, Pencil, StickyNote, Trash2, Users, UserRoundCheck } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -159,6 +159,7 @@ export const GroupDetailPage = () => {
       <ResponsibilityCard
         people={responsibilities.byGroup.get(group.id) ?? []}
         note={responsibilities.notes.get(group.id) ?? ''}
+        publicNote={responsibilities.publicNotes.get(group.id) ?? ''}
         onEdit={() => setFormOpen(true)}
       />
 
@@ -191,6 +192,7 @@ export const GroupDetailPage = () => {
         responsibility={{
           people: responsibilities.byGroup.get(group.id) ?? [],
           note: responsibilities.notes.get(group.id) ?? '',
+          publicNote: responsibilities.publicNotes.get(group.id) ?? '',
         }}
         onClose={() => setFormOpen(false)}
         onSaved={() => {
@@ -212,15 +214,17 @@ export const GroupDetailPage = () => {
   );
 };
 
-// Who looks after the group and its internal note (managers only; grants
-// no rights). Compact: people in a row, the note below.
+// Who looks after the group, the note for its participants and the internal
+// note (grants no rights). Compact: people in a row, the notes below.
 const ResponsibilityCard = ({
   people,
   note,
+  publicNote,
   onEdit,
 }: {
   people: GroupResponsible[];
   note: string;
+  publicNote: string;
   onEdit: () => void;
 }) => {
   const { t } = useI18n();
@@ -260,6 +264,12 @@ const ResponsibilityCard = ({
             </li>
           ))}
         </ul>
+      )}
+      {publicNote && (
+        <p className="mt-3 flex items-start gap-2 whitespace-pre-line border-t border-border pt-2.5 text-sm text-text-secondary">
+          <Globe size={14} className="mt-0.5 flex-shrink-0 text-text-tertiary" aria-label={t('groupPublicNote')} />
+          {publicNote}
+        </p>
       )}
       {note && (
         <p className="mt-3 flex items-start gap-2 whitespace-pre-line border-t border-border pt-2.5 text-sm text-text-secondary">

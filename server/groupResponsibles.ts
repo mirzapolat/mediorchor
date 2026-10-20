@@ -46,13 +46,48 @@ const group_responsibilities = (args: Args) => {
     .all({ project: projectId }) as Array<Record<string, unknown>>;
   const notes = db
     .prepare(
-      `select n.group_id, n.note from group_notes n join project_groups g on g.id = n.group_id
-       where g.project_id = ? and n.note <> ''`,
+      `select n.group_id, n.note, n.public_note from group_notes n join project_groups g on g.id = n.group_id
+       where g.project_id = ? and (n.note <> '' or n.public_note <> '')`,
     )
     .all(projectId);
   return {
     people: people.map((p) => ({ ...p, member: p.member ? JSON.parse(String(p.member)) : null })),
     notes,
+  };
+};
+
+// "Meine Teilnahme": who looks after the account's own group, with the
+// contacts each of them made public and the group's note for participants.
+// Null while the project hides it, or the account has no group in it.
+const my_group_responsibles = (args: Args) => {
+  const uid = requireUser();
+  const projectId = text(args.p_project_id);
+  const group = db
+    .prepare(
+      `select g.id, g.name, n.public_note from members m
+       join projects p on p.id = m.project_id and p.show_responsibles
+       join project_groups g on g.project_id = m.project_id and g.name = m.group_name
+       left join group_notes n on n.group_id = g.id
+       where m.project_id = ? and m.user_id = ? and m.status = 'active'
+       limit 1`,
+    )
+    .get(projectId, uid) as { id: string; name: string; public_note: string | null } | undefined;
+  if (!group) return null;
+  const people = db
+    .prepare(
+      `select u.id as user_id, u.name, u.photo_url from group_responsibles r
+       join app_users u on u.id = r.user_id
+       where r.group_id = ? order by r.position, r.created_at`,
+    )
+    .all(group.id) as Array<{ user_id: string; name: string; photo_url: string | null }>;
+  const contacts = db.prepare(
+    `select id, user_id, kind, label, value, position, created_at from account_contacts
+     where user_id = ? and public order by position, created_at`,
+  );
+  return {
+    group_name: group.name,
+    note: group.public_note ?? '',
+    people: people.map((p) => ({ ...p, contacts: contacts.all(p.user_id) })),
   };
 };
 
@@ -81,5 +116,5 @@ const search_people = (args: Args) => {
   return rows.map((r) => ({ ...r, member: r.member ? JSON.parse(String(r.member)) : null }));
 };
 
-export const groupResponsibleFunctions = { group_responsibilities, search_people };
-export const GROUP_READ_FUNCTIONS = ['group_responsibilities', 'search_people'];
+export const groupResponsibleFunctions = { group_responsibilities, my_group_responsibles, search_people };
+export const GROUP_READ_FUNCTIONS = ['group_responsibilities', 'my_group_responsibles', 'search_people'];

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Check, Copy, ExternalLink, Loader2, Pencil, Plus, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe, Loader2, Lock, Pencil, Plus, X } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Input } from './Input';
@@ -295,6 +295,16 @@ export const ContactsEditor = ({ userId }: { userId: string }) => {
     }
   };
 
+  // Public contacts are also shown to the groups the account looks after.
+  const setPublic = async (contact: AccountContact, value: boolean) => {
+    setContacts((list) => list?.map((c) => (c.id === contact.id ? { ...c, public: value } : c)) ?? list);
+    const { error: saveError } = await api.from('account_contacts').update({ public: value }).eq('id', contact.id);
+    if (saveError) {
+      setError(`${t('saveFailed')} (${saveError.message})`);
+      void load();
+    }
+  };
+
   const openDialog = (contact: AccountContact | null) => {
     setEditing(contact);
     setDialogOpen(true);
@@ -305,6 +315,7 @@ export const ContactsEditor = ({ userId }: { userId: string }) => {
       <div className="min-w-0">
         <p className="font-medium">{t('contactDetails')}</p>
         <p className="mt-0.5 text-sm text-text-secondary">{t('contactDetailsHint')}</p>
+        <p className="mt-0.5 text-xs text-text-tertiary">{t('contactPublicHint')}</p>
       </div>
 
       {contacts == null ? (
@@ -324,6 +335,21 @@ export const ContactsEditor = ({ userId }: { userId: string }) => {
                   contact={c}
                   actions={
                     <span className="flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => void setPublic(c, !c.public)}
+                        aria-pressed={Boolean(c.public)}
+                        title={c.public ? t('contactMakePrivate') : t('contactMakePublic')}
+                        className={cn(
+                          'mr-1 inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors duration-150',
+                          c.public
+                            ? 'bg-success-soft text-success-strong'
+                            : 'bg-surface-muted text-text-tertiary hover:text-text-secondary',
+                        )}
+                      >
+                        {c.public ? <Globe size={12} /> : <Lock size={12} />}
+                        <span className="max-sm:sr-only">{c.public ? t('visibilityPublic') : t('visibilityPrivate')}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => openDialog(c)}

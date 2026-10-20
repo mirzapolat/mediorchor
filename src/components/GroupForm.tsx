@@ -42,13 +42,14 @@ export const GroupForm = ({
   onSubmit?: (values: GroupFormValues) => void;
   // The group's responsible people and note as stored (database mode), or
   // as prepared so far (onSubmit mode).
-  responsibility?: { people: GroupResponsible[] | PersonOption[]; note: string };
+  responsibility?: { people: GroupResponsible[] | PersonOption[]; note: string; publicNote?: string };
 }) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [color, setColor] = useState(GROUP_PALETTE[0]);
   const [people, setPeople] = useState<PersonOption[]>([]);
   const [note, setNote] = useState('');
+  const [publicNote, setPublicNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,7 @@ export const GroupForm = ({
     setColor(group?.color ?? paletteColor(groups.length));
     setPeople((responsibility?.people ?? []).map((p) => ('user_id' in p ? asPersonOption(p as GroupResponsible) : p)));
     setNote(responsibility?.note ?? '');
+    setPublicNote(responsibility?.publicNote ?? '');
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
@@ -98,7 +100,11 @@ export const GroupForm = ({
     const groupId = (saved as { id: string } | null)?.id ?? group?.id;
     const stored = (responsibility?.people ?? []).filter((p): p is GroupResponsible => 'user_id' in p);
     const responsibilityError = groupId
-      ? await saveGroupResponsibilities(groupId, people, note, { people: stored, note: responsibility?.note ?? '' })
+      ? await saveGroupResponsibilities(groupId, people, note, publicNote, {
+          people: stored,
+          note: responsibility?.note ?? '',
+          publicNote: responsibility?.publicNote ?? '',
+        })
       : null;
     setSaving(false);
     if (responsibilityError) {
@@ -201,6 +207,16 @@ export const GroupForm = ({
             onChange={setPeople}
             label={t('groupResponsibles')}
           />
+          {!onSubmit && (
+            <Textarea
+              label={t('groupPublicNote')}
+              value={publicNote}
+              maxLength={4000}
+              onChange={(e) => setPublicNote(e.target.value)}
+              placeholder={t('groupPublicNotePlaceholder')}
+              className="min-h-[64px]"
+            />
+          )}
           <Textarea
             label={t('groupNote')}
             value={note}

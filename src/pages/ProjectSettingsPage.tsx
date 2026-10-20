@@ -40,6 +40,7 @@ export const ProjectSettingsPage = () => {
     show_surveys: project.show_surveys,
     show_weekend: project.show_weekend,
     show_concerts: project.show_concerts,
+    show_responsibles: project.show_responsibles,
     notify_registration_received: project.notify_registration_received,
     notify_checkin_confirmation: project.notify_checkin_confirmation,
   });
@@ -172,6 +173,7 @@ export const ProjectSettingsPage = () => {
               ['show_weekend', 'showWeekend', 'showWeekendHint'],
               ['show_concerts', 'showConcerts', 'showConcertsHint'],
               ['show_surveys', 'showSurveys', 'showSurveysHint'],
+              ['show_responsibles', 'showResponsibles', 'showResponsiblesHint'],
             ]}
             values={access}
             onToggle={toggle}
@@ -307,6 +309,7 @@ export type AccessKey =
   | 'show_surveys'
   | 'show_weekend'
   | 'show_concerts'
+  | 'show_responsibles'
   | 'notify_registration_received'
   | 'notify_checkin_confirmation';
 

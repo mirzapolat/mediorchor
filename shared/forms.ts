@@ -18,6 +18,7 @@ export const ITEM_TYPES = [
   'single',
   'multi',
   'dropdown',
+  'ranking',
   'scale',
   'stars',
   'grid',
@@ -30,7 +31,7 @@ export type ItemType = (typeof ITEM_TYPES)[number];
 
 // Items without an answer: a text block, an image, a section start.
 export const DISPLAY_TYPES: readonly ItemType[] = ['text', 'image', 'section'];
-export const CHOICE_TYPES: readonly ItemType[] = ['single', 'multi', 'dropdown'];
+export const CHOICE_TYPES: readonly ItemType[] = ['single', 'multi', 'dropdown', 'ranking'];
 export const BRANCH_TYPES: readonly ItemType[] = ['single', 'dropdown'];
 
 // What a file question may accept.
@@ -92,7 +93,8 @@ export interface FormItem {
   max?: number | null;
   integer?: boolean;
   options?: FormOption[];
-  // multi: how many may / must be ticked.
+  // multi: how many may / must be ticked; ranking: how many places may /
+  // must be given.
   min_select?: number | null;
   max_select?: number | null;
   // scale: from (0 or 1) to (2–10) with optional end labels; stars: 3–10.
@@ -244,8 +246,8 @@ export const normalizeStructure = (raw: unknown): FormStructure => {
     }
     if (CHOICE_TYPES.includes(type)) item.options = options(rawItem.options);
     // Jumps only from a single choice or a dropdown.
-    if (type === 'multi') item.options = item.options?.map(({ id: oid, label }) => ({ id: oid, label }));
-    if (type === 'multi') {
+    if (type === 'multi' || type === 'ranking') {
+      item.options = item.options?.map(({ id: oid, label }) => ({ id: oid, label }));
       item.min_select = num(rawItem.min_select);
       item.max_select = num(rawItem.max_select);
     }
@@ -401,7 +403,9 @@ export const checkAnswer = (item: FormItem, value: AnswerValue | undefined): Ans
     case 'single':
     case 'dropdown':
       return typeof value === 'string' && item.options?.some((o) => o.id === value) ? null : 'invalidChoice';
-    case 'multi': {
+    // ranking: the chosen options, best first.
+    case 'multi':
+    case 'ranking': {
       if (!Array.isArray(value) || !value.every((v) => item.options?.some((o) => o.id === v))) return 'invalidChoice';
       if (new Set(value).size !== value.length) return 'invalidChoice';
       if (item.min_select != null && value.length < item.min_select) return 'tooFewChoices';
@@ -527,6 +531,8 @@ export const answerText = (
       return item.options?.[String(value)] ?? String(value);
     case 'multi':
       return Array.isArray(value) ? value.map((v) => item.options?.[v] ?? v).join('; ') : '';
+    case 'ranking':
+      return Array.isArray(value) ? value.map((v, i) => `${i + 1}. ${item.options?.[v] ?? v}`).join('; ') : '';
     case 'grid':
       return isObj(value)
         ? Object.entries(value)
@@ -538,6 +544,73 @@ export const answerText = (
     default:
       return String(value);
   }
+};
+
+// --- ranked choice ----------------------------------------------------------
+
+export interface RunoffRound {
+  // Votes per option still in the race (each ballot counts for its best
+  // ranked option that is left).
+  counts: Record<string, number>;
+  // Ballots still counting (the others ranked no option that is left).
+  active: number;
+  // Dropped after this round.
+  eliminated: string[];
+}
+
+export interface RunoffResult {
+  rounds: RunoffRound[];
+  // More than half of the counting ballots, or the last left; null when no
+  // ballots or a tie between all that are left.
+  winner: string | null;
+  // The options tied at the end (no winner).
+  tied: string[];
+}
+
+// Instant runoff: count first choices; while no option has more than half
+// of the counting ballots, drop the weakest (on a tie, those of them with
+// the fewest first choices overall — and all of them if still tied) and
+// count those ballots for their next choice.
+export const instantRunoff = (ballots: string[][], optionIds: string[]): RunoffResult => {
+  const known = new Set(optionIds);
+  const clean = ballots.map((b) => b.filter((id) => known.has(id))).filter((b) => b.length > 0);
+  const firsts: Record<string, number> = Object.fromEntries(optionIds.map((id) => [id, 0]));
+  for (const b of clean) firsts[b[0]]++;
+  let left = [...optionIds];
+  const rounds: RunoffRound[] = [];
+  while (left.length > 0) {
+    const counts: Record<string, number> = Object.fromEntries(left.map((id) => [id, 0]));
+    let active = 0;
+    for (const b of clean) {
+      const top = b.find((id) => id in counts);
+      if (top === undefined) continue;
+      counts[top]++;
+      active++;
+    }
+    const best = Math.max(...left.map((id) => counts[id]));
+    const leader = left.find((id) => counts[id] === best)!;
+    if (active === 0) {
+      rounds.push({ counts, active, eliminated: [] });
+      return { rounds, winner: null, tied: [] };
+    }
+    if (best * 2 > active || left.length === 1) {
+      rounds.push({ counts, active, eliminated: [] });
+      return { rounds, winner: leader, tied: [] };
+    }
+    const fewest = Math.min(...left.map((id) => counts[id]));
+    let weakest = left.filter((id) => counts[id] === fewest);
+    if (weakest.length > 1) {
+      const fewestFirsts = Math.min(...weakest.map((id) => firsts[id]));
+      weakest = weakest.filter((id) => firsts[id] === fewestFirsts);
+    }
+    if (weakest.length === left.length) {
+      rounds.push({ counts, active, eliminated: [] });
+      return { rounds, winner: null, tied: left };
+    }
+    rounds.push({ counts, active, eliminated: weakest });
+    left = left.filter((id) => !weakest.includes(id));
+  }
+  return { rounds, winner: null, tied: [] };
 };
 
 // --- settings ---------------------------------------------------------------

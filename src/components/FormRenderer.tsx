@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, Check, Loader2, Paperclip, Pencil, Send, Star, Upload, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Loader2, Paperclip, Pencil, Plus, Send, Star, Upload, X } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
@@ -434,6 +434,97 @@ export const FormField = ({
             })}
           </div>
         </>
+      );
+      break;
+    }
+    // Ranked choice: options are tapped in order of preference; the ranked
+    // list can be reordered and trimmed, the rest waits below.
+    case 'ranking': {
+      const ranked = (Array.isArray(value) ? value : []).filter((v) => item.options?.some((o) => o.id === v));
+      const label = (oid: string) => item.options?.find((o) => o.id === oid)?.label ?? oid;
+      const rest = item.options?.filter((o) => !ranked.includes(o.id)) ?? [];
+      const full = item.max_select != null && ranked.length >= item.max_select;
+      const move = (from: number, to: number) => {
+        const next = [...ranked];
+        next.splice(to, 0, ...next.splice(from, 1));
+        onChange(next);
+      };
+      const iconButton = 'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text disabled:pointer-events-none disabled:opacity-30';
+      control = (
+        <div aria-labelledby={`${id}-label`} aria-describedby={described} role="group">
+          <p className="mb-2 text-xs text-text-tertiary">
+            {item.min_select != null && item.max_select != null
+              ? t('formRankBetween').replace('{min}', String(item.min_select)).replace('{max}', String(item.max_select))
+              : item.max_select != null
+                ? t('formRankAtMost').replace('{max}', String(item.max_select))
+                : item.min_select != null
+                  ? t('formRankAtLeast').replace('{min}', String(item.min_select))
+                  : t('formRankHelp')}
+          </p>
+          {ranked.length > 0 && (
+            <ol className="mb-2 flex flex-col gap-2">
+              {ranked.map((oid, index) => (
+                <li
+                  key={oid}
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-accent bg-accent/10 py-1 pl-2 pr-1 text-sm font-medium"
+                >
+                  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold tabular-nums text-white">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 break-words">{label(oid)}</span>
+                  <button
+                    type="button"
+                    className={iconButton}
+                    disabled={index === 0}
+                    onClick={() => move(index, index - 1)}
+                    aria-label={`${t('moveUp')}: ${label(oid)}`}
+                  >
+                    <ArrowUp size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className={iconButton}
+                    disabled={index === ranked.length - 1}
+                    onClick={() => move(index, index + 1)}
+                    aria-label={`${t('moveDown')}: ${label(oid)}`}
+                  >
+                    <ArrowDown size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className={iconButton}
+                    onClick={() => onChange(ranked.filter((x) => x !== oid))}
+                    aria-label={`${t('remove')}: ${label(oid)}`}
+                  >
+                    <X size={15} />
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+          {rest.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {rest.map((o, index) => (
+                <button
+                  key={o.id}
+                  id={index === 0 && ranked.length === 0 ? id : undefined}
+                  type="button"
+                  disabled={full}
+                  onClick={() => onChange([...ranked, o.id])}
+                  className="flex min-h-11 items-center gap-2.5 rounded-xl border border-dashed border-border-strong bg-surface px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-surface-subtle hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+                >
+                  <Plus size={15} className="flex-shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1 break-words">{o.label}</span>
+                  {!full && (
+                    <span className="flex-shrink-0 text-xs text-text-tertiary">
+                      {t('formRankPlace').replace('{n}', String(ranked.length + 1))}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       );
       break;
     }

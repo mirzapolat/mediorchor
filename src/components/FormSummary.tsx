@@ -1,8 +1,9 @@
-import { Star } from 'lucide-react';
+import { Star, Trophy } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { localeOf } from '@shared/languages';
 import type { FormSummary, FormSummaryItem } from '@/lib/forms';
+import type { RunoffResult } from '@shared/forms';
 
 // Answer counts as percentage bars: a choice's share, its number behind it.
 export const PercentBars = ({ rows, total }: { rows: { key: string; label: string; count: number }[]; total: number }) => {
@@ -33,6 +34,91 @@ export const PercentBars = ({ rows, total }: { rows: { key: string; label: strin
   );
 };
 
+// A ranked choice result: who won (or the tie), then the votes of each
+// option per round of the instant runoff — dropped options fade out.
+const RunoffTable = ({ options, runoff }: { options: { id: string; label: string }[]; runoff: RunoffResult }) => {
+  const { t } = useI18n();
+  const label = (id: string) => options.find((o) => o.id === id)?.label ?? id;
+  const { rounds, winner, tied } = runoff;
+  const last = rounds[rounds.length - 1];
+  if (!last || last.active === 0) return <p className="text-sm text-text-tertiary">—</p>;
+  // Strongest first: by the round each option lasted to, then its votes there.
+  const lasted = (id: string) => rounds.findIndex((r) => r.eliminated.includes(id));
+  const order = [...options].sort((a, b) => {
+    const la = lasted(a.id) === -1 ? rounds.length : lasted(a.id);
+    const lb = lasted(b.id) === -1 ? rounds.length : lasted(b.id);
+    const ra = rounds[Math.min(la, rounds.length - 1)].counts[a.id] ?? 0;
+    const rb = rounds[Math.min(lb, rounds.length - 1)].counts[b.id] ?? 0;
+    return lb - la || rb - ra;
+  });
+  return (
+    <div className="space-y-3">
+      <p className="flex items-center gap-2 rounded-xl bg-surface-subtle px-3 py-2 text-sm">
+        <Trophy size={15} className="flex-shrink-0 text-accent" aria-hidden />
+        {winner ? (
+          <span className="min-w-0">
+            <span className="font-semibold">{label(winner)}</span>{' '}
+            <span className="text-text-secondary">
+              {t('rankingWinner')
+                .replace('{votes}', String(last.counts[winner] ?? 0))
+                .replace('{active}', String(last.active))
+                .replace('{round}', String(rounds.length))}
+            </span>
+          </span>
+        ) : (
+          <span className="min-w-0">
+            {t('rankingTie')} <span className="font-semibold">{tied.map(label).join(', ')}</span>
+          </span>
+        )}
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-text-tertiary">
+              <th className="py-1 pr-3 text-left font-medium">{t('rankingOption')}</th>
+              {rounds.map((_, i) => (
+                <th key={i} className="w-14 px-1 py-1 text-right font-medium tabular-nums">
+                  {t('rankingRound').replace('{n}', String(i + 1))}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {order.map((o) => {
+              const out = lasted(o.id);
+              return (
+                <tr key={o.id} className="border-t border-border">
+                  <td className={cn('max-w-0 truncate py-1.5 pr-3', o.id === winner && 'font-semibold')} title={o.label}>
+                    {o.label}
+                  </td>
+                  {rounds.map((r, i) => (
+                    <td
+                      key={i}
+                      className={cn(
+                        'px-1 py-1.5 text-right tabular-nums',
+                        out !== -1 && i > out
+                          ? 'text-text-tertiary'
+                          : i === out
+                            ? 'text-text-tertiary line-through'
+                            : o.id === winner && i === rounds.length - 1
+                              ? 'font-semibold text-accent'
+                              : 'text-text-secondary',
+                      )}
+                    >
+                      {out !== -1 && i > out ? '' : (r.counts[o.id] ?? 0)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-text-tertiary">{t('rankingExplain')}</p>
+    </div>
+  );
+};
+
 // One question of a summary: bars per option, scale value or grid cell.
 export const SummaryItem = ({ item }: { item: FormSummaryItem }) => {
   const { t, lang } = useI18n();
@@ -45,6 +131,8 @@ export const SummaryItem = ({ item }: { item: FormSummaryItem }) => {
         rows={(item.options ?? []).map((o) => ({ key: o.id, label: o.label, count: item.counts[o.id] ?? 0 }))}
       />
     );
+  } else if (item.type === 'ranking' && item.runoff) {
+    body = <RunoffTable options={item.options ?? []} runoff={item.runoff} />;
   } else if (item.type === 'yesno') {
     body = (
       <PercentBars

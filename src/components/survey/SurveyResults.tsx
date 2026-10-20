@@ -29,7 +29,7 @@ import { localeOf } from '@shared/languages';
 import { downloadBlob, filenamePart, toCsv } from '@/lib/absenceExports';
 import { formatBytes } from '@/lib/concerts';
 import { formDate, type FormDetail, type FormResponse, type FormResults, type FormSummaryItem } from '@/lib/forms';
-import { DISPLAY_TYPES, answerText, type ItemType, type SnapshotItem } from '@shared/forms';
+import { DISPLAY_TYPES, answerText, instantRunoff, type ItemType, type SnapshotItem } from '@shared/forms';
 
 type View = 'summary' | 'single' | 'table';
 
@@ -45,7 +45,7 @@ interface Column_ {
   scale_max?: number;
 }
 
-const CHOICE: ItemType[] = ['single', 'multi', 'dropdown', 'yesno', 'scale', 'stars', 'grid'];
+const CHOICE: ItemType[] = ['single', 'multi', 'dropdown', 'ranking', 'yesno', 'scale', 'stars', 'grid'];
 const FREE_TEXT: ItemType[] = ['short', 'long'];
 
 // The responses of a survey for its managers: a summary, one response at a
@@ -549,6 +549,12 @@ const SummaryBlock = ({
       scale_max: col.scale_max,
       answered: answered.length,
       counts,
+      ...(col.type === 'ranking' && {
+        runoff: instantRunoff(
+          answered.map((r) => r.answers[col.id]).filter(Array.isArray).map((b) => b.map(String)),
+          Object.keys(col.options ?? {}),
+        ),
+      }),
     };
     return <SummaryItem item={item} />;
   }

@@ -202,7 +202,11 @@ export const GroupsPage = () => {
         groups={groups}
         responsibility={
           editing
-            ? { people: responsibilities.byGroup.get(editing.id) ?? [], note: responsibilities.notes.get(editing.id) ?? '' }
+            ? {
+                people: responsibilities.byGroup.get(editing.id) ?? [],
+                note: responsibilities.notes.get(editing.id) ?? '',
+                publicNote: responsibilities.publicNotes.get(editing.id) ?? '',
+              }
             : undefined
         }
         onClose={() => setFormOpen(false)}

@@ -53,6 +53,7 @@ export interface Project {
   show_surveys: boolean; // participants see Umfragen
   show_weekend: boolean; // participants see the Probenwochenende
   show_concerts: boolean; // participants see Konzerte
+  show_responsibles: boolean; // participants see who looks after their group
   notify_registration_received: boolean; // "registration received" emails (when an admin enabled them)
   notify_checkin_confirmation: boolean; // "check-in confirmed" emails (when an admin enabled them)
   require_signup_group: boolean; // sign-ups must name a group (when the project has any)
@@ -388,6 +389,8 @@ export interface AccountContact {
   label: string;
   value: string;
   position: number;
+  // Also shown to the groups the account is responsible for.
+  public?: boolean;
   created_at: string;
 }
 

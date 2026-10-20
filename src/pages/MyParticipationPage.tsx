@@ -11,6 +11,8 @@ import { EventWhen } from '@/components/EventWhen';
 import { EventProgram } from '@/components/EventProgram';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ProjectInfoCard } from '@/components/ProjectInfoCard';
+import { GroupResponsiblesCard } from '@/components/GroupResponsiblesCard';
+import { loadMyGroupResponsibles, type MyGroupResponsibles } from '@/lib/groupResponsibles';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import { matchesConditions } from '@/lib/absenceConditions';
@@ -102,6 +104,18 @@ export const MyParticipationPage = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Who looks after the own group (follows a change of group).
+  const [responsibles, setResponsibles] = useState<MyGroupResponsibles | null>(null);
+  const groupName = participating ? (member?.group_name ?? null) : null;
+  useEffect(() => {
+    let live = true;
+    if (!groupName || !project.show_responsibles) setResponsibles(null);
+    else void loadMyGroupResponsibles(project.id).then((r) => live && setResponsibles(r));
+    return () => {
+      live = false;
+    };
+  }, [project.id, project.show_responsibles, groupName]);
 
   const today = localToday();
   const { upcoming, past } = useMemo(
@@ -396,6 +410,8 @@ export const MyParticipationPage = () => {
               </>
             )}
           </Card>
+
+          {responsibles && <GroupResponsiblesCard data={responsibles} />}
 
           <div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
             <Card className="flex flex-col gap-3 max-sm:p-4">

@@ -35,6 +35,7 @@ import {
   checkSubmission,
   fileKindOf,
   formState,
+  instantRunoff,
   normalizeStructure,
   snapshotOf,
   structuralSignature,
@@ -651,7 +652,7 @@ const summaryOf = (form: FormRow, structure: FormStructure) => {
   if (total < MIN_SUMMARY_RESPONSES) return { total, too_few: true, min: MIN_SUMMARY_RESPONSES, items: [] };
   const all = rows.map((r) => parse<Answers>(r.answers, {}));
   const items = structure.items
-    .filter((i) => ['single', 'multi', 'dropdown', 'yesno', 'scale', 'stars', 'grid'].includes(i.type))
+    .filter((i) => ['single', 'multi', 'dropdown', 'ranking', 'yesno', 'scale', 'stars', 'grid'].includes(i.type))
     .map((item) => {
       const counts: Record<string, number> = {};
       let answered = 0;
@@ -677,6 +678,12 @@ const summaryOf = (form: FormRow, structure: FormStructure) => {
         max_label: item.max_label,
         answered,
         counts,
+        ...(item.type === 'ranking' && {
+          runoff: instantRunoff(
+            all.map((answers) => answers[item.id]).filter(Array.isArray).map((b) => b.map(String)),
+            (item.options ?? []).map((o) => o.id),
+          ),
+        }),
       };
     });
   return { total, too_few: false, min: MIN_SUMMARY_RESPONSES, items };
