@@ -44,7 +44,7 @@ const guessColumn = (headers: string[], needles: string[], taken: Set<number>): 
   return idx >= 0 ? idx : null;
 };
 
-const guessAssignment = (headers: string[]): Assignment => {
+export const guessAssignment = (headers: string[]): Assignment => {
   const taken = new Set<number>();
   const pick = (needles: string[]) => {
     const col = guessColumn(headers, needles, taken);

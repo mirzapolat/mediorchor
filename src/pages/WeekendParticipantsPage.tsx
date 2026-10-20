@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CircleHelp, FileUp, Plus, RotateCcw, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
+import { BedDouble, CircleHelp, ClipboardPaste, FileUp, Link2, Plus, RotateCcw, Search, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
+import { FileDropzone } from '@/components/FileDropzone';
+import { ColumnMapper, type MapTarget } from '@/components/FieldMapper';
+import { guessAssignment } from '@/components/MemberImport';
 import { Button } from '@/components/Button';
 import { Input, Select, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
@@ -11,7 +14,7 @@ import { NoAccess } from '@/components/NoAccess';
 import { Toast, useToast } from '@/components/Toast';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { parseCsv } from '@/lib/csv';
+import { detectDelimiter, parseCsv } from '@/lib/csv';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { formDate } from '@/lib/forms';
@@ -68,6 +71,7 @@ export const WeekendParticipantsPage = () => {
   const [adding, setAdding] = useState(false);
   const [resolving, setResolving] = useState<WeekendParticipant | null>(null);
   const [undoResult, setUndoResult] = useState<{ removed: number; kept: { id: string; name: string; reason: string }[] } | null>(null);
+  const [query, setQuery] = useState('');
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -153,14 +157,47 @@ export const WeekendParticipantsPage = () => {
       className: 'w-36',
     },
     { id: 'group', header: t('group'), accessor: (p) => p.group_name, render: (p) => <GroupPill name={p.group_name} />, className: 'w-36' },
-    {
-      id: 'room',
-      header: t('weekendRoom'),
-      accessor: (p) => rooms.get(p.id) ?? '',
-      render: (p) => (rooms.get(p.id) ? <span className="truncate">{rooms.get(p.id)}</span> : <span className="text-text-tertiary">—</span>),
-      className: 'w-36',
-    },
   ];
+  const roomColumn: Column<WeekendParticipant> = {
+    id: 'room',
+    header: t('weekendRoom'),
+    accessor: (p) => rooms.get(p.id) ?? '',
+    render: (p) => (
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <BedDouble size={13} className="flex-shrink-0 text-text-tertiary" aria-hidden />
+        <span className="truncate">{rooms.get(p.id)}</span>
+      </span>
+    ),
+    className: 'w-40',
+  };
+
+  // Three parts: imported lines nobody is assigned to yet (to assign or
+  // delete), then everyone without a room, then everyone in a room.
+  const q = query.trim().toLowerCase();
+  const matches = (p: WeekendParticipant) =>
+    !q || `${p.name} ${p.email ?? ''} ${p.source_name ?? ''} ${p.group_name ?? ''}`.toLowerCase().includes(q);
+  const unassigned = participants.filter((p) => p.kind === 'pending' && matches(p));
+  const listed = participants.filter((p) => p.kind !== 'pending');
+  const withoutRoom = listed.filter((p) => !rooms.has(p.id));
+  const inRoom = listed.filter((p) => rooms.has(p.id));
+
+  const removeButton = (p: WeekendParticipant) => (
+    <button
+      type="button"
+      onClick={() => void remove(p)}
+      aria-label={`${t('remove')}: ${p.name}`}
+      title={t('remove')}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text"
+    >
+      <Trash2 size={15} />
+    </button>
+  );
+
+  const sectionLabel = (label: TranslationKey, n: number) => (
+    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+      {t(label)} ({n})
+    </h2>
+  );
 
   return (
     <div className="space-y-4">
@@ -184,36 +221,99 @@ export const WeekendParticipantsPage = () => {
       </div>
       <p className="text-xs text-text-tertiary">{t('weekendListIndependent')}</p>
 
-      <DataTable
-        variant="modern"
-        rows={participants}
-        columns={columns}
-        getRowId={(p) => p.id}
-        search={(p) => `${p.name} ${p.email ?? ''} ${p.source_name ?? ''}`}
-        emptyMessage={t('weekendNoParticipants')}
-        emptyIcon={UsersRound}
-        actions={(p) => (
-          <>
-            {p.kind === 'pending' && (
-              <button
-                type="button"
-                onClick={() => setResolving(p)}
-                className="h-7 rounded-md px-2 text-xs font-medium text-text-secondary hover:bg-surface-hover hover:text-text"
-              >
-                {t('weekendResolve')}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void remove(p)}
-              aria-label={`${t('remove')}: ${p.name}`}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover hover:text-text"
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
-        )}
-      />
+      {participants.length === 0 ? (
+        <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-secondary">
+            <UsersRound size={22} />
+          </span>
+          <p className="mt-3 max-w-sm text-sm text-text-secondary">{t('weekendNoParticipants')}</p>
+        </div>
+      ) : (
+        <>
+          <div className="relative sm:max-w-sm">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('search')}
+              aria-label={t('search')}
+              className="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-sm"
+            />
+          </div>
+
+          {unassigned.length > 0 && (
+            <section>
+              {sectionLabel('weekendSectionUnassigned', unassigned.length)}
+              <p className="-mt-1 mb-2 text-xs text-text-tertiary">{t('weekendSectionUnassignedHint')}</p>
+              <ul className="space-y-2">
+                {unassigned.map((p) => (
+                  <li
+                    key={p.id}
+                    className="group/row flex flex-col gap-2 rounded-2xl border border-accent/50 bg-surface px-4 py-3 sm:flex-row sm:items-center"
+                  >
+                    <span className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                        <CircleHelp size={16} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium" title={p.source_name || p.name}>
+                          {p.source_name || p.name}
+                        </span>
+                        <span className="block truncate text-xs text-text-tertiary">
+                          {[p.email, p.group_name].filter(Boolean).join(' · ') || t('weekendKindPending')}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="flex flex-shrink-0 gap-2">
+                      <Button className="h-8 px-3" onClick={() => setResolving(p)}>
+                        <Link2 size={14} />
+                        {t('weekendAssign')}
+                      </Button>
+                      <Button variant="secondary" className="h-8 px-3" onClick={() => void remove(p)}>
+                        <Trash2 size={14} />
+                        {t('delete')}
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section>
+            {sectionLabel('weekendSectionNoRoom', withoutRoom.filter(matches).length)}
+            <DataTable
+              variant="modern"
+              rows={withoutRoom}
+              columns={columns}
+              getRowId={(p) => p.id}
+              search={(p) => `${p.name} ${p.email ?? ''} ${p.source_name ?? ''} ${p.group_name ?? ''}`}
+              query={query}
+              hideToolbar
+              emptyMessage={t('weekendNoneWithoutRoom')}
+              emptyIcon={BedDouble}
+              actions={removeButton}
+            />
+          </section>
+
+          <section>
+            {sectionLabel('weekendSectionInRoom', inRoom.filter(matches).length)}
+            <DataTable
+              variant="modern"
+              rows={inRoom}
+              columns={[...columns, roomColumn]}
+              getRowId={(p) => p.id}
+              search={(p) => `${p.name} ${p.email ?? ''} ${p.source_name ?? ''} ${p.group_name ?? ''} ${rooms.get(p.id) ?? ''}`}
+              query={query}
+              hideToolbar
+              emptyMessage={t('weekendNoneInRoom')}
+              emptyIcon={BedDouble}
+              actions={removeButton}
+            />
+          </section>
+        </>
+      )}
 
       {imports.length > 0 && (
         <details className="rounded-2xl border border-border bg-surface px-4 py-3">
@@ -334,22 +434,31 @@ const parsePasted = (text: string, groups: string[]) =>
       return { name, email, group };
     });
 
-// A CSV with headers: name (or first/last name), email, group — matched by
-// common column names.
-const parseCsvFile = (text: string) => {
-  const { headers, rows } = parseCsv(text);
-  const find = (re: RegExp) => headers.findIndex((h) => re.test(h.toLowerCase()));
-  const full = find(/^(name|teilnehmer|person|nimi)$/);
-  const first = find(/vorname|first|etunimi/);
-  const last = find(/nachname|last|surname|sukunimi/);
-  const email = find(/mail/);
-  const group = find(/gruppe|group|stimme|voice|ryhmä/);
-  return rows.map((r) => ({
-    name: full >= 0 ? r[full] ?? '' : [first >= 0 ? r[first] : '', last >= 0 ? r[last] : ''].join(' ').trim() || r[0] || '',
-    email: email >= 0 ? r[email] ?? '' : '',
-    group: group >= 0 ? r[group] ?? '' : '',
-  }));
-};
+// The CSV delimiters to choose from ('' = detected).
+const DELIMITERS: { value: string; label: TranslationKey }[] = [
+  { value: ';', label: 'delimiterSemicolon' },
+  { value: ',', label: 'delimiterComma' },
+  { value: '\t', label: 'delimiterTab' },
+  { value: '|', label: 'delimiterPipe' },
+];
+
+const CSV_PREVIEW_ROWS = 5;
+
+type Assignment = Record<MapTarget, number | null>;
+
+// The lines of a CSV by its column assignment: a full name, or first and
+// last name; email and group.
+const csvEntries = (rows: string[][], a: Assignment) =>
+  rows
+    .map((r) => {
+      const cell = (col: number | null) => (col == null ? '' : (r[col] ?? '').trim());
+      return {
+        name: cell(a.full_name) || [cell(a.first_name), cell(a.last_name)].filter(Boolean).join(' '),
+        email: cell(a.email),
+        group: cell(a.group_name),
+      };
+    })
+    .filter((e) => e.name || e.email);
 
 const ImportDialog = ({
   weekendId,
@@ -364,14 +473,40 @@ const ImportDialog = ({
 }) => {
   const { t } = useI18n();
   const { names: groups } = useProjectGroups();
+  const [source, setSource] = useState<'csv' | 'paste'>('csv');
   const [pasted, setPasted] = useState('');
-  const [file, setFile] = useState<{ name: string; entries: { name: string; email: string; group: string }[] } | null>(null);
+  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  // '' = detected from the file.
+  const [delimiter, setDelimiter] = useState('');
+  const [firstRowHeader, setFirstRowHeader] = useState(true);
+  const [assignment, setAssignment] = useState<Assignment>(guessAssignment([]));
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
   const [decisions, setDecisions] = useState<Record<number, Decision>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const entries = useMemo(() => file?.entries ?? parsePasted(pasted, groups), [file, pasted, groups]);
+  const parsed = useMemo(
+    () => (file ? parseCsv(file.text, firstRowHeader, delimiter || undefined) : { headers: [], rows: [] }),
+    [file, firstRowHeader, delimiter],
+  );
+  // Guess the columns again whenever they change (another file or delimiter).
+  useEffect(() => setAssignment(guessAssignment(parsed.headers)), [parsed.headers]);
+  const mapped = assignment.full_name != null || assignment.first_name != null || assignment.last_name != null || assignment.email != null;
+  const detected = file ? DELIMITERS.find((d) => d.value === detectDelimiter(file.text)) : undefined;
+
+  const entries = useMemo(
+    () => (source === 'csv' ? (mapped ? csvEntries(parsed.rows, assignment) : []) : parsePasted(pasted, groups)),
+    [source, mapped, parsed.rows, assignment, pasted, groups],
+  );
+
+  // Assigning an attribute moves it to this column; a column holds one.
+  const assign = (column: number, target: MapTarget | null) =>
+    setAssignment((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(next) as MapTarget[]) if (next[key] === column) next[key] = null;
+      if (target) next[target] = column;
+      return next;
+    });
 
   const runPreview = async () => {
     setBusy(true);
@@ -409,8 +544,8 @@ const ImportDialog = ({
     });
     const { data, error: rpcError } = await api.rpc('weekend_import_apply', {
       p_weekend_id: weekendId,
-      p_source: file ? 'csv' : 'paste',
-      p_file_name: file?.name ?? null,
+      p_source: source,
+      p_file_name: source === 'csv' ? (file?.name ?? null) : null,
       p_rows: rows,
     });
     setBusy(false);
@@ -472,34 +607,88 @@ const ImportDialog = ({
     >
       {!preview ? (
         <div className="space-y-4">
-          <Textarea
-            label={t('weekendImportPaste')}
-            placeholder={t('weekendImportPastePlaceholder')}
-            rows={8}
-            value={pasted}
-            disabled={file != null}
-            onChange={(e) => setPasted(e.target.value)}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border px-3 text-sm text-text-secondary hover:bg-surface-muted">
-              <FileUp size={15} />
-              {t('weekendImportCsv')}
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (f) setFile({ name: f.name, entries: parseCsvFile(await f.text()) });
-                }}
-              />
-            </label>
-            {file && (
-              <button type="button" onClick={() => setFile(null)} className="text-sm text-text-secondary underline">
-                {file.name} · {t('remove')}
+          <div className="flex rounded-lg bg-surface-muted p-0.5 sm:max-w-sm">
+            {(
+              [
+                ['csv', FileUp, 'weekendImportFromCsv'],
+                ['paste', ClipboardPaste, 'weekendImportFromPaste'],
+              ] as const
+            ).map(([id, Icon, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={source === id}
+                onClick={() => setSource(id)}
+                className={cn(
+                  'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-sm',
+                  source === id ? 'bg-surface font-medium shadow-sm' : 'text-text-secondary',
+                )}
+              >
+                <Icon size={14} />
+                {t(label)}
               </button>
-            )}
+            ))}
           </div>
+
+          {source === 'csv' ? (
+            <>
+              <FileDropzone
+                accept=".csv,.txt,text/csv,text/plain"
+                fileName={file?.name}
+                onFile={async (f) => setFile({ name: f.name, text: await f.text() })}
+                hint={t('dropzoneCsvHint')}
+              />
+              {file && (
+                <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                  <div className="w-56">
+                    <Select label={t('csvDelimiter')} value={delimiter} onChange={(e) => setDelimiter(e.target.value)}>
+                      <option value="">
+                        {t('delimiterAuto').replace('{d}', detected ? t(detected.label) : t('delimiterComma'))}
+                      </option>
+                      {DELIMITERS.map((d) => (
+                        <option key={d.label} value={d.value}>
+                          {t(d.label)}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <label className="flex h-10 cursor-pointer select-none items-center gap-2 text-sm text-text-secondary">
+                    <input type="checkbox" checked={firstRowHeader} onChange={(e) => setFirstRowHeader(e.target.checked)} />
+                    {t('firstRowHeader')}
+                  </label>
+                </div>
+              )}
+              {file &&
+                (parsed.headers.length === 0 ? (
+                  <p className="text-sm text-text-secondary">{t('emptyCsv')}</p>
+                ) : (
+                  <div>
+                    <h3 className="mb-1 text-sm font-semibold">{t('mapColumns')}</h3>
+                    <p className="mb-3 text-xs text-text-tertiary">{t('mapColumnsVisualHint')}</p>
+                    <ColumnMapper
+                      headers={parsed.headers}
+                      rows={parsed.rows.slice(0, CSV_PREVIEW_ROWS)}
+                      assignment={assignment}
+                      onAssign={assign}
+                    />
+                    {parsed.rows.length > CSV_PREVIEW_ROWS && (
+                      <p className="mt-2 text-xs text-text-tertiary">
+                        {t('andMore').replace('{n}', String(parsed.rows.length - CSV_PREVIEW_ROWS))}
+                      </p>
+                    )}
+                    {!mapped && <p className="mt-2 text-sm text-danger">{t('weekendMapNameOrEmail')}</p>}
+                  </div>
+                ))}
+            </>
+          ) : (
+            <Textarea
+              label={t('weekendImportPaste')}
+              placeholder={t('weekendImportPastePlaceholder')}
+              rows={8}
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+            />
+          )}
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>
       ) : (

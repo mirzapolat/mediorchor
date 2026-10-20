@@ -7,9 +7,9 @@ export interface ParsedCsv {
   rows: string[][];
 }
 
-const detectDelimiter = (text: string): string => {
-  const firstLine = text.split(/\r?\n/)[0] ?? '';
-  const candidates: Record<string, number> = { ',': 0, ';': 0, '\t': 0 };
+export const detectDelimiter = (text: string): string => {
+  const firstLine = text.replace(/^﻿/, '').split(/\r?\n/)[0] ?? '';
+  const candidates: Record<string, number> = { ',': 0, ';': 0, '\t': 0, '|': 0 };
   let inQuotes = false;
   for (const c of firstLine) {
     if (c === '"') inQuotes = !inQuotes;
@@ -61,10 +61,10 @@ const parseRecords = (text: string, delimiter: string): string[][] => {
 
 // `firstRowHeader` controls whether the first record is treated as column
 // names. When false, generic "Column N" headers are generated and every record
-// becomes data.
-export const parseCsv = (text: string, firstRowHeader = true): ParsedCsv => {
+// becomes data. `delimiter` overrides the detected one.
+export const parseCsv = (text: string, firstRowHeader = true, delimiter?: string): ParsedCsv => {
   const clean = text.replace(/^﻿/, '');
-  const delimiter = detectDelimiter(clean);
+  delimiter ||= detectDelimiter(clean);
   const records = parseRecords(clean, delimiter).filter((r) =>
     r.some((cell) => cell.trim() !== ''),
   );
