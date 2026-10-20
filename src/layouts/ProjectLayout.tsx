@@ -87,6 +87,14 @@ export const RequirePiecesAccess = () => {
   return <Outlet context={{ ...ctx, pieceScope }} />;
 };
 
+// Wraps Umfragen, Probenwochenende and Konzerte: participants only get in
+// while the project shows that area (managers always do).
+export const RequireProjectArea = ({ area }: { area: 'show_surveys' | 'show_weekend' | 'show_concerts' }) => {
+  const ctx = useProjectContext();
+  if (!ctx.canManage && !ctx.project[area]) return <NoAccess />;
+  return <Outlet context={ctx} />;
+};
+
 // Wraps the management-only pages; participants get the no-access notice.
 export const RequireProjectManage = () => {
   const ctx = useProjectContext();
@@ -195,25 +203,12 @@ export const ProjectLayout = () => {
           icon: UserRound,
           ...visibleTo(true),
         },
-        (canManage || nav.surveys) && {
-          to: `${base}/surveys`,
-          label: t('surveys'),
-          icon: ListChecks,
-          badge: nav.open_surveys,
-          ...visibleTo(true),
-        },
-        (canManage || nav.weekend) && {
-          to: `${base}/weekend`,
-          label: t('weekend'),
-          icon: Tent,
-          badge: nav.room_missing,
-          ...visibleTo(true),
-        },
-        (canManage || nav.concerts) && {
-          to: `${base}/concerts`,
-          label: t('concerts'),
-          icon: Music2,
-          ...visibleTo(true),
+        canManage && {
+          to: `${base}/events`,
+          label: t('events'),
+          icon: CalendarDays,
+          warningCount: unrecognizedCount,
+          ...visibleTo(false),
         },
         (canManage || project.allow_participant_pieces) && {
           to: `${base}/pieces`,
@@ -221,12 +216,25 @@ export const ProjectLayout = () => {
           icon: Music,
           ...visibleTo(project.allow_participant_pieces),
         },
-        canManage && {
-          to: `${base}/events`,
-          label: t('events'),
-          icon: CalendarDays,
-          warningCount: unrecognizedCount,
-          ...visibleTo(false),
+        (canManage || nav.weekend) && {
+          to: `${base}/weekend`,
+          label: t('weekend'),
+          icon: Tent,
+          badge: nav.room_missing,
+          ...visibleTo(project.show_weekend),
+        },
+        (canManage || nav.concerts) && {
+          to: `${base}/concerts`,
+          label: t('concerts'),
+          icon: Music2,
+          ...visibleTo(project.show_concerts),
+        },
+        (canManage || nav.surveys) && {
+          to: `${base}/surveys`,
+          label: t('surveys'),
+          icon: ListChecks,
+          badge: nav.open_surveys,
+          ...visibleTo(project.show_surveys),
         },
         canManage && { to: `${base}/members`, label: t('members'), icon: Users, ...visibleTo(false) },
         canManage && { to: `${base}/groups`, label: t('groupsList'), icon: Tags, ...visibleTo(false) },

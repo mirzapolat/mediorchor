@@ -14,6 +14,7 @@ import {
   ProjectLayout,
   ProjectIndexRedirect,
   RequirePiecesAccess,
+  RequireProjectArea,
   RequireProjectManage,
 } from '@/layouts/ProjectLayout';
 import { EventLayout } from '@/layouts/EventLayout';
@@ -207,19 +208,25 @@ export const App = () => {
           <Route index element={<ProjectIndexRedirect />} />
           <Route path="participation" element={<MyParticipationPage />} />
           {/* Surveys: managers build them; participants see the listed ones. */}
-          <Route path="surveys" element={<SurveysPage />} />
-          <Route path="surveys/:formId" element={<SurveyPage />} />
+          <Route element={<RequireProjectArea area="show_surveys" />}>
+            <Route path="surveys" element={<SurveysPage />} />
+            <Route path="surveys/:formId" element={<SurveyPage />} />
+          </Route>
           {/* Rehearsal weekends: a list (or the only one directly), each with
               its own sidebar — participants (managers) and rooms. */}
-          <Route path="weekend" element={<WeekendsPage />} />
-          <Route path="weekend/:weekendId" element={<WeekendLayout />}>
-            <Route index element={<WeekendOverviewPage />} />
-            <Route path="participants" element={<WeekendParticipantsPage />} />
-            <Route path="rooms" element={<WeekendRoomsPage />} />
+          <Route element={<RequireProjectArea area="show_weekend" />}>
+            <Route path="weekend" element={<WeekendsPage />} />
+            <Route path="weekend/:weekendId" element={<WeekendLayout />}>
+              <Route index element={<WeekendOverviewPage />} />
+              <Route path="participants" element={<WeekendParticipantsPage />} />
+              <Route path="rooms" element={<WeekendRoomsPage />} />
+            </Route>
           </Route>
           {/* Concerts: participants see published ones (the server decides). */}
-          <Route path="concerts" element={<ConcertsPage />} />
-          <Route path="concerts/:concertId" element={<ConcertPage />} />
+          <Route element={<RequireProjectArea area="show_concerts" />}>
+            <Route path="concerts" element={<ConcertsPage />} />
+            <Route path="concerts/:concertId" element={<ConcertPage />} />
+          </Route>
           <Route element={<RequirePiecesAccess />}>
             <Route path="pieces" element={<PiecesPage />} />
             {/* Old practice links point at a block; the piece page replaces them. */}

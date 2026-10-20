@@ -26,6 +26,9 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$
 const SETTINGS = [
   'allow_account_access',
   'allow_participant_pieces',
+  'show_surveys',
+  'show_weekend',
+  'show_concerts',
   'allow_account_checkin',
   'allow_guest_checkin',
   'allow_account_signup',

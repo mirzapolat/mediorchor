@@ -922,6 +922,12 @@ const de: Messages = {
   allowGuestSignupHint: 'Auf den Anmeldeformularen kann man sich ohne Konto anmelden.',
   allowParticipantPieces: 'Stücke für Teilnehmende anzeigen',
   allowParticipantPiecesHint: 'Teilnehmende sehen die Stücke-Seite mit Noten, Audio und Übungsansicht.',
+  showSurveys: 'Umfragen anzeigen',
+  showSurveysHint: 'Teilnehmende sehen die Umfragen des Projekts.',
+  showWeekend: 'Probenwochenende anzeigen',
+  showWeekendHint: 'Teilnehmende sehen das Probenwochenende mit Anmeldung und Zimmern.',
+  showConcerts: 'Konzerte anzeigen',
+  showConcertsHint: 'Teilnehmende sehen die Konzerte des Projekts.',
 
   // Previews of planned sections
 

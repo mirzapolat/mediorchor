@@ -117,6 +117,9 @@ const newDraft = (): Draft => ({
   settings: {
     allow_account_access: true,
     allow_participant_pieces: true,
+    show_weekend: true,
+    show_concerts: true,
+    show_surveys: true,
     allow_account_checkin: true,
     allow_guest_checkin: true,
     allow_account_signup: true,
@@ -532,6 +535,9 @@ const SettingsSection = ({ draft, update, groupNames }: SectionProps & { groupNa
           toggles={[
             ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
             ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
+            ['show_weekend', 'showWeekend', 'showWeekendHint'],
+            ['show_concerts', 'showConcerts', 'showConcertsHint'],
+            ['show_surveys', 'showSurveys', 'showSurveysHint'],
           ]}
           values={s}
           onToggle={toggle}

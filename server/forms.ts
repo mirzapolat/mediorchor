@@ -943,7 +943,7 @@ export const openFormsFor = (uid: string, projectId?: string) => {
               (select count(*) from form_responses r where r.form_id = f.id) as responses
        from forms f join projects p on p.id = f.project_id
        where f.listed and f.status = 'published' and not f.archived and f.version_id is not null
-         and p.status = 'active' and p.allow_account_access
+         and p.status = 'active' and p.allow_account_access and p.show_surveys
          and exists (select 1 from members m where m.project_id = f.project_id and m.user_id = @uid and m.status = 'active')
          ${projectId ? 'and f.project_id = @pid' : ''}`,
     )

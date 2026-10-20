@@ -891,6 +891,12 @@ const fi: Messages = {
   allowGuestSignupHint: 'Ilmoittautumislomakkeet toimivat kirjautumatta tilille.',
   allowParticipantPieces: 'Näytä kappaleet osallistujille',
   allowParticipantPiecesHint: 'Osallistujat näkevät kappalesivun nuotteineen, äänitteineen ja harjoitusnäkymineen.',
+  showSurveys: 'Näytä kyselyt',
+  showSurveysHint: 'Osallistujat näkevät projektin kyselyt.',
+  showWeekend: 'Näytä harjoitusviikonloppu',
+  showWeekendHint: 'Osallistujat näkevät harjoitusviikonlopun ilmoittautumisineen ja huoneineen.',
+  showConcerts: 'Näytä konsertit',
+  showConcertsHint: 'Osallistujat näkevät projektin konsertit.',
 
   // Previews of planned sections
 

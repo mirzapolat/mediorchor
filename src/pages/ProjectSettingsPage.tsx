@@ -37,6 +37,9 @@ export const ProjectSettingsPage = () => {
     allow_guest_checkin: project.allow_guest_checkin,
     allow_guest_signup: project.allow_guest_signup,
     allow_participant_pieces: project.allow_participant_pieces,
+    show_surveys: project.show_surveys,
+    show_weekend: project.show_weekend,
+    show_concerts: project.show_concerts,
     notify_registration_received: project.notify_registration_received,
     notify_checkin_confirmation: project.notify_checkin_confirmation,
   });
@@ -166,6 +169,9 @@ export const ProjectSettingsPage = () => {
             toggles={[
               ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
               ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
+              ['show_weekend', 'showWeekend', 'showWeekendHint'],
+              ['show_concerts', 'showConcerts', 'showConcertsHint'],
+              ['show_surveys', 'showSurveys', 'showSurveysHint'],
             ]}
             values={access}
             onToggle={toggle}
@@ -298,6 +304,9 @@ export type AccessKey =
   | 'allow_guest_checkin'
   | 'allow_guest_signup'
   | 'allow_participant_pieces'
+  | 'show_surveys'
+  | 'show_weekend'
+  | 'show_concerts'
   | 'notify_registration_received'
   | 'notify_checkin_confirmation';
 

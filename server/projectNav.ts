@@ -1,6 +1,7 @@
 // What a project's navigation shows the caller: which of the newer areas
 // exist for them, and the quiet counts on their entries. Managers see every
-// area anyway; participants only what is published for them.
+// area anyway; participants only what the project shows (its settings) and
+// is published for them.
 import { db, authUid, ApiError } from './db.ts';
 import { canAccessProject, isProjectParticipant } from './policies.ts';
 import { openFormsFor } from './forms.ts';
@@ -20,16 +21,19 @@ const project_nav = (args: Args) => {
   const participant = holds(isProjectParticipant('@pid'), { pid });
   const exists = (sql: string) => Boolean(db.prepare(sql).get(pid));
   const uid = authUid()!;
+  const shown = (column: 'show_surveys' | 'show_weekend' | 'show_concerts') =>
+    exists(`select 1 from projects where id = ? and ${column}`);
   return {
     manager,
     // At least one published concert.
     concerts:
       manager ||
-      (participant && exists(`select 1 from concerts where project_id = ? and status = 'published' and not archived limit 1`)),
+      (participant && shown('show_concerts') && exists(`select 1 from concerts where project_id = ? and status = 'published' and not archived limit 1`)),
     // At least one published, listed survey (link-only ones never count).
     surveys:
       manager ||
       (participant &&
+        shown('show_surveys') &&
         exists(
           `select 1 from forms where project_id = ? and listed and status <> 'draft' and not archived
              and version_id is not null limit 1`,
@@ -37,7 +41,9 @@ const project_nav = (args: Args) => {
     // One's own surveys still to answer.
     open_surveys: participant ? openFormsFor(uid, pid).filter((f) => f.my !== 'answered').length : 0,
     // The rehearsal weekend area, and a missing room choice.
-    ...weekendNav(pid, uid, manager, participant),
+    ...(manager || shown('show_weekend')
+      ? weekendNav(pid, uid, manager, participant)
+      : { weekend: false, room_missing: 0 }),
   };
 };
 

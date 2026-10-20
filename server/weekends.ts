@@ -667,7 +667,7 @@ export const missingRoomsFor = (uid: string) =>
       .prepare(
         `select w.id, w.title, w.starts_on, w.project_id, p.name as project_name, p.image_url as project_image
          from weekends w join projects p on p.id = w.project_id
-         where w.status = 'published' and not w.archived and p.status = 'active'`,
+         where w.status = 'published' and not w.archived and p.status = 'active' and p.show_weekend`,
       )
       .all() as Array<{ id: string; title: string; starts_on: string | null; project_id: string; project_name: string; project_image: string | null }>
   )

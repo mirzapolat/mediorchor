@@ -892,6 +892,12 @@ const en = {
   allowGuestSignupHint: 'Registration forms work without logging in to an account.',
   allowParticipantPieces: 'Show pieces to participants',
   allowParticipantPiecesHint: 'Participants see the pieces page with scores, audio and the practice view.',
+  showSurveys: 'Show surveys',
+  showSurveysHint: "Participants see the project's surveys.",
+  showWeekend: 'Show rehearsal weekend',
+  showWeekendHint: 'Participants see the rehearsal weekend with sign-up and rooms.',
+  showConcerts: 'Show concerts',
+  showConcertsHint: "Participants see the project's concerts.",
 
   // Previews of planned sections
 
