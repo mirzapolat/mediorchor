@@ -71,7 +71,8 @@ const MasonryItem = ({ children }: { children: ReactNode }) => {
     return () => observer.disconnect();
   }, []);
   return (
-    <div ref={ref} style={span ? { gridRowEnd: `span ${span}` } : undefined}>
+    // min-w-0: a widget never widens its column (long rows truncate instead).
+    <div ref={ref} className="min-w-0" style={span ? { gridRowEnd: `span ${span}` } : undefined}>
       {children}
     </div>
   );
@@ -211,7 +212,7 @@ export const DashboardPage = () => {
               <p className="text-sm text-text-secondary">{t('dashboardAllHidden')}</p>
             </Card>
           ) : (
-            <div className="grid auto-rows-[4px] items-start gap-x-4 sm:gap-x-6 lg:grid-cols-2">
+            <div className="grid auto-rows-[4px] grid-cols-1 items-start gap-x-4 sm:gap-x-6 lg:grid-cols-2">
               {shown.map((state, index) => {
                 const widget = WIDGETS.find((w) => w.id === state.id)!;
                 const title = t(widget.title);

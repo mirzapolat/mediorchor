@@ -1,4 +1,5 @@
 import { localeOf, type Language } from '@shared/languages';
+import { dayCount, type BookingPeriod, type NightRange } from '@shared/weekendNights';
 import { useOutletContext } from 'react-router-dom';
 import type { ProjectOutletContext } from '@/layouts/projectContext';
 
@@ -12,7 +13,15 @@ export interface Weekend {
   location: string;
   description: string;
   signup_url: string | null;
-  status: 'draft' | 'published' | 'closed';
+  // Released one by one (migration 0076): the details, and the rooms
+  // (participants choose while 'open'; 'locked' shows them unchanged).
+  details_published: boolean;
+  rooms_status: RoomsStatus;
+  // Days (null: from the dates) and the booked periods placed over nights.
+  days: number | null;
+  periods: BookingPeriod[];
+  // The shared link to the room choice (managers only; null: none).
+  link_token: string | null;
   archived: boolean;
   created_at: string;
   // The caller's own place in it.
@@ -20,6 +29,8 @@ export interface Weekend {
   // Managers only.
   counts: { participants: number; confirmed: number; rooms: number } | null;
 }
+
+export type RoomsStatus = 'hidden' | 'open' | 'locked';
 
 export interface WeekendParticipant {
   id: string;
@@ -34,6 +45,11 @@ export interface WeekendParticipant {
   source_email: string | null;
   import_id: string | null;
   changed_by_hand: boolean;
+  // The booked period as imported (free text), and nights chosen on the
+  // shared link (they win).
+  booking: string | null;
+  night_from: number | null;
+  night_to: number | null;
   created_at: string;
 }
 
@@ -54,6 +70,8 @@ export interface RoomPerson {
   photo_url: string | null;
   kind: 'member' | 'guest' | 'pending';
   mine: boolean;
+  booking: string | null;
+  nights: NightRange;
 }
 
 export interface Room {
@@ -67,9 +85,10 @@ export interface Room {
 }
 
 export interface RoomsView {
-  weekend: { id: string; title: string; status: Weekend['status']; archived: boolean };
+  weekend: { id: string; title: string; rooms_status: RoomsStatus; archived: boolean };
   manager: boolean;
-  me: { participant_id: string; room_id: string | null } | null;
+  night_count: number;
+  me: { participant_id: string; room_id: string | null; nights: NightRange } | null;
   can_choose: boolean;
   rooms: Room[];
   unassigned: RoomPerson[];
@@ -92,8 +111,44 @@ export const weekendDates = (w: Pick<Weekend, 'starts_on' | 'ends_on'>, lang: La
   return `${day(w.starts_on, { day: 'numeric', month: 'short' })} – ${day(w.ends_on, { day: 'numeric', month: 'short', year: 'numeric' })}`;
 };
 
-export const weekendState = (w: Pick<Weekend, 'status' | 'archived'>) => (w.archived ? 'archived' : w.status) as
-  | 'draft'
-  | 'published'
-  | 'closed'
-  | 'archived';
+// The weekend's days as tiles: weekday and date when it has a start, else
+// "Tag 1", "Tag 2", ….
+export const weekendDayLabels = (w: Pick<Weekend, 'days' | 'starts_on' | 'ends_on'>, lang: Language, dayWord: string) => {
+  const locale = localeOf(lang);
+  return Array.from({ length: dayCount(w) }, (_, i) => {
+    if (!w.starts_on) return { weekday: `${dayWord} ${i + 1}`, date: null };
+    const day = new Date(`${w.starts_on}T00:00:00`);
+    day.setDate(day.getDate() + i);
+    return {
+      weekday: day.toLocaleDateString(locale, { weekday: 'short' }),
+      date: day.toLocaleDateString(locale, { day: 'numeric', month: 'numeric' }),
+    };
+  });
+};
+
+// "Nacht 1", or "Nacht 1–2" for a range.
+export const nightsLabel = ([from, to]: NightRange, nightWord: string) =>
+  from === to ? `${nightWord} ${from + 1}` : `${nightWord} ${from + 1}–${to + 1}`;
+
+// The shared link to a weekend's room choice.
+export const weekendLinkUrl = (token: string) => `${window.location.origin}/zimmer/${token}`;
+
+// A guest's key for the link, kept in this browser only.
+const guestKeyName = (token: string) => `weekend-guest:${token}`;
+
+export const loadGuestKey = (token: string) => {
+  try {
+    return localStorage.getItem(guestKeyName(token));
+  } catch {
+    return null;
+  }
+};
+
+export const saveGuestKey = (token: string, key: string | null) => {
+  try {
+    if (key) localStorage.setItem(guestKeyName(token), key);
+    else localStorage.removeItem(guestKeyName(token));
+  } catch {
+    // Without storage the guest simply can't come back by themselves.
+  }
+};

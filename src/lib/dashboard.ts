@@ -108,7 +108,7 @@ export const loadDashboardData = async (userId: string): Promise<DashboardData> 
       .from('weekends')
       .select('id, project_id, title, starts_on, ends_on, location')
       .in('project_id', projectIds)
-      .in('status', ['published', 'closed'])
+      .eq('details_published', true)
       .eq('archived', false)
       .not('starts_on', 'is', null)
       .order('starts_on'),

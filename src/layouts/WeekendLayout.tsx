@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Outlet, useParams } from 'react-router-dom';
-import { ArrowLeft, BedDouble, CalendarDays, MapPin, Tent, UsersRound } from 'lucide-react';
+import { Link, Navigate, Outlet, useParams } from 'react-router-dom';
+import { ArrowLeft, BedDouble, CalendarDays, FileText, MapPin, Settings, Tent, UsersRound } from 'lucide-react';
 import { useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { FadingText } from '@/components/FadingText';
@@ -11,12 +11,29 @@ import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
-import { weekendDates, type Weekend } from '@/lib/weekends';
+import { useWeekendContext, weekendDates, type Weekend } from '@/lib/weekends';
 
 // One rehearsal weekend, laid out like a Probe or a piece: its own sidebar
-// with the weekend's name, dates and place (a click on it opens the
-// overview) and exactly two pages — "Teilnehmende" for managers, "Zimmer"
-// for managers and the weekend's confirmed participants.
+// with the weekend's name, dates and place, and its pages — "Details" once
+// released, "Teilnehmende" for managers, "Zimmer" for managers and (once
+// released) the weekend's confirmed participants, "Einstellungen" for
+// managers.
+// Which pages a person has in a weekend.
+const weekendPages = (weekend: Weekend, canManage: boolean) => ({
+  details: canManage || weekend.details_published,
+  participants: canManage,
+  rooms: canManage || (weekend.me.confirmed && weekend.rooms_status !== 'hidden'),
+  settings: canManage,
+});
+
+// The weekend's address alone opens its first page.
+export const WeekendIndex = () => {
+  const { weekend, canManage } = useWeekendContext();
+  const pages = weekendPages(weekend, canManage);
+  const first = (['details', 'rooms'] as const).find((p) => pages[p]);
+  return first ? <Navigate to={first} replace /> : <NoAccess />;
+};
+
 export const WeekendLayout = () => {
   const { t, lang } = useI18n();
   const ctx = useProjectContext();
@@ -43,28 +60,29 @@ export const WeekendLayout = () => {
   // A participant with just this weekend has no list to go back to.
   const back = !canManage && single ? { to: `/projects/${project.id}`, label: project.name } : { to: `/projects/${project.id}/weekend`, label: t('weekend') };
   const dates = weekendDates(weekend, lang);
+  const pages = weekendPages(weekend, canManage);
 
   return (
     <NavShell
-      header={<WeekendHeader weekend={weekend} dates={dates} base={base} back={back} />}
+      header={<WeekendHeader weekend={weekend} dates={dates} back={back} />}
       items={[
-        canManage && { to: `${base}/participants`, label: t('weekendParticipants'), icon: UsersRound },
-        (canManage || weekend.me.confirmed) && {
+        pages.details && { to: `${base}/details`, label: t('weekendDetails'), icon: FileText },
+        pages.participants && { to: `${base}/participants`, label: t('weekendParticipants'), icon: UsersRound },
+        pages.rooms && {
           to: `${base}/rooms`,
           label: t('weekendRooms'),
           icon: BedDouble,
-          badge: !canManage && weekend.status === 'published' && weekend.me.confirmed && !weekend.me.room_id ? 1 : 0,
+          badge: !canManage && weekend.rooms_status === 'open' && weekend.me.confirmed && !weekend.me.room_id ? 1 : 0,
         },
+        pages.settings && { to: `${base}/settings`, label: t('settings'), icon: Settings },
       ]}
       back={back}
       context={
-        <Link to={base} className="block">
-          <MobileContext
-            icon={Tent}
-            title={weekend.title}
-            meta={[dates, weekend.location].filter(Boolean).join(' · ') || undefined}
-          />
-        </Link>
+        <MobileContext
+          icon={Tent}
+          title={weekend.title}
+          meta={[dates, weekend.location].filter(Boolean).join(' · ') || undefined}
+        />
       }
       contentClassName="max-w-[1100px] p-4 sm:p-6 lg:p-8"
     >
@@ -78,12 +96,10 @@ export const WeekendLayout = () => {
 const WeekendHeader = ({
   weekend,
   dates,
-  base,
   back,
 }: {
   weekend: Weekend;
   dates: string | null;
-  base: string;
   back: { to: string; label: string };
 }) => {
   const { collapsed } = useSidebar();
@@ -100,7 +116,7 @@ const WeekendHeader = ({
         <ArrowLeft size={16} />
         {!collapsed && <FadingText>{back.label}</FadingText>}
       </Link>
-      <Link to={base} className={cn('block border-b border-border hover:bg-surface-subtle', collapsed ? 'flex justify-center py-4' : 'px-5 py-4')}>
+      <div className={cn('border-b border-border', collapsed ? 'flex justify-center py-4' : 'px-5 py-4')}>
         {collapsed ? (
           <Tent size={20} className="text-text-secondary" />
         ) : (
@@ -120,7 +136,7 @@ const WeekendHeader = ({
             )}
           </>
         )}
-      </Link>
+      </div>
     </>
   );
 };

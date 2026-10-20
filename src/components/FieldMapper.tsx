@@ -1,4 +1,4 @@
-import { ChevronDown, IdCard, Mail, StickyNote, Tags, User, UserRound, type LucideIcon } from 'lucide-react';
+import { CalendarRange, ChevronDown, IdCard, Mail, StickyNote, Tags, User, UserRound, type LucideIcon } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
@@ -10,7 +10,12 @@ export type MapTarget = 'first_name' | 'last_name' | 'full_name' | 'email' | 'gr
 // registration and is never transferred.
 export type WebhookMapTarget = MapTarget | 'note';
 
-type LabelKey = 'firstName' | 'lastName' | 'fullNameField' | 'email' | 'group' | 'noteTarget';
+// Rehearsal weekend imports additionally take the booked period.
+export type WeekendMapTarget = MapTarget | 'booking';
+
+type AnyTarget = WebhookMapTarget | WeekendMapTarget;
+
+type LabelKey = 'firstName' | 'lastName' | 'fullNameField' | 'email' | 'group' | 'noteTarget' | 'weekendBooking';
 
 type TargetMeta<T> = { target: T; label: LabelKey; icon: LucideIcon; color: string };
 
@@ -27,13 +32,20 @@ export const WEBHOOK_TARGETS: TargetMeta<WebhookMapTarget>[] = [
   { target: 'note', label: 'noteTarget', icon: StickyNote, color: '#64748b' },
 ];
 
-export const targetMeta = (target: WebhookMapTarget) => WEBHOOK_TARGETS.find((m) => m.target === target)!;
+export const WEEKEND_TARGETS: TargetMeta<WeekendMapTarget>[] = [
+  ...MAP_TARGETS,
+  { target: 'booking', label: 'weekendBooking', icon: CalendarRange, color: '#ca8a04' },
+];
+
+const ALL_TARGETS: TargetMeta<AnyTarget>[] = [...WEBHOOK_TARGETS, ...WEEKEND_TARGETS];
+
+export const targetMeta = (target: AnyTarget) => ALL_TARGETS.find((m) => m.target === target)!;
 
 const NONE = '';
 
 // A chip-styled select that assigns one attribute to a column/field. `auto`
 // marks an assignment that was detected rather than chosen.
-export const TargetSelect = <T extends WebhookMapTarget = MapTarget>({
+export const TargetSelect = <T extends AnyTarget = MapTarget>({
   value,
   auto = false,
   onChange,
@@ -86,20 +98,22 @@ export const TargetSelect = <T extends WebhookMapTarget = MapTarget>({
 
 // A preview of tabular data where each column header carries a TargetSelect.
 // Assigned columns are tinted in their attribute's color.
-export const ColumnMapper = ({
+export const ColumnMapper = <T extends AnyTarget = MapTarget>({
   headers,
   rows,
   assignment,
   onAssign,
+  options,
 }: {
   headers: string[];
   rows: string[][];
   // Column index per target, or null.
-  assignment: Record<MapTarget, number | null>;
-  onAssign: (column: number, target: MapTarget | null) => void;
+  assignment: Record<T, number | null>;
+  onAssign: (column: number, target: T | null) => void;
+  options?: TargetMeta<T>[];
 }) => {
   const targetOf = (col: number) =>
-    (Object.keys(assignment) as MapTarget[]).find((k) => assignment[k] === col) ?? null;
+    (Object.keys(assignment) as T[]).find((k) => assignment[k] === col) ?? null;
 
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -118,7 +132,7 @@ export const ColumnMapper = ({
                   <div className="mb-2 truncate text-xs font-semibold text-text-secondary" title={h}>
                     {h || `#${col + 1}`}
                   </div>
-                  <TargetSelect value={target} onChange={(next) => onAssign(col, next)} />
+                  <TargetSelect value={target} options={options} onChange={(next) => onAssign(col, next)} />
                 </th>
               );
             })}

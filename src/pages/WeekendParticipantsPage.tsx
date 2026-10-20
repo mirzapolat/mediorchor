@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BedDouble, CircleHelp, ClipboardPaste, FileUp, Link2, Plus, RotateCcw, Search, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
+import { BedDouble, CalendarRange, CircleHelp, ClipboardPaste, FileUp, Link2, Plus, RotateCcw, Search, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
 import { FileDropzone } from '@/components/FileDropzone';
-import { ColumnMapper, type MapTarget } from '@/components/FieldMapper';
+import { ColumnMapper, WEEKEND_TARGETS, type WeekendMapTarget } from '@/components/FieldMapper';
 import { guessAssignment } from '@/components/MemberImport';
 import { Button } from '@/components/Button';
 import { Input, Select, Textarea } from '@/components/Input';
@@ -18,7 +18,7 @@ import { detectDelimiter, parseCsv } from '@/lib/csv';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { formDate } from '@/lib/forms';
-import { useWeekendContext, type WeekendImport, type WeekendParticipant } from '@/lib/weekends';
+import { nightsLabel, useWeekendContext, type WeekendImport, type WeekendParticipant } from '@/lib/weekends';
 import type { PersonOption } from '@/types';
 
 interface MemberOption {
@@ -40,7 +40,7 @@ interface Candidate {
 
 interface PreviewRow {
   index: number;
-  entry: { name: string; email: string; group: string };
+  entry: { name: string; email: string; group: string; booking: string };
   status: 'existing' | 'sure' | 'confirm' | 'unknown';
   match: Candidate | null;
   candidates: Candidate[];
@@ -119,6 +119,25 @@ export const WeekendParticipantsPage = () => {
     void reloadWeekend();
   };
 
+  // The periods to choose from: as placed in the settings, then as imported.
+  const bookingLabels = [
+    ...new Set([...weekend.periods.map((p) => p.label), ...participants.map((p) => p.booking).filter((b): b is string => Boolean(b))]),
+  ];
+
+  const setBooking = async (p: WeekendParticipant, booking: string | null) => {
+    // A period chosen here replaces nights chosen on the link.
+    const { error } = await api.from('weekend_participants').update({ booking, night_from: null, night_to: null }).eq('id', p.id);
+    if (error) return toast.show(`${t('saveFailed')} (${error.message})`);
+    await load();
+    toast.show(t('weekendBookingChanged').replace('{name}', p.name), () =>
+      void api
+        .from('weekend_participants')
+        .update({ booking: p.booking, night_from: p.night_from, night_to: p.night_to })
+        .eq('id', p.id)
+        .then(load),
+    );
+  };
+
   const confirmed = participants.filter((p) => p.kind !== 'pending').length;
   const pending = participants.filter((p) => p.kind === 'pending').length;
   const lastImport = imports.find((i) => !i.undone_at);
@@ -157,6 +176,13 @@ export const WeekendParticipantsPage = () => {
       className: 'w-36',
     },
     { id: 'group', header: t('group'), accessor: (p) => p.group_name, render: (p) => <GroupPill name={p.group_name} />, className: 'w-36' },
+    {
+      id: 'booking',
+      header: t('weekendBooking'),
+      accessor: (p) => p.booking ?? '',
+      render: (p) => <BookingSelect participant={p} labels={bookingLabels} onChange={(booking) => void setBooking(p, booking)} />,
+      className: 'w-40',
+    },
   ];
   const roomColumn: Column<WeekendParticipant> = {
     id: 'room',
@@ -431,7 +457,7 @@ const parsePasted = (text: string, groups: string[]) =>
       const email = parts.find((p) => p.includes('@')) ?? '';
       const group = parts.find((p) => groups.some((g) => g.toLowerCase() === p.toLowerCase())) ?? '';
       const name = parts.filter((p) => p !== email && p !== group).join(' ');
-      return { name, email, group };
+      return { name, email, group, booking: '' };
     });
 
 // The CSV delimiters to choose from ('' = detected).
@@ -444,10 +470,20 @@ const DELIMITERS: { value: string; label: TranslationKey }[] = [
 
 const CSV_PREVIEW_ROWS = 5;
 
-type Assignment = Record<MapTarget, number | null>;
+type Assignment = Record<WeekendMapTarget, number | null>;
+
+// The usual column names of a booked period.
+const BOOKING_HEADERS = ['zeitraum', 'buchung', 'gebucht', 'nächte', 'naechte', 'übernacht', 'period', 'booking', 'nights', 'ajanjakso', 'yöt'];
+
+const guessWeekendAssignment = (headers: string[]): Assignment => {
+  const base = guessAssignment(headers);
+  const taken = new Set(Object.values(base).filter((v): v is number => v != null));
+  const booking = headers.findIndex((h, i) => !taken.has(i) && BOOKING_HEADERS.some((n) => h.toLowerCase().includes(n)));
+  return { ...base, booking: booking >= 0 ? booking : null };
+};
 
 // The lines of a CSV by its column assignment: a full name, or first and
-// last name; email and group.
+// last name; email, group and the booked period.
 const csvEntries = (rows: string[][], a: Assignment) =>
   rows
     .map((r) => {
@@ -456,6 +492,7 @@ const csvEntries = (rows: string[][], a: Assignment) =>
         name: cell(a.full_name) || [cell(a.first_name), cell(a.last_name)].filter(Boolean).join(' '),
         email: cell(a.email),
         group: cell(a.group_name),
+        booking: cell(a.booking),
       };
     })
     .filter((e) => e.name || e.email);
@@ -479,7 +516,7 @@ const ImportDialog = ({
   // '' = detected from the file.
   const [delimiter, setDelimiter] = useState('');
   const [firstRowHeader, setFirstRowHeader] = useState(true);
-  const [assignment, setAssignment] = useState<Assignment>(guessAssignment([]));
+  const [assignment, setAssignment] = useState<Assignment>(guessWeekendAssignment([]));
   const [preview, setPreview] = useState<PreviewRow[] | null>(null);
   const [decisions, setDecisions] = useState<Record<number, Decision>>({});
   const [busy, setBusy] = useState(false);
@@ -490,7 +527,7 @@ const ImportDialog = ({
     [file, firstRowHeader, delimiter],
   );
   // Guess the columns again whenever they change (another file or delimiter).
-  useEffect(() => setAssignment(guessAssignment(parsed.headers)), [parsed.headers]);
+  useEffect(() => setAssignment(guessWeekendAssignment(parsed.headers)), [parsed.headers]);
   const mapped = assignment.full_name != null || assignment.first_name != null || assignment.last_name != null || assignment.email != null;
   const detected = file ? DELIMITERS.find((d) => d.value === detectDelimiter(file.text)) : undefined;
 
@@ -500,10 +537,10 @@ const ImportDialog = ({
   );
 
   // Assigning an attribute moves it to this column; a column holds one.
-  const assign = (column: number, target: MapTarget | null) =>
+  const assign = (column: number, target: WeekendMapTarget | null) =>
     setAssignment((current) => {
       const next = { ...current };
-      for (const key of Object.keys(next) as MapTarget[]) if (next[key] === column) next[key] = null;
+      for (const key of Object.keys(next) as WeekendMapTarget[]) if (next[key] === column) next[key] = null;
       if (target) next[target] = column;
       return next;
     });
@@ -670,6 +707,7 @@ const ImportDialog = ({
                       rows={parsed.rows.slice(0, CSV_PREVIEW_ROWS)}
                       assignment={assignment}
                       onAssign={assign}
+                      options={WEEKEND_TARGETS}
                     />
                     {parsed.rows.length > CSV_PREVIEW_ROWS && (
                       <p className="mt-2 text-xs text-text-tertiary">
@@ -677,6 +715,7 @@ const ImportDialog = ({
                       </p>
                     )}
                     {!mapped && <p className="mt-2 text-sm text-danger">{t('weekendMapNameOrEmail')}</p>}
+                    {mapped && assignment.booking == null && <p className="mt-2 text-xs text-text-tertiary">{t('weekendMapBookingHint')}</p>}
                   </div>
                 ))}
             </>
@@ -728,7 +767,12 @@ const PreviewLine = ({
   return (
     <li className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center">
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{row.entry.name || row.entry.email}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate font-medium">{row.entry.name || row.entry.email}</span>
+          {row.entry.booking && (
+            <span className="flex-shrink-0 rounded bg-surface-muted px-1.5 py-px text-[10px] font-semibold text-text-secondary">{row.entry.booking}</span>
+          )}
+        </span>
         <span className="block truncate text-xs text-text-tertiary">
           {[row.entry.name ? row.entry.email : '', row.entry.group].filter(Boolean).join(' · ')}
           {row.status === 'sure' && row.match && ` → ${row.match.name}${row.match.group_name ? ` (${row.match.group_name})` : ''}`}
@@ -914,5 +958,55 @@ const ResolveDialog = ({
       </Select>
       {error && <p className="text-sm text-danger">{error}</p>}
     </Modal>
+  );
+};
+
+// The booked period of an entry, changeable by hand: one of the weekend's
+// periods, or none (the whole weekend). Nights chosen on the shared link
+// show as such.
+const BookingSelect = ({
+  participant,
+  labels,
+  onChange,
+}: {
+  participant: WeekendParticipant;
+  labels: string[];
+  onChange: (booking: string | null) => void;
+}) => {
+  const { t } = useI18n();
+  const chosen =
+    participant.night_from != null && participant.night_to != null
+      ? `${nightsLabel([participant.night_from, participant.night_to], t('weekendNight'))} · ${t('weekendViaLink')}`
+      : null;
+  const label = chosen ?? participant.booking ?? t('weekendBookingWhole');
+  return (
+    <label
+      className={cn(
+        'relative inline-flex h-7 max-w-full cursor-pointer items-center gap-1.5 rounded-full pl-2 pr-2.5 text-xs',
+        chosen || participant.booking ? 'bg-surface-muted font-medium text-text-secondary' : 'text-text-tertiary hover:bg-surface-subtle',
+      )}
+      title={label}
+    >
+      <CalendarRange size={12} className="flex-shrink-0" />
+      <span className="truncate">{label}</span>
+      <select
+        value={chosen ? '__chosen' : (participant.booking ?? '')}
+        aria-label={`${t('weekendBooking')}: ${participant.name}`}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        {chosen && (
+          <option value="__chosen" disabled>
+            {chosen}
+          </option>
+        )}
+        <option value="">{t('weekendBookingWhole')}</option>
+        {labels.map((label) => (
+          <option key={label} value={label}>
+            {label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 };

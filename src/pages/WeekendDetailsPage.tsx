@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BedDouble, ExternalLink, Loader2, Pencil } from 'lucide-react';
+import { BedDouble, ExternalLink, Loader2, Pencil, Send, Undo2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { MarkdownEditor } from '@/components/MarkdownEditor';
-import { LifecycleActions, LifecycleBadge, type LifecycleAction } from '@/components/Lifecycle';
+import { ReleasePill } from '@/components/WeekendRelease';
 import { Toast, useToast } from '@/components/Toast';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { Markdown } from '@/lib/markdown';
-import { useWeekendContext, weekendDates, weekendState } from '@/lib/weekends';
+import { useWeekendContext, weekendDates } from '@/lib/weekends';
 
-// The weekend's general information: what participants see once it is
-// published (with the external sign-up link), and its managers' editing
-// and lifecycle (publish, take back, close, archive).
-export const WeekendOverviewPage = () => {
+// "Details": the weekend's general information — what participants see once
+// the details are released (with the external sign-up link) — and its
+// managers' editing and releasing (independent of the rooms).
+export const WeekendDetailsPage = () => {
   const { t, lang } = useI18n();
   const { weekend, canManage, reloadWeekend, reloadNav } = useWeekendContext();
   const [editing, setEditing] = useState<null | {
@@ -44,27 +44,11 @@ export const WeekendOverviewPage = () => {
     return true;
   };
 
-  const onAction = async (action: LifecycleAction) => {
-    const steps: Partial<Record<LifecycleAction, [Record<string, unknown>, Record<string, unknown>, Parameters<typeof t>[0]]>> = {
-      publish: [{ status: 'published' }, { status: 'draft' }, 'weekendPublishedToast'],
-      unpublish: [{ status: 'draft' }, { status: weekend.status }, 'weekendUnpublishedToast'],
-      close: [{ status: 'closed' }, { status: 'published' }, 'weekendClosedToast'],
-      reopen: [{ status: 'published' }, { status: 'closed' }, 'weekendReopenedToast'],
-      archive: [{ archived: true }, { archived: false }, 'weekendArchivedToast'],
-      restore: [{ archived: false }, { archived: true }, 'weekendRestoredToast'],
-    };
-    const step = steps[action];
-    if (!step) return;
-    if (await patch(step[0])) toast.show(t(step[2]), () => void patch(step[1]));
+  const release = async (published: boolean) => {
+    if (await patch({ details_published: published })) {
+      toast.show(t(published ? 'weekendDetailsReleasedToast' : 'weekendDetailsWithdrawnToast'), () => void patch({ details_published: !published }));
+    }
   };
-
-  const actions: LifecycleAction[] = weekend.archived
-    ? ['restore']
-    : weekend.status === 'draft'
-      ? ['publish', 'archive']
-      : weekend.status === 'published'
-        ? ['close', 'unpublish', 'archive']
-        : ['reopen', 'unpublish', 'archive'];
 
   const save = async () => {
     if (!editing || !editing.title.trim()) return;
@@ -87,19 +71,29 @@ export const WeekendOverviewPage = () => {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="break-words text-xl font-bold sm:text-2xl">{weekend.title}</h1>
-            {canManage && <LifecycleBadge state={weekendState(weekend)} />}
+            {canManage && <ReleasePill released={weekend.details_published && !weekend.archived} />}
           </div>
           <p className="mt-1 text-sm text-text-secondary">{[dates, weekend.location].filter(Boolean).join(' · ')}</p>
         </div>
         {canManage && (
           <div className="flex flex-shrink-0 flex-wrap gap-2">
-            <LifecycleActions actions={actions} onAction={(a) => void onAction(a)} busy={busy} />
+            {weekend.details_published ? (
+              <Button variant="secondary" disabled={busy} onClick={() => void release(false)}>
+                <Undo2 size={16} />
+                {t('weekendDetailsWithdraw')}
+              </Button>
+            ) : (
+              <Button disabled={busy || weekend.archived} onClick={() => void release(true)}>
+                <Send size={16} />
+                {t('weekendDetailsRelease')}
+              </Button>
+            )}
           </div>
         )}
       </header>
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      {weekend.signup_url && /^https?:\/\//i.test(weekend.signup_url) && weekend.status === 'published' && !weekend.archived && (
+      {weekend.signup_url && /^https?:\/\//i.test(weekend.signup_url) && weekend.details_published && !weekend.archived && (
         <a href={weekend.signup_url} target="_blank" rel="noopener noreferrer" className="inline-block">
           <Button>
             <ExternalLink size={16} />
@@ -108,13 +102,13 @@ export const WeekendOverviewPage = () => {
         </a>
       )}
 
-      {!canManage && weekend.me.confirmed && (
+      {!canManage && weekend.me.confirmed && weekend.rooms_status !== 'hidden' && (
         <Link
           to="rooms"
           className="flex items-center gap-3 rounded-2xl border border-accent/50 bg-accent/10 px-4 py-3 text-sm hover:shadow-sm"
         >
           <BedDouble size={18} />
-          <span className="flex-1">{weekend.me.room_id ? t('weekendYourRoom') : t('weekendChooseRoomCta')}</span>
+          <span className="flex-1">{weekend.me.room_id || weekend.rooms_status === 'locked' ? t('weekendYourRoom') : t('weekendChooseRoomCta')}</span>
         </Link>
       )}
 
@@ -193,7 +187,7 @@ export const WeekendOverviewPage = () => {
             .replace('{confirmed}', String(weekend.counts.confirmed ?? 0))
             .replace('{all}', String(weekend.counts.participants ?? 0))
             .replace('{rooms}', String(weekend.counts.rooms ?? 0))}
-          {weekend.status === 'draft' && ` · ${t('weekendDraftHint')}`}
+          {!weekend.details_published && ` · ${t('weekendDraftHint')}`}
         </p>
       )}
       <Toast toast={toast.toast} onClose={toast.hide} />

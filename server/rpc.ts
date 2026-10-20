@@ -25,7 +25,7 @@ import { GROUP_READ_FUNCTIONS, groupResponsibleFunctions } from './groupResponsi
 import { concertFunctions } from './concerts.ts';
 import { projectNavFunctions } from './projectNav.ts';
 import { FORM_PUBLIC_WRITE_FUNCTIONS, FORM_READ_FUNCTIONS, formFunctions } from './forms.ts';
-import { WEEKEND_READ_FUNCTIONS, weekendFunctions } from './weekends.ts';
+import { WEEKEND_PUBLIC_WRITE_FUNCTIONS, WEEKEND_READ_FUNCTIONS, weekendFunctions } from './weekends.ts';
 import { onboardingFunctions } from './onboarding.ts';
 
 type Args = Record<string, unknown>;
@@ -1140,6 +1140,7 @@ export const PUBLIC_WRITE_FUNCTIONS = new Set([
   'submit_public_checkin',
   'submit_public_registration',
   ...FORM_PUBLIC_WRITE_FUNCTIONS,
+  ...WEEKEND_PUBLIC_WRITE_FUNCTIONS,
 ]);
 
 // Functions that only read; a failed call to one is no failed action

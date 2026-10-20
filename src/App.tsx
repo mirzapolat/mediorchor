@@ -50,9 +50,11 @@ import { ConcertPage } from '@/pages/ConcertPage';
 import { SurveysPage } from '@/pages/SurveysPage';
 import { SurveyPage } from '@/pages/SurveyPage';
 import { PublicFormPage } from '@/pages/PublicFormPage';
+import { PublicWeekendPage } from '@/pages/PublicWeekendPage';
 import { WeekendsPage } from '@/pages/WeekendsPage';
-import { WeekendLayout } from '@/layouts/WeekendLayout';
-import { WeekendOverviewPage } from '@/pages/WeekendOverviewPage';
+import { WeekendIndex, WeekendLayout } from '@/layouts/WeekendLayout';
+import { WeekendDetailsPage } from '@/pages/WeekendDetailsPage';
+import { WeekendSettingsPage } from '@/pages/WeekendSettingsPage';
 import { WeekendParticipantsPage } from '@/pages/WeekendParticipantsPage';
 import { WeekendRoomsPage } from '@/pages/WeekendRoomsPage';
 import { EventAttendancePage } from '@/pages/EventAttendancePage';
@@ -95,6 +97,7 @@ export const App = () => {
     location.pathname.startsWith('/register/') ||
     location.pathname.startsWith('/cal/') ||
     location.pathname.startsWith('/f/') ||
+    location.pathname.startsWith('/zimmer/') ||
     location.pathname === '/reset-password' ||
     location.pathname === '/impressum' ||
     location.pathname === '/datenschutz'
@@ -106,6 +109,8 @@ export const App = () => {
         <Route path="/cal/:token" element={<PublicCalendarPage />} />
         {/* A survey: answered without the app around it (guests too). */}
         <Route path="/f/:token" element={<PublicFormPage />} />
+        {/* A weekend's room choice, shared: with an account or as a guest. */}
+        <Route path="/zimmer/:token" element={<PublicWeekendPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/impressum" element={<LegalPage kind="imprint" />} />
         <Route path="/datenschutz" element={<LegalPage kind="privacy" />} />
@@ -217,9 +222,11 @@ export const App = () => {
           <Route element={<RequireProjectArea area="show_weekend" />}>
             <Route path="weekend" element={<WeekendsPage />} />
             <Route path="weekend/:weekendId" element={<WeekendLayout />}>
-              <Route index element={<WeekendOverviewPage />} />
+              <Route index element={<WeekendIndex />} />
+              <Route path="details" element={<WeekendDetailsPage />} />
               <Route path="participants" element={<WeekendParticipantsPage />} />
               <Route path="rooms" element={<WeekendRoomsPage />} />
+              <Route path="settings" element={<WeekendSettingsPage />} />
             </Route>
           </Route>
           {/* Concerts: participants see published ones (the server decides). */}

@@ -14,6 +14,8 @@ import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
 import { hasSecondFactor } from './mfa.ts';
 import { isLanguage } from '../shared/languages.ts';
 import { CONTACT_LABEL_MAX, CONTACT_VALUE_MAX, isContactKind } from '../shared/contactKinds.ts';
+import { MAX_DAYS, cleanPeriods, peakOccupancy } from '../shared/weekendNights.ts';
+import { roomNights } from './weekendRoomNights.ts';
 
 type Predicate = (alias: string) => string;
 
@@ -161,8 +163,11 @@ export const isConfirmedWeekendParticipant = (weekendId: string) => `exists (
     and (_wp.user_id = auth_uid() or _wm.user_id = auth_uid())
 )`;
 
-// Published (or closed) and not archived: what participants may see.
-export const weekendShown = (a: string) => `(${a}.status in ('published', 'closed') and not ${a}.archived)`;
+// Not archived, with its details or its rooms released: participants see
+// the weekend (migration 0076). Its row itself — with the details — only
+// once the details are released.
+export const weekendShown = (a: string) => `(not ${a}.archived and (${a}.details_published or ${a}.rooms_status <> 'hidden'))`;
+export const weekendDetailsShown = (a: string) => `(not ${a}.archived and ${a}.details_published)`;
 
 export const formInManagedProject = (formId: string) =>
   `exists (select 1 from forms _f where _f.id = ${formId} and ${canAccessProject('_f.project_id')})`;
@@ -794,14 +799,15 @@ export const policies: Record<string, TablePolicy> = {
     select: (a) =>
       or(
         canAccessProject(`${a}.project_id`),
-        `${weekendShown(a)} and ${or(isProjectParticipant(`${a}.project_id`), isConfirmedWeekendParticipant(`${a}.id`))}`,
+        `${weekendDetailsShown(a)} and ${or(isProjectParticipant(`${a}.project_id`), isConfirmedWeekendParticipant(`${a}.id`))}`,
       ),
     validateInsert: (row) => validateWeekend(row, true),
     validateUpdate: (oldRow, patch) => {
       if ('project_id' in patch && patch.project_id !== oldRow.project_id) {
         throw new ApiError('A weekend stays with its project', 403, '42501');
       }
-      validateWeekend({ ...oldRow, ...patch }, false);
+      // The patch itself, so cleaned values (periods, an empty link) are saved.
+      validateWeekend(patch, false);
     },
   },
   weekend_rooms: {
@@ -827,12 +833,14 @@ export const policies: Record<string, TablePolicy> = {
     check: (a) => weekendInManagedProject(`${a}.weekend_id`),
     delete: (a) => weekendInManagedProject(`${a}.weekend_id`),
     validateUpdate: (oldRow, patch) => {
-      for (const field of ['weekend_id', 'kind', 'member_id', 'user_id', 'import_id'] as const) {
+      for (const field of ['weekend_id', 'kind', 'member_id', 'user_id', 'import_id', 'guest_key_hash'] as const) {
         if (field in patch && normalize(patch[field]) !== normalize(oldRow[field])) {
           throw new ApiError(`${field} is changed through the weekend functions`, 403, '42501');
         }
       }
       checkText(patch, 'name', 200);
+      checkText(patch, 'booking', 200);
+      if (patch.booking === '') patch.booking = null;
       Object.assign(patch, { changed_by_hand: true, updated_at: nowIso() });
     },
   },
@@ -1120,6 +1128,12 @@ const validateWeekend = (row: Record<string, unknown>, complete: boolean) => {
     throw new ApiError('Link must be an http(s) URL', 400, '23514');
   }
   if (row.signup_url === '') row.signup_url = null;
+  if ('days' in row && row.days != null) {
+    const days = Number(row.days);
+    if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new ApiError('Invalid number of days', 400, '23514');
+    row.days = days;
+  }
+  if ('periods' in row) row.periods = cleanPeriods(row.periods);
 };
 
 // Rooms: a name and a positive capacity, never below who already sleeps there.
@@ -1130,9 +1144,9 @@ const validateRoom = (row: Record<string, unknown>, roomId: string | null) => {
   if ('capacity' in row) {
     const capacity = Number(row.capacity);
     if (!Number.isInteger(capacity) || capacity < 1 || capacity > 100) throw new ApiError('Invalid capacity', 400, '23514');
-    if (roomId) {
-      const { n } = db.prepare('select count(*) as n from weekend_room_assignments where room_id = ?').get(roomId) as { n: number };
-      if (capacity < n) throw new ApiError('The room has more people than that', 409, 'room_overfull');
+    // Never below the fullest night (people of other nights share places).
+    if (roomId && capacity < peakOccupancy(roomNights(roomId))) {
+      throw new ApiError('The room has more people than that', 409, 'room_overfull');
     }
   }
 };

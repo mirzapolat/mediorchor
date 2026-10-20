@@ -2,13 +2,19 @@
 // see it, importing participants (preview, then apply, and undoing the last
 // import), adding and resolving entries by hand, the rooms as confirmed
 // participants see them, choosing a room (atomic: the target's capacity is
-// checked, the new place taken and the old one freed — all or nothing), and
-// a person's contacts as far as they share them with this very person.
+// checked night by night, the new place taken and the old one freed — all
+// or nothing), and a person's contacts as far as they share them with this
+// very person. The room choice can also be shared as a link: whoever opens
+// it continues with their account or as a guest (name and nights; a key in
+// their browser brings them back to their place).
+import { createHash, randomBytes } from 'node:crypto';
 import { db, authUid, ApiError, forbidden, nowIso } from './db.ts';
 import { canAccessProject, isProjectParticipant, weekendInManagedProject } from './policies.ts';
 import { splitName } from './fieldMatching.ts';
 import { auditNote } from './audit.ts';
 import { registrationToMember } from './rpc.ts';
+import { cleanPeriods, nightCount, peakOccupancy } from '../shared/weekendNights.ts';
+import { nightsFor, roomNights } from './weekendRoomNights.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -22,7 +28,11 @@ interface WeekendRow {
   location: string;
   description: string;
   signup_url: string | null;
-  status: 'draft' | 'published' | 'closed';
+  details_published: number;
+  rooms_status: 'hidden' | 'open' | 'locked';
+  days: number | null;
+  periods: string;
+  link_token: string | null;
   archived: number;
   created_at: string;
 }
@@ -40,7 +50,14 @@ interface ParticipantRow {
   source_email: string | null;
   import_id: string | null;
   changed_by_hand: number;
+  booking: string | null;
+  night_from: number | null;
+  night_to: number | null;
+  guest_key_hash: string | null;
 }
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const newSecret = (bytes = 18) => randomBytes(bytes).toString('base64url');
 
 const text = (value: unknown) => (typeof value === 'string' ? value : value == null ? '' : String(value));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -65,7 +82,12 @@ const requireManagedWeekend = (weekendId: string) => {
   return weekend;
 };
 
-const shown = (w: WeekendRow) => (w.status === 'published' || w.status === 'closed') && !w.archived;
+// Participants see a weekend once its details or its rooms are released;
+// the rooms (and choosing one) only with their own release.
+const shown = (w: WeekendRow) => !w.archived && (Boolean(w.details_published) || w.rooms_status !== 'hidden');
+const roomsShown = (w: WeekendRow) => !w.archived && w.rooms_status !== 'hidden';
+const roomsOpen = (w: WeekendRow) => !w.archived && w.rooms_status === 'open';
+
 
 // The caller's confirmed entry in a weekend, if any.
 const myEntry = (weekendId: string, uid: string) =>
@@ -135,8 +157,16 @@ const weekend_list = (args: Args) => {
             )
             .get({ id: w.id }) as Row)
         : null;
+      // Unreleased details stay the managers'.
+      const details = manager || Boolean(w.details_published);
       return {
         ...w,
+        description: details ? w.description : '',
+        signup_url: details ? w.signup_url : null,
+        details_published: Boolean(w.details_published),
+        periods: cleanPeriods(JSON.parse(w.periods || '[]')),
+        // The shared link is the managers'.
+        link_token: manager ? w.link_token : null,
         archived: Boolean(w.archived),
         me: { confirmed: Boolean(mine), room_id: room?.room_id ?? null },
         counts,
@@ -158,20 +188,36 @@ const photoOf = (p: { member_id: string | null; user_id: string | null }) => {
   return null;
 };
 
+// A guest who joined through the link, by the key in their browser.
+const guestByKey = (key: string) =>
+  key
+    ? (db.prepare(`select * from weekend_participants where guest_key_hash = ? and kind = 'guest'`).get(sha256(key)) as
+        | ParticipantRow
+        | undefined)
+    : undefined;
+
 // May the caller see this weekend's rooms: its managers, and its confirmed
-// participants while it is published (or closed).
-const roomAccess = (weekendId: string) => {
+// participants once the rooms are released — by account, or as a guest of
+// the link by their key (`p_guest_key`, no account).
+const roomAccess = (args: Args) => {
+  const key = text(args.p_guest_key);
+  if (key) {
+    const mine = guestByKey(key);
+    const weekend = mine && getWeekend(mine.weekend_id);
+    if (!mine || !weekend || !roomsShown(weekend)) throw forbidden('Only confirmed participants see the rooms');
+    return { uid: null, weekend, manager: false, mine };
+  }
   const uid = requireUser();
-  const weekend = getWeekend(weekendId);
+  const weekend = getWeekend(text(args.p_weekend_id));
   if (!weekend) throw new ApiError('Not found', 404);
   const manager = isManager(weekend.id);
   const mine = myEntry(weekend.id, uid);
-  if (!manager && !(shown(weekend) && mine)) throw forbidden('Only confirmed participants see the rooms');
+  if (!manager && !(roomsShown(weekend) && mine)) throw forbidden('Only confirmed participants see the rooms');
   return { uid, weekend, manager, mine };
 };
 
 const weekend_rooms_view = (args: Args) => {
-  const { weekend, manager, mine } = roomAccess(text(args.p_weekend_id));
+  const { weekend, manager, mine } = roomAccess(args);
   const rooms = db
     .prepare('select * from weekend_rooms where weekend_id = ? order by position, created_at')
     .all(weekend.id) as Row[];
@@ -182,6 +228,7 @@ const weekend_rooms_view = (args: Args) => {
        where wp.weekend_id = ? order by wp.name collate nocase`,
     )
     .all(weekend.id) as Array<ParticipantRow & { room_id: string }>;
+  const nights = nightsFor(weekend);
   const person = (p: ParticipantRow) => ({
     participant_id: p.id,
     name: p.name,
@@ -189,14 +236,17 @@ const weekend_rooms_view = (args: Args) => {
     photo_url: photoOf(p),
     kind: p.kind,
     mine: mine?.id === p.id,
+    booking: p.booking,
+    nights: nights(p),
   });
   const myRoom = mine ? placed.find((p) => p.id === mine.id)?.room_id ?? null : null;
   return {
-    weekend: { id: weekend.id, title: weekend.title, status: weekend.status, archived: Boolean(weekend.archived) },
+    weekend: { id: weekend.id, title: weekend.title, rooms_status: weekend.rooms_status, archived: Boolean(weekend.archived) },
     manager,
-    me: mine ? { participant_id: mine.id, room_id: myRoom } : null,
-    // Choosing oneself: while the weekend is published.
-    can_choose: Boolean(mine) && weekend.status === 'published' && !weekend.archived,
+    night_count: nightCount(weekend),
+    me: mine ? { participant_id: mine.id, room_id: myRoom, nights: nights(mine) } : null,
+    // Choosing oneself: while the rooms are open.
+    can_choose: Boolean(mine) && roomsOpen(weekend),
     rooms: rooms.map((r) => ({
       ...r,
       occupants: placed.filter((p) => p.room_id === r.id).map(person),
@@ -217,22 +267,23 @@ const weekend_rooms_view = (args: Args) => {
 };
 
 // Takes `participantId`'s place in `roomId` (null: frees it) — in one
-// transaction (callFunction): the target's capacity is checked against
-// everyone else in it, then the place is set, which frees the old one. A
-// full target leaves the old place as it was.
-const placeIn = (participantId: string, roomId: string | null, weekendId: string, by: string) => {
+// transaction (callFunction): the target's capacity is checked in each of
+// the participant's nights against everyone else there that night (people
+// whose nights don't overlap share a place), then the place is set, which
+// frees the old one. A full target leaves the old place as it was.
+const placeIn = (participantId: string, roomId: string | null, weekend: WeekendRow, by: string | null) => {
   if (!roomId) {
     db.prepare('delete from weekend_room_assignments where participant_id = ?').run(participantId);
     return { state: 'ok' as const };
   }
-  const room = db.prepare('select id, capacity from weekend_rooms where id = ? and weekend_id = ?').get(roomId, weekendId) as
+  const room = db.prepare('select id, capacity from weekend_rooms where id = ? and weekend_id = ?').get(roomId, weekend.id) as
     | { id: string; capacity: number }
     | undefined;
   if (!room) throw new ApiError('Unknown room', 400);
-  const { n } = db
-    .prepare('select count(*) as n from weekend_room_assignments where room_id = ? and participant_id <> ?')
-    .get(room.id, participantId) as { n: number };
-  if (n >= room.capacity) return { state: 'full' as const };
+  const mine = nightsFor(weekend)(
+    db.prepare('select booking, night_from, night_to from weekend_participants where id = ?').get(participantId) as ParticipantRow,
+  );
+  if (peakOccupancy(roomNights(room.id, participantId), mine) >= room.capacity) return { state: 'full' as const };
   db.prepare(
     `insert into weekend_room_assignments (participant_id, room_id, assigned_by, assigned_at) values (?, ?, ?, ?)
      on conflict (participant_id) do update set room_id = excluded.room_id, assigned_by = excluded.assigned_by,
@@ -243,9 +294,9 @@ const placeIn = (participantId: string, roomId: string | null, weekendId: string
 
 // A confirmed participant takes a free place, switches or frees theirs.
 const weekend_choose_room = (args: Args) => {
-  const { uid, weekend, mine } = roomAccess(text(args.p_weekend_id));
-  if (!mine || weekend.status !== 'published' || weekend.archived) throw forbidden('Rooms can’t be chosen now');
-  return placeIn(mine.id, text(args.p_room_id) || null, weekend.id, uid);
+  const { uid, weekend, mine } = roomAccess(args);
+  if (!mine || !roomsOpen(weekend)) throw forbidden('Rooms can’t be chosen now');
+  return placeIn(mine.id, text(args.p_room_id) || null, weekend, uid);
 };
 
 // Managers place and move anyone confirmed (also guests without an account).
@@ -256,7 +307,7 @@ const weekend_place = (args: Args) => {
     | undefined;
   if (!p || !isManager(p.weekend_id)) throw forbidden('Access denied');
   if (p.kind === 'pending') throw new ApiError('Confirm the entry first', 400, 'not_confirmed');
-  return placeIn(p.id, text(args.p_room_id) || null, p.weekend_id, uid);
+  return placeIn(p.id, text(args.p_room_id) || null, getWeekend(p.weekend_id)!, uid);
 };
 
 // The account behind an entry (directly or through its member row).
@@ -272,7 +323,7 @@ const accountOf = (p: ParticipantRow) => {
 // ('weekend'), or only those sharing their room ('room'). Managers see all
 // (as everywhere else); one's own entry shows one's own with its setting.
 const weekend_person = (args: Args) => {
-  const { uid, weekend, manager, mine } = roomAccess(text(args.p_weekend_id));
+  const { uid, weekend, manager, mine } = roomAccess(args);
   const target = db
     .prepare(`select * from weekend_participants where id = ? and weekend_id = ? and kind in ('member', 'guest')`)
     .get(text(args.p_participant_id), weekend.id) as ParticipantRow | undefined;
@@ -299,9 +350,114 @@ const weekend_person = (args: Args) => {
     photo_url: photoOf(target),
     kind: target.kind,
     has_account: Boolean(account),
-    self: account === uid,
+    self: account === uid || mine?.id === target.id,
     contacts,
   };
+};
+
+// ---------------------------------------------------------------------------
+// The shared link to the room choice
+// ---------------------------------------------------------------------------
+
+// Managers create (or replace — the old link stops working) and switch off
+// the weekend's link. Guests who joined keep their place either way.
+const weekend_link = (args: Args) => {
+  const weekend = requireManagedWeekend(text(args.p_weekend_id));
+  const token = args.p_action === 'disable' ? null : newSecret();
+  db.prepare('update weekends set link_token = ? where id = ?').run(token, weekend.id);
+  return { token };
+};
+
+const byLink = (token: string) => (token ? (db.prepare('select * from weekends where link_token = ?').get(token) as WeekendRow | undefined) : undefined);
+
+// What the link's page shows before anyone joins: the weekend, whether its
+// rooms are open, and who the caller already is — by account (and whether
+// they are on the list) or as a guest by their key.
+const weekend_link_info = (args: Args) => {
+  const weekend = byLink(text(args.p_token));
+  if (!weekend || weekend.archived) return { state: 'invalid' as const };
+  const uid = authUid();
+  const project = db.prepare('select name, image_url from projects where id = ?').get(weekend.project_id) as {
+    name: string;
+    image_url: string | null;
+  };
+  const guest = guestByKey(text(args.p_guest_key));
+  const account = uid ? (db.prepare('select name, email from app_users where id = ?').get(uid) as { name: string; email: string } | undefined) : undefined;
+  return {
+    state: 'ok' as const,
+    weekend: {
+      id: weekend.id,
+      project_id: weekend.project_id,
+      title: weekend.title,
+      starts_on: weekend.starts_on,
+      ends_on: weekend.ends_on,
+      location: weekend.location,
+      days: weekend.days,
+      rooms_status: weekend.rooms_status,
+    },
+    project,
+    account: account ? { name: account.name || account.email, listed: Boolean(myEntry(weekend.id, uid!)) } : null,
+    guest: guest && guest.weekend_id === weekend.id ? { name: guest.name } : null,
+  };
+};
+
+// Chosen nights within the weekend, or null.
+const chosenNights = (weekend: WeekendRow, from: unknown, to: unknown) => {
+  const a = Number(from);
+  const b = Number(to);
+  const last = nightCount(weekend) - 1;
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < a || b > last) return null;
+  return { night_from: a, night_to: b };
+};
+
+// Joining through the link while the rooms are open. With an account: one's
+// entry on the list, else an entry with the same email still without an
+// account (taken over), else a new one with the chosen nights
+// ('needs_nights' asks for them). As a guest: a name and nights, and a key
+// for this browser.
+const weekend_link_join = (args: Args) => {
+  const weekend = byLink(text(args.p_token));
+  if (!weekend || !roomsOpen(weekend)) throw forbidden('The room choice is not open');
+  const where = { project_id: weekend.project_id, weekend_id: weekend.id };
+  const nights = chosenNights(weekend, args.p_night_from, args.p_night_to);
+
+  if (args.p_mode === 'account') {
+    const uid = requireUser();
+    if (myEntry(weekend.id, uid)) return { state: 'ok' as const, ...where };
+    const email = normalizeEmail((db.prepare('select email from app_users where id = ?').get(uid) as { email: string }).email);
+    const person = personFor(weekend.project_id, null, uid);
+    const unclaimed = db
+      .prepare(
+        `select id from weekend_participants where weekend_id = ? and user_id is null and member_id is null
+           and (lower(email) = ? or lower(source_email) = ?) limit 1`,
+      )
+      .get(weekend.id, email, email) as { id: string } | undefined;
+    if (unclaimed) {
+      db.prepare(
+        `update weekend_participants set kind = 'member', member_id = @member_id, user_id = @user_id, name = @name,
+           email = @email, group_name = coalesce(@group_name, group_name), updated_at = @now where id = @id`,
+      ).run({ ...person, now: nowIso(), id: unclaimed.id });
+      return { state: 'ok' as const, ...where };
+    }
+    if (!nights) return { state: 'needs_nights' as const };
+    const id = insertParticipant({ weekend_id: weekend.id, kind: 'member', ...person });
+    db.prepare('update weekend_participants set night_from = ?, night_to = ? where id = ?').run(nights.night_from, nights.night_to, id);
+    return { state: 'ok' as const, ...where };
+  }
+
+  const name = text(args.p_name).trim().replace(/\s+/g, ' ').slice(0, 200);
+  if (!name) throw new ApiError('A guest needs a name', 400, '23514');
+  if (!nights) throw new ApiError('Choose the days you are there', 400, '23514');
+  const key = newSecret(24);
+  const id = insertParticipant({ weekend_id: weekend.id, kind: 'guest', name });
+  db.prepare('update weekend_participants set night_from = ?, night_to = ?, guest_key_hash = ? where id = ?').run(
+    nights.night_from,
+    nights.night_to,
+    sha256(key),
+    id,
+  );
+  auditNote({ action: 'weekend.link_guest', details: { weekend_id: weekend.id } });
+  return { state: 'ok' as const, ...where, guest_key: key };
 };
 
 // ---------------------------------------------------------------------------
@@ -321,6 +477,8 @@ interface Entry {
   name: string;
   email: string;
   group: string;
+  // The booked period as the import had it.
+  booking: string;
 }
 
 const entriesOf = (value: unknown): Entry[] =>
@@ -330,6 +488,7 @@ const entriesOf = (value: unknown): Entry[] =>
       name: text(e.name).trim().slice(0, 200),
       email: normalizeEmail(e.email).slice(0, 254),
       group: text(e.group).trim().slice(0, 120),
+      booking: text(e.booking).trim().replace(/\s+/g, ' ').slice(0, 200),
     }))
     .filter((e) => e.name || e.email);
 
@@ -447,13 +606,14 @@ const insertParticipant = (row: {
   source_email?: string | null;
   import_id?: string | null;
   changed_by_hand?: boolean;
+  booking?: string | null;
 }) =>
   (
     db
       .prepare(
         `insert into weekend_participants
-           (weekend_id, kind, member_id, user_id, name, email, group_name, source_name, source_email, import_id, changed_by_hand)
-         values (@weekend_id, @kind, @member_id, @user_id, @name, @email, @group_name, @source_name, @source_email, @import_id, @changed_by_hand)
+           (weekend_id, kind, member_id, user_id, name, email, group_name, source_name, source_email, import_id, changed_by_hand, booking)
+         values (@weekend_id, @kind, @member_id, @user_id, @name, @email, @group_name, @source_name, @source_email, @import_id, @changed_by_hand, @booking)
          returning id`,
       )
       .get({
@@ -464,6 +624,7 @@ const insertParticipant = (row: {
         source_name: null,
         source_email: null,
         import_id: null,
+        booking: null,
         ...row,
         changed_by_hand: row.changed_by_hand ? 1 : 0,
       }) as { id: string }
@@ -480,7 +641,8 @@ const knownGroup = (projectId: string, group: string) =>
 
 // Applies a previewed import: each line linked to a member or account,
 // added as a weekend guest, taken over as a new project member, or
-// skipped. Lines whose person is listed already are recognised, not doubled.
+// skipped. Lines whose person is listed already are recognised, not doubled
+// — they only take over the line's booked period if they have none yet.
 const weekend_import_apply = (args: Args) => {
   const uid = requireUser();
   const weekend = requireManagedWeekend(text(args.p_weekend_id));
@@ -503,7 +665,11 @@ const weekend_import_apply = (args: Args) => {
       continue;
     }
     if (row.manual === true) stats.manual++;
-    const source = { source_name: entry.name || null, source_email: entry.email || null, import_id: importId };
+    const source = { source_name: entry.name || null, source_email: entry.email || null, import_id: importId, booking: entry.booking || null };
+    const recognized = (id: string) => {
+      if (entry.booking) db.prepare('update weekend_participants set booking = ? where id = ? and booking is null').run(entry.booking, id);
+      stats.recognized++;
+    };
     if (action === 'link' || action === 'new_member') {
       let memberId = text(row.member_id) || null;
       const userId = text(row.user_id) || null;
@@ -513,17 +679,19 @@ const weekend_import_apply = (args: Args) => {
         stats.new_members++;
       }
       const person = personFor(weekend.project_id, memberId, memberId ? null : userId);
-      if (findListed(weekend.id, person.member_id, person.user_id)) {
-        stats.recognized++;
+      const listed = findListed(weekend.id, person.member_id, person.user_id);
+      if (listed) {
+        recognized(listed.id);
         continue;
       }
       insertParticipant({ weekend_id: weekend.id, kind: 'member', ...person, ...source });
       stats.new++;
-    } else if (
-      listedAs(db.prepare('select * from weekend_participants where weekend_id = ?').all(weekend.id) as ParticipantRow[], entry)
-    ) {
+      continue;
+    }
+    const listed = listedAs(db.prepare('select * from weekend_participants where weekend_id = ?').all(weekend.id) as ParticipantRow[], entry);
+    if (listed) {
       // Guests and open lines already on the list: recognised, not doubled.
-      stats.recognized++;
+      recognized(listed.id);
     } else if (action === 'guest') {
       insertParticipant({
         weekend_id: weekend.id,
@@ -642,12 +810,13 @@ const weekend_resolve_participant = (args: Args) => {
 // the caller still has to pick a room in a published weekend with rooms.
 export const weekendNav = (projectId: string, uid: string, manager: boolean, participant: boolean) => {
   const weekends = db
-    .prepare(`select * from weekends where project_id = ? and status in ('published', 'closed') and not archived`)
+    .prepare('select * from weekends where project_id = ? and not archived')
     .all(projectId) as WeekendRow[];
-  const confirmed = weekends.filter((w) => myEntry(w.id, uid));
+  const shownOnes = weekends.filter(shown);
+  const confirmed = shownOnes.filter((w) => myEntry(w.id, uid));
   return {
-    weekend: manager || (weekends.length > 0 && (participant || confirmed.length > 0)),
-    room_missing: confirmed.filter((w) => w.status === 'published' && roomMissing(w.id, uid)).length,
+    weekend: manager || (shownOnes.length > 0 && (participant || confirmed.length > 0)),
+    room_missing: confirmed.filter((w) => roomsOpen(w) && roomMissing(w.id, uid)).length,
   };
 };
 
@@ -667,7 +836,7 @@ export const missingRoomsFor = (uid: string) =>
       .prepare(
         `select w.id, w.title, w.starts_on, w.project_id, p.name as project_name, p.image_url as project_image
          from weekends w join projects p on p.id = w.project_id
-         where w.status = 'published' and not w.archived and p.status = 'active' and p.show_weekend`,
+         where w.rooms_status = 'open' and not w.archived and p.status = 'active' and p.show_weekend`,
       )
       .all() as Array<{ id: string; title: string; starts_on: string | null; project_id: string; project_name: string; project_image: string | null }>
   )
@@ -690,6 +859,12 @@ export const weekendFunctions = {
   weekend_import_undo,
   weekend_add_participant,
   weekend_resolve_participant,
+  weekend_link,
+  weekend_link_info,
+  weekend_link_join,
 };
 
-export const WEEKEND_READ_FUNCTIONS = ['weekend_list', 'weekend_rooms_view', 'weekend_person', 'weekend_import_preview'];
+// Reached without an account (rate limited by the HTTP layer).
+export const WEEKEND_PUBLIC_WRITE_FUNCTIONS = ['weekend_link_join'];
+
+export const WEEKEND_READ_FUNCTIONS = ['weekend_list', 'weekend_rooms_view', 'weekend_person', 'weekend_import_preview', 'weekend_link_info'];

@@ -11,7 +11,7 @@ import { LifecycleBadge } from '@/components/Lifecycle';
 import { useProjectContext } from '@/layouts/projectContext';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import { weekendDates, weekendState, type Weekend } from '@/lib/weekends';
+import { weekendDates, type Weekend } from '@/lib/weekends';
 
 // "Probenwochenende": the project's weekends. With just one the person may
 // open, it opens right away; otherwise a plain choice. Managers create them.
@@ -129,7 +129,9 @@ const WeekendRow = ({ weekend: w, manage, lang }: { weekend: Weekend; manage: bo
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="min-w-0 truncate font-medium">{w.title}</span>
-            {manage && w.status !== 'published' && <LifecycleBadge state={weekendState(w)} />}
+            {manage && w.archived && <LifecycleBadge state="archived" />}
+            {/* Nothing released yet: a draft for participants. */}
+            {manage && !w.archived && !w.details_published && w.rooms_status === 'hidden' && <LifecycleBadge state="draft" />}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-text-tertiary">
             {dates && <span>{dates}</span>}
