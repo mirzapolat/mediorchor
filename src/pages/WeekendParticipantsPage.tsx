@@ -287,7 +287,14 @@ export const WeekendParticipantsPage = () => {
                           {p.source_name || p.name}
                         </span>
                         <span className="block truncate text-xs text-text-tertiary">
-                          {[p.email, p.group_name].filter(Boolean).join(' · ') || t('weekendKindPending')}
+                          {[
+                            viaLink(p) && t('weekendSignedUpViaLink'),
+                            p.night_from != null && p.night_to != null && nightsLabel([p.night_from, p.night_to], t('weekendNight')),
+                            p.email,
+                            p.group_name,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ') || t('weekendKindPending')}
                         </span>
                       </span>
                     </span>
@@ -411,6 +418,7 @@ export const WeekendParticipantsPage = () => {
       <ResolveDialog
         participant={resolving}
         members={members}
+        listed={participants.filter((p) => p.kind !== 'pending')}
         onClose={() => setResolving(null)}
         onDone={async () => {
           setResolving(null);
@@ -894,14 +902,19 @@ const AddDialog = ({
   );
 };
 
+// Signed up on the shared link (imports never bring a key or an account).
+const viaLink = (p: WeekendParticipant) => p.kind === 'pending' && Boolean(p.guest_key_hash || p.user_id);
+
 const ResolveDialog = ({
   participant,
   members,
+  listed,
   onClose,
   onDone,
 }: {
   participant: WeekendParticipant | null;
   members: MemberOption[];
+  listed: WeekendParticipant[];
   onClose: () => void;
   onDone: () => void;
 }) => {
@@ -916,11 +929,17 @@ const ResolveDialog = ({
   const resolve = async () => {
     setError(null);
     const args =
-      choice === 'guest' || choice === 'new_member'
+      choice === 'guest' || choice === 'new_member' || choice === 'confirm'
         ? { p_action: choice }
-        : { p_action: 'link', p_member_id: choice };
+        : choice.startsWith('merge:')
+          ? { p_action: 'merge', p_target_id: choice.slice('merge:'.length) }
+          : { p_action: 'link', p_member_id: choice };
     const { error: rpcError } = await api.rpc('weekend_resolve_participant', { p_participant_id: participant.id, ...args });
-    if (rpcError) return setError(rpcError.code === 'already_listed' ? t('weekendAlreadyOnList') : rpcError.message);
+    if (rpcError) {
+      return setError(
+        rpcError.code === 'already_listed' ? t('weekendAlreadyOnList') : rpcError.code === 'two_accounts' ? t('weekendMergeTwoAccounts') : rpcError.message,
+      );
+    }
     onDone();
   };
   return (
@@ -943,8 +962,20 @@ const ResolveDialog = ({
         <span className="font-medium">{participant.source_name || participant.name}</span>
         {participant.email && <span className="text-text-secondary"> · {participant.email}</span>}
       </p>
+      {viaLink(participant) && <p className="text-xs text-text-tertiary">{t('weekendSignedUpViaLinkHint')}</p>}
       <Select label={t('weekendDecision')} value={choice} onChange={(e) => setChoice(e.target.value)}>
         <option value="">—</option>
+        {participant.user_id && <option value="confirm">{t('weekendConfirmAccount')}</option>}
+        {listed.length > 0 && (
+          <optgroup label={t('weekendMergeInto')}>
+            {listed.map((p) => (
+              <option key={p.id} value={`merge:${p.id}`}>
+                {p.name}
+                {p.group_name ? ` · ${p.group_name}` : ''}
+              </option>
+            ))}
+          </optgroup>
+        )}
         <optgroup label={t('weekendLinkMember')}>
           {members.map((m) => (
             <option key={m.id} value={m.id}>
@@ -953,7 +984,7 @@ const ResolveDialog = ({
             </option>
           ))}
         </optgroup>
-        <option value="guest">{t('weekendAsGuest')}</option>
+        {!participant.user_id && <option value="guest">{t('weekendAsGuest')}</option>}
         <option value="new_member">{t('weekendAsNewMember')}</option>
       </Select>
       {error && <p className="text-sm text-danger">{error}</p>}

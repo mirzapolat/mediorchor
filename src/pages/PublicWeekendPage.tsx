@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BedDouble, LinkIcon, Lock, LogIn, Tent, UserRound, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BedDouble, Hourglass, LinkIcon, Lock, LogIn, RefreshCw, Tent, UserRound, type LucideIcon } from 'lucide-react';
 import { dayCount, nightCount, type NightRange } from '@shared/weekendNights';
 import { AppLogo } from '@/components/AppLogo';
 import { Button } from '@/components/Button';
@@ -35,16 +35,21 @@ type LinkInfo =
       state: 'ok';
       weekend: LinkWeekend;
       project: { name: string; image_url: string | null };
-      account: { name: string; listed: boolean } | null;
-      guest: { name: string } | null;
+      account: { name: string; listed: boolean; pending: boolean } | null;
+      guest: { name: string; pending: boolean } | null;
     };
 
-type JoinResult = { state: 'ok'; project_id: string; weekend_id: string; guest_key?: string } | { state: 'needs_nights' };
+type JoinResult =
+  | { state: 'ok' | 'pending'; project_id: string; weekend_id: string; guest_key?: string }
+  | { state: 'needs_nights' }
+  | { state: 'account_required' };
 
 // The shared link to a weekend's room choice ("/zimmer/:token"): continue
-// with an account (signing in first if needed) — on the list already, or put
-// on it — or as a guest with a name and the days one is there. Guests then
-// choose right here; their key stays in this browser to come back.
+// with an account (signing in first if needed) or as a guest by name. Only
+// people on the weekend's list choose a room: whoever is found goes on (days
+// are asked for when the list has no booked period); whoever isn't is put on
+// the list as unresolved and waits here until the managers assign them.
+// Guests choose right here; their key stays in this browser to come back.
 export const PublicWeekendPage = () => {
   const { t, lang } = useI18n();
   const { token = '' } = useParams();
@@ -53,6 +58,8 @@ export const PublicWeekendPage = () => {
   const location = useLocation();
   const [info, setInfo] = useState<LinkInfo | null>(null);
   const [step, setStep] = useState<'start' | 'guest' | 'nights'>('start');
+  // The guest form asks for days only when the list doesn't know them.
+  const [askNights, setAskNights] = useState(false);
   const [guestKey, setGuestKey] = useState<string | null>(() => loadGuestKey(token));
   const [name, setName] = useState('');
   const [nights, setNights] = useState<NightRange>([0, 0]);
@@ -112,6 +119,32 @@ export const PublicWeekendPage = () => {
   const { weekend } = info;
   const inApp = `/projects/${weekend.project_id}/weekend/${weekend.id}/rooms`;
 
+  const waiting = (onLeave?: () => void) =>
+    shell(
+      weekend.title,
+      <Notice icon={Hourglass} title={t('weekendLinkPending')} text={t('weekendLinkPendingHint')}>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button variant="secondary" onClick={() => void load()}>
+            <RefreshCw size={16} />
+            {t('weekendLinkCheckAgain')}
+          </Button>
+          {onLeave && (
+            <Button variant="secondary" onClick={onLeave}>
+              {t('weekendLinkNotYou')}
+            </Button>
+          )}
+        </div>
+      </Notice>,
+    );
+  const forgetGuest = () => {
+    saveGuestKey(token, null);
+    setGuestKey(null);
+    void load();
+  };
+
+  if (guestKey && info.guest?.pending) return waiting(forgetGuest);
+  if (user && info.account?.pending) return waiting();
+
   if (guestKey && info.guest) {
     return shell(
       weekend.title,
@@ -119,11 +152,7 @@ export const PublicWeekendPage = () => {
         weekendId={weekend.id}
         guestKey={guestKey}
         name={info.guest.name}
-        onLeave={() => {
-          saveGuestKey(token, null);
-          setGuestKey(null);
-          void load();
-        }}
+        onLeave={forgetGuest}
       />,
     );
   }
@@ -145,15 +174,18 @@ export const PublicWeekendPage = () => {
     setBusy(false);
     if (rpcError) return setError(rpcError.message);
     const result = data as JoinResult;
-    if (result.state === 'needs_nights') return setStep('nights');
-    track('weekend-link-join', { mode });
+    if (result.state === 'needs_nights') {
+      if (mode === 'guest') return setAskNights(true);
+      return setStep('nights');
+    }
+    if (result.state === 'account_required') return setError(t('weekendLinkUseAccount'));
+    track('weekend-link-join', { mode, result: result.state });
     if (result.guest_key) {
       saveGuestKey(token, result.guest_key);
       setGuestKey(result.guest_key);
-      await load();
-    } else {
-      navigate(inApp);
     }
+    if (result.state === 'ok' && !result.guest_key) return navigate(inApp);
+    await load();
   };
 
   const hasNights = dayCount(weekend) > 1;
@@ -164,12 +196,19 @@ export const PublicWeekendPage = () => {
     const guest = step === 'guest';
     const submit = (e: FormEvent) => {
       e.preventDefault();
-      void join(guest ? 'guest' : 'account', true);
+      void join(guest ? 'guest' : 'account', !guest || askNights);
     };
     return shell(
       weekend.title,
       <form onSubmit={submit} className="space-y-5 rounded-2xl border border-border bg-surface p-4 sm:p-6">
-        <button type="button" onClick={() => setStep('start')} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text">
+        <button
+          type="button"
+          onClick={() => {
+            setStep('start');
+            setAskNights(false);
+            setError(null);
+          }}
+          className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text">
           <ArrowLeft size={15} />
           {t('back')}
         </button>
@@ -178,11 +217,24 @@ export const PublicWeekendPage = () => {
           <p className="mt-0.5 text-sm text-text-secondary">{guest ? t('weekendLinkGuestHint') : t('weekendLinkNightsHint')}</p>
         </div>
         {guest && (
-          <Input label={t('name')} value={name} maxLength={200} required autoFocus autoComplete="name" onChange={(e) => setName(e.target.value)} />
+          <Input
+            label={t('name')}
+            value={name}
+            maxLength={200}
+            required
+            autoFocus
+            autoComplete="name"
+            onChange={(e) => {
+              setName(e.target.value);
+              // Another name may be found with its period.
+              setAskNights(false);
+            }}
+          />
         )}
-        {hasNights && (
+        {hasNights && (!guest || askNights) && (
           <div>
             <p className="mb-1.5 text-sm font-medium">{t('weekendLinkDays')}</p>
+            {guest && <p className="mb-2 text-xs text-text-tertiary">{t('weekendLinkDaysNeeded')}</p>}
             <WeekendNightPicker weekend={weekend} value={nights} onChange={setNights} />
           </div>
         )}
@@ -193,7 +245,7 @@ export const PublicWeekendPage = () => {
         )}
         <Button type="submit" className="w-full" disabled={busy || (guest && !name.trim())}>
           <BedDouble size={16} />
-          {t('weekendLinkToRooms')}
+          {guest && !askNights && hasNights ? t('weekendLinkContinue') : t('weekendLinkToRooms')}
         </Button>
       </form>,
     );
@@ -317,12 +369,13 @@ const Choice = ({ icon: Icon, title, text, children }: { icon: LucideIcon; title
   </div>
 );
 
-const Notice = ({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) => (
+const Notice = ({ icon: Icon, title, text, children }: { icon: LucideIcon; title: string; text: string; children?: ReactNode }) => (
   <div className="flex flex-col items-center rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-muted text-text-secondary">
       <Icon size={22} />
     </span>
     <p className="mt-3 font-semibold">{title}</p>
     <p className="mt-1 max-w-sm text-sm text-text-secondary">{text}</p>
+    {children}
   </div>
 );

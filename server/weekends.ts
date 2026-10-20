@@ -188,12 +188,11 @@ const photoOf = (p: { member_id: string | null; user_id: string | null }) => {
   return null;
 };
 
-// A guest who joined through the link, by the key in their browser.
+// Someone who joined through the link without an account, by the key in
+// their browser — confirmed, or still to be resolved ('pending').
 const guestByKey = (key: string) =>
   key
-    ? (db.prepare(`select * from weekend_participants where guest_key_hash = ? and kind = 'guest'`).get(sha256(key)) as
-        | ParticipantRow
-        | undefined)
+    ? (db.prepare('select * from weekend_participants where guest_key_hash = ?').get(sha256(key)) as ParticipantRow | undefined)
     : undefined;
 
 // May the caller see this weekend's rooms: its managers, and its confirmed
@@ -202,7 +201,8 @@ const guestByKey = (key: string) =>
 const roomAccess = (args: Args) => {
   const key = text(args.p_guest_key);
   if (key) {
-    const mine = guestByKey(key);
+    const entry = guestByKey(key);
+    const mine = entry && entry.kind !== 'pending' ? entry : undefined;
     const weekend = mine && getWeekend(mine.weekend_id);
     if (!mine || !weekend || !roomsShown(weekend)) throw forbidden('Only confirmed participants see the rooms');
     return { uid: null, weekend, manager: false, mine };
@@ -371,8 +371,8 @@ const weekend_link = (args: Args) => {
 const byLink = (token: string) => (token ? (db.prepare('select * from weekends where link_token = ?').get(token) as WeekendRow | undefined) : undefined);
 
 // What the link's page shows before anyone joins: the weekend, whether its
-// rooms are open, and who the caller already is — by account (and whether
-// they are on the list) or as a guest by their key.
+// rooms are open, and who the caller already is — by account (on the list,
+// or signed up and waiting to be resolved) or as a guest by their key.
 const weekend_link_info = (args: Args) => {
   const weekend = byLink(text(args.p_token));
   if (!weekend || weekend.archived) return { state: 'invalid' as const };
@@ -396,8 +396,16 @@ const weekend_link_info = (args: Args) => {
       rooms_status: weekend.rooms_status,
     },
     project,
-    account: account ? { name: account.name || account.email, listed: Boolean(myEntry(weekend.id, uid!)) } : null,
-    guest: guest && guest.weekend_id === weekend.id ? { name: guest.name } : null,
+    account: account
+      ? {
+          name: account.name || account.email,
+          listed: Boolean(myEntry(weekend.id, uid!)),
+          pending: Boolean(
+            db.prepare(`select 1 from weekend_participants where weekend_id = ? and user_id = ? and kind = 'pending'`).get(weekend.id, uid),
+          ),
+        }
+      : null,
+    guest: guest && guest.weekend_id === weekend.id ? { name: guest.name, pending: guest.kind === 'pending' } : null,
   };
 };
 
@@ -410,54 +418,87 @@ const chosenNights = (weekend: WeekendRow, from: unknown, to: unknown) => {
   return { night_from: a, night_to: b };
 };
 
-// Joining through the link while the rooms are open. With an account: one's
-// entry on the list, else an entry with the same email still without an
-// account (taken over), else a new one with the chosen nights
-// ('needs_nights' asks for them). As a guest: a name and nights, and a key
-// for this browser.
+// The entry on the list a guest's name stands for: exactly one with that
+// name (as listed or as imported) that nobody has claimed yet — neither by
+// an account nor by another browser's key.
+const unclaimedByName = (weekendId: string, name: string) => {
+  const found = (
+    db
+      .prepare(
+        `select wp.*, m.user_id as member_user from weekend_participants wp left join members m on m.id = wp.member_id
+         where wp.weekend_id = ? and wp.guest_key_hash is null`,
+      )
+      .all(weekendId) as Array<ParticipantRow & { member_user: string | null }>
+  ).filter((p) => sameName(p.name, name) || sameName(p.source_name, name));
+  return found.length === 1 ? found[0] : found.length > 1 ? 'several' : undefined;
+};
+
+// Joining through the link while the rooms are open — only people on the
+// list choose a room. With an account: one's entry, else an entry with the
+// same email still without an account (taken over). As a guest: the one
+// unclaimed entry with that name, which this browser's key then belongs to.
+// Nights are asked for ('needs_nights') when the entry has no booked period.
+// Whoever isn't found is put on the list as unresolved ('pending', with the
+// chosen nights): the managers assign them — or delete the entry.
 const weekend_link_join = (args: Args) => {
   const weekend = byLink(text(args.p_token));
   if (!weekend || !roomsOpen(weekend)) throw forbidden('The room choice is not open');
   const where = { project_id: weekend.project_id, weekend_id: weekend.id };
   const nights = chosenNights(weekend, args.p_night_from, args.p_night_to);
+  const setNights = (id: string) =>
+    nights && db.prepare('update weekend_participants set night_from = ?, night_to = ? where id = ?').run(nights.night_from, nights.night_to, id);
+  // Known nights: a booked period or nights chosen before.
+  const knowsNights = (p: ParticipantRow) => Boolean(p.booking) || p.night_from != null;
 
   if (args.p_mode === 'account') {
     const uid = requireUser();
     if (myEntry(weekend.id, uid)) return { state: 'ok' as const, ...where };
+    const waiting = db
+      .prepare(`select id from weekend_participants where weekend_id = ? and user_id = ? and kind = 'pending'`)
+      .get(weekend.id, uid) as { id: string } | undefined;
+    if (waiting) return { state: 'pending' as const, ...where };
     const email = normalizeEmail((db.prepare('select email from app_users where id = ?').get(uid) as { email: string }).email);
     const person = personFor(weekend.project_id, null, uid);
     const unclaimed = db
       .prepare(
-        `select id from weekend_participants where weekend_id = ? and user_id is null and member_id is null
-           and (lower(email) = ? or lower(source_email) = ?) limit 1`,
+        `select * from weekend_participants where weekend_id = ? and user_id is null and member_id is null
+           and guest_key_hash is null and (lower(email) = ? or lower(source_email) = ?) limit 1`,
       )
-      .get(weekend.id, email, email) as { id: string } | undefined;
+      .get(weekend.id, email, email) as ParticipantRow | undefined;
     if (unclaimed) {
+      if (!knowsNights(unclaimed) && !nights) return { state: 'needs_nights' as const };
       db.prepare(
         `update weekend_participants set kind = 'member', member_id = @member_id, user_id = @user_id, name = @name,
            email = @email, group_name = coalesce(@group_name, group_name), updated_at = @now where id = @id`,
       ).run({ ...person, now: nowIso(), id: unclaimed.id });
+      if (!knowsNights(unclaimed)) setNights(unclaimed.id);
       return { state: 'ok' as const, ...where };
     }
     if (!nights) return { state: 'needs_nights' as const };
-    const id = insertParticipant({ weekend_id: weekend.id, kind: 'member', ...person });
-    db.prepare('update weekend_participants set night_from = ?, night_to = ? where id = ?').run(nights.night_from, nights.night_to, id);
-    return { state: 'ok' as const, ...where };
+    const id = insertParticipant({ weekend_id: weekend.id, kind: 'pending', name: person.name, email: person.email, group_name: person.group_name });
+    // Kept with the account, so confirming it needs no search.
+    db.prepare('update weekend_participants set user_id = ? where id = ?').run(uid, id);
+    setNights(id);
+    auditNote({ action: 'weekend.link_pending', details: { weekend_id: weekend.id } });
+    return { state: 'pending' as const, ...where };
   }
 
   const name = text(args.p_name).trim().replace(/\s+/g, ' ').slice(0, 200);
   if (!name) throw new ApiError('A guest needs a name', 400, '23514');
-  if (!nights) throw new ApiError('Choose the days you are there', 400, '23514');
+  const match = unclaimedByName(weekend.id, name);
+  // Someone with an account signs in instead.
+  if (match && match !== 'several' && (match.user_id || match.member_user)) return { state: 'account_required' as const };
+  const found = match && match !== 'several' ? match : undefined;
+  if (!(found && knowsNights(found)) && !nights) return { state: 'needs_nights' as const };
   const key = newSecret(24);
-  const id = insertParticipant({ weekend_id: weekend.id, kind: 'guest', name });
-  db.prepare('update weekend_participants set night_from = ?, night_to = ?, guest_key_hash = ? where id = ?').run(
-    nights.night_from,
-    nights.night_to,
-    sha256(key),
-    id,
-  );
-  auditNote({ action: 'weekend.link_guest', details: { weekend_id: weekend.id } });
-  return { state: 'ok' as const, ...where, guest_key: key };
+  const id =
+    found?.id ??
+    insertParticipant({ weekend_id: weekend.id, kind: 'pending', name, source_name: name });
+  db.prepare('update weekend_participants set guest_key_hash = ? where id = ?').run(sha256(key), id);
+  if (!found || !knowsNights(found)) setNights(id);
+  const pending = !found || found.kind === 'pending';
+  auditNote({ action: pending ? 'weekend.link_pending' : 'weekend.link_guest', details: { weekend_id: weekend.id } });
+  return { state: pending ? ('pending' as const) : ('ok' as const), ...where, guest_key: key };
 };
 
 // ---------------------------------------------------------------------------
@@ -770,7 +811,10 @@ const weekend_add_participant = (args: Args) => {
 };
 
 // Resolves an entry: link it to a member or account, keep it as a guest
-// (only for the weekend), or take the person over as a new project member.
+// (only for the weekend), confirm it with the account it came with (signed
+// up on the link), merge it into an entry already on the list (it takes
+// over the link's key, account and nights), or take the person over as a
+// new project member.
 const weekend_resolve_participant = (args: Args) => {
   const p = db.prepare('select * from weekend_participants where id = ?').get(text(args.p_participant_id)) as
     | ParticipantRow
@@ -778,6 +822,33 @@ const weekend_resolve_participant = (args: Args) => {
   if (!p) throw new ApiError('Not found', 404);
   const weekend = requireManagedWeekend(p.weekend_id);
   const action = text(args.p_action);
+  if (action === 'confirm') {
+    if (!p.user_id) throw new ApiError('No account to confirm', 400);
+    const person = personFor(weekend.project_id, null, p.user_id);
+    db.prepare(
+      `update weekend_participants set kind = 'member', member_id = @member_id, name = @name, email = @email,
+         group_name = @group_name, changed_by_hand = 1, updated_at = @now where id = @id`,
+    ).run({ ...person, now: nowIso(), id: p.id });
+    return { ok: true };
+  }
+  if (action === 'merge') {
+    const target = db
+      .prepare(`select * from weekend_participants where id = ? and weekend_id = ? and id <> ?`)
+      .get(text(args.p_target_id), p.weekend_id, p.id) as ParticipantRow | undefined;
+    if (!target) throw new ApiError('Unknown entry', 400);
+    if (p.user_id && target.user_id && p.user_id !== target.user_id) throw new ApiError('Both entries have an account', 409, 'two_accounts');
+    db.prepare('delete from weekend_participants where id = ?').run(p.id);
+    db.prepare(
+      `update weekend_participants set
+         guest_key_hash = coalesce(@key, guest_key_hash),
+         user_id = coalesce(user_id, @user_id),
+         night_from = case when booking is null and night_from is null then @from else night_from end,
+         night_to = case when booking is null and night_from is null then @to else night_to end,
+         changed_by_hand = 1, updated_at = @now
+       where id = @id`,
+    ).run({ key: p.guest_key_hash, user_id: p.user_id, from: p.night_from, to: p.night_to, now: nowIso(), id: target.id });
+    return { ok: true };
+  }
   if (action === 'guest') {
     db.prepare(`update weekend_participants set kind = 'guest', member_id = null, user_id = null, changed_by_hand = 1, updated_at = ? where id = ?`).run(
       nowIso(),
@@ -794,7 +865,11 @@ const weekend_resolve_participant = (args: Args) => {
   }
   const person = personFor(weekend.project_id, memberId, memberId ? null : text(args.p_user_id) || null);
   const listed = findListed(weekend.id, person.member_id, person.user_id);
-  if (listed && listed.id !== p.id) throw new ApiError('This person is on the list already', 409, 'already_listed');
+  if (listed && listed.id !== p.id) {
+    // A sign-up from the link for someone listed already: merged into them.
+    if (p.guest_key_hash || p.user_id) return weekend_resolve_participant({ p_participant_id: p.id, p_action: 'merge', p_target_id: listed.id });
+    throw new ApiError('This person is on the list already', 409, 'already_listed');
+  }
   db.prepare(
     `update weekend_participants set kind = 'member', member_id = @member_id, user_id = @user_id, name = @name,
        email = @email, group_name = @group_name, changed_by_hand = 1, updated_at = @now where id = @id`,

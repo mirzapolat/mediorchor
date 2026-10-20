@@ -50,6 +50,8 @@ export interface WeekendParticipant {
   booking: string | null;
   night_from: number | null;
   night_to: number | null;
+  // Set when someone without an account joined on the shared link.
+  guest_key_hash: string | null;
   created_at: string;
 }
 
