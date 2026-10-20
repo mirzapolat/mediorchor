@@ -105,6 +105,24 @@ const en = {
   }),
   weeklyExcused: 'excused',
   weeklyPresent: 'marked present',
+
+  // Surveys: a copy for the respondent, and notices for managers that never
+  // contain answers or names.
+  formCopy: (title: string, answers: string[]) => ({
+    subject: `Your response: ${title}`,
+    lines: [hello(), '', `thank you for your response to "${title}". Your answers:`, '', ...answers],
+  }),
+  formResponseNotice: (title: string, total: number, link: string | null) => ({
+    subject: `New response: ${title}`,
+    lines: [hello(), '', `"${title}" received a new response (${total} in total).`, ...(link ? ['', link] : [])],
+  }),
+  formDigest: (title: string, added: number, total: number, link: string | null) => ({
+    subject: `${added} new responses: ${title}`,
+    lines: [hello(), '', `"${title}" received ${added} new responses (${total} in total).`, ...(link ? ['', link] : [])],
+  }),
+  formYes: 'Yes',
+  formNo: 'No',
+  formFiles: (n: number) => (n === 1 ? '1 file' : `${n} files`),
 };
 
 export type MailTexts = typeof en;

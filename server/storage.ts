@@ -14,6 +14,7 @@ import { requireSession } from './auth.ts';
 import { canEditPiece } from './policies.ts';
 import { auditNote } from './audit.ts';
 import { mayReadPieceObject } from './pieceFiles.ts';
+import { canWriteConcertObject, mayReadConcertObject } from './concerts.ts';
 
 interface Bucket {
   canWrite: (key: string) => boolean;
@@ -34,6 +35,8 @@ const canWritePieceFile = (key: string) =>
 const BUCKETS: Record<string, Bucket> = {
   photos: { canWrite: () => true, canDelete: () => false },
   'piece-files': { canWrite: canWritePieceFile, canDelete: canWritePieceFile },
+  // A concert's recordings: "<concertId>/<file>", never public.
+  'concert-files': { canWrite: canWriteConcertObject, canDelete: () => false },
 };
 
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
@@ -144,6 +147,11 @@ const fileHeaders = async (c: Context, next: Next) => {
     const access = mayReadPieceObject(c, key);
     if (!access.allowed) return c.notFound();
     guarded = access.guarded;
+  }
+  if (bucket === 'concert-files') {
+    const key = c.req.path.slice('/files/concert-files/'.length);
+    if (key.includes('%') || !mayReadConcertObject(c, key)) return c.notFound();
+    guarded = true;
   }
   await next();
   if (c.res.status >= 400 || !c.res.headers.has('last-modified')) return;

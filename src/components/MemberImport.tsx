@@ -85,13 +85,18 @@ export const useMemberImport = ({
   active,
   projectId,
   groups,
+  explicitGroups = false,
 }: {
   active: boolean;
   // Null for a project that doesn't exist yet (nothing to match against).
   projectId: string | null;
   // The project's current groups (single source of truth).
   groups: string[];
+  // Groups the project doesn't have need a decision (map, drop or create)
+  // instead of being created by default (the project set-up).
+  explicitGroups?: boolean;
 }) => {
+  const defaultAction = explicitGroups ? '' : CREATE_GROUP;
   const [fileName, setFileName] = useState<string | null>(null);
   const [firstRowHeader, setFirstRowHeader] = useState(true);
   const [rawText, setRawText] = useState<string>('');
@@ -236,15 +241,16 @@ export const useMemberImport = ({
     const existing = existingGroup(raw);
     if (existing) return existing;
     const spelling = unknownGroups.find((g) => g.toLowerCase() === raw.toLowerCase()) ?? raw;
-    const action = groupActions[spelling] ?? CREATE_GROUP;
+    const action = groupActions[spelling] ?? defaultAction;
     if (action === CREATE_GROUP) return spelling;
+    if (action === '') return null;
     if (action === DROP_GROUP) return null;
     return action;
   };
 
   // Groups to create and members to add, without writing anything.
   const drafts = () => ({
-    groups: unknownGroups.filter((g) => (groupActions[g] ?? CREATE_GROUP) === CREATE_GROUP),
+    groups: unknownGroups.filter((g) => (groupActions[g] ?? defaultAction) === CREATE_GROUP),
     members: toCreate.map((r) => {
       const { first, last } = namesOf(r);
       return {
@@ -329,6 +335,9 @@ export const useMemberImport = ({
     setDuplicateAction,
     resolveGroup,
     groups,
+    defaultAction,
+    // Unknown groups still waiting for a decision.
+    undecidedGroups: unknownGroups.filter((g) => (groupActions[g] ?? defaultAction) === ''),
     canImport: requiredMapped && toCreate.length + toUpdate.length > 0,
     importing,
     error,
@@ -435,9 +444,14 @@ export const MemberImportFields = ({ imp }: { imp: MemberImportState }) => {
                     <Select
                       key={g}
                       label={g}
-                      value={groupActions[g] ?? CREATE_GROUP}
+                      value={groupActions[g] ?? imp.defaultAction}
                       onChange={(e) => setGroupActions({ ...groupActions, [g]: e.target.value })}
                     >
+                      {imp.defaultAction === '' && (
+                        <option value="" disabled>
+                          {t('chooseGroupAction')}
+                        </option>
+                      )}
                       <option value={CREATE_GROUP}>{t('createNewGroup')}</option>
                       {groups.map((existing) => (
                         <option key={existing} value={existing}>

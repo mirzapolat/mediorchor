@@ -44,6 +44,16 @@ import { StatisticsPage } from '@/pages/StatisticsPage';
 import { MemberDetailPage } from '@/pages/MemberDetailPage';
 import { ProjectSettingsPage } from '@/pages/ProjectSettingsPage';
 import { MyParticipationPage } from '@/pages/MyParticipationPage';
+import { ConcertsPage } from '@/pages/ConcertsPage';
+import { ConcertPage } from '@/pages/ConcertPage';
+import { SurveysPage } from '@/pages/SurveysPage';
+import { SurveyPage } from '@/pages/SurveyPage';
+import { PublicFormPage } from '@/pages/PublicFormPage';
+import { WeekendsPage } from '@/pages/WeekendsPage';
+import { WeekendLayout } from '@/layouts/WeekendLayout';
+import { WeekendOverviewPage } from '@/pages/WeekendOverviewPage';
+import { WeekendParticipantsPage } from '@/pages/WeekendParticipantsPage';
+import { WeekendRoomsPage } from '@/pages/WeekendRoomsPage';
 import { EventAttendancePage } from '@/pages/EventAttendancePage';
 import { EventSettingsPage } from '@/pages/EventSettingsPage';
 import { EventProgramPage } from '@/pages/EventProgramPage';
@@ -83,6 +93,7 @@ export const App = () => {
     location.pathname.startsWith('/check-in/') ||
     location.pathname.startsWith('/register/') ||
     location.pathname.startsWith('/cal/') ||
+    location.pathname.startsWith('/f/') ||
     location.pathname === '/reset-password' ||
     location.pathname === '/impressum' ||
     location.pathname === '/datenschutz'
@@ -92,6 +103,8 @@ export const App = () => {
         <Route path="/check-in/:token" element={<PublicCheckinPage />} />
         <Route path="/register/:token" element={<PublicRegistrationPage />} />
         <Route path="/cal/:token" element={<PublicCalendarPage />} />
+        {/* A survey: answered without the app around it (guests too). */}
+        <Route path="/f/:token" element={<PublicFormPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/impressum" element={<LegalPage kind="imprint" />} />
         <Route path="/datenschutz" element={<LegalPage kind="privacy" />} />
@@ -193,6 +206,20 @@ export const App = () => {
         <Route path="projects/:projectId" element={<ProjectLayout />}>
           <Route index element={<ProjectIndexRedirect />} />
           <Route path="participation" element={<MyParticipationPage />} />
+          {/* Surveys: managers build them; participants see the listed ones. */}
+          <Route path="surveys" element={<SurveysPage />} />
+          <Route path="surveys/:formId" element={<SurveyPage />} />
+          {/* Rehearsal weekends: a list (or the only one directly), each with
+              its own sidebar — participants (managers) and rooms. */}
+          <Route path="weekend" element={<WeekendsPage />} />
+          <Route path="weekend/:weekendId" element={<WeekendLayout />}>
+            <Route index element={<WeekendOverviewPage />} />
+            <Route path="participants" element={<WeekendParticipantsPage />} />
+            <Route path="rooms" element={<WeekendRoomsPage />} />
+          </Route>
+          {/* Concerts: participants see published ones (the server decides). */}
+          <Route path="concerts" element={<ConcertsPage />} />
+          <Route path="concerts/:concertId" element={<ConcertPage />} />
           <Route element={<RequirePiecesAccess />}>
             <Route path="pieces" element={<PiecesPage />} />
             {/* Old practice links point at a block; the piece page replaces them. */}

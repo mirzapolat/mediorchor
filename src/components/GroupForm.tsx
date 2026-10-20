@@ -2,13 +2,23 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Check } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { Input } from './Input';
+import { Input, Textarea } from './Input';
 import { GroupPill } from './GroupPill';
+import { PersonPicker } from './PersonPicker';
+import { asPersonOption, saveGroupResponsibilities } from '@/lib/groupResponsibles';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { GROUP_PALETTE, isHexColor, paletteColor } from '@/lib/groupColors';
-import type { ProjectGroup } from '@/types';
+import type { GroupResponsible, PersonOption, ProjectGroup } from '@/types';
+
+export interface GroupFormValues {
+  name: string;
+  color: string;
+  // Who looks after the group and its internal note (organisational only).
+  responsibles: PersonOption[];
+  note: string;
+}
 
 export const GroupForm = ({
   open,
@@ -18,6 +28,7 @@ export const GroupForm = ({
   onClose,
   onSaved,
   onSubmit,
+  responsibility,
 }: {
   open: boolean;
   projectId: string;
@@ -28,11 +39,16 @@ export const GroupForm = ({
   onSaved: () => void;
   // Replaces saving to the database (e.g. for groups of a project that
   // doesn't exist yet).
-  onSubmit?: (values: { name: string; color: string }) => void;
+  onSubmit?: (values: GroupFormValues) => void;
+  // The group's responsible people and note as stored (database mode), or
+  // as prepared so far (onSubmit mode).
+  responsibility?: { people: GroupResponsible[] | PersonOption[]; note: string };
 }) => {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [color, setColor] = useState(GROUP_PALETTE[0]);
+  const [people, setPeople] = useState<PersonOption[]>([]);
+  const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +56,8 @@ export const GroupForm = ({
     if (!open) return;
     setName(group?.name ?? '');
     setColor(group?.color ?? paletteColor(groups.length));
+    setPeople((responsibility?.people ?? []).map((p) => ('user_id' in p ? asPersonOption(p as GroupResponsible) : p)));
+    setNote(responsibility?.note ?? '');
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
@@ -54,23 +72,39 @@ export const GroupForm = ({
     e.preventDefault();
     if (!trimmed || duplicate) return;
     if (onSubmit) {
-      onSubmit({ name: trimmed, color });
+      onSubmit({ name: trimmed, color, responsibles: people, note: note.trim() });
       onClose();
       return;
     }
     setSaving(true);
     setError(null);
-    const { error: saveError } = group
-      ? await api.from('project_groups').update({ name: trimmed, color }).eq('id', group.id)
-      : await api.from('project_groups').insert({
-          project_id: projectId,
-          name: trimmed,
-          color,
-          position: groups.reduce((max, g) => Math.max(max, g.position + 1), 0),
-        });
-    setSaving(false);
+    const { data: saved, error: saveError } = group
+      ? await api.from('project_groups').update({ name: trimmed, color }).eq('id', group.id).select('id').maybeSingle()
+      : await api
+          .from('project_groups')
+          .insert({
+            project_id: projectId,
+            name: trimmed,
+            color,
+            position: groups.reduce((max, g) => Math.max(max, g.position + 1), 0),
+          })
+          .select('id')
+          .maybeSingle();
     if (saveError) {
+      setSaving(false);
       setError(saveError.code === '23505' ? t('groupNameTaken') : saveError.message);
+      return;
+    }
+    const groupId = (saved as { id: string } | null)?.id ?? group?.id;
+    const stored = (responsibility?.people ?? []).filter((p): p is GroupResponsible => 'user_id' in p);
+    const responsibilityError = groupId
+      ? await saveGroupResponsibilities(groupId, people, note, { people: stored, note: responsibility?.note ?? '' })
+      : null;
+    setSaving(false);
+    if (responsibilityError) {
+      // The group itself is saved; say what's missing.
+      onSaved();
+      setError(t('groupResponsiblesLoadError'));
       return;
     }
     onSaved();
@@ -82,6 +116,7 @@ export const GroupForm = ({
       open={open}
       title={group ? t('editGroup') : t('newGroup')}
       onClose={onClose}
+      size="lg"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -153,6 +188,27 @@ export const GroupForm = ({
 
         <div className="rounded-md border border-border bg-surface-subtle px-4 py-3">
           <GroupPill name={trimmed || t('groupName')} color={color} />
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <div>
+            <p className="text-sm font-medium text-text">{t('groupResponsibles')}</p>
+            <p className="mt-0.5 text-xs text-text-tertiary">{t('groupResponsiblesHint')}</p>
+          </div>
+          <PersonPicker
+            projectId={onSubmit ? null : projectId}
+            value={people}
+            onChange={setPeople}
+            label={t('groupResponsibles')}
+          />
+          <Textarea
+            label={t('groupNote')}
+            value={note}
+            maxLength={4000}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t('groupNotePlaceholder')}
+            className="min-h-[64px]"
+          />
         </div>
 
         {error && <p className="text-sm text-accent">{error}</p>}

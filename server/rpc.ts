@@ -21,6 +21,12 @@ import { branding } from './branding.ts';
 import { loadCalendarByToken } from './calendarFeed.ts';
 import { pieceFileFunctions } from './pieceFiles.ts';
 import { trainingReportFunctions } from './trainingReport.ts';
+import { GROUP_READ_FUNCTIONS, groupResponsibleFunctions } from './groupResponsibles.ts';
+import { concertFunctions } from './concerts.ts';
+import { projectNavFunctions } from './projectNav.ts';
+import { FORM_PUBLIC_WRITE_FUNCTIONS, FORM_READ_FUNCTIONS, formFunctions } from './forms.ts';
+import { WEEKEND_READ_FUNCTIONS, weekendFunctions } from './weekends.ts';
+import { onboardingFunctions } from './onboarding.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -1121,10 +1127,20 @@ const functions: Record<string, (args: Args) => unknown> = {
   piece_catalog,
   ...pieceFileFunctions,
   ...trainingReportFunctions,
+  ...groupResponsibleFunctions,
+  ...concertFunctions,
+  ...projectNavFunctions,
+  ...formFunctions,
+  ...weekendFunctions,
+  ...onboardingFunctions,
 };
 
 // Public functions are rate limited by the HTTP layer.
-export const PUBLIC_WRITE_FUNCTIONS = new Set(['submit_public_checkin', 'submit_public_registration']);
+export const PUBLIC_WRITE_FUNCTIONS = new Set([
+  'submit_public_checkin',
+  'submit_public_registration',
+  ...FORM_PUBLIC_WRITE_FUNCTIONS,
+]);
 
 // Functions that only read; a failed call to one is no failed action
 // (see audit.ts).
@@ -1142,6 +1158,11 @@ export const READ_ONLY_FUNCTIONS = new Set([
   'two_factor_users',
   'last_seen',
   'piece_catalog',
+  ...GROUP_READ_FUNCTIONS,
+  'project_nav',
+  'my_tasks',
+  ...FORM_READ_FUNCTIONS,
+  ...WEEKEND_READ_FUNCTIONS,
 ]);
 
 // Must run inside asUser().

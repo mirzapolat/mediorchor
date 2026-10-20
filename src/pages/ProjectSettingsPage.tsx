@@ -40,26 +40,8 @@ export const ProjectSettingsPage = () => {
     notify_registration_received: project.notify_registration_received,
     notify_checkin_confirmation: project.notify_checkin_confirmation,
   });
-  // Which confirmation emails go out at all: an admin switches each kind on,
-  // and email must be working. Off there = the project's switch has no effect.
-  const [emailAvailable, setEmailAvailable] = useState<Partial<Record<AccessKey, boolean>>>({});
-  useEffect(() => {
-    void Promise.all([
-      api
-        .from('app_settings')
-        .select('mail_registration_received, mail_checkin_confirmation')
-        .eq('id', 1)
-        .maybeSingle(),
-      api.rpc('get_public_config'),
-    ]).then(([settings, config]) => {
-      const flags = settings.data as { mail_registration_received?: boolean; mail_checkin_confirmation?: boolean } | null;
-      const mail = Boolean((config.data as { mail_enabled?: boolean } | null)?.mail_enabled);
-      setEmailAvailable({
-        notify_registration_received: mail && Boolean(flags?.mail_registration_received),
-        notify_checkin_confirmation: mail && Boolean(flags?.mail_checkin_confirmation),
-      });
-    });
-  }, []);
+  const emailAvailable = useConfirmationEmails();
+
   const [imageUrl, setImageUrl] = useState<string | null>(project.image_url);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -285,7 +267,31 @@ export const ProjectSettingsPage = () => {
   );
 };
 
-type AccessKey =
+// Which confirmation emails go out at all: an admin switches each kind on,
+// and email must be working. Off there = the project's switch has no effect.
+export const useConfirmationEmails = () => {
+  const [emailAvailable, setEmailAvailable] = useState<Partial<Record<AccessKey, boolean>>>({});
+  useEffect(() => {
+    void Promise.all([
+      api
+        .from('app_settings')
+        .select('mail_registration_received, mail_checkin_confirmation')
+        .eq('id', 1)
+        .maybeSingle(),
+      api.rpc('get_public_config'),
+    ]).then(([settings, config]) => {
+      const flags = settings.data as { mail_registration_received?: boolean; mail_checkin_confirmation?: boolean } | null;
+      const mail = Boolean((config.data as { mail_enabled?: boolean } | null)?.mail_enabled);
+      setEmailAvailable({
+        notify_registration_received: mail && Boolean(flags?.mail_registration_received),
+        notify_checkin_confirmation: mail && Boolean(flags?.mail_checkin_confirmation),
+      });
+    });
+  }, []);
+  return emailAvailable;
+};
+
+export type AccessKey =
   | 'allow_account_access'
   | 'allow_account_checkin'
   | 'allow_account_signup'
@@ -296,7 +302,7 @@ type AccessKey =
   | 'notify_checkin_confirmation';
 
 // One topic of the access settings: a titled card of related switches.
-const ToggleCard = ({
+export const ToggleCard = ({
   title,
   hint,
   toggles,

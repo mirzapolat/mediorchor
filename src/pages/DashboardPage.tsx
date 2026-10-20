@@ -9,6 +9,7 @@ import {
   EyeOff,
   FolderKanban,
   GripVertical,
+  ListChecks,
   Mail,
   Megaphone,
   SlidersHorizontal,
@@ -19,7 +20,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { Card } from '@/components/Card';
 import { HeaderAction } from '@/components/HeaderAction';
-import { ParticipationWidget, UpcomingRehearsalsWidget } from '@/components/dashboard/DashboardWidgets';
+import { ActiveSurveysWidget, ParticipationWidget, UpcomingRehearsalsWidget } from '@/components/dashboard/DashboardWidgets';
 import { loadDashboardData, type DashboardData } from '@/lib/dashboard';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -27,13 +28,14 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import type { DashboardWidgetState } from '@/types';
 
-type WidgetId = 'participation' | 'upcoming';
+type WidgetId = 'participation' | 'upcoming' | 'surveys';
 
 // Every widget, in its default order. A widget added here later shows up on
 // everyone's dashboard after the ones they arranged.
 const WIDGETS: { id: WidgetId; title: TranslationKey; icon: LucideIcon }[] = [
   { id: 'participation', title: 'widgetParticipation', icon: FolderKanban },
   { id: 'upcoming', title: 'widgetUpcoming', icon: CalendarClock },
+  { id: 'surveys', title: 'widgetSurveys', icon: ListChecks },
 ];
 
 // The saved layout with unknown or repeated entries dropped and new widgets added.
@@ -132,6 +134,8 @@ export const DashboardPage = () => {
   const body = (id: WidgetId): ReactNode =>
     id === 'participation' ? (
       <ParticipationWidget projects={data.projects} nextByProject={data.nextByProject} />
+    ) : id === 'surveys' ? (
+      <ActiveSurveysWidget surveys={data.surveys} rooms={data.rooms} />
     ) : (
       <UpcomingRehearsalsWidget rehearsals={data.upcoming} />
     );

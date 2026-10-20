@@ -45,8 +45,11 @@ Every account has exactly one **role**. Roles are ordered; each one includes eve
 |---|---|
 | **Teilnehmer** (`participant`) | "My participation" and — when the project shows its pieces to participants — the pieces of the projects they take part in. No management pages, no piece collection, no calendars. |
 | **Stimmeltern** (`section_lead`) | The content of **every** project, current and future: rehearsals, check-in, members, groups, registrations, absences/labels, statistics, the info box and the project's pieces (adding, ordering and editing their content). **Not**: creating projects, project settings, archiving or deleting projects, deleting or archiving pieces, the piece collection, calendars. |
+| **Musikalische Leitung** (`music_director`) | The content of every project and every piece (like Stimmeltern, plus the piece collection), but never a project member: no joining, no attendance, no "My participation", no dashboard, no project settings. |
 | **Verwaltung** (`manager`) | Everything except the admin configuration: creating, editing (settings), archiving and deleting projects; the piece collection (create, archive, delete any piece); the calendars. |
 | **Admin** (`admin`) | Everything, always — including account administration (users, roles, approvals) and instance configuration (branding, security, legal pages, email). Multiple accounts may be admins. |
+
+"Projektverantwortliche" in the newer areas (surveys, rehearsal weekends, concerts, group responsibilities) always means whoever manages the project's content under these roles (Stimmeltern and up); there is no extra role. Creating a project (the onboarding) needs Verwaltung or higher.
 
 Nobody can change their own role (so an admin can't lock themselves out); admins can't be deactivated or deleted. With "Require 2FA" on, every role except Teilnehmer must set up a second factor.
 
@@ -137,7 +140,11 @@ The sidebar is a shared shell reused by every section:
 - **Collapsible** to a 64px icon rail (labels become tooltips; badges become a red dot).
 - **Resizable** by dragging the right edge (200–440px).
 - Collapsed state and width persist per browser, and independently per sidebar so a nested sidebar keeps its own preference.
-- **On mobile** the sidebar becomes an off-canvas drawer opened from a fixed top bar; it closes on navigation, locks background scroll, and shows a close button. A nested sidebar suppresses its own top bar and instead renders a horizontal scrolling tab strip.
+- **On mobile** (below 768px) there is no drawer and no bottom bar. One shared navigation shell (`NavShell`) serves the app, project, Probe, piece, rehearsal weekend, account and admin areas with three rows at the top:
+  1. **App header** (stays on top, respects the safe area): a back button on the left that goes exactly one level up (piece → pieces, Probe → Proben, a member → members; account/admin settings → the page they were opened from via the header icon, else the start page; empty where there is no parent), logo and app name centred on the whole screen, and on the right the account icon (personal settings) and — for admins only — the admin configuration icon. Sign-out lives in the account settings.
+  2. **Context header** — what the sidebar header showed (project image and name; Probe name, date and time; piece title, composer and description; weekend title, dates and place; icon and title of a settings area). It scrolls away with the page.
+  3. **Page row** — the area's pages (exactly those of the desktop sidebar, same order and rules) as rounded buttons with icon and label. When they fit they share the width; otherwise each keeps its width and the row scrolls sideways with gentle snapping and edge fades (no scrollbar, no arrows). Swiping only scrolls the row; a tap opens a page. The active page is highlighted and scrolled into view; warning badges and quiet count badges stay. The row sticks under the app header once the context header has scrolled away; content always starts below it. Keyboard and screen reader: a labelled `nav` of links with `aria-current`.
+- Icon buttons in the mobile header have a 44×44px hit area; inputs and buttons are a little taller on phones only. Pages without a sidebar (public forms and pages, the full-screen trainer, the project onboarding) keep their own layout.
 
 ### 5.2 Navigation map
 
@@ -241,11 +248,16 @@ A single form, saved as a whole. The save button (with its "✓" acknowledgement
 
 ### 6.3 Project sidebar
 
-- **My participation** — always visible.
-- **Events** — managers only; carries a red badge with the number of unrecognized check-ins across the whole project, refreshed every 5 seconds while the tab is visible.
-- **Members**, **Groups** — managers only.
-- **Pieces** — managers, plus participants when the project allows it.
-- **Registration**, **Absences**, **Statistics**, **Settings** — managers only.
+Order: **My participation**, **Surveys**, **Rehearsal weekend**, **Concert**, **Pieces**, then the management pages (**Events**, **Members**, **Groups**, **Registration**, **Absences**, **Statistics**, **Settings**). Managers always see every entry; for participants:
+
+- **My participation** — always visible (except the music director).
+- **Surveys** — only while at least one published, *listed* survey exists (link-only surveys never appear in navigation or the dashboard). A quiet badge counts one's own open surveys.
+- **Rehearsal weekend** — while a weekend is published, for active members and confirmed weekend participants; a quiet badge marks a missing room choice.
+- **Concert** — once at least one concert is published.
+- **Pieces** — when the project shows its pieces to participants.
+- **Events** carries a red badge with the number of unrecognized check-ins, refreshed every 5 seconds while the tab is visible.
+
+Which of these show is answered by one server call (`project_nav`).
 
 ---
 
@@ -323,6 +335,8 @@ A project page of its own (sidebar: **Groups**, managers only). Groups live in t
 **Delete** — confirmation stating how many members will lose their group.
 
 **Group detail** — back link, the group name with its active member count, edit and delete buttons, the pill, and a table of the group's members (first name with avatar, last name, email, and a status column with a green "Active" or grey "Archived" dot), searchable, with a status filter (all members shown by default). Row click opens the member.
+
+**Who is responsible** — per group any number of accounts (searchable by name and email with their photo; active project members first, any other account too — they needn't be members or in the group) and an internal note, edited in the group dialog. The group list shows small photos and a note icon, the group detail a compact card. Purely organisational: it grants no rights, and participants can read neither the people nor the note (separate tables, no participant policy, server functions for managers only). Members imported later show up as linked automatically (looked up on every read).
 
 **Group pills** — wherever a group is shown in a table or on a member (members, group detail, event attendance, check-in submissions and the assign picker, absences, registrations, member detail), it is rendered as a rounded pill tinted with the group's color and a colored dot. A group that isn't in the project (a pending webhook registration) renders grey.
 
@@ -546,6 +560,10 @@ Above the first piece, a banner **"Download all scores"** ("*n* PDFs · *m* piec
 
 Managers **drag rows by their grip to reorder** (mouse and touch); search covers name, composer, description and voice names — reordering is disabled while searching. *New piece* asks for name and composer and opens the piece's set-up page right away. An empty project shows an invitation (managers get a *New piece* button). Participants see the list read-only, and only when the project's "Show pieces to participants" toggle is on.
 
+### 14.1a Training report ("Auswertung")
+
+The piece's *Auswertung* page and its menu entry appear for project managers only while the piece has training set up — the same signal as the *Training* entry (a MusicXML on the trainer node), no extra setting. When training is removed both disappear at once; an old direct link leads back to the piece and asks for no report.
+
 ### 14.2 Piece page
 
 Header: back link, piece name, "composer · short description", and for managers a *Set up* button.
@@ -694,6 +712,36 @@ piece_file         id, piece, kind (score|notation|midi|audio|other|link), title
 
 absence_label      id, project, name, conditions[{connector, metric, comparison, value}],
                    is_public, position, created_at
+
+group_responsible  id, group, account, position          (managers only)
+group_note         group, note                            (managers only)
+
+concert            id, project, title, date?, time?, end_time?, location, description,
+                   dress_code, status (draft|published), archived
+concert_program_item id, concert, kind (piece|heading|break|encore), piece?, title, note, position
+concert_recording  id, concert, item?, kind (file|link), title, file_path?, url?, size,
+                   file_missing, position   (+ concert_recording_trash)
+
+form               id, project, title, token, draft{settings, items}, version?, status
+                   (draft|published|closed), opens_at?, closes_at?, max_responses?, archived,
+                   listed, access, identity, guest fields, answering options, results mode,
+                   consent, notify_*
+form_version       id, form, number, structure (immutable except wording)
+form_response      id, form, version, answers, snapshot, account?/guest?/invite?/time?
+                   (all empty for anonymous), reviewed[]
+form_receipt       form, subject (u:account | i:invite) — participation, apart from answers
+form_draft, form_invite, form_file (private uploads)
+
+weekend            id, project, title, starts_on?, ends_on?, location, description,
+                   signup_url?, status (draft|published|closed), archived
+weekend_participant id, weekend, kind (member|guest|pending), member?, account?, name,
+                   email?, group?, source_name/email, import?, changed_by_hand
+weekend_import     id, weekend, source, file_name, by, stats, undone_at?
+weekend_room       id, weekend, name, description, capacity (>0), position
+weekend_room_assignment participant (unique), room
+account_contact    … + room_share (private|weekend|room)
+
+onboarding_draft   account, data (its creator's only)
 ```
 
 ---
@@ -712,3 +760,56 @@ These are the non-obvious rules that make the app coherent. They are easy to mis
 8. **AND binds tighter than OR** in absence conditions.
 9. **Check-in starts stopped.** A newly created check-in must be explicitly started, and resetting the token invalidates every printed QR code instantly.
 10. **Bars are evenly distributed** across the recording; there is no per-bar timing data.
+
+---
+
+## 18. Shared lifecycle of the newer areas
+
+Concerts, surveys and rehearsal weekends use the same words and states: **draft**, **preview**, **publish**, **take back publication**, **close**, and **archive / restore by hand**. A date may mark something as past or close it, never archive it. Reversible steps happen at once with a black toast and "Undo"; only what can't be undone (deleting for good, a new survey link) asks first. Every change runs through the automatic audit log (survey answers excepted, see §20.5).
+
+## 19. Concerts
+
+Any number per project (sidebar **Concert**). The next upcoming concert is on top (highlighted), then later ones, then past ones (they stay visible and editable until archived; the archive is folded away for managers). Participants see published, non-archived concerts only.
+
+- **Concert page** — title, date, start/end time, place, Markdown description and dress code (its own box); managers edit in place, publish or take back, archive/restore, preview as participants, delete for good (danger zone, confirmed).
+- **Programme** — its own running order, independent of Probe programmes: project pieces (linking to their piece page where the person may open pieces), free headings, the interval and encores (a piece or a free title), each with an optional note; drag to sort.
+- **Recordings** — stored files (private bucket `concert-files`, key `<concertId>/<uuid>.<ext>`, served only to managers and — while published — participants, never public) or http(s) links, for the whole concert or one programme item, sorted, played inline as audio/video. Deleting moves to a trash (30 days, restore, or delete for good after confirming); a maintenance job marks missing files and removes orphaned objects.
+
+## 20. Surveys and forms
+
+A form builder in the spirit of Google Forms (sidebar **Surveys**). Structure and answer rules live in `shared/forms.ts` and are enforced by the server.
+
+### 20.1 Builder and versions
+Sortable, duplicable items with title, explanation and "required": short/long text, number, email, date, time, yes/no, single choice, multiple choice, dropdown, scale, stars, choice grid, file upload; plus text, image and section elements. Rules: text length, number range (whole numbers), number of choices, file kinds/size/count, own error message. Sections make pages; single choice/dropdown options and sections can jump **forward** only (to a later section or the end) — loops and unknown targets are refused. Design: title image (project image or upload), accent colour, introduction, confirmation text and optional link. Autosave, desktop/mobile preview, duplicate, templates (finding a date, food, feedback).
+
+Publishing stores an immutable **version**. Later wording fixes correct the current version in place; changes to questions, options, rules or jumps become a new version on the next publish. Every response keeps its version and a snapshot of the question and option texts.
+
+### 20.2 Visibility, access, identity (independent)
+1. **Visibility** — listed on the project's survey page (and dashboard) or link only (unguessable token).
+2. **Access** — active project participants, any signed-in account with the link, or guests with the link. Personal one-time links (CSV export) let guests answer exactly once, also for participant-only forms.
+3. **Identity** — *named* (accounts by their verified identity; guest name/email required, optional or off), *confidential* (managers see who took part and who hasn't, but answers never next to names, in no meaningful order), *anonymous* (answers carry no account, name, email, IP, invitation, edit link or time; participation is a separate receipt so "one response per account" still works; anonymous responses can't be changed). The identity mode is fixed once there are responses.
+
+Before publishing the settings are summarised in everyday words ("Nicht gelistet · Gäste erlaubt · namentlich · eine Antwort pro Account · schließt am 12. Juni"). Link and QR code can be copied/shown; a new link retires the old one. The public form (`/f/<token>`) has no project sidebar and receives only the published version and its branding — never member, project or result data. Sign-in returns to the form.
+
+### 20.3 Running and answering
+Draft → scheduled → open → closed → archived by hand; opening/closing by hand, by time and optionally after a maximum number of responses; a deadline only closes. Accounts can be limited to one response reliably; general guest links can't (said honestly; rate limit and a browser hint only help). Accounts may change their response if allowed; guests optionally get a secret edit link; anonymous never. Account drafts are kept on the server, guest and anonymous drafts in the browser. Each page is checked before going on; an optional summary before sending. Afterwards the confirmation text, optional link and — on request — an email copy (accounts' verified address or a personal invitation's, never an address typed into a public form; not for anonymous forms). Mail failures never undo a response. Chosen managers get a notice per response or a daily digest (anonymous forms: digest only) — never with answers or names.
+
+### 20.4 Results
+Status, visibility, deadline and response count in the list. Results as summary (counts, percentage bars, scale/star charts, number figures, free text with search and an internal "checked" mark), single responses (as far as the identity mode allows) and a table — all following the same search and filter, as do the CSV export and the ZIP of uploads. Files open only through a guarded route (managers). Responses are deleted singly or all after confirmation. An optional participant summary (after sending or after closing) shows counts of choice questions only, never names, emails, free text or files, and nothing below 5 responses.
+
+### 20.5 Privacy
+Server-side validation, size limits, rate limits, a quiet bot check (hidden field, minimum time) and optionally a required consent with a link to the privacy page. Uploads are private, accepted by type, and never run in the browser. The audit log never stores answers (responses, receipts, drafts and files are excluded); for anonymous responses even the request entry only says "anonymous response received", without account, IP, device or path.
+
+### 20.6 Dashboard
+The movable, hideable widget **Active surveys** lists open, listed surveys meant for the account across projects — unfinished first with project, deadline (soon ones marked quietly) and "not started", "draft" or "answered"; answered ones step back after a while ("Done (n)"); a link to all surveys. It also lists a missing room choice of a rehearsal weekend. The data comes from a small personal server summary (`my_tasks`) with metadata and one's own state only.
+
+## 21. Rehearsal weekends
+
+Several per project (sidebar **Rehearsal weekend**): title, dates, place, short description, optional external sign-up link; draft, published, closed or archived by hand. Published, active project members see the overview and sign-up link. With exactly one weekend it opens directly, otherwise a plain choice. Each weekend has its own sidebar (like a Probe or a piece) with exactly two pages; the header opens the overview.
+
+- **Participants** (managers only) — the weekend's own list, independent of project memberships: confirmed and linked to a member/account, a confirmed guest without account, or unresolved. Import from CSV or pasted text (names and/or emails per line or separated by commas/semicolons), always with a preview in three parts — *recognised for sure* (linked account or unique email, else a unique name whose group doesn't contradict), *needs confirming* (several or partial matches; never taken over by themselves), *not recognised* (assign a member, keep as weekend guest, take over as new project member, leave unresolved, or skip). Names compare ignoring case, accents, punctuation, ß/ss (and ä/ae…). Re-imports are idempotent. Each import is logged (source/file, time, person, new/recognised/manual/skipped); "undo last import" removes only entries it made that weren't changed by hand or given a room since and lists the others for review. Adding and removing by hand affect only the weekend.
+- **Rooms** (managers and confirmed participants) — managers create and sort rooms with name, description and positive capacity; occupied rooms can't be deleted or shrunk below their occupants; managers place and move anyone (guests only by them). Confirmed participants see cards with "3 of 4 places", names and photos, their own room highlighted; they take a free place, switch or free theirs — atomically on the server (capacity checked, new place set, old one freed, all or nothing; a room that filled up meanwhile keeps the old place). Full rooms stay visible. A person opens with photo, name, group and exactly the contacts they share in this relation: each contact detail is *private*, *for this weekend's confirmed participants* or *only for my roommates* (set on the rooms page, valid for all weekends); the general contact table is never opened to participants.
+
+## 22. Project onboarding
+
+`/projects/new` is one long, calm page (no wizard): a jump list at the side (desktop) or a compact row (phones), "Draft saved" and an always reachable **Create project**. Only the name is required. The draft is private to its creator (`onboarding_drafts`), survives reloads and other devices, and goes away on creation or "Discard draft". Sections in order: 1 Project (name, description, image with crop, live preview), 2 Settings (the settings page's switches, labels, dependencies and defaults; the default group reads the groups below), 3 Groups (Sopran 1/2, Alt 1/2, Tenor 1/2, Bass 1/2 to start; rename, colour, sort, remove, add, "Create no groups"; responsible people and note per group), 4 Proben (rows; empty ones ignored, started ones need a title), 5 Members (the members page's import; unknown groups need a decision — map, no group, or create after confirming), 6 Registration form (optional; inactive unless chosen), 7 Concerts (unpublished), 8 Pieces (from the collection without duplicates, or new — which join the collection), 9 Audition rule (the absences page's condition editor; none without conditions). A summary ("8 Groups · 12 Rehearsals · …") with quiet hints and errors linking to their section. Creating runs in one server transaction (`onboarding_create`): all or nothing, never a half-made project; afterwards the new project page shows a short summary.

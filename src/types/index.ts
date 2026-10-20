@@ -535,3 +535,83 @@ export interface AbsenceLabel {
   position: number;
   created_at: string;
 }
+
+// Someone looking after a group (see migration 0068): organisational only,
+// grants nothing, never shown to participants. `member` is the account's
+// member row in the project, if any (looked up on every read).
+export interface GroupResponsible {
+  id: string;
+  group_id: string;
+  user_id: string;
+  position: number;
+  name: string;
+  email: string;
+  photo_url: string | null;
+  member: { id: string; group_name: string | null; status: MemberStatus } | null;
+}
+
+// An account to pick (search_people): name, photo and its membership.
+export interface PersonOption {
+  id: string;
+  name: string;
+  email: string;
+  photo_url: string | null;
+  member: { id: string; group_name: string | null; status: MemberStatus } | null;
+}
+
+// A concert of a project (see migration 0069). Participants see it only
+// while it is published and not archived.
+export interface Concert {
+  id: string;
+  project_id: string;
+  title: string;
+  date: string | null; // YYYY-MM-DD
+  time: string | null; // HH:MM
+  end_time: string | null;
+  location: string;
+  description: string; // Markdown
+  dress_code: string; // Markdown
+  status: 'draft' | 'published';
+  archived: boolean;
+  created_at: string;
+}
+
+export type ConcertProgramKind = 'piece' | 'heading' | 'break' | 'encore';
+
+export interface ConcertProgramItem {
+  id: string;
+  concert_id: string;
+  kind: ConcertProgramKind;
+  piece_id: string | null;
+  // A heading's or free encore's text; for a piece its name when it was added.
+  title: string;
+  note: string;
+  position: number;
+  created_at: string;
+}
+
+export interface ConcertRecording {
+  id: string;
+  concert_id: string;
+  item_id: string | null;
+  kind: 'file' | 'link';
+  title: string;
+  file_path: string | null;
+  file_name: string | null;
+  mime: string | null;
+  url: string | null;
+  size: number | null;
+  file_missing: boolean;
+  uploaded_by_name: string;
+  position: number;
+  created_at: string;
+}
+
+export interface ConcertRecordingTrashEntry {
+  id: string;
+  concert_id: string;
+  recording_id: string;
+  row: ConcertRecording;
+  deleted_by_name: string;
+  deleted_at: string;
+}

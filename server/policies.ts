@@ -146,6 +146,40 @@ export const canEditCalendars = () => hasRole('manager');
 const eventInManagedProject = (eventId: string) =>
   `exists (select 1 from events _e where _e.id = ${eventId} and ${canAccessProject('_e.project_id')})`;
 
+const groupInManagedProject = (groupId: string) =>
+  `exists (select 1 from project_groups _g where _g.id = ${groupId} and ${canAccessProject('_g.project_id')})`;
+
+// Rehearsal weekends (migration 0071).
+export const weekendInManagedProject = (weekendId: string) =>
+  `exists (select 1 from weekends _w where _w.id = ${weekendId} and ${canAccessProject('_w.project_id')})`;
+
+// A confirmed participant of the weekend, by account — set directly or
+// through the linked member row.
+export const isConfirmedWeekendParticipant = (weekendId: string) => `exists (
+  select 1 from weekend_participants _wp left join members _wm on _wm.id = _wp.member_id
+  where _wp.weekend_id = ${weekendId} and _wp.kind in ('member', 'guest')
+    and (_wp.user_id = auth_uid() or _wm.user_id = auth_uid())
+)`;
+
+// Published (or closed) and not archived: what participants may see.
+export const weekendShown = (a: string) => `(${a}.status in ('published', 'closed') and not ${a}.archived)`;
+
+export const formInManagedProject = (formId: string) =>
+  `exists (select 1 from forms _f where _f.id = ${formId} and ${canAccessProject('_f.project_id')})`;
+
+// Concerts: managed with the project's content; participants of the project
+// see published ones that aren't archived (see migration 0069).
+export const concertInManagedProject = (concertId: string) =>
+  `exists (select 1 from concerts _c where _c.id = ${concertId} and ${canAccessProject('_c.project_id')})`;
+
+export const concertVisible = (concertId: string) => `exists (
+  select 1 from concerts _c where _c.id = ${concertId}
+    and ${or(
+      canAccessProject('_c.project_id'),
+      `_c.status = 'published' and not _c.archived and ${isProjectParticipant('_c.project_id')}`,
+    )}
+)`;
+
 const pageInManagedProject = (pageId: string) =>
   `exists (select 1 from registration_pages _rp where _rp.id = ${pageId} and ${canAccessProject('_rp.project_id')})`;
 
@@ -353,7 +387,14 @@ export const policies: Record<string, TablePolicy> = {
   // Project settings, archiving and deletion need Verwaltung; Stimmeltern
   // only work with a project's content.
   projects: {
-    select: (a) => or(canAccessProject(`${a}.id`), isProjectParticipant(`${a}.id`)),
+    select: (a) =>
+      or(
+        canAccessProject(`${a}.id`),
+        isProjectParticipant(`${a}.id`),
+        // Confirmed for one of its published rehearsal weekends.
+        `exists (select 1 from weekends _pw where _pw.project_id = ${a}.id and ${weekendShown('_pw')}
+           and ${isConfirmedWeekendParticipant('_pw.id')})`,
+      ),
     insert: canManageProjects,
     update: canManageProjects,
     check: () => 'true',
@@ -662,6 +703,176 @@ export const policies: Record<string, TablePolicy> = {
     )`,
   },
 
+  // Who looks after a group, and an internal note on it (migration 0068):
+  // only for those who manage the project, never for participants. Being
+  // named here grants nothing.
+  group_responsibles: {
+    ...all((a) => groupInManagedProject(`${a}.group_id`)),
+    validateUpdate: (oldRow, patch) => {
+      for (const field of ['group_id', 'user_id'] as const) {
+        if (field in patch && patch[field] !== oldRow[field]) {
+          throw new ApiError('A responsibility is only reordered, not moved', 403, '42501');
+        }
+      }
+    },
+  },
+  group_notes: {
+    ...all((a) => groupInManagedProject(`${a}.group_id`)),
+    validateInsert: (row) => validateGroupNote(row),
+    validateUpdate: (oldRow, patch) => {
+      if ('group_id' in patch && patch.group_id !== oldRow.group_id) {
+        throw new ApiError('A note stays with its group', 403, '42501');
+      }
+      validateGroupNote(patch);
+    },
+  },
+
+  concerts: {
+    ...all((a) => canAccessProject(`${a}.project_id`)),
+    select: (a) =>
+      or(
+        canAccessProject(`${a}.project_id`),
+        `${a}.status = 'published' and not ${a}.archived and ${isProjectParticipant(`${a}.project_id`)}`,
+      ),
+    validateInsert: (row) => validateConcert(row, true),
+    validateUpdate: (oldRow, patch) => {
+      if ('project_id' in patch && patch.project_id !== oldRow.project_id) {
+        throw new ApiError('A concert stays with its project', 403, '42501');
+      }
+      validateConcert(patch, false);
+    },
+  },
+  concert_program_items: {
+    ...all((a) => concertInManagedProject(`${a}.concert_id`)),
+    select: (a) => concertVisible(`${a}.concert_id`),
+    validateInsert: (row) => validateProgramItem(row, String(row.concert_id ?? '')),
+    validateUpdate: (oldRow, patch) => {
+      if ('concert_id' in patch && patch.concert_id !== oldRow.concert_id) {
+        throw new ApiError('A programme item stays with its concert', 403, '42501');
+      }
+      validateProgramItem(patch, String(oldRow.concert_id));
+    },
+  },
+  // Recordings are written here (the stored object is uploaded first); a
+  // deletion goes through the trash functions in server/concerts.ts.
+  concert_recordings: {
+    select: (a) => concertVisible(`${a}.concert_id`),
+    insert: (a) => concertInManagedProject(`${a}.concert_id`),
+    update: (a) => concertInManagedProject(`${a}.concert_id`),
+    check: (a) => concertInManagedProject(`${a}.concert_id`),
+    validateInsert: (row) => {
+      validateRecording(row, String(row.concert_id ?? ''), true);
+      const uid = authUid();
+      const user = uid
+        ? (db.prepare('select name from app_users where id = ?').get(uid) as { name: string } | undefined)
+        : undefined;
+      Object.assign(row, {
+        size: row.kind === 'file' ? storedObjectSize('concert-files', row.file_path) : null,
+        file_missing: false,
+        uploaded_by_name: user?.name ?? '',
+      });
+    },
+    validateUpdate: (oldRow, patch) => {
+      for (const field of ['concert_id', 'kind', 'file_path', 'size', 'file_missing', 'uploaded_by_name'] as const) {
+        if (field in patch && normalize(patch[field]) !== normalize(oldRow[field])) {
+          throw new ApiError(`${field} can't be changed`, 403, '42501');
+        }
+      }
+      validateRecording(patch, String(oldRow.concert_id), false);
+    },
+  },
+  concert_recording_trash: {
+    select: (a) => concertInManagedProject(`${a}.concert_id`),
+  },
+
+  // Rehearsal weekends (migration 0071): managed with the project's
+  // content; its participants see published ones (and their rooms once
+  // confirmed — through server/weekends.ts, which also handles imports and
+  // room choices).
+  weekends: {
+    ...all((a) => canAccessProject(`${a}.project_id`)),
+    select: (a) =>
+      or(
+        canAccessProject(`${a}.project_id`),
+        `${weekendShown(a)} and ${or(isProjectParticipant(`${a}.project_id`), isConfirmedWeekendParticipant(`${a}.id`))}`,
+      ),
+    validateInsert: (row) => validateWeekend(row, true),
+    validateUpdate: (oldRow, patch) => {
+      if ('project_id' in patch && patch.project_id !== oldRow.project_id) {
+        throw new ApiError('A weekend stays with its project', 403, '42501');
+      }
+      validateWeekend({ ...oldRow, ...patch }, false);
+    },
+  },
+  weekend_rooms: {
+    ...all((a) => weekendInManagedProject(`${a}.weekend_id`)),
+    select: (a) => or(weekendInManagedProject(`${a}.weekend_id`), isConfirmedWeekendParticipant(`${a}.weekend_id`)),
+    // An occupied room is never deleted by the way.
+    delete: (a) =>
+      `${weekendInManagedProject(`${a}.weekend_id`)} and not exists (
+        select 1 from weekend_room_assignments _ra where _ra.room_id = ${a}.id)`,
+    validateInsert: (row) => validateRoom(row, null),
+    validateUpdate: (oldRow, patch) => {
+      if ('weekend_id' in patch && patch.weekend_id !== oldRow.weekend_id) {
+        throw new ApiError('A room stays with its weekend', 403, '42501');
+      }
+      validateRoom(patch, String(oldRow.id));
+    },
+  },
+  // The list itself is the managers'; entries come from the import and the
+  // functions in server/weekends.ts. A change by hand marks the entry.
+  weekend_participants: {
+    select: (a) => weekendInManagedProject(`${a}.weekend_id`),
+    update: (a) => weekendInManagedProject(`${a}.weekend_id`),
+    check: (a) => weekendInManagedProject(`${a}.weekend_id`),
+    delete: (a) => weekendInManagedProject(`${a}.weekend_id`),
+    validateUpdate: (oldRow, patch) => {
+      for (const field of ['weekend_id', 'kind', 'member_id', 'user_id', 'import_id'] as const) {
+        if (field in patch && normalize(patch[field]) !== normalize(oldRow[field])) {
+          throw new ApiError(`${field} is changed through the weekend functions`, 403, '42501');
+        }
+      }
+      checkText(patch, 'name', 200);
+      Object.assign(patch, { changed_by_hand: true, updated_at: nowIso() });
+    },
+  },
+  weekend_imports: {
+    select: (a) => weekendInManagedProject(`${a}.weekend_id`),
+  },
+  weekend_room_assignments: {
+    select: (a) => `exists (select 1 from weekend_rooms _r where _r.id = ${a}.room_id and ${weekendInManagedProject('_r.weekend_id')})`,
+  },
+
+  // A project being set up: its creator's alone (migration 0072).
+  onboarding_drafts: {
+    ...all((a) => `${a}.user_id = auth_uid() and ${canManageProjects()}`),
+    validateInsert: (row) => {
+      if (JSON.stringify(row.data ?? {}).length > 2_000_000) throw new ApiError('The draft is too large', 413);
+    },
+    validateUpdate: (oldRow, patch) => {
+      if ('user_id' in patch && patch.user_id !== oldRow.user_id) throw new ApiError('A draft stays with its account', 403, '42501');
+      if (JSON.stringify(patch.data ?? {}).length > 2_000_000) throw new ApiError('The draft is too large', 413);
+    },
+  },
+
+  // Surveys (migration 0070): managers read forms and change their settings
+  // here; creating, the structure, publishing and every answer go through
+  // server/forms.ts. Participants never read these tables directly.
+  forms: {
+    select: (a) => canAccessProject(`${a}.project_id`),
+    update: (a) => canAccessProject(`${a}.project_id`),
+    check: (a) => canAccessProject(`${a}.project_id`),
+    delete: (a) => canAccessProject(`${a}.project_id`),
+    validateUpdate: (oldRow, patch) => validateFormSettings(oldRow, patch),
+  },
+  form_versions: {
+    select: (a) => formInManagedProject(`${a}.form_id`),
+  },
+  form_invites: {
+    select: (a) => formInManagedProject(`${a}.form_id`),
+    delete: (a) => formInManagedProject(`${a}.form_id`),
+  },
+
   absence_labels: {
     ...all((a) => canAccessProject(`${a}.project_id`)),
     select: (a) =>
@@ -746,4 +957,178 @@ const validateFolderOfPiece = (folderId: unknown, pieceId: unknown) => {
     .prepare('select 1 from piece_file_folders where id = ? and piece_id = ?')
     .get(String(folderId), String(pieceId));
   if (!found) throw new ApiError('The folder is not part of this piece', 400, '23503');
+};
+
+// --- groups and concerts (migrations 0068, 0069) ----------------------------
+
+const validateGroupNote = (row: Record<string, unknown>) => {
+  if ('note' in row && (typeof row.note !== 'string' || row.note.length > 4000)) {
+    throw new ApiError('The note is too long', 400, '23514');
+  }
+};
+
+const checkText = (row: Record<string, unknown>, field: string, max: number, required = false) => {
+  if (!(field in row)) {
+    if (required) throw new ApiError(`${field} is required`, 400, '23514');
+    return;
+  }
+  const value = row[field];
+  if (value === null && !required) return;
+  if (typeof value !== 'string' || value.length > max || (required && !value.trim())) {
+    throw new ApiError(`Invalid ${field}`, 400, '23514');
+  }
+};
+
+const validateConcert = (row: Record<string, unknown>, complete: boolean) => {
+  checkText(row, 'title', 200, complete);
+  if ('title' in row && !String(row.title ?? '').trim()) throw new ApiError('A concert needs a title', 400, '23514');
+  checkText(row, 'location', 300);
+  checkText(row, 'description', 20_000);
+  checkText(row, 'dress_code', 5000);
+};
+
+// A piece in a concert's programme must be one of its project's pieces.
+const validateProgramItem = (row: Record<string, unknown>, concertId: string) => {
+  checkText(row, 'title', 300);
+  checkText(row, 'note', 1000);
+  if (row.piece_id == null) return;
+  const inProject = db
+    .prepare(
+      `select 1 from concerts c join project_pieces pp on pp.project_id = c.project_id
+       where c.id = ? and pp.piece_id = ?`,
+    )
+    .get(concertId, String(row.piece_id));
+  if (!inProject) throw new ApiError('The piece is not part of this project', 400, '23503');
+};
+
+const validateRecording = (row: Record<string, unknown>, concertId: string, complete: boolean) => {
+  checkText(row, 'title', 300);
+  if (row.item_id != null) {
+    const ofConcert = db
+      .prepare('select 1 from concert_program_items where id = ? and concert_id = ?')
+      .get(String(row.item_id), concertId);
+    if (!ofConcert) throw new ApiError('The programme item is not part of this concert', 400, '23503');
+  }
+  if (complete && row.kind === 'file') {
+    const key = row.file_path;
+    if (!isCanonicalKey(key) || !key.startsWith(`${concertId}/`)) {
+      throw new ApiError('The file is not part of this concert', 400, '23514');
+    }
+    if (row.url != null) throw new ApiError('A file has no link', 400, '23514');
+  }
+  if ((complete && row.kind === 'link') || ('url' in row && row.url != null)) {
+    if (!isHttpUrl(row.url)) throw new ApiError('Link must be an http(s) URL', 400, '23514');
+  }
+};
+
+// Where a key of one of the private buckets (concert-files, form-files) is
+// stored, or null for anything that isn't a canonical key.
+export const bucketObjectPath = (bucket: 'concert-files' | 'form-files', key: unknown): string | null => {
+  if (!isCanonicalKey(key)) return null;
+  const base = path.resolve(env.storageDir, bucket);
+  const full = path.resolve(base, key);
+  return full.startsWith(base + path.sep) ? full : null;
+};
+
+export const storedObjectSize = (bucket: 'concert-files' | 'form-files', key: unknown): number | null => {
+  const file = bucketObjectPath(bucket, key);
+  if (!file) return null;
+  try {
+    return fs.statSync(file).size;
+  } catch {
+    return null;
+  }
+};
+
+// --- surveys (migration 0070) -----------------------------------------------
+
+// Set by the server only: the link, the structure and its versions, the
+// lifecycle (server/forms.ts) and the notification bookkeeping.
+const FORM_SERVER_FIELDS = [
+  'id',
+  'project_id',
+  'token',
+  'draft',
+  'draft_saved_at',
+  'version_id',
+  'status',
+  'archived',
+  'published_at',
+  'created_by',
+  'created_at',
+  'notify_sent_at',
+  'notify_sent_count',
+] as const;
+
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+const validateFormSettings = (oldRow: Record<string, unknown>, patch: Record<string, unknown>) => {
+  for (const field of FORM_SERVER_FIELDS) {
+    if (field in patch && normalize(patch[field]) !== normalize(oldRow[field])) {
+      throw new ApiError(`${field} is set by the server`, 403, '42501');
+    }
+  }
+  if ('title' in patch && (typeof patch.title !== 'string' || !patch.title.trim() || patch.title.length > 200)) {
+    throw new ApiError('A form needs a title', 400, '23514');
+  }
+  // What respondents were promised about their identity holds for good.
+  if ('identity' in patch && patch.identity !== oldRow.identity) {
+    const answered = db.prepare('select 1 from form_responses where form_id = ? limit 1').get(String(oldRow.id));
+    if (answered) throw new ApiError('The identity mode is fixed once there are responses', 409, 'identity_locked');
+  }
+  for (const field of ['opens_at', 'closes_at']) {
+    const value = patch[field];
+    if (value != null && (typeof value !== 'string' || !ISO_TIME.test(value) || Number.isNaN(Date.parse(value)))) {
+      throw new ApiError('Invalid date', 400, '23514');
+    }
+  }
+  const opens = 'opens_at' in patch ? patch.opens_at : oldRow.opens_at;
+  const closes = 'closes_at' in patch ? patch.closes_at : oldRow.closes_at;
+  if (typeof opens === 'string' && typeof closes === 'string' && Date.parse(closes) <= Date.parse(opens)) {
+    throw new ApiError('The form must close after it opens', 400, 'closes_before_opens');
+  }
+  if ('consent_text' in patch && (typeof patch.consent_text !== 'string' || patch.consent_text.length > 5000)) {
+    throw new ApiError('The consent text is too long', 400, '23514');
+  }
+  if ('notify_user_ids' in patch) {
+    const ids = patch.notify_user_ids;
+    if (!Array.isArray(ids) || ids.length > 30 || !ids.every((id) => typeof id === 'string' && id.length <= 64)) {
+      throw new ApiError('Invalid recipients', 400, '23514');
+    }
+    // Only people who manage the project's content can be told.
+    for (const id of ids) {
+      const ok = db
+        .prepare(`select 1 from app_users where id = ? and role in ('section_lead', 'manager', 'music_director', 'admin')`)
+        .get(id);
+      if (!ok) throw new ApiError('Only project managers can be notified', 400, '23514');
+    }
+  }
+};
+
+// --- rehearsal weekends (migration 0071) ------------------------------------
+
+const validateWeekend = (row: Record<string, unknown>, complete: boolean) => {
+  checkText(row, 'title', 200, complete);
+  if ('title' in row && !String(row.title ?? '').trim()) throw new ApiError('A weekend needs a title', 400, '23514');
+  checkText(row, 'location', 300);
+  checkText(row, 'description', 20_000);
+  if (row.signup_url != null && row.signup_url !== '' && !isHttpUrl(row.signup_url)) {
+    throw new ApiError('Link must be an http(s) URL', 400, '23514');
+  }
+  if (row.signup_url === '') row.signup_url = null;
+};
+
+// Rooms: a name and a positive capacity, never below who already sleeps there.
+const validateRoom = (row: Record<string, unknown>, roomId: string | null) => {
+  checkText(row, 'name', 120, roomId === null);
+  if ('name' in row && !String(row.name ?? '').trim()) throw new ApiError('A room needs a name', 400, '23514');
+  checkText(row, 'description', 1000);
+  if ('capacity' in row) {
+    const capacity = Number(row.capacity);
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 100) throw new ApiError('Invalid capacity', 400, '23514');
+    if (roomId) {
+      const { n } = db.prepare('select count(*) as n from weekend_room_assignments where room_id = ?').get(roomId) as { n: number };
+      if (capacity < n) throw new ApiError('The room has more people than that', 409, 'room_overfull');
+    }
+  }
 };

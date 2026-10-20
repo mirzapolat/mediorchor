@@ -25,16 +25,24 @@ export const uploadPieceFile = (
   pieceId: string,
   file: File,
   onProgress?: (share: number) => void,
+): Promise<{ path: string | null; error: string | null }> => uploadBucketFile(BUCKET, pieceId, file, onProgress);
+
+// Uploads `file` into `<bucket>/<folder>/<uuid>.<ext>` (see uploadPieceFile).
+export const uploadBucketFile = (
+  bucket: string,
+  folder: string,
+  file: File,
+  onProgress?: (share: number) => void,
 ): Promise<{ path: string | null; error: string | null }> => {
   if (exceedsUploadLimit(file)) return Promise.resolve({ path: null, error: 'too-large' });
   const rawExt = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
   const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
-  const path = `${pieceId}/${crypto.randomUUID()}.${ext}`;
+  const path = `${folder}/${crypto.randomUUID()}.${ext}`;
 
   // XMLHttpRequest, as fetch can't report upload progress.
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/storage/${BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`);
+    xhr.open('POST', `/api/storage/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`);
     xhr.withCredentials = true;
     xhr.setRequestHeader('x-upsert', 'false');
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');

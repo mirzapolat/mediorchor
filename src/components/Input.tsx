@@ -1,6 +1,9 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
+// Single-line fields are a little taller on phones (easier to hit).
+const touchHeight = 'max-md:min-h-11';
+
 const fieldClasses =
   'w-full border border-border rounded-md px-3 py-2 text-base bg-white placeholder:text-text-tertiary ' +
   'focus:outline-none focus:border-black transition-colors duration-150';
@@ -28,7 +31,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = ({ label, id, className, ...props }: InputProps) => (
   <Field label={label} htmlFor={id}>
-    <input id={id} className={cn(fieldClasses, className)} {...props} />
+    <input id={id} className={cn(fieldClasses, touchHeight, className)} {...props} />
   </Field>
 );
 
@@ -48,7 +51,7 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = ({ label, id, className, children, ...props }: SelectProps) => (
   <Field label={label} htmlFor={id}>
-    <select id={id} className={cn(fieldClasses, 'pr-9', className)} {...props}>
+    <select id={id} className={cn(fieldClasses, touchHeight, 'pr-9', className)} {...props}>
       {children}
     </select>
   </Field>

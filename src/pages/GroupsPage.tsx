@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Plus, Tags, Trash2, Users } from 'lucide-react';
+import { Pencil, Plus, StickyNote, Tags, Trash2, Users } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PageSpinner } from '@/components/Spinner';
@@ -16,6 +16,8 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
+import { AvatarStack } from '@/components/PersonPicker';
+import { useGroupResponsibilities } from '@/lib/groupResponsibles';
 import type { ProjectGroup } from '@/types';
 
 // Counts active members per group (by lower-cased group name; '' = no group).
@@ -40,6 +42,7 @@ export const GroupsPage = () => {
   const [editing, setEditing] = useState<ProjectGroup | null>(null);
   const [toDelete, setToDelete] = useState<ProjectGroup | null>(null);
   const tf = useTableFilters();
+  const responsibilities = useGroupResponsibilities(project.id);
 
   const loadCounts = useCallback(async () => {
     const { data } = await api
@@ -60,7 +63,7 @@ export const GroupsPage = () => {
   useEffect(() => setGroups(sharedGroups), [sharedGroups]);
 
   const reload = async () => {
-    await Promise.all([reloadShared(), loadCounts()]);
+    await Promise.all([reloadShared(), loadCounts(), responsibilities.reload()]);
   };
 
   const reorder = async (next: ProjectGroup[]) => {
@@ -97,6 +100,13 @@ export const GroupsPage = () => {
       id: 'name',
       header: t('name'),
       render: (g) => <GroupPill name={g.name} color={g.color} className="text-sm" />,
+    },
+    {
+      id: 'responsibles',
+      header: t('groupResponsibles'),
+      render: (g) => <ResponsiblePreview people={responsibilities.byGroup.get(g.id) ?? []} note={responsibilities.notes.get(g.id)} />,
+      className: 'w-px whitespace-nowrap',
+      mobile: 'hidden',
     },
     {
       id: 'members',
@@ -148,6 +158,9 @@ export const GroupsPage = () => {
                 <Users size={14} />
                 {countOf(g)}
               </span>
+              <span className="ml-auto">
+                <ResponsiblePreview people={responsibilities.byGroup.get(g.id) ?? []} note={responsibilities.notes.get(g.id)} />
+              </span>
             </div>
           )}
           actions={(g) => (
@@ -187,6 +200,11 @@ export const GroupsPage = () => {
         projectId={project.id}
         group={editing}
         groups={groups}
+        responsibility={
+          editing
+            ? { people: responsibilities.byGroup.get(editing.id) ?? [], note: responsibilities.notes.get(editing.id) ?? '' }
+            : undefined
+        }
         onClose={() => setFormOpen(false)}
         onSaved={() => void reload()}
       />
@@ -201,5 +219,27 @@ export const GroupsPage = () => {
         onCancel={() => setToDelete(null)}
       />
     </>
+  );
+};
+
+// Who looks after a group, as small photos, and whether it has a note (its
+// text as tooltip): a compact preview for the list.
+const ResponsiblePreview = ({
+  people,
+  note,
+}: {
+  people: { id: string; name: string; photo_url: string | null }[];
+  note?: string;
+}) => {
+  if (people.length === 0 && !note) return <span className="text-text-tertiary">—</span>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <AvatarStack people={people} />
+      {note && (
+        <span title={note} className="text-text-tertiary">
+          <StickyNote size={14} aria-label={note} />
+        </span>
+      )}
+    </span>
   );
 };

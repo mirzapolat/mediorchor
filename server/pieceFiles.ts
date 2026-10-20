@@ -283,7 +283,7 @@ export const mayReadPieceObject = (c: Context, key: string): { allowed: boolean;
 // ---------------------------------------------------------------------------
 
 // Makes a string safe as a file name on all systems (as src/lib/zip.ts).
-const safeFileName = (name: string) =>
+export const safeFileName = (name: string) =>
   name
     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -502,20 +502,28 @@ pieceZipRoutes.get('/:pieceId', async (c) => {
     };
   });
 
+  const files = picked.entries
+    .map((entry) => ({ name: entry.name, file: pieceObjectPath(entry.key) }))
+    .filter((entry): entry is { name: string; file: string } => entry.file != null);
+  return streamZip(files, safeFileName(c.req.query('name') || picked.piece.name));
+});
+
+// Streams a ZIP (stored, ZIP64 when large) of these files under these names;
+// the length is known up front, so the browser shows real progress. Files
+// missing on the server are left out; none at all is a 404.
+export const streamZip = (files: Array<{ name: string; file: string }>, zipName: string) => {
   const stamp = dosDateTime();
   const entries: ZipEntry[] = [];
   let offset = 0;
-  for (const entry of picked.entries) {
-    const file = pieceObjectPath(entry.key);
-    if (!file) continue;
+  for (const entry of files) {
     let size: number;
     try {
-      size = fs.statSync(file).size;
+      size = fs.statSync(entry.file).size;
     } catch {
       continue;
     }
     const name = Buffer.from(entry.name, 'utf8');
-    const e: ZipEntry = { name, file, size, offset, crc: 0 };
+    const e: ZipEntry = { name, file: entry.file, size, offset, crc: 0 };
     entries.push(e);
     offset += 30 + name.length + localExtra(e) + size;
   }
@@ -540,7 +548,6 @@ pieceZipRoutes.get('/:pieceId', async (c) => {
     yield* endRecords(entries.length, cdOffset, cdSize);
   }
 
-  const zipName = safeFileName(c.req.query('name') || picked.piece.name);
   return new Response(Readable.toWeb(Readable.from(body())) as ReadableStream, {
     headers: {
       'Content-Type': 'application/zip',
@@ -548,7 +555,7 @@ pieceZipRoutes.get('/:pieceId', async (c) => {
       'Content-Disposition': contentDisposition(`${zipName}.zip`),
     },
   });
-});
+};
 
 // ---------------------------------------------------------------------------
 // Maintenance

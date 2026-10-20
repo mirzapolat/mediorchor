@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { BedDouble, CheckCircle2, ChevronRight, CircleDashed, PencilLine } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { EventWhen } from '@/components/EventWhen';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -7,7 +8,8 @@ import { useI18n } from '@/lib/i18n';
 import { localeOf } from '@shared/languages';
 import { localToday } from '@/lib/eventTiming';
 import { EventProgram } from '@/components/EventProgram';
-import { PROJECTS_PREVIEW, REHEARSALS_PREVIEW, type UpcomingRehearsal } from '@/lib/dashboard';
+import { PROJECTS_PREVIEW, REHEARSALS_PREVIEW, SURVEYS_PREVIEW, type RoomTask, type SurveyTask, type UpcomingRehearsal } from '@/lib/dashboard';
+import { cn } from '@/lib/cn';
 import type { AttendanceDisplayStatus, Event, Project } from '@/types';
 
 // "Teilnahme": the active projects the account takes part in.
@@ -139,5 +141,117 @@ const MoreLink = ({ hidden }: { hidden: number }) => {
       {t('showMore')} ({hidden})
       <ChevronRight size={16} />
     </Link>
+  );
+};
+
+// "Aktive Umfragen": open listed surveys meant for the account, across its
+// projects — unfinished first, with project, deadline and its own state.
+// Answered ones step back after a short while (folded into "Erledigt").
+export const ActiveSurveysWidget = ({ surveys, rooms = [] }: { surveys: SurveyTask[]; rooms?: RoomTask[] }) => {
+  const { t, lang } = useI18n();
+  const [showDone, setShowDone] = useState(false);
+  // Answered within the last hours: still shown as a short confirmation.
+  const recent = (s: SurveyTask) =>
+    Boolean(s.answered_at && s.answered_at.length > 10 && Date.now() - Date.parse(s.answered_at) < 6 * 3600_000);
+  const open = surveys.filter((s) => s.my !== 'answered' || recent(s));
+  const done = surveys.filter((s) => s.my === 'answered' && !recent(s));
+  const projects = [...new Map(surveys.map((s) => [s.project.id, s.project])).values()];
+  // A missing room choice is a to-do of the same kind.
+  const roomRows = rooms.map((r) => (
+    <li key={r.weekend_id}>
+      <Link
+        to={`/projects/${r.project.id}/weekend/${r.weekend_id}/rooms`}
+        className="group flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-surface-subtle"
+      >
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+          <BedDouble size={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{t('roomTaskTitle').replace('{title}', r.title)}</span>
+          <span className="block truncate text-xs text-text-tertiary">{r.project.name}</span>
+        </span>
+        <ChevronRight size={16} className="flex-shrink-0 text-text-tertiary transition-transform group-hover:translate-x-0.5" />
+      </Link>
+    </li>
+  ));
+  if (surveys.length === 0 && rooms.length === 0) {
+    return <p className="py-2 text-sm text-text-tertiary">{t('noOpenSurveys')}</p>;
+  }
+  if (surveys.length === 0) return <ul className="-mx-2">{roomRows}</ul>;
+
+  const row = (s: SurveyTask) => {
+    const soon = s.closes_at && Date.parse(s.closes_at) - Date.now() < 3 * 86_400_000;
+    const status =
+      s.my === 'answered'
+        ? { icon: CheckCircle2, label: t('surveyAnswered'), tone: 'text-success-strong' }
+        : s.my === 'draft'
+          ? { icon: PencilLine, label: t('surveyDraftMine'), tone: 'text-text' }
+          : { icon: CircleDashed, label: t('surveyNotStarted'), tone: 'text-text-secondary' };
+    return (
+      <li key={s.form_id}>
+        <Link
+          to={`/f/${s.token}`}
+          className="group flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-surface-subtle"
+        >
+          <Avatar name={s.project.name} photoUrl={s.project.image_url} size={32} square />
+          <span className="min-w-0 flex-1">
+            <span className={cn('block truncate font-medium', s.my === 'answered' && 'text-text-secondary')}>{s.title}</span>
+            <span className="flex flex-wrap items-center gap-x-2 text-xs">
+              <span className={cn('inline-flex items-center gap-1', status.tone)}>
+                <status.icon size={12} />
+                {status.label}
+              </span>
+              <span className="truncate text-text-tertiary">{s.project.name}</span>
+              {s.closes_at && s.my !== 'answered' && (
+                <span className={cn(soon ? 'font-medium text-text' : 'text-text-tertiary')}>
+                  {soon && <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" />}
+                  {t('surveyClosesShort').replace(
+                    '{date}',
+                    new Date(s.closes_at).toLocaleDateString(localeOf(lang), { day: 'numeric', month: 'short' }),
+                  )}
+                </span>
+              )}
+            </span>
+          </span>
+          <ChevronRight size={16} className="flex-shrink-0 text-text-tertiary transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </li>
+    );
+  };
+
+  return (
+    <>
+      {roomRows.length > 0 && <ul className="-mx-2">{roomRows}</ul>}
+      {open.length === 0 ? (
+        <p className="py-2 text-sm text-text-tertiary">{t('allSurveysAnswered')}</p>
+      ) : (
+        <ul className="-mx-2">{open.slice(0, SURVEYS_PREVIEW).map(row)}</ul>
+      )}
+      {done.length > 0 && (
+        <div className="mt-1">
+          <button
+            type="button"
+            onClick={() => setShowDone((v) => !v)}
+            aria-expanded={showDone}
+            className="text-xs font-medium text-text-tertiary hover:text-text-secondary"
+          >
+            {t('surveysDone').replace('{n}', String(done.length))}
+          </button>
+          {showDone && <ul className="-mx-2 mt-1">{done.map(row)}</ul>}
+        </div>
+      )}
+      <div className="mt-1 flex flex-wrap gap-x-4 border-t border-border pt-3">
+        {projects.map((p) => (
+          <Link
+            key={p.id}
+            to={`/projects/${p.id}/surveys`}
+            className="inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text"
+          >
+            {projects.length > 1 ? `${t('allSurveys')} · ${p.name}` : t('allSurveys')}
+            <ChevronRight size={14} />
+          </Link>
+        ))}
+      </div>
+    </>
   );
 };

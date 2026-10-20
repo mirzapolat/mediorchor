@@ -1,8 +1,7 @@
 import { Outlet, useMatch } from 'react-router-dom';
 import { CalendarDays, FolderKanban, LayoutDashboard, Music, ShieldCheck } from 'lucide-react';
-import { SidebarNavItem } from '@/components/SidebarNav';
-import { SidebarFooter } from '@/components/SidebarFooter';
-import { Sidebar, SidebarActionLink, useSidebar } from '@/components/Sidebar';
+import { SidebarActionLink, useSidebar } from '@/components/Sidebar';
+import { NavShell } from '@/components/NavShell';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,28 +43,21 @@ export const AppLayout = () => {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Admin settings live behind the shield next to the collapse toggle. */}
-      <Sidebar
-        actions={
-          isAdmin ? <SidebarActionLink to="/admin" label={t('adminConfig')} icon={ShieldCheck} /> : undefined
-        }
-      >
-        <AppHeader withActions={isAdmin} />
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {hasDashboard && <SidebarNavItem to="/dashboard" label={t('dashboard')} icon={LayoutDashboard} />}
-          <SidebarNavItem to="/projects" end label={t('projects')} icon={FolderKanban} />
-          {hasFullPieceAccess && <SidebarNavItem to="/pieces" label={t('pieces')} icon={Music} />}
-          {canEditCalendars && <SidebarNavItem to="/calendar" label={t('calendars')} icon={CalendarDays} />}
-        </div>
-
-        <SidebarFooter />
-      </Sidebar>
-
-      <main className="flex-1 overflow-y-auto min-w-0 pt-14 md:pt-0">
-        <Outlet />
-      </main>
-    </div>
+    // Admin settings live behind the shield next to the collapse toggle.
+    <NavShell
+      header={<AppHeader withActions={isAdmin} />}
+      sidebarActions={
+        isAdmin ? <SidebarActionLink to="/admin" label={t('adminConfig')} icon={ShieldCheck} /> : undefined
+      }
+      items={[
+        hasDashboard && { to: '/dashboard', label: t('dashboard'), icon: LayoutDashboard },
+        { to: '/projects', end: true, label: t('projects'), icon: FolderKanban },
+        hasFullPieceAccess && { to: '/pieces', label: t('pieces'), icon: Music },
+        canEditCalendars && { to: '/calendar', label: t('calendars'), icon: CalendarDays },
+      ]}
+      contentClassName=""
+    >
+      <Outlet />
+    </NavShell>
   );
 };

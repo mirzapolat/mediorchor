@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, FileMusic, FolderOpen, Info, Mic, Music, Settings, Workflow } from 'lucide-react';
-import { Sidebar, useSidebar } from '@/components/Sidebar';
-import { SidebarNavItem } from '@/components/SidebarNav';
-import { SidebarFooter } from '@/components/SidebarFooter';
+import { useSidebar } from '@/components/Sidebar';
+import { MobileContext, NavShell } from '@/components/NavShell';
 import { FadingText } from '@/components/FadingText';
 import { PageSpinner } from '@/components/Spinner';
 import { NoAccess } from '@/components/NoAccess';
@@ -93,34 +92,36 @@ export const PieceLayout = () => {
   const canTrain = piece.trainer_file_id != null;
 
   return (
-    <div className="flex h-full">
-      <Sidebar>
-        <PieceHeader piece={piece} onBack={() => navigate(scope.base)} />
-
-        <div className="flex-1 space-y-1 overflow-y-auto p-3">
-          <SidebarNavItem to={base} end label={t('pieceSheetPage')} icon={FileMusic} />
-          {/* Only once a MusicXML is on the trainer node (configuration). */}
-          {canTrain && <SidebarNavItem to={`${base}/training`} label={t('trainTitle')} icon={Mic} />}
-          <SidebarNavItem to={`${base}/files`} label={t('files')} icon={FolderOpen} />
-          <SidebarNavItem to={`${base}/details`} label={t('pieceDetailsPage')} icon={Info} />
-          {/* The project's training report: its managers only. */}
-          {scope.projectId && scope.canManageProject && (
-            <SidebarNavItem to={`${base}/report`} label={t('reportTitle')} icon={BarChart3} />
-          )}
-          {scope.canEdit && <SidebarNavItem to={`${base}/setup`} label={t('pieceConfigTitle')} icon={Workflow} />}
-          {(scope.canEdit || scope.canDelete || (scope.projectId && scope.canManageProject)) && (
-            <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
-          )}
-        </div>
-
-        <SidebarFooter />
-      </Sidebar>
-
-      <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
-        <div className="p-4 sm:p-6 lg:p-8">
-          <Outlet context={{ ...parent, pieceScope: scope, pieceLayout: { piece, patchPiece } }} />
-        </div>
-      </main>
-    </div>
+    <NavShell
+      header={<PieceHeader piece={piece} onBack={() => navigate(scope.base)} />}
+      items={[
+        { to: base, end: true, label: t('pieceSheetPage'), icon: FileMusic },
+        // Only once a MusicXML is on the trainer node (configuration).
+        canTrain && { to: `${base}/training`, label: t('trainTitle'), icon: Mic },
+        { to: `${base}/files`, label: t('files'), icon: FolderOpen },
+        { to: `${base}/details`, label: t('pieceDetailsPage'), icon: Info },
+        // The project's training report: its managers only, and only while
+        // the piece has training (the same signal as "Training" above).
+        canTrain && scope.projectId && scope.canManageProject && { to: `${base}/report`, label: t('reportTitle'), icon: BarChart3 },
+        scope.canEdit && { to: `${base}/setup`, label: t('pieceConfigTitle'), icon: Workflow },
+        (scope.canEdit || scope.canDelete || (scope.projectId && scope.canManageProject)) && {
+          to: `${base}/settings`,
+          label: t('settings'),
+          icon: Settings,
+        },
+      ]}
+      back={{ to: scope.base, label: t('pieces') }}
+      context={
+        <MobileContext
+          icon={Music}
+          title={piece.name}
+          meta={piece.composer || undefined}
+          description={piece.description.trim() || null}
+        />
+      }
+      contentClassName="p-4 sm:p-6 lg:p-8"
+    >
+      <Outlet context={{ ...parent, pieceScope: scope, pieceLayout: { piece, patchPiece } }} />
+    </NavShell>
   );
 };

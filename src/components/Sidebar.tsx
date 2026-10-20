@@ -7,12 +7,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { Menu, PanelLeftClose, PanelLeftOpen, X, type LucideIcon } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
-import { FadingText } from './FadingText';
-import { config } from '@/lib/config';
-import { AppLogo } from './AppLogo';
 
 const COLLAPSED_WIDTH = 64;
 const MIN_WIDTH = 200;
@@ -30,8 +27,7 @@ const SidebarContext = createContext<SidebarContextValue>({ collapsed: false });
 
 export const useSidebar = () => useContext(SidebarContext);
 
-// Tracks the desktop breakpoint so the sidebar can switch between its resizable
-// desktop rail and a mobile off-canvas drawer.
+// Tracks the desktop breakpoint: the sidebar's width applies there only.
 const useIsDesktop = () => {
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window !== 'undefined' && window.matchMedia(DESKTOP_QUERY).matches,
@@ -45,39 +41,31 @@ const useIsDesktop = () => {
   return isDesktop;
 };
 
-// Shared sidebar shell used by every layout. On desktop it is collapsible (to an
-// icon rail) and resizable by dragging its right edge; both states persist to
-// localStorage so the choice survives navigation and reloads. On mobile it
-// becomes an off-canvas drawer toggled from a fixed top bar.
+// The desktop sidebar shell used by every layout (through NavShell): it is
+// collapsible (to an icon rail) and resizable by dragging its right edge;
+// both states persist to localStorage so the choice survives navigation and
+// reloads. On phones it is not shown — NavShell's top navigation replaces it.
 //
 // `storageKey` namespaces the persisted collapsed/width state so several
-// sidebars (e.g. a primary one and a nested secondary one) keep independent
-// preferences.
-//
-// `hideMobileBar` suppresses the mobile top bar for nested/secondary sidebars
-// whose parent already renders one.
+// sidebars keep independent preferences.
 export const Sidebar = ({
   children,
   storageKey,
-  hideMobileBar = false,
   actions,
 }: {
   children: ReactNode;
   storageKey?: string;
-  hideMobileBar?: boolean;
   // Icon buttons shown next to the collapse toggle (e.g. settings). Use
   // SidebarActionLink for a consistent look.
   actions?: ReactNode;
 }) => {
   const { t } = useI18n();
   const isDesktop = useIsDesktop();
-  const location = useLocation();
   const widthKey = storageKey ? `${WIDTH_KEY}.${storageKey}` : WIDTH_KEY;
   const collapsedKey = storageKey ? `${COLLAPSED_KEY}.${storageKey}` : COLLAPSED_KEY;
   const [storedCollapsed, setStoredCollapsed] = useState(
     () => localStorage.getItem(collapsedKey) === '1',
   );
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [width, setWidth] = useState(() => {
     const v = Number(localStorage.getItem(widthKey));
     return v >= MIN_WIDTH && v <= MAX_WIDTH ? v : DEFAULT_WIDTH;
@@ -87,23 +75,7 @@ export const Sidebar = ({
   const dragging = useRef(false);
   const navRef = useRef<HTMLElement>(null);
 
-  // Inside the mobile drawer the rail is always fully expanded.
-  const collapsed = isDesktop ? storedCollapsed : false;
-
-  // Close the drawer whenever the route changes (e.g. tapping a nav item).
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
-
-  // Prevent the page behind the drawer from scrolling while it is open.
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [mobileOpen]);
+  const collapsed = storedCollapsed;
 
   const toggle = () =>
     setStoredCollapsed((c) => {
@@ -144,50 +116,21 @@ export const Sidebar = ({
 
   return (
     <SidebarContext.Provider value={{ collapsed }}>
-      {/* Mobile top bar: holds the hamburger that opens the drawer. */}
-      {!hideMobileBar && (
-        <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface px-4 md:hidden">
-          <button
-            onClick={() => setMobileOpen(true)}
-            aria-label={t('expand')}
-            className="-ml-1.5 rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-surface-hover"
-          >
-            <Menu size={20} />
-          </button>
-          <AppLogo className="h-5 w-5 flex-shrink-0" />
-          <FadingText className="font-semibold">{config.appName}</FadingText>
-        </div>
-      )}
-
-      {/* Backdrop behind the open mobile drawer. */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-scrim/40 backdrop-blur-sm md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
       <nav
         ref={navRef}
         style={isDesktop ? { width: collapsed ? COLLAPSED_WIDTH : width } : undefined}
         className={[
-          'flex h-full w-[280px] max-w-[85vw] flex-col border-r border-border bg-surface',
-          // Phones: room at the bottom for rounded display corners (the safe
-          // area where the browser reports one).
-          'pb-[max(1.25rem,env(safe-area-inset-bottom))] md:pb-0',
-          'fixed inset-y-0 left-0 z-50 transform transition-transform duration-200',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full',
-          'md:relative md:z-auto md:w-auto md:max-w-none md:translate-x-0 md:flex-shrink-0 md:transition-none',
-          // Desktop: a floating panel inset from the top, left and bottom edges
+          'relative hidden flex-shrink-0 flex-col border-r border-border bg-surface md:flex',
+          // A floating panel inset from the top, left and bottom edges
           // (stretched by the flex row, hence h-auto). Nested sidebars sit next
           // to each other with the same gap.
-          'md:my-3 md:ml-3 md:h-auto md:overflow-hidden md:rounded-2xl md:border',
-          'md:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]',
+          'my-3 ml-3 h-auto overflow-hidden rounded-2xl border',
+          'shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_-12px_rgba(0,0,0,0.12)]',
         ].join(' ')}
       >
         {collapsed ? (
           // Own slot at the top of the rail so it doesn't overlap the header.
-          <div className="hidden flex-col items-center gap-1 py-2.5 md:flex">
+          <div className="flex flex-col items-center gap-1 py-2.5">
             <button
               onClick={toggle}
               title={t('expand')}
@@ -199,22 +142,15 @@ export const Sidebar = ({
           </div>
         ) : (
           // Pinned to the top-right corner of the header when expanded: the
-          // actions, then collapse (desktop) or close (mobile drawer).
+          // actions, then collapse.
           <div className="absolute right-2 top-2.5 z-20 flex items-center gap-0.5">
             {actions}
             <button
               onClick={toggle}
               title={t('collapse')}
-              className="hidden p-1.5 rounded-md bg-surface text-text-secondary hover:bg-surface-hover transition-colors duration-150 md:block"
+              className="p-1.5 rounded-md bg-surface text-text-secondary hover:bg-surface-hover transition-colors duration-150"
             >
               <PanelLeftClose size={18} />
-            </button>
-            <button
-              onClick={() => setMobileOpen(false)}
-              aria-label={t('close')}
-              className="rounded-md p-1.5 text-text-secondary transition-colors duration-150 hover:bg-surface-hover md:hidden"
-            >
-              <X size={18} />
             </button>
           </div>
         )}
@@ -224,7 +160,7 @@ export const Sidebar = ({
         {!collapsed && (
           <div
             onMouseDown={onMouseDown}
-            className="absolute top-0 right-0 z-10 hidden h-full w-1 cursor-col-resize hover:bg-accent/40 transition-colors duration-150 md:block"
+            className="absolute top-0 right-0 z-10 h-full w-1 cursor-col-resize hover:bg-accent/40 transition-colors duration-150"
           />
         )}
       </nav>

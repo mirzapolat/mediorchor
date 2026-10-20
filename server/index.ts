@@ -16,6 +16,8 @@ import { storageRoutes, fileRoutes } from './storage.ts';
 import { linkPreviewRoutes } from './linkFetch.ts';
 import { pieceZipRoutes, startPieceFileMaintenance } from './pieceFiles.ts';
 import { adminRoutes } from './admin.ts';
+import { startConcertFileMaintenance } from './concerts.ts';
+import { FORM_PUBLIC_FUNCTIONS, formRoutes, startFormJobs } from './forms.ts';
 import { webhookRoutes } from './webhooks.ts';
 import { calendarFeedRoutes } from './calendarFeed.ts';
 import { rateLimit } from './ratelimit.ts';
@@ -62,6 +64,7 @@ const PUBLIC_FUNCTIONS = new Set([
   'get_public_registration',
   'submit_public_registration',
   'get_public_calendar',
+  ...FORM_PUBLIC_FUNCTIONS,
 ]);
 const enforceMfaSetup = async (c: Context, next: () => Promise<void>) => {
   const isPublicRpc = c.req.path.startsWith('/api/rpc/') && PUBLIC_FUNCTIONS.has(c.req.path.slice('/api/rpc/'.length));
@@ -129,6 +132,8 @@ app.route('/api/functions', adminRoutes);
 app.route('/api/webhooks', webhookRoutes);
 // Public iCal subscription links of the Kalender (token-authenticated).
 app.route('/api/calendar-feed', calendarFeedRoutes);
+// Surveys: uploads by respondents, files and ZIPs for managers.
+app.route('/api/forms', formRoutes);
 app.all('/api/*', (c) => c.json({ error: { message: 'Not found' } }, 404));
 
 app.route('/files', fileRoutes);
@@ -224,6 +229,8 @@ await bootstrapAdmin();
 purgeExpired();
 setInterval(purgeExpired, 60 * 60 * 1000).unref();
 startPieceFileMaintenance();
+startConcertFileMaintenance();
+startFormJobs();
 startNotifications();
 
 const server = serve({ fetch: app.fetch, port: env.port }, (info) => {

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate, Outlet, useMatch, useNavigate, useParams } from 'react-router-dom';
-import { BarChart3, CalendarDays, CalendarX2, ClipboardList, Music, Tags, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
-import { SidebarNavItem } from '@/components/SidebarNav';
-import { SidebarFooter } from '@/components/SidebarFooter';
-import { Sidebar, useSidebar } from '@/components/Sidebar';
+import { Navigate, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
+import { CreatedSummary } from '@/pages/ProjectOnboardingPage';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, ListChecks, Music, Music2, Tags, Tent, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
+import { useSidebar } from '@/components/Sidebar';
+import { MobileContext, NavShell } from '@/components/NavShell';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
 import { NoAccess } from '@/components/NoAccess';
@@ -16,6 +16,18 @@ import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { useAuth } from '@/hooks/useAuth';
 import { FadingText } from '@/components/FadingText';
 import type { Project } from '@/types';
+
+// What project_nav (server/projectNav.ts) says about the newer areas.
+interface ProjectNav {
+  concerts: boolean;
+  surveys: boolean;
+  // One's own listed surveys still to answer (a quiet badge).
+  open_surveys: number;
+  weekend: boolean;
+  // Confirmed for a published weekend but no room chosen yet.
+  room_missing: number;
+}
+const EMPTY_NAV: ProjectNav = { concerts: false, surveys: false, open_surveys: 0, weekend: false, room_missing: 0 };
 
 // Without `onBack` (a participant of a single project) there is no project
 // list to go back to.
@@ -88,12 +100,20 @@ export const ProjectLayout = () => {
   // An open piece brings its own sidebar (PieceLayout), or none in the
   // full-screen trainer: the project's is left out.
   const pieceOpen = useMatch('/projects/:projectId/pieces/:pieceId/*') != null;
+  // An open rehearsal weekend brings its own sidebar too (WeekendLayout).
+  const weekendOpen = useMatch('/projects/:projectId/weekend/:weekendId/*') != null;
   const navigate = useNavigate();
   // Project settings need access to all projects, not just this one.
   const { canManageProjects, canParticipate, soleProjectId } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [unrecognizedCount, setUnrecognizedCount] = useState(0);
+  const [nav, setNav] = useState<ProjectNav>(EMPTY_NAV);
+  // What the project set-up created (once, right after it).
+  const location = useLocation();
+  const [created, setCreated] = useState<Record<string, number> | null>(
+    () => (location.state as { created?: Record<string, number> } | null)?.created ?? null,
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -125,6 +145,17 @@ export const ProjectLayout = () => {
     setUnrecognizedCount(count ?? 0);
   }, [projectId]);
 
+  // Which of the newer areas the caller sees, and their quiet counts.
+  const loadNav = useCallback(async () => {
+    if (!projectId) return;
+    const { data } = await api.rpc('project_nav', { p_project_id: projectId });
+    setNav({ ...EMPTY_NAV, ...((data as Partial<ProjectNav> | null) ?? {}) });
+  }, [projectId]);
+
+  useEffect(() => {
+    void loadNav();
+  }, [loadNav]);
+
   useEffect(() => {
     if (!canManage) return;
     void loadCheckinWarnings();
@@ -144,71 +175,80 @@ export const ProjectLayout = () => {
       ? { access: 'participants' as const, accessLabel: t('pageVisibleToParticipants') }
       : {};
 
-  if (pieceOpen) {
+  if (pieceOpen || weekendOpen) {
     return (
       <div className="h-full overflow-y-auto">
         <ProjectGroupsProvider projectId={project.id}>
-          <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
+          <Outlet context={{ project, canManage, reloadProject: () => navigate(0), reloadNav: loadNav }} />
         </ProjectGroupsProvider>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full">
-      <Sidebar>
-        <ProjectHeader project={project} onBack={soleProjectId ? undefined : () => navigate('/projects')} />
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {canParticipate && (
-            <SidebarNavItem
-              to={`${base}/participation`}
-              label={t('myParticipation')}
-              icon={UserRound}
-              {...visibleTo(true)}
-            />
-          )}
-          {canManage && (
-            <SidebarNavItem
-              to={`${base}/events`}
-              label={t('events')}
-              icon={CalendarDays}
-              warningCount={unrecognizedCount}
-              {...visibleTo(false)}
-            />
-          )}
-          {(canManage || project.allow_participant_pieces) && (
-            <SidebarNavItem
-              to={`${base}/pieces`}
-              label={t('pieces')}
-              icon={Music}
-              {...visibleTo(project.allow_participant_pieces)}
-            />
-          )}
-          {canManage && (
-            <>
-              <SidebarNavItem to={`${base}/members`} label={t('members')} icon={Users} {...visibleTo(false)} />
-              <SidebarNavItem to={`${base}/groups`} label={t('groupsList')} icon={Tags} {...visibleTo(false)} />
-              <SidebarNavItem to={`${base}/registrations`} label={t('registration')} icon={ClipboardList} {...visibleTo(false)} />
-              <SidebarNavItem to={`${base}/absences`} label={t('absences')} icon={CalendarX2} {...visibleTo(false)} />
-              <SidebarNavItem to={`${base}/statistics`} label={t('statistics')} icon={BarChart3} {...visibleTo(false)} />
-              {canManageProjects && (
-                <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} {...visibleTo(false)} />
-              )}
-            </>
-          )}
-        </div>
-
-        <SidebarFooter />
-      </Sidebar>
-
-      <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
-        <div className="max-w-[1400px] p-4 sm:p-6 lg:p-8">
-          <ProjectGroupsProvider projectId={project.id}>
-            <Outlet context={{ project, canManage, reloadProject: () => navigate(0) }} />
-          </ProjectGroupsProvider>
-        </div>
-      </main>
-    </div>
+    <NavShell
+      header={<ProjectHeader project={project} onBack={soleProjectId ? undefined : () => navigate('/projects')} />}
+      items={[
+        canParticipate && {
+          to: `${base}/participation`,
+          label: t('myParticipation'),
+          icon: UserRound,
+          ...visibleTo(true),
+        },
+        (canManage || nav.surveys) && {
+          to: `${base}/surveys`,
+          label: t('surveys'),
+          icon: ListChecks,
+          badge: nav.open_surveys,
+          ...visibleTo(true),
+        },
+        (canManage || nav.weekend) && {
+          to: `${base}/weekend`,
+          label: t('weekend'),
+          icon: Tent,
+          badge: nav.room_missing,
+          ...visibleTo(true),
+        },
+        (canManage || nav.concerts) && {
+          to: `${base}/concerts`,
+          label: t('concerts'),
+          icon: Music2,
+          ...visibleTo(true),
+        },
+        (canManage || project.allow_participant_pieces) && {
+          to: `${base}/pieces`,
+          label: t('pieces'),
+          icon: Music,
+          ...visibleTo(project.allow_participant_pieces),
+        },
+        canManage && {
+          to: `${base}/events`,
+          label: t('events'),
+          icon: CalendarDays,
+          warningCount: unrecognizedCount,
+          ...visibleTo(false),
+        },
+        canManage && { to: `${base}/members`, label: t('members'), icon: Users, ...visibleTo(false) },
+        canManage && { to: `${base}/groups`, label: t('groupsList'), icon: Tags, ...visibleTo(false) },
+        canManage && { to: `${base}/registrations`, label: t('registration'), icon: ClipboardList, ...visibleTo(false) },
+        canManage && { to: `${base}/absences`, label: t('absences'), icon: CalendarX2, ...visibleTo(false) },
+        canManage && { to: `${base}/statistics`, label: t('statistics'), icon: BarChart3, ...visibleTo(false) },
+        canManage &&
+          canManageProjects && { to: `${base}/settings`, label: t('settings'), icon: Settings, ...visibleTo(false) },
+      ]}
+      // A participant of a single project has no project list to go back to.
+      back={soleProjectId ? null : { to: '/projects', label: t('projects') }}
+      context={
+        <MobileContext
+          image={<Avatar name={project.name} photoUrl={project.image_url} size={40} square />}
+          title={project.name}
+        />
+      }
+    >
+      {created && <CreatedSummary summary={created} onClose={() => setCreated(null)} />}
+      <ProjectGroupsProvider projectId={project.id}>
+        <Outlet context={{ project, canManage, reloadProject: () => navigate(0), reloadNav: loadNav }} />
+      </ProjectGroupsProvider>
+    </NavShell>
   );
 };

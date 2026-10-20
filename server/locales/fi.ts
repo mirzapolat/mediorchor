@@ -104,6 +104,22 @@ const fi: MailTexts = {
   }),
   weeklyExcused: 'ilmoitettu poissaolo',
   weeklyPresent: 'merkitty paikalla olevaksi',
+
+  formCopy: (title: string, answers: string[]) => ({
+    subject: `Vastauksesi: ${title}`,
+    lines: [hei(), '', `kiitos vastauksestasi kyselyyn ”${title}”. Vastauksesi:`, '', ...answers],
+  }),
+  formResponseNotice: (title: string, total: number, link: string | null) => ({
+    subject: `Uusi vastaus: ${title}`,
+    lines: [hei(), '', `”${title}” sai uuden vastauksen (yhteensä ${total}).`, ...(link ? ['', link] : [])],
+  }),
+  formDigest: (title: string, added: number, total: number, link: string | null) => ({
+    subject: `${added} uutta vastausta: ${title}`,
+    lines: [hei(), '', `”${title}” sai ${added} uutta vastausta (yhteensä ${total}).`, ...(link ? ['', link] : [])],
+  }),
+  formYes: 'Kyllä',
+  formNo: 'Ei',
+  formFiles: (n: number) => (n === 1 ? '1 tiedosto' : `${n} tiedostoa`),
 };
 
 export default fi;

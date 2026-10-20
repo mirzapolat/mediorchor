@@ -46,6 +46,8 @@ interface AuditContext {
   failure: { status: number; message: string } | null;
   changes: number;
   flushed: boolean;
+  // Set for anonymous survey responses: nothing about the sender is kept.
+  anonymized: boolean;
 }
 
 const storage = new AsyncLocalStorage<AuditContext>();
@@ -66,6 +68,7 @@ const newContext = (init: Partial<AuditContext> & Pick<AuditContext, 'kind' | 'a
   failure: null,
   changes: 0,
   flushed: false,
+  anonymized: false,
   ...init,
 });
 
@@ -105,6 +108,13 @@ const SKIP_TABLES = new Set([
   'confirmation_log',
   'notification_log',
   'notification_outbox',
+  // Survey answers never reach the log: what people answered, when they
+  // drafted, what they uploaded and that they took part (server/forms.ts
+  // records only that a response came in).
+  'form_responses',
+  'form_receipts',
+  'form_drafts',
+  'form_files',
 ]);
 
 // Columns that change by themselves (timestamps, counters, heartbeats) or
@@ -117,6 +127,10 @@ const IGNORED: Record<string, string[]> = {
   calendar_links: ['last_fetched_at'],
   pieces: ['markers_locked_at'],
   registration_pages: ['webhook_last_payload', 'webhook_last_received_at', 'webhook_last_status'],
+  // The builder saves the draft while typing; publishing is the action.
+  forms: ['draft', 'draft_saved_at', 'notify_sent_at', 'notify_sent_count'],
+  // Saved while typing; creating the project is the action.
+  onboarding_drafts: ['data'],
 };
 
 // Secrets and credentials: recorded as changed, never with their value.
@@ -129,6 +143,8 @@ const SECRET: Record<string, string[]> = {
   event_checkins: ['token'],
   calendars: ['feed_token'],
   calendar_links: ['token'],
+  forms: ['token'],
+  form_invites: ['token'],
 };
 
 const SECRET_VALUE = { $secret: true };
@@ -436,7 +452,7 @@ const flush = (ctx: AuditContext) => {
 // sign-in starts one).
 export const auditActor = (userId: string | null | undefined) => {
   const ctx = storage.getStore();
-  if (!ctx || !userId || ctx.actorId === userId) return;
+  if (!ctx || !userId || ctx.actorId === userId || ctx.anonymized) return;
   ctx.actorId = userId;
   if (ctx.kind === 'anonymous') ctx.kind = 'user';
 };
@@ -454,7 +470,7 @@ export const auditNote = (note: {
   denied?: number;
 }) => {
   const ctx = storage.getStore();
-  if (!ctx) return;
+  if (!ctx || ctx.anonymized) return;
   if (note.action) ctx.action = note.action;
   if (note.target !== undefined) ctx.target = note.target;
   if (note.details) Object.assign(ctx.details, note.details);
@@ -464,6 +480,28 @@ export const auditNote = (note: {
     ctx.details.denied_rows = note.denied;
     ctx.failure = { status: 403, message: 'Permission denied' };
   }
+};
+
+// An anonymous survey response (or its upload): the entry may only say that
+// one came in — not who sent it, from where, with which device or link. Holds
+// for the rest of the request (later notes can't add anything back).
+export const auditAnonymous = (action: string) => {
+  const ctx = storage.getStore();
+  if (!ctx) return;
+  Object.assign(ctx, {
+    kind: 'anonymous',
+    actorId: null,
+    actorName: null,
+    action,
+    target: null,
+    method: null,
+    path: null,
+    ip: null,
+    userAgent: null,
+    details: {},
+    force: true,
+    anonymized: true,
+  });
 };
 
 // Requests that change nothing although they are POSTs: steps of a sign-in

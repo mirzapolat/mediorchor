@@ -9,6 +9,8 @@ export interface NavItem {
   icon: LucideIcon;
   end?: boolean;
   warningCount?: number;
+  // A quiet count of one's own open things (e.g. surveys still to answer).
+  badge?: number;
   // 'participants': participants can open the page too, shown as a small globe
   // on the right. Unset = no icon; pass it only to people with write access,
   // participants don't need the hint.
@@ -16,7 +18,7 @@ export interface NavItem {
   accessLabel?: string;
 }
 
-export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, access, accessLabel }: NavItem) => {
+export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, badge = 0, access, accessLabel }: NavItem) => {
   const { collapsed } = useSidebar();
   const hasWarning = warningCount > 0;
   return (
@@ -36,6 +38,8 @@ export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, a
         <Icon size={18} />
         {collapsed && hasWarning ? (
           <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-danger" />
+        ) : collapsed && badge > 0 ? (
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-accent" />
         ) : null}
       </span>
       {!collapsed ? (
@@ -45,6 +49,10 @@ export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, a
             <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-danger-soft px-1.5 py-0.5 text-xs font-semibold text-danger-strong">
               <AlertTriangle size={12} />
               {warningCount}
+            </span>
+          ) : badge > 0 ? (
+            <span className="min-w-[1.25rem] flex-shrink-0 rounded-full bg-accent/20 px-1.5 text-center text-xs font-semibold text-text">
+              {badge}
             </span>
           ) : null}
           {access ? (

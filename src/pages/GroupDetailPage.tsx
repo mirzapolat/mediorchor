@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Pencil, StickyNote, Trash2, Users, UserRoundCheck } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -14,7 +14,8 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import { useProjectGroups } from '@/hooks/useProjectGroups';
-import type { Member } from '@/types';
+import { useGroupResponsibilities } from '@/lib/groupResponsibles';
+import type { GroupResponsible, Member } from '@/types';
 
 export const GroupDetailPage = () => {
   const { t } = useI18n();
@@ -26,6 +27,7 @@ export const GroupDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const responsibilities = useGroupResponsibilities(project.id);
 
   const group = groups.find((g) => g.id === groupId);
   const backToList = () => navigate(`/projects/${project.id}/groups`);
@@ -154,6 +156,12 @@ export const GroupDetailPage = () => {
         <GroupPill name={group.name} color={group.color} className="text-sm" />
       </div>
 
+      <ResponsibilityCard
+        people={responsibilities.byGroup.get(group.id) ?? []}
+        note={responsibilities.notes.get(group.id) ?? ''}
+        onEdit={() => setFormOpen(true)}
+      />
+
       <DataTable
         rows={members}
         columns={columns}
@@ -180,8 +188,15 @@ export const GroupDetailPage = () => {
         projectId={project.id}
         group={group}
         groups={groups}
+        responsibility={{
+          people: responsibilities.byGroup.get(group.id) ?? [],
+          note: responsibilities.notes.get(group.id) ?? '',
+        }}
         onClose={() => setFormOpen(false)}
-        onSaved={() => void reloadGroups()}
+        onSaved={() => {
+          void reloadGroups();
+          void responsibilities.reload();
+        }}
       />
 
       <ConfirmDialog
@@ -194,5 +209,64 @@ export const GroupDetailPage = () => {
         onCancel={() => setConfirmDelete(false)}
       />
     </>
+  );
+};
+
+// Who looks after the group and its internal note (managers only; grants
+// no rights). Compact: people in a row, the note below.
+const ResponsibilityCard = ({
+  people,
+  note,
+  onEdit,
+}: {
+  people: GroupResponsible[];
+  note: string;
+  onEdit: () => void;
+}) => {
+  const { t } = useI18n();
+  return (
+    <section className="mb-6 rounded-2xl border border-border bg-surface px-4 py-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">{t('groupResponsibles')}</h2>
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={t('edit')}
+          className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text"
+        >
+          <Pencil size={14} />
+        </button>
+      </div>
+      {people.length === 0 ? (
+        <p className="mt-1 text-sm text-text-tertiary">{t('groupNoResponsibles')}</p>
+      ) : (
+        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+          {people.map((p) => (
+            <li key={p.id} className="flex min-w-0 items-center gap-2">
+              <Avatar name={p.name || p.email} photoUrl={p.photo_url} size={28} />
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate text-sm font-medium">{p.name || p.email}</span>
+                <span className="flex items-center gap-1 truncate text-xs text-text-tertiary">
+                  {p.member?.status === 'active' ? (
+                    <>
+                      <UserRoundCheck size={11} aria-hidden />
+                      {p.member.group_name ?? t('personIsMember')}
+                    </>
+                  ) : (
+                    t('groupResponsiblesNotMember')
+                  )}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {note && (
+        <p className="mt-3 flex items-start gap-2 whitespace-pre-line border-t border-border pt-2.5 text-sm text-text-secondary">
+          <StickyNote size={14} className="mt-0.5 flex-shrink-0 text-text-tertiary" aria-label={t('groupNote')} />
+          {note}
+        </p>
+      )}
+    </section>
   );
 };

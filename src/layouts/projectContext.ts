@@ -7,6 +7,8 @@ export interface ProjectOutletContext {
   // it the user is a plain participant and only sees Teilnahme + Stücke.
   canManage: boolean;
   reloadProject: () => void;
+  // Refreshes which areas the navigation shows (after publishing, …).
+  reloadNav?: () => Promise<void>;
 }
 
 export const useProjectContext = () => useOutletContext<ProjectOutletContext>();

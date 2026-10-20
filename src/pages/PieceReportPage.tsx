@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { GroupPill } from '@/components/GroupPill';
 import { NoAccess } from '@/components/NoAccess';
@@ -64,22 +65,25 @@ const Meter = ({ value, className }: { value: number; className?: string }) => (
 export const PieceReportPage = () => {
   const { t, lang } = useI18n();
   const locale = localeOf(lang);
-  const { projectId, canManageProject } = usePieceScope();
+  const { projectId, canManageProject, base } = usePieceScope();
   const { piece } = usePieceLayout();
+  // Only while the piece has training (as its "Training" page); without it
+  // an old link leads back to the piece and asks for no report.
+  const canTrain = piece.trainer_file_id != null;
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [trackId, setTrackId] = useState<string | null>(null);
   const [barIndex, setBarIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!projectId || !canManageProject) return;
+    if (!projectId || !canManageProject || !canTrain) return;
     void api.rpc('piece_training_report', { p_project_id: projectId, p_piece_id: piece.id }).then(({ data, error: rpcError }) => {
       if (rpcError) return setError(rpcError.message);
       const r = data as Report;
       setReport(r);
       setTrackId(r.tracks[0]?.id ?? null);
     });
-  }, [projectId, canManageProject, piece.id]);
+  }, [projectId, canManageProject, canTrain, piece.id]);
 
   const track = report?.tracks.find((x) => x.id === trackId) ?? null;
   const sung = useMemo(() => (track?.measures ?? []).filter((m) => m.accuracy != null), [track]);
@@ -94,6 +98,7 @@ export const PieceReportPage = () => {
   );
   const bar = track?.measures.find((m) => m.index === barIndex) ?? weakest[0] ?? null;
 
+  if (!canTrain) return <Navigate to={`${base}/${piece.id}`} replace />;
   if (!projectId || !canManageProject) return <NoAccess />;
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!report) {

@@ -418,7 +418,7 @@ export const PieceDetailPage = () => {
           'flex flex-col',
           fullscreen
             ? 'mx-auto min-h-[100dvh] max-w-6xl px-4 pb-4 pt-14 sm:px-6 sm:pb-6 lg:px-8 lg:pt-16'
-            : 'min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6.5rem)] md:min-h-[calc(100dvh-3rem)] lg:min-h-[calc(100dvh-4rem)]',
+            : 'min-h-[calc(100dvh-9rem)] sm:min-h-[calc(100dvh-10rem)] md:min-h-[calc(100dvh-3rem)] lg:min-h-[calc(100dvh-4rem)]',
         )}
       >
         {!fullscreen && toolbar}

@@ -2,9 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { NoAccess } from '@/components/NoAccess';
 import { CheckSquare, Settings, ArrowLeft, CalendarDays, Clock, ListMusic, QrCode } from 'lucide-react';
-import { SidebarNavItem } from '@/components/SidebarNav';
-import { SidebarFooter } from '@/components/SidebarFooter';
-import { Sidebar, useSidebar } from '@/components/Sidebar';
+import { useSidebar } from '@/components/Sidebar';
+import { MobileContext, NavShell } from '@/components/NavShell';
 import { PageSpinner } from '@/components/Spinner';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
@@ -12,6 +11,25 @@ import { api } from '@/lib/api';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { FadingText } from '@/components/FadingText';
 import type { Event, Project } from '@/types';
+
+// Date and time of the Probe (sidebar header and mobile context).
+const EventMeta = ({ event }: { event: Event }) =>
+  event.date || event.time ? (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+      {event.date && (
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarDays size={13} />
+          {event.date}
+        </span>
+      )}
+      {event.time && (
+        <span className="inline-flex items-center gap-1.5">
+          <Clock size={13} />
+          {event.time}
+        </span>
+      )}
+    </span>
+  ) : null;
 
 const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) => {
   const { t } = useI18n();
@@ -38,19 +56,8 @@ const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) =>
         <div className="px-5 py-4 border-b border-border">
           <FadingText className="block font-semibold">{event.name}</FadingText>
           {(event.date || event.time) && (
-            <div className="flex items-center gap-3 text-sm text-text-secondary mt-1">
-              {event.date && (
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarDays size={13} />
-                  {event.date}
-                </span>
-              )}
-              {event.time && (
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock size={13} />
-                  {event.time}
-                </span>
-              )}
+            <div className="mt-1 text-sm text-text-secondary">
+              <EventMeta event={event} />
             </div>
           )}
         </div>
@@ -120,34 +127,20 @@ export const EventLayout = () => {
   const base = `/projects/${project.id}/events/${event.id}`;
 
   return (
-    <div className="flex h-full">
-      <Sidebar>
-        <EventHeader event={event} onBack={() => navigate(`/projects/${project.id}/events`)} />
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <SidebarNavItem to={base} end label={t('attendance')} icon={CheckSquare} />
-          <SidebarNavItem to={`${base}/program`} label={t('program')} icon={ListMusic} />
-          <SidebarNavItem
-            to={`${base}/check-in`}
-            label={t('checkIn')}
-            icon={QrCode}
-            warningCount={unrecognizedCount}
-          />
-          <SidebarNavItem to={`${base}/settings`} label={t('settings')} icon={Settings} />
-        </div>
-
-        <SidebarFooter />
-      </Sidebar>
-
-      <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
-          <ProjectGroupsProvider projectId={project.id}>
-            <Outlet
-              context={{ project, event, reloadEvent: loadEvent, reloadCheckinWarnings: loadCheckinWarnings }}
-            />
-          </ProjectGroupsProvider>
-        </div>
-      </main>
-    </div>
+    <NavShell
+      header={<EventHeader event={event} onBack={() => navigate(`/projects/${project.id}/events`)} />}
+      items={[
+        { to: base, end: true, label: t('attendance'), icon: CheckSquare },
+        { to: `${base}/program`, label: t('program'), icon: ListMusic },
+        { to: `${base}/check-in`, label: t('checkIn'), icon: QrCode, warningCount: unrecognizedCount },
+        { to: `${base}/settings`, label: t('settings'), icon: Settings },
+      ]}
+      back={{ to: `/projects/${project.id}/events`, label: t('events') }}
+      context={<MobileContext icon={CheckSquare} title={event.name} meta={<EventMeta event={event} />} />}
+    >
+      <ProjectGroupsProvider projectId={project.id}>
+        <Outlet context={{ project, event, reloadEvent: loadEvent, reloadCheckinWarnings: loadCheckinWarnings }} />
+      </ProjectGroupsProvider>
+    </NavShell>
   );
 };

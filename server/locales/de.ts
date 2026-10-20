@@ -111,6 +111,22 @@ const de: MailTexts = {
   }),
   weeklyExcused: 'entschuldigt',
   weeklyPresent: 'als anwesend eingetragen',
+
+  formCopy: (title: string, answers: string[]) => ({
+    subject: `Deine Antwort: ${title}`,
+    lines: [hallo(), '', `danke für deine Antwort auf „${title}“. Deine Angaben:`, '', ...answers],
+  }),
+  formResponseNotice: (title: string, total: number, link: string | null) => ({
+    subject: `Neue Antwort: ${title}`,
+    lines: [hallo(), '', `„${title}“ hat eine neue Antwort erhalten (${total} insgesamt).`, ...(link ? ['', link] : [])],
+  }),
+  formDigest: (title: string, added: number, total: number, link: string | null) => ({
+    subject: `${added} neue Antworten: ${title}`,
+    lines: [hallo(), '', `„${title}“ hat ${added} neue Antworten erhalten (${total} insgesamt).`, ...(link ? ['', link] : [])],
+  }),
+  formYes: 'Ja',
+  formNo: 'Nein',
+  formFiles: (n: number) => (n === 1 ? '1 Datei' : `${n} Dateien`),
 };
 
 export default de;
