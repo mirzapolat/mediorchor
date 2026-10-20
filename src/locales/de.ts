@@ -2198,6 +2198,13 @@ const de: Messages = {
   allSurveysAnswered: 'Alles beantwortet — danke!',
   surveysDone: 'Erledigt ({n})',
   allSurveys: 'Alle Umfragen',
+  widgetWeekends: 'Probenwochenenden',
+  widgetConcerts: 'Konzerte',
+  noUpcomingWeekends: 'Kein anstehendes Probenwochenende',
+  noUpcomingConcerts: 'Kein anstehendes Konzert',
+  weekendRunning: 'Läuft',
+  tomorrow: 'Morgen',
+  inDays: 'in {n} Tagen',
 
   // Rehearsal weekends
   you: 'du',

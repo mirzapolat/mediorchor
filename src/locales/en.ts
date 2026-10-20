@@ -2150,6 +2150,13 @@ const en = {
   allSurveysAnswered: 'All answered — thank you!',
   surveysDone: 'Done ({n})',
   allSurveys: 'All surveys',
+  widgetWeekends: 'Rehearsal weekends',
+  widgetConcerts: 'Concerts',
+  noUpcomingWeekends: 'No upcoming rehearsal weekend',
+  noUpcomingConcerts: 'No upcoming concert',
+  weekendRunning: 'Ongoing',
+  tomorrow: 'Tomorrow',
+  inDays: 'in {n} days',
 
   // Rehearsal weekends
   you: 'you',

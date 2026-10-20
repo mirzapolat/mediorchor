@@ -2149,6 +2149,13 @@ const fi: Messages = {
   allSurveysAnswered: 'Kaikkiin vastattu – kiitos!',
   surveysDone: 'Valmiit ({n})',
   allSurveys: 'Kaikki kyselyt',
+  widgetWeekends: 'Harjoitusviikonloput',
+  widgetConcerts: 'Konsertit',
+  noUpcomingWeekends: 'Ei tulevia harjoitusviikonloppuja',
+  noUpcomingConcerts: 'Ei tulevia konsertteja',
+  weekendRunning: 'Käynnissä',
+  tomorrow: 'Huomenna',
+  inDays: '{n} päivän päästä',
 
   // Rehearsal weekends
   you: 'sinä',

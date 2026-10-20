@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { BedDouble, CheckCircle2, ChevronRight, CircleDashed, PencilLine } from 'lucide-react';
+import { BedDouble, CheckCircle2, ChevronRight, CircleDashed, MapPin, PencilLine } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { EventWhen } from '@/components/EventWhen';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -8,7 +8,19 @@ import { useI18n } from '@/lib/i18n';
 import { localeOf } from '@shared/languages';
 import { localToday } from '@/lib/eventTiming';
 import { EventProgram } from '@/components/EventProgram';
-import { PROJECTS_PREVIEW, REHEARSALS_PREVIEW, SURVEYS_PREVIEW, type RoomTask, type SurveyTask, type UpcomingRehearsal } from '@/lib/dashboard';
+import { weekendDates } from '@/lib/weekends';
+import {
+  CONCERTS_PREVIEW,
+  PROJECTS_PREVIEW,
+  REHEARSALS_PREVIEW,
+  SURVEYS_PREVIEW,
+  WEEKENDS_PREVIEW,
+  type RoomTask,
+  type SurveyTask,
+  type UpcomingConcert,
+  type UpcomingRehearsal,
+  type UpcomingWeekend,
+} from '@/lib/dashboard';
 import { cn } from '@/lib/cn';
 import type { AttendanceDisplayStatus, Event, Project } from '@/types';
 
@@ -125,6 +137,159 @@ export const UpcomingRehearsalsWidget = ({ rehearsals }: { rehearsals: UpcomingR
         })}
       </ul>
       <MoreLink hidden={rehearsals.length - REHEARSALS_PREVIEW} />
+    </>
+  );
+};
+
+// Whole days from today to an ISO date (negative once it has passed).
+const daysUntil = (iso: string, today: string) =>
+  Math.round((Date.parse(`${iso}T00:00:00`) - Date.parse(`${today}T00:00:00`)) / 86_400_000);
+
+// "Heute", "Morgen", "in 5 Tagen" — only for the next few weeks.
+const useSoon = () => {
+  const { t } = useI18n();
+  const today = localToday();
+  return (date: string) => {
+    const days = daysUntil(date, today);
+    if (days <= 0) return t('today');
+    if (days === 1) return t('tomorrow');
+    if (days <= 30) return t('inDays').replace('{n}', String(days));
+    return null;
+  };
+};
+
+// One dated entry of the weekend and concert widgets: a date tile (the
+// soonest one in the accent), title with how soon, the when and the project.
+const DatedRow = ({
+  to,
+  date,
+  title,
+  soon,
+  first,
+  meta,
+  project,
+}: {
+  to: string;
+  date: string;
+  title: string;
+  soon: string | null;
+  first: boolean;
+  meta: ReactNode;
+  project: Project;
+}) => {
+  const { lang } = useI18n();
+  const d = new Date(`${date}T00:00:00`);
+  return (
+    <li>
+      <Link
+        to={to}
+        className="group flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-surface-subtle"
+      >
+        <span
+          className={cn(
+            'flex h-11 w-11 flex-shrink-0 flex-col items-center justify-center rounded-xl leading-none',
+            first ? 'bg-accent/15 text-accent' : 'bg-surface-muted text-text-secondary',
+          )}
+        >
+          <span className="text-base font-bold">{d.getDate()}</span>
+          <span className="mt-0.5 text-[10px] font-semibold uppercase">
+            {d.toLocaleDateString(localeOf(lang), { month: 'short' })}
+          </span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 truncate font-medium" title={title}>
+              {title}
+            </span>
+            {soon && (
+              <span
+                className={cn(
+                  'flex-shrink-0 rounded-full px-2 py-px text-xs font-semibold',
+                  first ? 'bg-success-soft-strong text-success-strong' : 'bg-surface-muted text-text-secondary',
+                )}
+              >
+                {soon}
+              </span>
+            )}
+          </span>
+          <span className="block truncate text-sm text-text-secondary">{meta}</span>
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-text-tertiary">
+            <Avatar name={project.name} photoUrl={project.image_url} size={16} square />
+            <span className="truncate">{project.name}</span>
+          </span>
+        </span>
+        <ChevronRight
+          size={16}
+          className="flex-shrink-0 text-text-tertiary transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-text-secondary"
+        />
+      </Link>
+    </li>
+  );
+};
+
+// "Probenwochenenden": the published weekends of the account's projects that
+// haven't ended yet; each opens its overview.
+export const UpcomingWeekendsWidget = ({ weekends }: { weekends: UpcomingWeekend[] }) => {
+  const { t, lang } = useI18n();
+  const soon = useSoon();
+  const today = localToday();
+  if (weekends.length === 0) return <p className="py-2 text-sm text-text-tertiary">{t('noUpcomingWeekends')}</p>;
+  return (
+    <>
+      <ul className="-mx-2">
+        {weekends.slice(0, WEEKENDS_PREVIEW).map((w, i) => (
+          <DatedRow
+            key={w.id}
+            to={`/projects/${w.project.id}/weekend/${w.id}`}
+            date={w.starts_on!}
+            title={w.title}
+            soon={w.starts_on! < today ? t('weekendRunning') : soon(w.starts_on!)}
+            first={i === 0}
+            meta={[weekendDates(w, lang), w.location].filter(Boolean).join(' · ')}
+            project={w.project}
+          />
+        ))}
+      </ul>
+      <MoreLink hidden={weekends.length - WEEKENDS_PREVIEW} />
+    </>
+  );
+};
+
+// "Konzerte": the next published concerts of the account's projects; each
+// opens the concert.
+export const UpcomingConcertsWidget = ({ concerts }: { concerts: UpcomingConcert[] }) => {
+  const { t, lang } = useI18n();
+  const soon = useSoon();
+  if (concerts.length === 0) return <p className="py-2 text-sm text-text-tertiary">{t('noUpcomingConcerts')}</p>;
+  const day = (date: string) =>
+    new Date(`${date}T00:00:00`).toLocaleDateString(localeOf(lang), { weekday: 'short', day: 'numeric', month: 'short' });
+  return (
+    <>
+      <ul className="-mx-2">
+        {concerts.slice(0, CONCERTS_PREVIEW).map((c, i) => (
+          <DatedRow
+            key={c.id}
+            to={`/projects/${c.project.id}/concerts/${c.id}`}
+            date={c.date!}
+            title={c.title}
+            soon={soon(c.date!)}
+            first={i === 0}
+            meta={
+              <>
+                {[day(c.date!), c.time && (c.end_time ? `${c.time}–${c.end_time}` : c.time)].filter(Boolean).join(' · ')}
+                {c.location && (
+                  <>
+                    {' · '}
+                    <MapPin size={12} className="inline align-[-1px]" /> {c.location}
+                  </>
+                )}
+              </>
+            }
+            project={c.project}
+          />
+        ))}
+      </ul>
+      <MoreLink hidden={concerts.length - CONCERTS_PREVIEW} />
     </>
   );
 };

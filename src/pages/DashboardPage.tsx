@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowDown,
@@ -12,7 +12,9 @@ import {
   ListChecks,
   Mail,
   Megaphone,
+  Music2,
   SlidersHorizontal,
+  Tent,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -20,7 +22,13 @@ import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
 import { Card } from '@/components/Card';
 import { HeaderAction } from '@/components/HeaderAction';
-import { ActiveSurveysWidget, ParticipationWidget, UpcomingRehearsalsWidget } from '@/components/dashboard/DashboardWidgets';
+import {
+  ActiveSurveysWidget,
+  ParticipationWidget,
+  UpcomingConcertsWidget,
+  UpcomingRehearsalsWidget,
+  UpcomingWeekendsWidget,
+} from '@/components/dashboard/DashboardWidgets';
 import { loadDashboardData, type DashboardData } from '@/lib/dashboard';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,7 +36,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import type { DashboardWidgetState } from '@/types';
 
-type WidgetId = 'participation' | 'upcoming' | 'surveys';
+type WidgetId = 'participation' | 'upcoming' | 'surveys' | 'weekends' | 'concerts';
 
 // Every widget, in its default order. A widget added here later shows up on
 // everyone's dashboard after the ones they arranged.
@@ -36,7 +44,38 @@ const WIDGETS: { id: WidgetId; title: TranslationKey; icon: LucideIcon }[] = [
   { id: 'participation', title: 'widgetParticipation', icon: FolderKanban },
   { id: 'upcoming', title: 'widgetUpcoming', icon: CalendarClock },
   { id: 'surveys', title: 'widgetSurveys', icon: ListChecks },
+  { id: 'weekends', title: 'widgetWeekends', icon: Tent },
+  { id: 'concerts', title: 'widgetConcerts', icon: Music2 },
 ];
+
+// Masonry: the grid has tiny rows and each widget spans as many as its height
+// needs, so the next one fills the gap below the shorter widget instead of
+// starting a new row. The DOM (and reading) order stays the layout's order.
+const MASONRY_ROW = 4; // px, as the grid's auto-rows-[4px]
+
+const MasonryItem = ({ children }: { children: ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [span, setSpan] = useState<number>();
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el?.parentElement) return;
+    const grid = el.parentElement;
+    const measure = () => {
+      const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+      setSpan(Math.ceil((el.firstElementChild!.getBoundingClientRect().height + gap) / MASONRY_ROW));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el.firstElementChild!);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={span ? { gridRowEnd: `span ${span}` } : undefined}>
+      {children}
+    </div>
+  );
+};
 
 // The saved layout with unknown or repeated entries dropped and new widgets added.
 const resolveLayout = (saved: unknown): DashboardWidgetState[] => {
@@ -136,6 +175,10 @@ export const DashboardPage = () => {
       <ParticipationWidget projects={data.projects} nextByProject={data.nextByProject} />
     ) : id === 'surveys' ? (
       <ActiveSurveysWidget surveys={data.surveys} rooms={data.rooms} />
+    ) : id === 'weekends' ? (
+      <UpcomingWeekendsWidget weekends={data.weekends} />
+    ) : id === 'concerts' ? (
+      <UpcomingConcertsWidget concerts={data.concerts} />
     ) : (
       <UpcomingRehearsalsWidget rehearsals={data.upcoming} />
     );
@@ -168,72 +211,73 @@ export const DashboardPage = () => {
               <p className="text-sm text-text-secondary">{t('dashboardAllHidden')}</p>
             </Card>
           ) : (
-            <div className="grid items-start gap-4 sm:gap-6 lg:grid-cols-2">
+            <div className="grid auto-rows-[4px] items-start gap-x-4 sm:gap-x-6 lg:grid-cols-2">
               {shown.map((state, index) => {
                 const widget = WIDGETS.find((w) => w.id === state.id)!;
                 const title = t(widget.title);
                 return (
-                  <section
-                    key={widget.id}
-                    aria-label={title}
-                    draggable={editing}
-                    onDragStart={editing ? onDragStart(widget.id) : undefined}
-                    onDragOver={editing ? onDragOver(widget.id) : undefined}
-                    onDragEnd={editing ? onDragEnd : undefined}
-                    className={cn(
-                      'rounded-2xl border bg-surface',
-                      editing ? 'border-dashed border-text-tertiary' : 'border-border',
-                      draggingId === widget.id && 'opacity-50',
-                    )}
-                  >
-                    <header className="flex items-center gap-2 px-5 pt-4 max-sm:px-4">
-                      {editing && (
-                        <GripVertical
-                          size={16}
-                          aria-hidden
-                          className="flex-shrink-0 cursor-grab text-text-tertiary max-lg:hidden"
-                        />
+                  <MasonryItem key={widget.id}>
+                    <section
+                      aria-label={title}
+                      draggable={editing}
+                      onDragStart={editing ? onDragStart(widget.id) : undefined}
+                      onDragOver={editing ? onDragOver(widget.id) : undefined}
+                      onDragEnd={editing ? onDragEnd : undefined}
+                      className={cn(
+                        'rounded-2xl border bg-surface',
+                        editing ? 'border-dashed border-text-tertiary' : 'border-border',
+                        draggingId === widget.id && 'opacity-50',
                       )}
-                      <widget.icon size={17} className="flex-shrink-0 text-text-secondary" />
-                      <h2
-                        className={cn(
-                          'min-w-0 flex-1 truncate text-base font-medium',
-                          state.hidden && 'text-text-tertiary',
+                    >
+                      <header className="flex items-center gap-2 px-5 pt-4 max-sm:px-4">
+                        {editing && (
+                          <GripVertical
+                            size={16}
+                            aria-hidden
+                            className="flex-shrink-0 cursor-grab text-text-tertiary max-lg:hidden"
+                          />
                         )}
-                      >
-                        {title}
-                      </h2>
-                      {editing && (
-                        <div className="flex flex-shrink-0 items-center">
-                          <WidgetButton
-                            label={`${t('moveUp')}: ${title}`}
-                            disabled={index === 0}
-                            onClick={() => move(widget.id, -1)}
-                          >
-                            <ArrowUp size={15} />
-                          </WidgetButton>
-                          <WidgetButton
-                            label={`${t('moveDown')}: ${title}`}
-                            disabled={index === shown.length - 1}
-                            onClick={() => move(widget.id, 1)}
-                          >
-                            <ArrowDown size={15} />
-                          </WidgetButton>
-                          <WidgetButton
-                            label={`${state.hidden ? t('showWidget') : t('hideWidget')}: ${title}`}
-                            onClick={() => toggleHidden(widget.id)}
-                          >
-                            {state.hidden ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </WidgetButton>
-                        </div>
+                        <widget.icon size={17} className="flex-shrink-0 text-text-secondary" />
+                        <h2
+                          className={cn(
+                            'min-w-0 flex-1 truncate text-base font-medium',
+                            state.hidden && 'text-text-tertiary',
+                          )}
+                        >
+                          {title}
+                        </h2>
+                        {editing && (
+                          <div className="flex flex-shrink-0 items-center">
+                            <WidgetButton
+                              label={`${t('moveUp')}: ${title}`}
+                              disabled={index === 0}
+                              onClick={() => move(widget.id, -1)}
+                            >
+                              <ArrowUp size={15} />
+                            </WidgetButton>
+                            <WidgetButton
+                              label={`${t('moveDown')}: ${title}`}
+                              disabled={index === shown.length - 1}
+                              onClick={() => move(widget.id, 1)}
+                            >
+                              <ArrowDown size={15} />
+                            </WidgetButton>
+                            <WidgetButton
+                              label={`${state.hidden ? t('showWidget') : t('hideWidget')}: ${title}`}
+                              onClick={() => toggleHidden(widget.id)}
+                            >
+                              {state.hidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                            </WidgetButton>
+                          </div>
+                        )}
+                      </header>
+                      {state.hidden ? (
+                        <p className="px-5 pb-4 pt-1 text-sm text-text-tertiary max-sm:px-4">{t('widgetHidden')}</p>
+                      ) : (
+                        <div className="px-5 pb-4 pt-1 max-sm:px-4">{body(widget.id)}</div>
                       )}
-                    </header>
-                    {state.hidden ? (
-                      <p className="px-5 pb-4 pt-1 text-sm text-text-tertiary max-sm:px-4">{t('widgetHidden')}</p>
-                    ) : (
-                      <div className="px-5 pb-4 pt-1 max-sm:px-4">{body(widget.id)}</div>
-                    )}
-                  </section>
+                    </section>
+                  </MasonryItem>
                 );
               })}
             </div>

@@ -1,7 +1,8 @@
 import { api } from '@/lib/api';
 import { localToday } from '@/lib/eventTiming';
 import { loadEventPrograms, type ProgramItem } from '@/lib/eventProgram';
-import type { AttendanceStatus, Event, Project } from '@/types';
+import type { Weekend } from '@/lib/weekends';
+import type { AttendanceStatus, Concert, Event, Project } from '@/types';
 
 export interface UpcomingRehearsal {
   event: Event;
@@ -29,6 +30,13 @@ export interface SurveyTask {
 }
 
 export const SURVEYS_PREVIEW = 4;
+export const WEEKENDS_PREVIEW = 3;
+export const CONCERTS_PREVIEW = 3;
+
+export type UpcomingWeekend = Pick<Weekend, 'id' | 'title' | 'starts_on' | 'ends_on' | 'location'> & { project: Project };
+export type UpcomingConcert = Pick<Concert, 'id' | 'title' | 'date' | 'time' | 'end_time' | 'location'> & {
+  project: Project;
+};
 
 // A published weekend where the account still has to choose a room.
 export interface RoomTask {
@@ -50,6 +58,10 @@ export interface DashboardData {
   nextByProject: Map<string, Event>;
   // Upcoming Proben across those projects, soonest first.
   upcoming: UpcomingRehearsal[];
+  // Published rehearsal weekends and concerts that haven't ended yet, soonest
+  // first — only of projects that show them to participants.
+  weekends: UpcomingWeekend[];
+  concerts: UpcomingConcert[];
 }
 
 export const loadDashboardData = async (userId: string): Promise<DashboardData> => {
@@ -61,10 +73,22 @@ export const loadDashboardData = async (userId: string): Promise<DashboardData> 
     .eq('user_id', userId)
     .eq('status', 'active');
   const members = (memberRows as { id: string; project_id: string }[] | null) ?? [];
-  if (members.length === 0) return { surveys: [], rooms: [], memberships: 0, projects: [], nextByProject: new Map(), upcoming: [] };
+  if (members.length === 0) {
+    return {
+      surveys: [],
+      rooms: [],
+      memberships: 0,
+      projects: [],
+      nextByProject: new Map(),
+      upcoming: [],
+      weekends: [],
+      concerts: [],
+    };
+  }
 
   const projectIds = members.map((m) => m.project_id);
-  const [{ data: projectRows }, { data: eventRows }] = await Promise.all([
+  const today = localToday();
+  const [{ data: projectRows }, { data: eventRows }, { data: weekendRows }, { data: concertRows }] = await Promise.all([
     api
       .from('projects')
       .select('*')
@@ -76,7 +100,25 @@ export const loadDashboardData = async (userId: string): Promise<DashboardData> 
       .from('events')
       .select('*')
       .in('project_id', projectIds)
-      .gte('date', localToday())
+      .gte('date', today)
+      .order('date')
+      .order('time', { nullsFirst: true }),
+    // Undated weekends and concerts have no place in "upcoming".
+    api
+      .from('weekends')
+      .select('id, project_id, title, starts_on, ends_on, location')
+      .in('project_id', projectIds)
+      .in('status', ['published', 'closed'])
+      .eq('archived', false)
+      .not('starts_on', 'is', null)
+      .order('starts_on'),
+    api
+      .from('concerts')
+      .select('id, project_id, title, date, time, end_time, location')
+      .in('project_id', projectIds)
+      .eq('status', 'published')
+      .eq('archived', false)
+      .gte('date', today)
       .order('date')
       .order('time', { nullsFirst: true }),
   ]);
@@ -117,6 +159,12 @@ export const loadDashboardData = async (userId: string): Promise<DashboardData> 
     memberships: members.length,
     projects,
     nextByProject,
+    weekends: ((weekendRows as (Omit<UpcomingWeekend, 'project'> & { project_id: string })[] | null) ?? [])
+      .filter((w) => byId.get(w.project_id)?.show_weekend && (w.ends_on ?? w.starts_on ?? '') >= today)
+      .map(({ project_id, ...w }) => ({ ...w, project: byId.get(project_id)! })),
+    concerts: ((concertRows as (Omit<UpcomingConcert, 'project'> & { project_id: string })[] | null) ?? [])
+      .filter((c) => byId.get(c.project_id)?.show_concerts)
+      .map(({ project_id, ...c }) => ({ ...c, project: byId.get(project_id)! })),
     upcoming: events.map((event) => ({
       event,
       project: byId.get(event.project_id)!,
