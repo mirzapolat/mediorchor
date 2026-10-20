@@ -85,3 +85,22 @@ export const isInstalled = () =>
 export const isIos = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1);
+
+// The installed app on iPhone/iPad has no browser toolbar: a downloaded file
+// opens inside the app window with no way to share or save it. There the
+// share sheet ("Save to Files", AirDrop, Mail, …) takes the download's place.
+export const sharesDownloads = () => isInstalled() && isIos() && typeof navigator.canShare === 'function';
+
+// Shows the share sheet for one file. 'retry' when the tap that asked for it
+// expired while the file loaded (Safari then wants a new tap); 'unsupported'
+// when the system cannot share this file.
+export const shareFile = async (file: File): Promise<'done' | 'retry' | 'unsupported'> => {
+  if (!navigator.canShare?.({ files: [file] })) return 'unsupported';
+  try {
+    await navigator.share({ files: [file] });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotAllowedError') return 'retry';
+    // AbortError: closed without choosing — done all the same.
+  }
+  return 'done';
+};

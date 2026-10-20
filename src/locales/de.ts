@@ -1397,6 +1397,8 @@ const de: Messages = {
   fileKindMidi: 'MIDI',
   fileKindOther: 'Weitere Dateien',
   downloadFile: 'Herunterladen',
+  shareFile: 'Teilen',
+  readyToShare: 'Bereit zum Teilen',
   downloadSwitch: 'Download',
   downloadSwitchHint: 'An: Mitglieder können die Datei auf der Stückseite herunterladen.',
   downloadVoiceHint: 'An: Mitglieder können alle Aufnahmen dieser Stimme herunterladen.',

@@ -38,6 +38,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Share,
   Trash2,
   Upload,
   X,
@@ -55,6 +56,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { sizeBucket, track } from '@/lib/analytics';
+import { shareFile, sharesDownloads } from '@/lib/pwa';
 import { localeOf } from '@shared/languages';
 import {
   arrangePieceFiles,
@@ -437,7 +439,7 @@ export const PieceFilesPage = () => {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [previewBusy, setPreviewBusy] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ id: number; text: string; undo?: () => Promise<void> } | null>(null);
+  const [toast, setToast] = useState<{ id: number; text: string; undo?: () => Promise<void>; share?: File } | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [trash, setTrash] = useState<PieceFileTrashEntry[] | null>(null);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
@@ -478,10 +480,10 @@ export const PieceFilesPage = () => {
 
   // Something done, for a few seconds, with "Undo" when it can be.
   const toastTimer = useRef<number>();
-  const showToast = (text: string, undo?: () => Promise<void>) => {
+  const showToast = (text: string, undo?: () => Promise<void>, share?: File) => {
     window.clearTimeout(toastTimer.current);
     const id = Date.now();
-    setToast({ id, text, undo });
+    setToast({ id, text, undo, share });
     toastTimer.current = window.setTimeout(() => setToast((x) => (x?.id === id ? null : x)), 8000);
   };
 
@@ -901,9 +903,9 @@ export const PieceFilesPage = () => {
     const only = real[0];
     if (real.length === 1 && only.kind === 'file') {
       if (!only.file.file_path) return;
-      clickLink(
-        pieceFileDownloadUrl(only.file.file_path, pieceDownloadName(piece, only.file.title.trim(), only.file.file_name ?? only.file.file_path)),
-      );
+      const name = pieceDownloadName(piece, only.file.title.trim(), only.file.file_name ?? only.file.file_path);
+      if (sharesDownloads()) void shareDownload(only.file.file_path, name, only.file.kind);
+      else clickLink(pieceFileDownloadUrl(only.file.file_path, name));
       track('file-download', { kind: only.file.kind });
       return;
     }
@@ -921,6 +923,19 @@ export const PieceFilesPage = () => {
           ),
     );
     track('files-zip', { count: sizeBucket(real.length), folders: real.some((i) => i.kind === 'folder') });
+  };
+
+  // The installed iPhone app: the file goes to the share sheet instead. When
+  // loading it took longer than Safari keeps the tap, the toast asks for one.
+  const shareDownload = async (path: string, name: string, kind: string) => {
+    const response = await fetch(pieceFileUrl(path)).catch(() => null);
+    if (!response?.ok) return failed(response ? `HTTP ${response.status}` : 'Network error');
+    const blob = await response.blob();
+    const file = new File([blob], name, { type: blob.type });
+    const result = await shareFile(file);
+    if (result === 'retry') showToast(t('readyToShare'), undefined, file);
+    else if (result === 'unsupported') clickLink(pieceFileDownloadUrl(path, name));
+    if (result !== 'unsupported') track('file-share', { kind });
   };
 
   // Something to download in a folder (any file, in it or its folders).
@@ -1838,6 +1853,20 @@ export const PieceFilesPage = () => {
           className="fixed bottom-4 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl bg-black py-2.5 pl-4 pr-2 text-sm text-white shadow-lg"
         >
           <span className="min-w-0 truncate">{toast.text}</span>
+          {toast.share && (
+            <button
+              type="button"
+              onClick={() => {
+                const file = toast.share;
+                setToast(null);
+                if (file) void shareFile(file);
+              }}
+              className="flex h-8 items-center gap-1.5 rounded-lg px-3 font-semibold text-accent hover:bg-white/10"
+            >
+              <Share size={14} />
+              {t('shareFile')}
+            </button>
+          )}
           {toast.undo && (
             <button
               type="button"

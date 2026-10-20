@@ -1362,6 +1362,8 @@ const en = {
   fileKindMidi: 'MIDI',
   fileKindOther: 'Other files',
   downloadFile: 'Download',
+  shareFile: 'Share',
+  readyToShare: 'Ready to share',
   downloadSwitch: 'Download',
   downloadSwitchHint: 'On: members can download the file on the piece page.',
   downloadVoiceHint: 'On: members can download all recordings of this voice.',

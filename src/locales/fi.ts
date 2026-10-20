@@ -1361,6 +1361,8 @@ const fi: Messages = {
   fileKindMidi: 'MIDI',
   fileKindOther: 'Muut tiedostot',
   downloadFile: 'Lataa',
+  shareFile: 'Jaa',
+  readyToShare: 'Valmis jaettavaksi',
   downloadSwitch: 'Lataus',
   downloadSwitchHint: 'Päällä: jäsenet voivat ladata tiedoston kappalesivulta.',
   downloadVoiceHint: 'Päällä: jäsenet voivat ladata kaikki tämän stemman äänitteet.',
