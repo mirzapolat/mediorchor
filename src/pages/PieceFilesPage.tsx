@@ -879,7 +879,9 @@ export const PieceFilesPage = () => {
   // --- opening and downloading --------------------------------------------------------
 
   // A file opens in the browser where it can (PDF, pictures, audio) and
-  // downloads otherwise; a link opens its page; a folder opens.
+  // downloads otherwise; a link opens its page; a folder opens. In the
+  // installed iPhone app every file goes to the share sheet (see
+  // shareDownload): shown in the app window it has no way to share or save.
   const openItem = (item: Item) => {
     if (item.kind === 'folder') return open(item.folder.id);
     const f = item.file;
@@ -889,7 +891,7 @@ export const PieceFilesPage = () => {
       return;
     }
     if (!f.file_path) return;
-    if (INLINE.test(f.file_name ?? '')) {
+    if (INLINE.test(f.file_name ?? '') && !sharesDownloads()) {
       clickLink(pieceFileUrl(f.file_path), true);
       track('file-open', { type: fileExt(f).slice(1).toLowerCase() || f.kind });
     } else downloadItems([item]);
