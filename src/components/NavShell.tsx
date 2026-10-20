@@ -214,7 +214,7 @@ export const MobilePageRow = ({ items, label }: { items: NavItem[]; label: strin
       <div className="relative">
         <div
           ref={rowRef}
-          className="flex h-14 snap-x snap-proximity items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex h-14 snap-x snap-proximity items-center gap-1.5 overflow-x-auto scroll-px-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {items.map((item) => (
             <MobilePageButton key={item.to} {...item} />
