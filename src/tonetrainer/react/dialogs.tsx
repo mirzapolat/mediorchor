@@ -221,7 +221,7 @@ export function SettingsDialog({
       <h3 className="tt-section-title">
         <Target size={15} /> Bewertung
       </h3>
-      <Slider label="Toleranz" value={s.tolerance} min={10} max={50} step={5} onChange={(v) => onChange({ tolerance: v })} format={(v) => `± ${v} Cent`} />
+      <Slider label="Toleranz" value={s.tolerance} min={5} max={100} step={5} onChange={(v) => onChange({ tolerance: v })} format={(v) => `± ${v} Cent`} />
       <Switch checked={s.ignoreOctave} onChange={(v) => onChange({ ignoreOctave: v })} label="Oktave egal" />
 
       <h3 className="tt-section-title">Üben</h3>
