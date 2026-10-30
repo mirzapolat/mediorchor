@@ -8,6 +8,7 @@ import { AuthProvider } from '@/hooks/useAuth';
 import { applyBranding } from '@/lib/branding';
 import { ThemeProvider } from '@/lib/theme';
 import { initPwa } from '@/lib/pwa';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 applyBranding();
 initPwa();
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
       <I18nProvider>
         <AuthProvider>
           <BrowserRouter>
-            <App />
+            <ErrorBoundary fullScreen>
+              <App />
+            </ErrorBoundary>
           </BrowserRouter>
         </AuthProvider>
       </I18nProvider>

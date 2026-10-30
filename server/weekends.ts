@@ -310,6 +310,30 @@ const weekend_place = (args: Args) => {
   return placeIn(p.id, text(args.p_room_id) || null, getWeekend(p.weekend_id)!, uid);
 };
 
+// Managers swap two people's places (either may have none) — for full rooms.
+// Both leave first, then each takes the other's place; if either no longer
+// fits (other nights), the whole swap is rolled back.
+const weekend_swap = (args: Args) => {
+  const uid = requireUser();
+  const entry = (id: unknown) =>
+    db.prepare('select * from weekend_participants where id = ?').get(text(id)) as ParticipantRow | undefined;
+  const a = entry(args.p_a);
+  const b = entry(args.p_b);
+  if (!a || !b || a.weekend_id !== b.weekend_id || !isManager(a.weekend_id)) throw forbidden('Access denied');
+  if (a.kind === 'pending' || b.kind === 'pending') throw new ApiError('Confirm the entry first', 400, 'not_confirmed');
+  const roomOf = (id: string) =>
+    (db.prepare('select room_id from weekend_room_assignments where participant_id = ?').get(id) as { room_id: string } | undefined)?.room_id ?? null;
+  const roomA = roomOf(a.id);
+  const roomB = roomOf(b.id);
+  if (roomA === roomB) return { state: 'ok' as const };
+  const weekend = getWeekend(a.weekend_id)!;
+  db.prepare('delete from weekend_room_assignments where participant_id in (?, ?)').run(a.id, b.id);
+  for (const [who, room] of [[a.id, roomB], [b.id, roomA]] as const) {
+    if (room && placeIn(who, room, weekend, uid).state === 'full') throw new ApiError('Room full', 409, 'room_full');
+  }
+  return { state: 'ok' as const };
+};
+
 // The account behind an entry (directly or through its member row).
 const accountOf = (p: ParticipantRow) => {
   if (p.user_id) return p.user_id;
@@ -928,6 +952,7 @@ export const weekendFunctions = {
   weekend_rooms_view,
   weekend_choose_room,
   weekend_place,
+  weekend_swap,
   weekend_person,
   weekend_import_preview,
   weekend_import_apply,

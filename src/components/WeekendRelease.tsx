@@ -36,8 +36,22 @@ export const RoomsStatusPill = ({ status }: { status: RoomsStatus }) => (
   <Pill on={status === 'open'} icon={ROOMS[status].icon} label={ROOMS[status].label} />
 );
 
-// The buttons to move the room allocation on: release it, lock the choice,
-// open it again, or switch it off.
+// Where the room allocation can go from `status`: release it, lock the
+// choice, open it again, or switch it off.
+export const roomsTransitions = (status: RoomsStatus): { to: RoomsStatus; icon: LucideIcon; label: TranslationKey; primary?: boolean }[] =>
+  status === 'hidden'
+    ? [{ to: 'open', icon: Send, label: 'weekendRoomsRelease', primary: true }]
+    : status === 'open'
+      ? [
+          { to: 'locked', icon: Lock, label: 'weekendRoomsLock' },
+          { to: 'hidden', icon: EyeOff, label: 'weekendRoomsDisable' },
+        ]
+      : [
+          { to: 'open', icon: DoorOpen, label: 'weekendRoomsReopen', primary: true },
+          { to: 'hidden', icon: EyeOff, label: 'weekendRoomsDisable' },
+        ];
+
+// The buttons for roomsTransitions.
 export const RoomsStatusActions = ({
   status,
   onChange,
@@ -48,21 +62,9 @@ export const RoomsStatusActions = ({
   busy?: boolean;
 }) => {
   const { t } = useI18n();
-  const next: { to: RoomsStatus; icon: LucideIcon; label: TranslationKey; primary?: boolean }[] =
-    status === 'hidden'
-      ? [{ to: 'open', icon: Send, label: 'weekendRoomsRelease', primary: true }]
-      : status === 'open'
-        ? [
-            { to: 'locked', icon: Lock, label: 'weekendRoomsLock' },
-            { to: 'hidden', icon: EyeOff, label: 'weekendRoomsDisable' },
-          ]
-        : [
-            { to: 'open', icon: DoorOpen, label: 'weekendRoomsReopen', primary: true },
-            { to: 'hidden', icon: EyeOff, label: 'weekendRoomsDisable' },
-          ];
   return (
     <>
-      {next.map(({ to, icon: Icon, label, primary }) => (
+      {roomsTransitions(status).map(({ to, icon: Icon, label, primary }) => (
         <Button key={to} variant={primary ? 'primary' : 'secondary'} disabled={busy} onClick={() => onChange(to)}>
           <Icon size={16} />
           {t(label)}
@@ -72,20 +74,13 @@ export const RoomsStatusActions = ({
   );
 };
 
-// The shared link to the room choice (managers): created on first use, then
-// copied; `full` adds making a new one (the old stops working) and
-// switching it off. Guests who joined keep their place either way.
-export const WeekendLinkControls = ({
-  weekend,
-  onChanged,
-  onMessage,
-  full = false,
-}: {
-  weekend: Pick<Weekend, 'id' | 'link_token'>;
-  onChanged: () => void;
-  onMessage: (message: string) => void;
-  full?: boolean;
-}) => {
+// Creating, renewing or switching off the shared link, and copying it
+// (created on first copy).
+export const useWeekendLink = (
+  weekend: Pick<Weekend, 'id' | 'link_token'>,
+  onChanged: () => void,
+  onMessage: (message: string) => void,
+) => {
   const { t } = useI18n();
   const set = async (action: 'create' | 'disable') => {
     const { data, error } = await api.rpc('weekend_link', { p_weekend_id: weekend.id, p_action: action });
@@ -106,6 +101,25 @@ export const WeekendLinkControls = ({
       onMessage(weekendLinkUrl(token));
     }
   };
+  return { set, copy };
+};
+
+// The shared link to the room choice (managers): created on first use, then
+// copied; `full` adds making a new one (the old stops working) and
+// switching it off. Guests who joined keep their place either way.
+export const WeekendLinkControls = ({
+  weekend,
+  onChanged,
+  onMessage,
+  full = false,
+}: {
+  weekend: Pick<Weekend, 'id' | 'link_token'>;
+  onChanged: () => void;
+  onMessage: (message: string) => void;
+  full?: boolean;
+}) => {
+  const { t } = useI18n();
+  const { set, copy } = useWeekendLink(weekend, onChanged, onMessage);
   return (
     <>
       {full && weekend.link_token && (

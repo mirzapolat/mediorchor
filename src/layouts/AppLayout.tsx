@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
 import { AppLogo } from '@/components/AppLogo';
 import { FadingText } from '@/components/FadingText';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // `withActions`: the header's right side holds the admin icon next to the
 // collapse toggle, so leave room for both.
@@ -57,7 +58,10 @@ export const AppLayout = () => {
       ]}
       contentClassName=""
     >
-      <Outlet />
+      {/* A page that fails to load keeps the sidebar around it. */}
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
     </NavShell>
   );
 };

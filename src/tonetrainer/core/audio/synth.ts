@@ -80,7 +80,9 @@ export function playTone(ctx: AudioContext, dest: AudioNode, midi: number, when:
   return {
     stop(at = ctx.currentTime) {
       env.gain.cancelScheduledValues(at)
-      env.gain.setTargetAtTime(0, at, 0.03)
+      // Not started yet: with its events cancelled the gain would fall back to 1 (≈4× the note level) and blip.
+      if (at < when) env.gain.setValueAtTime(0, at)
+      else env.gain.setTargetAtTime(0, at, 0.03)
       // A later stop() call replaces the earlier scheduled one.
       for (const o of oscs) o.stop(Math.max(at, when) + 0.2)
     },

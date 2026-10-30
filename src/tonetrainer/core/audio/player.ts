@@ -33,6 +33,7 @@ export class Player {
   private timer: number | null = null
   private ptr = new Map<string, number>()
   private nextClick = 0
+  private countFrom = 0
   private scheduled: Scheduled[] = []
   private anchorTime = 0
   private anchorBeat = 0
@@ -105,7 +106,8 @@ export class Player {
     this.startBeat = fromBeat
     this.anchorBeat = fromBeat - countInBeats
     this.anchorTime = this.ctx.currentTime + 0.08
-    this.nextClick = Math.ceil(this.anchorBeat - 1e-6)
+    this.countFrom = Math.ceil(this.anchorBeat - 1e-6)
+    this.nextClick = this.countFrom
     this.resetPointers(fromBeat)
     this.playing = true
     this.timer ??= window.setInterval(() => this.tick(), TICK_MS)
@@ -134,8 +136,9 @@ export class Player {
       this.stopVoices()
       this.anchorTime = this.ctx.currentTime
       this.anchorBeat = b
-      this.startBeat = Math.min(this.startBeat, b)
-      this.resetPointers(b)
+      // Keep startBeat: lowering it to b would cut the rest of a running count-in.
+      // Past the count-in, notes still sounding at b are struck again instead of falling silent.
+      this.resetPointers(Math.max(b, this.startBeat), b >= this.startBeat)
       this.nextClick = Math.ceil(b)
     }
   }
@@ -161,9 +164,10 @@ export class Player {
     this.master.disconnect()
   }
 
-  private resetPointers(beat: number) {
+  /** First note starting at `beat` or later (or, with `sounding`, the first one not yet over at `beat`). */
+  private resetPointers(beat: number, sounding = false) {
     for (const t of this.timeline.tracks) {
-      const i = t.playNotes.findIndex((n) => n.startBeat >= beat - 1e-6)
+      const i = t.playNotes.findIndex((n) => (sounding ? n.startBeat + n.durBeats > beat + 1e-6 : n.startBeat >= beat - 1e-6))
       this.ptr.set(t.id, i < 0 ? t.playNotes.length : i)
     }
   }
@@ -202,8 +206,11 @@ export class Player {
         const start = Math.max(this.timeOfBeat(n.startBeat), now)
         const endBeat = Math.min(n.startBeat + n.durBeats, limit)
         const end = this.timeOfBeat(endBeat) - 0.015
-        const voice = playTone(this.ctx, dest, n.midi, start, end - start, this.a4)
-        this.scheduled.push({ voice, midi: n.midi, trackId: t.id, start, end })
+        // A late tick (main thread busy, e.g. the score re-rendering) must not fire missed notes all at once.
+        if (end > now + 0.05) {
+          const voice = playTone(this.ctx, dest, n.midi, start, end - start, this.a4)
+          this.scheduled.push({ voice, midi: n.midi, trackId: t.id, start, end })
+        }
         i++
       }
       this.ptr.set(t.id, i)
@@ -211,8 +218,10 @@ export class Player {
 
     while (this.timeOfBeat(this.nextClick) < horizon && (this.nextClick < this.startBeat || this.metronome)) {
       const b = this.nextClick
-      const accent = b < this.startBeat ? b === Math.ceil(this.anchorBeat - 1e-6) : Math.abs(b - this.timeline.visitAt(b).startBeat) < 1e-6
-      playClick(this.ctx, this.clickGain, Math.max(this.timeOfBeat(b), now), accent)
+      const accent = b < this.startBeat ? b === this.countFrom : Math.abs(b - this.timeline.visitAt(b).startBeat) < 1e-6
+      // Skip clicks already past: switching the metronome on mid-piece would otherwise fire every beat since the start at once.
+      const at = this.timeOfBeat(b)
+      if (at > now - 0.02) playClick(this.ctx, this.clickGain, Math.max(at, now), accent)
       this.nextClick++
     }
 

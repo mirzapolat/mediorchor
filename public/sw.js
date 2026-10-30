@@ -8,7 +8,7 @@ const SHELL = 'app-shell-v2';
 const ASSETS = 'app-assets-v1';
 // Same name as OFFLINE_FILES_CACHE in src/lib/offlineStore.ts.
 const FILES = 'offline-files-v1';
-const PRECACHE = ['/', '/config.js', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png'];
+const PRECACHE = ['/', '/config.js', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/offline.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -32,17 +32,40 @@ self.addEventListener('activate', (event) => {
 });
 
 // Network first, cache as fallback (offline) — for things that can change.
-const networkFirst = async (request, cacheKey = request) => {
+// Kept by path: /offline.html?from=… is the cached /offline.html.
+const networkFirst = async (request) => {
   const cache = await caches.open(SHELL);
+  const key = new URL(request.url).pathname;
   try {
     const response = await fetch(request);
-    if (response.ok) void cache.put(cacheKey, response.clone());
+    if (response.ok) void cache.put(key, response.clone());
     return response;
   } catch (error) {
-    const cached = await cache.match(cacheKey);
+    const cached = await cache.match(key);
     if (cached) return cached;
     throw error;
   }
+};
+
+// Page loads: the (branded) app shell from the server. Offline or with the
+// server down, the last shell we saw; without one, the offline page — never
+// the browser's own error page.
+const navigate = async (request) => {
+  // index.html sends a start that failed there; the shell would loop.
+  if (new URL(request.url).pathname === '/offline.html') return networkFirst(request);
+  const cache = await caches.open(SHELL);
+  try {
+    const response = await fetch(request);
+    if (response.ok) void cache.put('/', response.clone());
+    if (response.status < 500) return response;
+  } catch {
+    // offline: answered from the cache below
+  }
+  return (
+    (await cache.match('/')) ||
+    (await cache.match('/offline.html')) ||
+    new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+  );
 };
 
 // Keeps the build-file cache from growing across releases: oldest out first.
@@ -110,7 +133,7 @@ self.addEventListener('fetch', (event) => {
 
   // Page loads: the (branded) app shell; offline, the last one we saw.
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, '/'));
+    event.respondWith(navigate(request));
     return;
   }
   if (url.pathname.startsWith('/assets/')) {

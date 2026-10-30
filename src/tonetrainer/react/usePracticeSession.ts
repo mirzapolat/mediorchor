@@ -311,6 +311,17 @@ export function usePracticeSession(o: PracticeSessionOptions) {
     return () => document.removeEventListener('visibilitychange', onHide)
   }, [saveSession])
 
+  // The audio clock stops when the context is suspended or interrupted (device change, phone call):
+  // pause too, or the session would hang "playing" and the next press of play would pause it.
+  useEffect(() => {
+    const ctx = audioContext()
+    const onState = () => {
+      if (ctx.state !== 'running') engineRef.current?.pause()
+    }
+    ctx.addEventListener('statechange', onState)
+    return () => ctx.removeEventListener('statechange', onState)
+  }, [])
+
   // Space = start/pause, R = reference tone, → = skip (wait mode).
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {

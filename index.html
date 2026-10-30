@@ -25,6 +25,24 @@
         document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
       })();
     </script>
+    <!-- The app's own code failed to load (offline and not cached, server
+         down) before it could start: the friendly offline page instead of a
+         blank screen. Errors after the start are the app's to show
+         (src/components/ErrorBoundary.tsx). -->
+    <script>
+      window.addEventListener(
+        'error',
+        function (e) {
+          var el = e.target;
+          if (!el || el.tagName !== 'SCRIPT' || el.type !== 'module') return;
+          if (el.src.indexOf(location.origin + '/') !== 0) return;
+          var root = document.getElementById('root');
+          if (root && root.childElementCount > 0) return;
+          location.replace('/offline.html?from=' + encodeURIComponent(location.pathname + location.search + location.hash));
+        },
+        true,
+      );
+    </script>
     <title>Anwesenheit</title>
     <!-- Runtime config; overwritten at container start for Docker deploys. -->
     <script src="/config.js"></script>
