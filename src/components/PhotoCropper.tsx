@@ -153,7 +153,6 @@ export const PhotoCropper = ({
         </>
       }
     >
-      <p className="text-sm text-text-secondary">{shape === 'square' ? t('cropSquareHint') : t('cropPhotoHint')}</p>
       <div className="flex justify-center">
         <div
           className="relative cursor-grab touch-none select-none overflow-hidden rounded-md bg-surface-hover active:cursor-grabbing"

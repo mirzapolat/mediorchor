@@ -186,6 +186,7 @@ export const registrationToMember = (
 
 const tooLong = (value: string | null, max: number) => (value ?? '').length > max;
 
+
 // ---------------------------------------------------------------------------
 // Public (anonymous) functions
 // ---------------------------------------------------------------------------
@@ -201,6 +202,32 @@ const get_public_config = () => {
     // Codes by email as second factor (admin allows them and email works).
     email_2fa_available: email2faAvailable(),
   };
+};
+
+// The member an account is in a project: the row linked to it, else — when
+// email works, so the address was really confirmed by a link — the one
+// member without an account whose email is the account's. With `link`, that
+// row is linked to the account. The member list is the only truth: an
+// account found neither way is no member.
+const accountMember = (projectId: string, uid: string, link: boolean) => {
+  const linked = db
+    .prepare('select id, first_name, last_name, group_name, status from members where project_id = ? and user_id = ?')
+    .get(projectId, uid) as { id: string; first_name: string; last_name: string; group_name: string | null; status: string } | undefined;
+  if (linked) return linked;
+  if (!mailEnabled()) return null;
+  const account = db
+    .prepare('select email from auth_users where id = ? and email_confirmed_at is not null')
+    .get(uid) as { email: string } | undefined;
+  if (!account) return null;
+  const byEmail = db
+    .prepare(
+      `select id, first_name, last_name, group_name, status from members
+       where project_id = ? and user_id is null and ulower(trim(coalesce(email, ''))) = ulower(?)`,
+    )
+    .all(projectId, account.email.trim()) as { id: string; first_name: string; last_name: string; group_name: string | null; status: string }[];
+  if (byEmail.length !== 1) return null;
+  if (link) db.prepare('update members set user_id = ? where id = ?').run(uid, byEmail[0].id);
+  return byEmail[0];
 };
 
 const get_public_checkin = (args: Args) => {
@@ -227,9 +254,7 @@ const get_public_checkin = (args: Args) => {
   const uid = authUid();
   let me: Row | null = null;
   if (uid) {
-    const member = db
-      .prepare('select first_name, last_name, group_name, status from members where project_id = ? and user_id = ?')
-      .get(checkin.project_id, uid) as Row | undefined;
+    const member = accountMember(text(checkin.project_id), uid, false);
     if (member) {
       me = {
         first_name: member.first_name,
@@ -289,7 +314,7 @@ const submit_public_checkin = (args: Args) => {
   const checkin = db
     .prepare(
       `select c.event_id, c.is_active, c.attendance_status, e.project_id,
-              p.allow_guest_checkin, p.allow_account_checkin
+              p.allow_guest_checkin, p.allow_account_checkin, p.checkin_group_change
        from event_checkins c
        join events e on e.id = c.event_id
        join projects p on p.id = e.project_id
@@ -303,6 +328,7 @@ const submit_public_checkin = (args: Args) => {
         project_id: string;
         allow_guest_checkin: number;
         allow_account_checkin: number;
+        checkin_group_change: string;
       }
     | undefined;
 
@@ -311,36 +337,38 @@ const submit_public_checkin = (args: Args) => {
 
   const uid = authUid();
 
-  // Account check-in: use (or create) the caller's linked member row.
+  // Account check-in: the account's member (see accountMember). Someone not
+  // on the member list is never added by checking in: the check-in is listed
+  // as unrecognized, with the account, for the project's managers.
   if (args.p_as_account === true && uid) {
     if (!checkin.allow_account_checkin || isMusicDirector(uid)) return { state: 'not_allowed' };
 
-    const existing = db
-      .prepare('select id, status from members where project_id = ? and user_id = ?')
-      .get(checkin.project_id, uid) as { id: string; status: string } | undefined;
-
-    let memberId: string;
+    const existing = accountMember(checkin.project_id, uid, true);
     if (!existing) {
-      // First contact with this project: joining happens implicitly.
       if (!firstName || !lastName || tooLong(firstName, 120) || tooLong(lastName, 120) || tooLong(groupName, 120)) {
         return { state: 'invalid_input' };
       }
-      if (signupGroupRequired(checkin.project_id) && !projectGroupNames(checkin.project_id).includes(groupName)) {
-        return { state: 'invalid_input' };
+      // One open entry per account and Probe: checking in again refreshes it.
+      const open = db
+        .prepare('select id from checkin_submissions where event_id = ? and recognized = 0 and user_id = ?')
+        .get(checkin.event_id, uid) as { id: string } | undefined;
+      if (open) {
+        db.prepare(
+          `update checkin_submissions set first_name = ?, last_name = ?, group_name = ?, attendance_status = ?,
+             submitted_at = now_iso() where id = ?`,
+        ).run(firstName, lastName, groupName, checkin.attendance_status, open.id);
+      } else {
+        db.prepare(
+          `insert into checkin_submissions (event_id, first_name, last_name, group_name, recognized, attendance_status, user_id)
+           values (?, ?, ?, ?, 0, ?, ?)`,
+        ).run(checkin.event_id, firstName, lastName, groupName, checkin.attendance_status, uid);
       }
-      memberId = insertMember({
-        project_id: checkin.project_id,
-        first_name: firstName,
-        last_name: lastName,
-        group_name: groupName || null,
-        email: accountEmail(uid),
-        user_id: uid,
-      });
-    } else {
-      memberId = existing.id;
-      if (existing.status !== 'active') {
-        db.prepare(`update members set status = 'active' where id = ?`).run(memberId);
-      }
+      return { state: 'success', recognized: false };
+    }
+
+    const memberId = existing.id;
+    if (existing.status !== 'active') {
+      db.prepare(`update members set status = 'active' where id = ?`).run(memberId);
     }
 
     upsertAttendance(checkin.event_id, memberId, checkin.attendance_status);
@@ -378,6 +406,31 @@ const submit_public_checkin = (args: Args) => {
     });
     queueCheckinConfirmation(checkin.event_id, match.id, checkin.attendance_status);
     return { state: 'success', recognized: true };
+  }
+
+  // Project setting: a known name with another group moves the person to the
+  // new group — only when the name is unique and the group is the project's
+  // (when it has groups), otherwise the check-in is left for review.
+  if (checkin.checkin_group_change === 'overwrite') {
+    const group = resolveGroup(checkin.project_id, groupName);
+    const hasGroups = projectGroupNames(checkin.project_id).length > 0;
+    const sameName = (
+      db
+        .prepare(`select id, first_name, last_name from members where project_id = ? and status = 'active'`)
+        .all(checkin.project_id) as { id: string; first_name: string; last_name: string }[]
+    ).filter((m) => same(m.first_name, firstName) && same(m.last_name, lastName));
+    if (sameName.length === 1 && (group.known || !hasGroups)) {
+      const moved = sameName[0];
+      db.prepare('update members set group_name = ? where id = ?').run(group.name, moved.id);
+      upsertAttendance(checkin.event_id, moved.id, checkin.attendance_status);
+      recordRecognizedSubmission(checkin.event_id, moved.id, checkin.attendance_status, {
+        first_name: firstName,
+        last_name: lastName,
+        group_name: group.name ?? groupName,
+      });
+      queueCheckinConfirmation(checkin.event_id, moved.id, checkin.attendance_status);
+      return { state: 'success', recognized: true };
+    }
   }
 
   // Unknown person: the same name and group again only refreshes the open
@@ -648,40 +701,106 @@ const can_access_project = (args: Args) => {
   return userCanAccessProject(args.pid);
 };
 
-const assign_checkin_submission = (args: Args) => {
-  requireUser();
+// What the caller may do with a project's unrecognized check-ins: the
+// project's setting applies to Stimmeltern only, higher roles may do all.
+export type CheckinRight = 'create' | 'assign' | 'none';
+const checkinRight = (uid: string, projectId: string): CheckinRight => {
+  const row = db
+    .prepare(
+      `select u.role, p.section_lead_checkin from app_users u, projects p where u.id = ? and p.id = ?`,
+    )
+    .get(uid, projectId) as { role: string; section_lead_checkin: CheckinRight } | undefined;
+  if (row?.role !== 'section_lead') return 'create';
+  return row.section_lead_checkin;
+};
+
+// An unrecognized submission the caller may act on with `need`.
+const openSubmission = (submissionId: string, need: Exclude<CheckinRight, 'none'>) => {
+  const uid = requireUser();
   const submission = db
     .prepare(
-      `select s.event_id, e.project_id, coalesce(s.attendance_status, c.attendance_status) as attendance_status
+      `select s.event_id, e.project_id, s.user_id,
+              coalesce(s.attendance_status, c.attendance_status) as attendance_status
        from checkin_submissions s
        join events e on e.id = s.event_id
        join event_checkins c on c.event_id = s.event_id
        where s.id = ? and not s.recognized`,
     )
-    .get(text(args.p_submission_id)) as
-    | { event_id: string; project_id: string; attendance_status: string }
+    .get(submissionId) as
+    | { event_id: string; project_id: string; user_id: string | null; attendance_status: string }
     | undefined;
   if (!submission) throw new ApiError('Check-in submission not found');
   if (!userCanAccessProject(submission.project_id)) throw forbidden('Project access denied');
+  const right = checkinRight(uid, submission.project_id);
+  if (right === 'none' || (need === 'create' && right !== 'create')) throw forbidden('Not allowed for this project');
+  return submission;
+};
 
-  const member = db
-    .prepare(`select id from members where id = ? and project_id = ? and status = 'active'`)
-    .get(text(args.p_member_id), submission.project_id) as { id: string } | undefined;
-  if (!member) throw new ApiError('Member not found in this project');
-
-  upsertAttendance(submission.event_id, member.id, submission.attendance_status);
+// Marks the submission as the member's check-in.
+const assignSubmission = (
+  submissionId: string,
+  submission: { event_id: string; attendance_status: string },
+  memberId: string,
+) => {
+  upsertAttendance(submission.event_id, memberId, submission.attendance_status);
   // Already checked in under their own name: drop the stray entry instead of
   // listing the person twice.
   const duplicate = db
     .prepare('select 1 from checkin_submissions where event_id = ? and member_id = ? and recognized = 1')
-    .get(submission.event_id, member.id);
+    .get(submission.event_id, memberId);
   if (duplicate) {
-    db.prepare('delete from checkin_submissions where id = ?').run(text(args.p_submission_id));
+    db.prepare('delete from checkin_submissions where id = ?').run(submissionId);
   } else {
     db.prepare(
       `update checkin_submissions set member_id = ?, recognized = 1, attendance_status = ? where id = ?`,
-    ).run(member.id, submission.attendance_status, text(args.p_submission_id));
+    ).run(memberId, submission.attendance_status, submissionId);
   }
+};
+
+// An account from a check-in that may be linked to a member of the project:
+// one per project, so not when another member already has it.
+const linkableAccount = (projectId: string, userId: string | null): userId is string =>
+  Boolean(userId) &&
+  !db.prepare('select 1 from members where project_id = ? and user_id = ?').get(projectId, userId);
+
+// Saves an unrecognized check-in as a new member and assigns it, in one go.
+const create_member_from_checkin = (args: Args) => {
+  const submissionId = text(args.p_submission_id);
+  const submission = openSubmission(submissionId, 'create');
+  const firstName = trimmed(args.p_first_name);
+  const lastName = trimmed(args.p_last_name);
+  const groupName = trimmed(args.p_group_name);
+  if (!firstName || !lastName || tooLong(firstName, 120) || tooLong(lastName, 120) || tooLong(groupName, 120)) {
+    throw new ApiError('Invalid name', 400, '23514');
+  }
+  const memberId = insertMember({
+    project_id: submission.project_id,
+    first_name: firstName,
+    last_name: lastName,
+    group_name: resolveGroup(submission.project_id, groupName || null).name,
+    // Checked in with an account no other member of the project has: the
+    // new member is that account's.
+    email: linkableAccount(submission.project_id, submission.user_id) ? accountEmail(submission.user_id!) : null,
+    user_id: linkableAccount(submission.project_id, submission.user_id) ? submission.user_id : null,
+  });
+  assignSubmission(submissionId, submission, memberId);
+  return { success: true, member_id: memberId };
+};
+
+const assign_checkin_submission = (args: Args) => {
+  const submissionId = text(args.p_submission_id);
+  const submission = openSubmission(submissionId, 'assign');
+  const member = db
+    .prepare(`select id from members where id = ? and project_id = ? and status = 'active'`)
+    .get(text(args.p_member_id), submission.project_id) as { id: string } | undefined;
+  if (!member) throw new ApiError('Member not found in this project');
+  // Checked in with an account: assigning confirms it is this member's.
+  if (linkableAccount(submission.project_id, submission.user_id)) {
+    db.prepare(
+      'update members set user_id = ?, email = coalesce(email, ?) where id = ? and user_id is null',
+    ).run(submission.user_id, accountEmail(submission.user_id!), member.id);
+  }
+  assignSubmission(submissionId, submission, member.id);
   return { success: true };
 };
 
@@ -1109,6 +1228,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   submit_public_registration,
   can_access_project,
   assign_checkin_submission,
+  create_member_from_checkin,
   transfer_registration,
   transfer_all_registrations,
   transfer_registration_selection,

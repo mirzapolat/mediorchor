@@ -72,7 +72,6 @@ const PieceInfo = () => {
         <MarkdownEditor
           id="piece-info"
           label={t('pieceInfoText')}
-          hint={t('pieceInfoHint')}
           value={text}
           onChange={setText}
           minHeight={200}

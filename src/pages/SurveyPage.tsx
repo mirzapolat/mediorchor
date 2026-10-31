@@ -268,7 +268,6 @@ export const SurveyPage = () => {
                   ? t('surveyPublishEditorialHint')
                   : t('surveyPublishFirstHint')}
             </p>
-            <p className="text-text-tertiary">{t('surveyPublishSettingsHint')}</p>
           </div>
         )}
       </Modal>
@@ -324,7 +323,7 @@ const PreviewOverlay = ({ structure, form, onClose }: { structure: FormStructure
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={t('lifecyclePreview')} className="fixed inset-0 z-[70] flex flex-col bg-bg">
+    <div role="dialog" aria-modal="true" aria-label={t('lifecyclePreview')} className="fixed inset-0 z-[70] flex flex-col bg-bg pb-[env(safe-area-inset-bottom)]">
       <div className="flex flex-shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {t('lifecyclePreview')}: {form.title}

@@ -505,10 +505,7 @@ export const PieceSetupPage = () => {
   return (
     // The piece's "Konfiguration" page: wide screens get the room for the wires.
     <div className="space-y-4 pb-10 lg:max-w-[1600px]">
-      <div className="min-w-0">
-        <h1 className="text-xl font-bold sm:text-2xl">{t('pieceConfigTitle')}</h1>
-        <p className="mt-1 text-sm text-text-secondary">{t('setUpHint')}</p>
-      </div>
+      <h1 className="min-w-0 text-xl font-bold sm:text-2xl">{t('pieceConfigTitle')}</h1>
 
       {/* The files wired to the score, the bars, the voices and the trainer.
           Title, composer, removing and deleting are on "Einstellungen". */}

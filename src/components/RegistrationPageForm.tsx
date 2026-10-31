@@ -227,7 +227,6 @@ export const RegistrationPageForm = ({
                 checked={form.ask_group}
                 onChange={(v) => setForm({ ...form, ask_group: v })}
                 label={t('askGroup')}
-                hint={t('askGroupProjectHint')}
               />
             </div>
           </>
@@ -243,11 +242,7 @@ export const RegistrationPageForm = ({
           checked={form.auto_transfer}
           onChange={(v) => setForm({ ...form, auto_transfer: v })}
           label={t('autoTransfer')}
-          hint={
-            form.source === 'webhook'
-              ? `${t('autoTransferHint')} ${t('webhookAutoTransferNote')}`
-              : t('autoTransferHint')
-          }
+          hint={form.source === 'webhook' ? t('webhookAutoTransferNote') : undefined}
         />
       </form>
     </Modal>

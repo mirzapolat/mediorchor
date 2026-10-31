@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bookmark, ChevronDown, CircleCheck, LogIn, LogOut, Mic } from 'lucide-react';
+import { Ban, Bookmark, ChevronDown, CircleCheck, LogIn, LogOut, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -149,17 +149,24 @@ export const MyParticipationPage = () => {
   // managers (who can read all labels) consistent with what participants see.
   const matchingLabels = useMemo(
     () =>
-      labels.filter((l) => l.kind !== 'audition' && l.is_public && matchesConditions(stats, l.conditions)),
+      labels.filter((l) => l.kind === 'tag' && l.is_public && matchesConditions(stats, l.conditions)),
     [labels, stats],
   );
   // The project's audition rule, shown to everyone as "must / needn't yet" –
   // or "done" once a manager ticked "Vorgesungen" for this member.
+  // Meeting the exclusion rule wins: the person may no longer sing in the
+  // project, so auditioning doesn't come up.
+  const excluded = useMemo(() => {
+    const rule = labels.find((l) => l.kind === 'exclusion');
+    return Boolean(rule && matchesConditions(stats, rule.conditions));
+  }, [labels, stats]);
   const audition = useMemo((): 'done' | 'must' | 'notYet' | null => {
+    if (excluded) return null;
     const rule = labels.find((l) => l.kind === 'audition');
     if (!rule) return null;
     if (member?.auditioned) return 'done';
     return matchesConditions(stats, rule.conditions) ? 'must' : 'notYet';
-  }, [labels, member?.auditioned, stats]);
+  }, [excluded, labels, member?.auditioned, stats]);
 
   const join = async (e: FormEvent) => {
     e.preventDefault();
@@ -346,6 +353,12 @@ export const MyParticipationPage = () => {
                 <Stat value={stats.absent} label={t('notAttended')} className="text-text-secondary" />
               </div>
             )}
+            {excluded && (
+              <p className="mt-3 flex items-center gap-2 rounded-md bg-danger-soft px-3 py-2 text-sm font-medium text-danger-strong">
+                <Ban size={15} className="shrink-0" />
+                {t('youAreExcluded')}
+              </p>
+            )}
             {audition !== null && (
               <p
                 className={cn(
@@ -415,10 +428,7 @@ export const MyParticipationPage = () => {
 
           <div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
             <Card className="flex flex-col gap-3 max-sm:p-4">
-              <div>
-                <h2 className="text-base font-medium">{t('myGroup')}</h2>
-                <p className="text-sm text-text-secondary mt-1">{t('myGroupHint')}</p>
-              </div>
+              <h2 className="text-base font-medium">{t('myGroup')}</h2>
               {groups.length > 0 ? (
                 <div className="flex items-center gap-3 sm:max-w-xs">
                   <div className="min-w-0 flex-1">

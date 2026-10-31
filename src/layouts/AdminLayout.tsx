@@ -6,6 +6,7 @@ import { returnPath } from '@/lib/navReturn';
 import { useAuth } from '@/hooks/useAuth';
 import { NoAccess } from '@/components/NoAccess';
 import { useI18n } from '@/lib/i18n';
+import { PAGE_PADDING } from '@/lib/pagePadding';
 
 export const AdminLayout = () => {
   const { t } = useI18n();
@@ -28,7 +29,7 @@ export const AdminLayout = () => {
       // Back to where the settings were opened from (header icon), else home.
       back={{ to: returnPath('admin'), label: t('back') }}
       context={<MobileContext icon={ShieldCheck} title={t('adminSettings')} />}
-      contentClassName="max-w-[1400px] p-4 sm:p-6 lg:p-8"
+      contentClassName={`max-w-[1400px] ${PAGE_PADDING}`}
     >
       <Outlet />
     </NavShell>

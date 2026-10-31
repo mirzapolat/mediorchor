@@ -140,7 +140,6 @@ export const MailStatsCard = () => {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="text-base font-medium">{t('mailStats')}</h2>
-        <p className="mt-1 text-sm text-text-secondary">{t('mailStatsHint')}</p>
       </div>
       {rangeControl}
     </div>

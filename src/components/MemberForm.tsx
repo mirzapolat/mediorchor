@@ -206,9 +206,7 @@ export const MemberForm = ({
                   </div>
                 ) : accountQuery.trim() ? (
                   <p className="text-sm text-text-secondary">{t('noAccountsFound')}</p>
-                ) : (
-                  <p className="text-sm text-text-secondary">{t('searchAccountHint')}</p>
-                )}
+                ) : null}
               </>
             )}
           </div>

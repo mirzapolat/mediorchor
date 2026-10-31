@@ -99,7 +99,6 @@ export const AdminSecurityPage = () => {
           <h2 className="text-base font-medium">{t('signupSection')}</h2>
           <ToggleRow
             label={t('allowSelfSignup')}
-            hint={t('allowSelfSignupHint')}
             checked={settings.allow_self_signup}
             onChange={(v) => void update('signup', { allow_self_signup: v })}
           />
@@ -237,7 +236,7 @@ const ToggleRow = ({
   onChange,
 }: {
   label: string;
-  hint: string;
+  hint?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (value: boolean) => void;
@@ -249,7 +248,7 @@ const ToggleRow = ({
   >
     <span>
       <span className="block font-medium">{label}</span>
-      <span className="block text-sm text-text-secondary mt-0.5">{hint}</span>
+      {hint && <span className="block text-sm text-text-secondary mt-0.5">{hint}</span>}
     </span>
     <input
       type="checkbox"
@@ -528,8 +527,6 @@ const BrandingCard = ({ defaults }: { defaults: ServerInfo['brand_defaults'] }) 
   return (
     <form onSubmit={(e) => void save(e)} className="max-w-5xl">
       <Card className="space-y-5">
-        <p className="text-sm text-text-secondary">{t('brandingHint')}</p>
-
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="space-y-5">
             <Input

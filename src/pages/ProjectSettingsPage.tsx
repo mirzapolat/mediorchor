@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/uploadImage';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { TranslationKey } from '@/lib/i18n';
+import type { Project } from '@/types';
 import { CardColumns } from '@/components/CardColumns';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -29,6 +30,10 @@ export const ProjectSettingsPage = () => {
   const [signupRules, setSignupRules] = useState({
     require_signup_group: project.require_signup_group,
     default_group: project.default_group ?? '',
+  });
+  const [checkinRules, setCheckinRules] = useState({
+    checkin_group_change: project.checkin_group_change,
+    section_lead_checkin: project.section_lead_checkin,
   });
   const [access, setAccess] = useState({
     allow_account_access: project.allow_account_access,
@@ -81,6 +86,7 @@ export const ProjectSettingsPage = () => {
         ...access,
         require_signup_group: signupRules.require_signup_group,
         default_group: signupRules.default_group || null,
+        ...checkinRules,
       })
       .eq('id', project.id);
     setSaving(false);
@@ -166,14 +172,13 @@ export const ProjectSettingsPage = () => {
           </Card>
           <ToggleCard
             title={t('participantsSettings')}
-            hint={t('participantsSettingsHint')}
             toggles={[
-              ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
-              ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
-              ['show_weekend', 'showWeekend', 'showWeekendHint'],
-              ['show_concerts', 'showConcerts', 'showConcertsHint'],
-              ['show_surveys', 'showSurveys', 'showSurveysHint'],
-              ['show_responsibles', 'showResponsibles', 'showResponsiblesHint'],
+              ['allow_account_access', 'allowAccountAccess'],
+              ['allow_participant_pieces', 'allowParticipantPieces'],
+              ['show_weekend', 'showWeekend'],
+              ['show_concerts', 'showConcerts'],
+              ['show_surveys', 'showSurveys'],
+              ['show_responsibles', 'showResponsibles'],
             ]}
             values={access}
             onToggle={toggle}
@@ -181,20 +186,58 @@ export const ProjectSettingsPage = () => {
 
           <ToggleCard
             title={t('checkinSettings')}
-            hint={t('checkinSettingsHint')}
             toggles={[
-              ['allow_account_checkin', 'allowAccountCheckin', 'allowAccountCheckinHint'],
-              ['allow_guest_checkin', 'allowGuestCheckin', 'allowGuestCheckinHint'],
+              ['allow_account_checkin', 'allowAccountCheckin'],
+              ['allow_guest_checkin', 'allowGuestCheckin'],
             ]}
             values={access}
             onToggle={toggle}
-          />
+          >
+            <div className="space-y-1.5 border-t border-border pt-4">
+              <Select
+                label={t('checkinGroupChange')}
+                value={checkinRules.checkin_group_change}
+                onChange={(e) => {
+                  setCheckinRules({
+                    ...checkinRules,
+                    checkin_group_change: e.target.value as Project['checkin_group_change'],
+                  });
+                  setSaved(false);
+                }}
+              >
+                <option value="review">{t('checkinGroupChangeReview')}</option>
+                <option value="overwrite">{t('checkinGroupChangeOverwrite')}</option>
+              </Select>
+              <p className="text-sm text-text-secondary">
+                {checkinRules.checkin_group_change === 'overwrite'
+                  ? t('checkinGroupChangeOverwriteHint')
+                  : t('checkinGroupChangeReviewHint')}
+              </p>
+            </div>
+            <div className="space-y-1.5 border-t border-border pt-4">
+              <Select
+                label={t('sectionLeadCheckin')}
+                value={checkinRules.section_lead_checkin}
+                onChange={(e) => {
+                  setCheckinRules({
+                    ...checkinRules,
+                    section_lead_checkin: e.target.value as Project['section_lead_checkin'],
+                  });
+                  setSaved(false);
+                }}
+              >
+                <option value="create">{t('sectionLeadCheckinCreate')}</option>
+                <option value="assign">{t('sectionLeadCheckinAssign')}</option>
+                <option value="none">{t('sectionLeadCheckinNone')}</option>
+              </Select>
+              <p className="text-sm text-text-secondary">{t('sectionLeadCheckinHint')}</p>
+            </div>
+          </ToggleCard>
           <ToggleCard
             title={t('signupSettings')}
-            hint={t('signupSettingsHint')}
             toggles={[
-              ['allow_account_signup', 'allowAccountSignup', 'allowAccountSignupHint'],
-              ['allow_guest_signup', 'allowGuestSignup', 'allowGuestSignupHint'],
+              ['allow_account_signup', 'allowAccountSignup'],
+              ['allow_guest_signup', 'allowGuestSignup'],
             ]}
             values={access}
             onToggle={toggle}
@@ -238,7 +281,6 @@ export const ProjectSettingsPage = () => {
           </ToggleCard>
           <ToggleCard
             title={t('projectEmailSettings')}
-            hint={t('projectEmailSettingsHint')}
             toggles={[
               ['notify_registration_received', 'notifyRegistrationReceived', 'notifyRegistrationReceivedHint'],
               ['notify_checkin_confirmation', 'notifyCheckinConfirmation', 'notifyCheckinConfirmationHint'],
@@ -325,8 +367,8 @@ export const ToggleCard = ({
   children,
 }: {
   title: string;
-  hint: string;
-  toggles: [AccessKey, TranslationKey, TranslationKey][];
+  hint?: string;
+  toggles: [AccessKey, TranslationKey, TranslationKey?][];
   values: Record<AccessKey, boolean>;
   onToggle: (key: AccessKey, value: boolean) => void;
   // Switches that currently have no effect (turned off elsewhere), shown dimmed
@@ -341,7 +383,7 @@ export const ToggleCard = ({
     <Card className="space-y-4">
       <div>
         <h2 className="text-base font-medium">{title}</h2>
-        <p className="text-sm text-text-secondary mt-1">{hint}</p>
+        {hint && <p className="text-sm text-text-secondary mt-1">{hint}</p>}
       </div>
       {toggles.map(([key, label, toggleHint]) => {
         const off = unavailable?.(key) ?? false;
@@ -354,9 +396,11 @@ export const ToggleCard = ({
           >
             <span>
               <span className="block font-medium">{t(label)}</span>
-              <span className="block text-sm text-text-secondary mt-0.5">
-                {off && unavailableHint ? `${t(toggleHint)} ${unavailableHint}` : t(toggleHint)}
-              </span>
+              {toggleHint || (off && unavailableHint) ? (
+                <span className="block text-sm text-text-secondary mt-0.5">
+                  {[toggleHint ? t(toggleHint) : '', off ? unavailableHint : ''].filter(Boolean).join(' ')}
+                </span>
+              ) : null}
             </span>
             <input
               type="checkbox"

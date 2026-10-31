@@ -148,7 +148,6 @@ export const AddFileNodes = ({ available, onAdd }: { available: PieceFile[]; onA
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-text-secondary">{t('addFileNodesHint')}</p>
           {available.length > 6 && (
             <label className="relative block">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />

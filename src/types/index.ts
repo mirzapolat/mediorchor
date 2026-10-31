@@ -58,6 +58,8 @@ export interface Project {
   notify_checkin_confirmation: boolean; // "check-in confirmed" emails (when an admin enabled them)
   require_signup_group: boolean; // sign-ups must name a group (when the project has any)
   default_group: string | null; // group for new members added without one
+  checkin_group_change: 'review' | 'overwrite'; // guest check-in with another group: list for review or move the person
+  section_lead_checkin: 'create' | 'assign' | 'none'; // what Stimmeltern may do with unrecognized check-ins
   created_at: string;
   created_by: string | null;
 }
@@ -234,6 +236,7 @@ export interface CheckinSubmission {
   recognized: boolean;
   attendance_status: Extract<AttendanceStatus, 'attended' | 'excused'> | null;
   submitted_at: string;
+  user_id: string | null; // checked in with this account (not on the member list)
 }
 
 export interface RegistrationPage {
@@ -537,7 +540,9 @@ export interface AbsenceLabel {
   is_public: boolean;
   // 'audition': the project's audition rule (at most one; always shown to
   // participants as "you must / needn't audition yet").
-  kind: 'tag' | 'audition';
+  // 'exclusion': the project's exclusion rule (at most one; whoever meets it
+  // may no longer sing in the project and is left out of the audition rule).
+  kind: 'tag' | 'audition' | 'exclusion';
   position: number;
   created_at: string;
 }

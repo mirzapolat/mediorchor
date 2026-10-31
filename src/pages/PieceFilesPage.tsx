@@ -1852,7 +1852,7 @@ export const PieceFilesPage = () => {
       {toast && (
         <div
           role="status"
-          className="fixed bottom-4 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl bg-black py-2.5 pl-4 pr-2 text-sm text-white shadow-lg"
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl bg-black py-2.5 pl-4 pr-2 text-sm text-white shadow-lg"
         >
           <span className="min-w-0 truncate">{toast.text}</span>
           {toast.share && (

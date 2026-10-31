@@ -62,7 +62,6 @@ export const CoverInput = ({ value, onChange }: { value: string | null; onChange
               </button>
             )}
           </div>
-          <p className="text-sm text-text-secondary">{t('registrationCoverHint')}</p>
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-danger-strong">{error}</p>}

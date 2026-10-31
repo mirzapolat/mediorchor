@@ -206,7 +206,6 @@ export const DashboardPage = () => {
         <NoProjectsNotice email={user.email} />
       ) : (
         <>
-          {editing && <p className="mb-4 text-sm text-text-secondary">{t('customizeDashboardHint')}</p>}
           {shown.length === 0 ? (
             <Card className="text-center">
               <p className="text-sm text-text-secondary">{t('dashboardAllHidden')}</p>

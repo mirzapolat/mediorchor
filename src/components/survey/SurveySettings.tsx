@@ -125,7 +125,6 @@ export const SurveySettings = ({
             checked={form.review_before_submit}
             onChange={(review_before_submit) => set({ review_before_submit })}
             label={t('surveyReview')}
-            hint={t('surveyReviewHint')}
           />
           <Toggle checked={form.show_progress} onChange={(show_progress) => set({ show_progress })} label={t('surveyProgress')} />
           <Toggle
@@ -168,7 +167,6 @@ export const SurveySettings = ({
           checked={form.consent_required}
           onChange={(consent_required) => set({ consent_required })}
           label={t('surveyConsent')}
-          hint={t('surveyConsentHint')}
         />
         {form.consent_required && (
           <TextField

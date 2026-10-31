@@ -115,7 +115,6 @@ export const AccountProfilePage = () => {
                 )}
               </div>
             </div>
-            <p className="mt-1.5 text-sm text-text-secondary">{t('profilePhotoHint')}</p>
             {photo.error && <p className="mt-1 text-sm text-accent">{photo.error}</p>}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -287,10 +286,7 @@ const StartPageCard = () => {
   const pages = availableHomePages({ hasDashboard, hasFullPieceAccess, canEditCalendars });
   return (
     <Card className="space-y-4">
-      <div>
-        <h2 className="text-base font-medium">{t('startPage')}</h2>
-        <p className="text-sm text-text-secondary mt-1">{t('startPageHint')}</p>
-      </div>
+      <h2 className="text-base font-medium">{t('startPage')}</h2>
       <Select
         value={pages.includes(user.home_page) ? user.home_page : pages[0]}
         aria-label={t('startPage')}
@@ -315,10 +311,7 @@ const LanguageCard = () => {
   const { user } = useAuth();
   return (
     <Card className="space-y-4">
-      <div>
-        <h2 className="text-base font-medium">{t('language')}</h2>
-        <p className="text-sm text-text-secondary mt-1">{t('languageHint')}</p>
-      </div>
+      <h2 className="text-base font-medium">{t('language')}</h2>
       <Select
         value={lang}
         aria-label={t('language')}
@@ -392,7 +385,6 @@ export const TwoFactorCard = ({ onEnabled, plain }: { onEnabled?: () => void; pl
             {t('twoFactor')}
           </h2>
         )}
-        <p className="text-sm text-text-secondary">{enabled ? t('twoFactorOnHint') : t('twoFactorOffHint')}</p>
       </div>
 
       <AuthenticatorSection factors={factors} run={reauth.run} done={done} />
@@ -937,10 +929,7 @@ const InstallAppCard = () => {
 
   return (
     <Card className="space-y-4">
-      <div>
-        <h2 className="text-base font-medium">{t('installApp')}</h2>
-        <p className="text-sm text-text-secondary mt-1">{t('installAppHint')}</p>
-      </div>
+      <h2 className="text-base font-medium">{t('installApp')}</h2>
       {canPrompt ? (
         <Button
           onClick={async () => {
@@ -1043,9 +1032,7 @@ const NotificationsCard = () => {
           <Bell size={17} className="text-text-secondary" />
           {t('notifications')}
         </h2>
-        <p className="text-sm text-text-secondary mt-1">
-          {mailEnabled ? t('notificationsHint') : t('notificationsUnavailable')}
-        </p>
+        {!mailEnabled && <p className="text-sm text-text-secondary mt-1">{t('notificationsUnavailable')}</p>}
       </div>
       {toggles.map(([key, label, hint]) => (
         <label
@@ -1137,10 +1124,7 @@ const SessionsCard = () => {
 
   return (
     <Card className="space-y-4">
-      <div>
-        <h2 className="text-base font-medium">{t('activeSessions')}</h2>
-        <p className="text-sm text-text-secondary mt-1">{t('activeSessionsHint')}</p>
-      </div>
+      <h2 className="text-base font-medium">{t('activeSessions')}</h2>
       <ul className="divide-y divide-border border-t border-border">
         {(showAll ? sessions : sessions.slice(0, SESSIONS_PREVIEW)).map((s) => {
           const device = describeDevice(s.user_agent);

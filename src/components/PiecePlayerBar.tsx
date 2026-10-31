@@ -274,8 +274,10 @@ export const PiecePlayerBar = ({
         'sticky z-30 bg-surface/60 backdrop-blur-xl backdrop-saturate-150',
         floating
           ? // A little wider than the score column below it.
-            'bottom-6 -mx-4 mt-6 rounded-2xl border border-border/60 px-5 py-2.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)]'
-          : 'bottom-0 -mx-4 -mb-4 mt-auto border-t border-border/60 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-6 sm:-mb-6 sm:px-6 lg:-mx-8 lg:-mb-8 lg:px-8',
+            'bottom-[calc(1.5rem+env(safe-area-inset-bottom))] -mx-4 mt-6 rounded-2xl border border-border/60 px-5 py-2.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)]'
+          : // The negative bottom margin cancels the page padding (PAGE_PADDING),
+            // safe area included, so the bar reaches the screen's edge.
+            'bottom-0 -mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom))] mt-auto border-t border-border/60 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-6 sm:-mb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:-mx-8 lg:-mb-[calc(2rem+env(safe-area-inset-bottom))] lg:px-8',
       )}
     >
       {picking && (

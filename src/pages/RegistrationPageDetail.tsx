@@ -501,9 +501,6 @@ export const RegistrationPageDetail = () => {
           <div className="flex items-center gap-3 px-4 py-3 sm:px-5">
             <div className="flex min-w-0 flex-1 items-baseline gap-3">
               <span className="flex-shrink-0 text-base font-medium">{t('groupDistribution')}</span>
-              <span className="hidden truncate text-sm text-text-secondary sm:inline">
-                {t('registrationGroupDistributionHint')}
-              </span>
             </div>
             {groupFilter && (
               <button

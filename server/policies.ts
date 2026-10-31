@@ -480,10 +480,16 @@ export const policies: Record<string, TablePolicy> = {
     },
   },
 
-  // Submissions are only written by the public check-in functions.
+  // Submissions are only written by the public check-in functions (and
+  // assigned by RPC). Stimmeltern may not remove them where the project lets
+  // them do nothing with unrecognized check-ins (migration 0078).
   checkin_submissions: {
     select: (a) => eventInManagedProject(`${a}.event_id`),
-    delete: (a) => eventInManagedProject(`${a}.event_id`),
+    delete: (a) => `${eventInManagedProject(`${a}.event_id`)} and not exists (
+      select 1 from events _ce join projects _cp on _cp.id = _ce.project_id
+      join app_users _cu on _cu.id = auth_uid()
+      where _ce.id = ${a}.event_id and _cp.section_lead_checkin = 'none' and _cu.role = 'section_lead'
+    )`,
   },
 
   // Participants read the groups to pick their own on "My participation".
@@ -886,8 +892,8 @@ export const policies: Record<string, TablePolicy> = {
     select: (a) =>
       or(
         canAccessProject(`${a}.project_id`),
-        // The audition rule is always shown to participants.
-        `(${a}.is_public or ${a}.kind = 'audition') and ${isProjectParticipant(`${a}.project_id`)}`,
+        // The audition and exclusion rules are always shown to participants.
+        `(${a}.is_public or ${a}.kind in ('audition', 'exclusion')) and ${isProjectParticipant(`${a}.project_id`)}`,
       ),
   },
 };

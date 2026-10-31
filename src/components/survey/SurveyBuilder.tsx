@@ -633,7 +633,6 @@ const TypeEditor = ({
               onChange={(e) => onChange({ max_files: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })}
             />
           </div>
-          <p className="text-xs text-text-tertiary">{t('formFileSafetyHint')}</p>
         </div>
       );
     case 'image':

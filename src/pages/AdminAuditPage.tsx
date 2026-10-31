@@ -235,7 +235,6 @@ export const AdminAuditPage = () => {
     <div>
       <PageHeader
         title={t('auditLog')}
-        subtitle={t('auditLogHint')}
         inlineActions
         actions={
           <>

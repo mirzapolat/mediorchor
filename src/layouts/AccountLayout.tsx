@@ -4,6 +4,7 @@ import { SidebarSectionHeader } from '@/components/SidebarSectionHeader';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { returnPath } from '@/lib/navReturn';
 import { useI18n } from '@/lib/i18n';
+import { PAGE_PADDING } from '@/lib/pagePadding';
 
 // Account settings: their own sidebar with one page per section.
 export const AccountLayout = () => {
@@ -23,7 +24,7 @@ export const AccountLayout = () => {
       // Back to where the settings were opened from (header icon), else home.
       back={{ to: returnPath('account'), label: t('back') }}
       context={<MobileContext icon={CircleUserRound} title={t('account')} />}
-      contentClassName="max-w-3xl p-4 sm:p-6 lg:p-8"
+      contentClassName={`max-w-3xl ${PAGE_PADDING}`}
     >
       <Outlet />
     </NavShell>

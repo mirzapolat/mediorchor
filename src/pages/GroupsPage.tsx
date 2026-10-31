@@ -120,7 +120,6 @@ export const GroupsPage = () => {
     <>
       <PageHeader
         title={t('groupsList')}
-        subtitle={t('groupsHint')}
         inlineActions
         actions={
           <>
@@ -183,10 +182,7 @@ export const GroupsPage = () => {
 
         {groups.length > 0 && (
           <Card className="p-6 lg:sticky lg:top-6">
-            <div className="mb-5">
-              <h2 className="text-base font-medium">{t('groupDistribution')}</h2>
-              <p className="mt-0.5 text-sm text-text-secondary">{t('groupDistributionHint')}</p>
-            </div>
+            <h2 className="mb-5 text-base font-medium">{t('groupDistribution')}</h2>
             <GroupDonut
               slices={slices}
               onSelect={(slice) => navigate(`/projects/${project.id}/groups/${slice.id}`)}

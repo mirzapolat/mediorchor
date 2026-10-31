@@ -112,7 +112,6 @@ export const ConcertFields = ({
           <MarkdownEditor
             id={`${idPrefix}-dress`}
             label={optional(t('concertDressCode'))}
-            hint={t('concertDressCodeHint')}
             value={value.dress_code}
             onChange={(dress_code) => set({ dress_code })}
             minHeight={100}

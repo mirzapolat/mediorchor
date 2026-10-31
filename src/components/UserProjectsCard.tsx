@@ -60,9 +60,7 @@ export const UserProjectsCard = ({ user, reloadKey }: { user: AppUser; reloadKey
   return (
     <Card className="max-w-xl mt-6">
       <p className="font-medium">{t('projects')}</p>
-      <p className="text-sm text-text-secondary mt-0.5">
-        {allProjects ? t('userProjectsAllHint') : t('userProjectsHint')}
-      </p>
+      {allProjects && <p className="text-sm text-text-secondary mt-0.5">{t('userProjectsAllHint')}</p>}
       {loading ? null : active.length === 0 && archived.length === 0 ? (
         <p className="text-sm text-text-tertiary mt-3">{t('userProjectsNone')}</p>
       ) : (

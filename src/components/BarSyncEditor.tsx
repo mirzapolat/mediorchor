@@ -567,7 +567,7 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-bg animate-[fadein_200ms_ease-in-out]"
+      className="fixed inset-0 z-50 flex flex-col bg-bg pb-[env(safe-area-inset-bottom)] animate-[fadein_200ms_ease-in-out]"
       role="dialog"
       aria-modal="true"
       aria-label={t('syncTitle')}
@@ -654,7 +654,6 @@ export const BarSyncEditor = ({ piece, voices, onClose, onSave }: BarSyncEditorP
               <Plus size={15} />
             </button>
           </div>
-          <p className="w-full text-sm text-text-secondary">{t('syncHelp')}</p>
         </div>
 
         {/* The recording with the bars on top */}

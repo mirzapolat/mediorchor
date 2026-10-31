@@ -185,7 +185,6 @@ const ProjectInfoModal = ({
         </>
       }
     >
-      <p className="text-sm text-text-secondary">{t('projectInfoHint')}</p>
       <MarkdownEditor
         id="project-info-text"
         label={t('projectInfoText')}

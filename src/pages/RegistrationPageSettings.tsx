@@ -155,8 +155,7 @@ export const RegistrationPageSettings = () => {
         <Card className="space-y-4">
           {!webhook && (
             <div className="border-b border-border pb-4">
-              <p className="text-sm text-text-secondary">{t('registrationLinkHint')}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <a
                   href={publicUrl}
                   target="_blank"
@@ -207,7 +206,6 @@ export const RegistrationPageSettings = () => {
                   checked={form.ask_group}
                   onChange={(v) => update({ ask_group: v })}
                   label={t('askGroup')}
-                  hint={t('askGroupProjectHint')}
                 />
               </div>
             </>
@@ -223,9 +221,7 @@ export const RegistrationPageSettings = () => {
             checked={form.auto_transfer}
             onChange={(v) => update({ auto_transfer: v })}
             label={t('autoTransfer')}
-            hint={
-              webhook ? `${t('autoTransferHint')} ${t('webhookAutoTransferNote')}` : t('autoTransferHint')
-            }
+            hint={webhook ? t('webhookAutoTransferNote') : undefined}
           />
 
           <div className="flex items-center gap-3">

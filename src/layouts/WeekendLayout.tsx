@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { useWeekendContext, weekendDates, type Weekend } from '@/lib/weekends';
+import { PAGE_PADDING } from '@/lib/pagePadding';
 
 // One rehearsal weekend, laid out like a Probe or a piece: its own sidebar
 // with the weekend's name, dates and place, and its pages — "Details" once
@@ -84,7 +85,7 @@ export const WeekendLayout = () => {
           meta={[dates, weekend.location].filter(Boolean).join(' · ') || undefined}
         />
       }
-      contentClassName="max-w-[1100px] p-4 sm:p-6 lg:p-8"
+      contentClassName={`max-w-[1100px] ${PAGE_PADDING}`}
     >
       <ProjectGroupsProvider projectId={project.id}>
         <Outlet context={{ ...ctx, weekend, reloadWeekend: load }} />

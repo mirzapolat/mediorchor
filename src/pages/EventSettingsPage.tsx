@@ -107,10 +107,7 @@ export const EventSettingsPage = () => {
             onChange={(e) => update({ location: e.target.value })}
           />
           <label className="flex cursor-pointer items-center justify-between gap-4 border-t border-border pt-4">
-            <span>
-              <span className="block font-medium">{t('showInCalendar')}</span>
-              <span className="mt-0.5 block text-sm text-text-secondary">{t('showInCalendarHint')}</span>
-            </span>
+            <span className="block font-medium">{t('showInCalendar')}</span>
             <input
               type="checkbox"
               className="h-4 w-4 flex-shrink-0 accent-black"

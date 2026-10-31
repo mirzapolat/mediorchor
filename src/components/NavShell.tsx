@@ -11,6 +11,8 @@ import { config } from '@/lib/config';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { rememberReturn } from '@/lib/navReturn';
+import { InstallAppButton } from './InstallAppButton';
+import { PAGE_PADDING } from '@/lib/pagePadding';
 
 export interface NavBack {
   to: string;
@@ -30,7 +32,7 @@ export const NavShell = ({
   items,
   back,
   context,
-  contentClassName = 'max-w-[1400px] p-4 sm:p-6 lg:p-8',
+  contentClassName = `max-w-[1400px] ${PAGE_PADDING}`,
   children,
 }: {
   header?: ReactNode;
@@ -104,11 +106,14 @@ export const MobileAppHeader = ({ back }: { back: NavBack | null }) => {
     <header className="relative z-30 flex-shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)] md:hidden">
       <div className="relative flex h-14 items-center justify-between px-1.5">
         <div className="flex w-[6.25rem] items-center">
-          {back && (
+          {back ? (
             <Link to={back.to} className={iconButton} aria-label={`${t('back')}: ${back.label}`} title={back.label}>
               <ArrowLeft size={20} />
             </Link>
-          )}
+          ) : pathname === '/dashboard' ? (
+            // Only on the dashboard: a nudge to install the app.
+            <InstallAppButton />
+          ) : null}
         </div>
 
         <Link

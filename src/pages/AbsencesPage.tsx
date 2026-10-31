@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Ban,
   Bookmark,
   Check,
   Download,
@@ -66,6 +67,18 @@ const searchResultRow = (row: ResultRow) =>
 
 
 
+// Marks a member who meets the exclusion rule.
+const ExcludedPill = ({ label }: { label: string }) => (
+  <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger-strong">
+    <Ban size={11} />
+    {label}
+  </span>
+);
+
+// The icon of a saved label by its kind.
+const LabelIcon = ({ kind, size }: { kind: AbsenceLabel['kind']; size: number }) =>
+  kind === 'audition' ? <Mic size={size} /> : kind === 'exclusion' ? <Ban size={size} /> : <Bookmark size={size} />;
+
 // Manage saved labels: drag to reorder, toggle public, delete. Every change
 // persists immediately.
 const LabelSettingsModal = ({
@@ -109,7 +122,6 @@ const LabelSettingsModal = ({
         <p className="text-sm text-text-secondary">{t('noLabels')}</p>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-text-secondary mb-3">{t('publicLabelHint')}</p>
           {labels.map((label, index) => {
             const dragging = dnd.isDragging(label.id);
             return (
@@ -147,11 +159,11 @@ const LabelSettingsModal = ({
                   <GripVertical size={16} />
                 </button>
                 <span className="flex-1 truncate font-medium">{label.name}</span>
-                {label.kind === 'audition' ? (
+                {label.kind !== 'tag' ? (
                   // Always shown to participants, so there is nothing to toggle.
                   <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
-                    <Mic size={14} />
-                    {t('auditionRule')}
+                    <LabelIcon kind={label.kind} size={14} />
+                    {label.kind === 'audition' ? t('auditionRule') : t('exclusionRule')}
                   </span>
                 ) : (
                   <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
@@ -254,9 +266,27 @@ export const AbsencesPage = () => {
   // "Vorgesungen" only matters once the project has an audition rule.
   const hasAuditionRule = labels.some((l) => l.kind === 'audition');
 
+  // Who meets the exclusion rule may no longer sing in the project: marked in
+  // the table and left out of the audition rule's results.
+  const exclusionLabel = labels.find((l) => l.kind === 'exclusion') ?? null;
+  const excludedIds = useMemo(
+    () =>
+      new Set(
+        exclusionLabel
+          ? rows.filter((row) => matchesConditions(row.counts, exclusionLabel.conditions)).map((row) => row.member.id)
+          : [],
+      ),
+    [exclusionLabel, rows],
+  );
+  const auditionActive = labels.some((l) => l.id === activeLabelId && l.kind === 'audition');
+
   const matchingRows = useMemo(
-    () => rows.filter((row) => matchesConditions(row.counts, conditions)),
-    [conditions, rows],
+    () =>
+      rows.filter(
+        (row) =>
+          matchesConditions(row.counts, conditions) && !(auditionActive && excludedIds.has(row.member.id)),
+      ),
+    [auditionActive, conditions, excludedIds, rows],
   );
   const columns = useMemo<Column<ResultRow>[]>(
     () => [
@@ -279,6 +309,7 @@ export const AbsencesPage = () => {
                 {t('archived')}
               </span>
             ) : null}
+            {excludedIds.has(row.member.id) ? <ExcludedPill label={t('excluded')} /> : null}
           </div>
         ),
       },
@@ -356,7 +387,7 @@ export const AbsencesPage = () => {
           ]
         : []),
     ],
-    [hasAuditionRule, t, toggleAuditioned],
+    [excludedIds, hasAuditionRule, t, toggleAuditioned],
   );
   const filters = useMemo<FilterDef<ResultRow>[]>(
     () => [
@@ -404,10 +435,16 @@ export const AbsencesPage = () => {
   );
 
 
-  // Filter by a saved label; this also discards an unsaved draft.
+  // Filter by a saved label; this also discards an unsaved draft. Clicking
+  // the selected label again clears the filter.
   const applyLabel = (label: AbsenceLabel) => {
     setEditorOpen(false);
     setBeforeDraft(null);
+    if (activeLabelId === label.id) {
+      setActiveLabelId(null);
+      setConditions([]);
+      return;
+    }
     setActiveLabelId(label.id);
     setConditions(withIds(label.conditions));
   };
@@ -434,18 +471,19 @@ export const AbsencesPage = () => {
     e.preventDefault();
     setSavingLabel(true);
     const fields = { name: labelName.trim(), conditions: toStoredConditions(conditions) };
-    // A new audition rule replaces the existing one.
+    // A new audition or exclusion rule replaces the existing one.
+    const replaced = labelKind === 'audition' ? auditionLabel : labelKind === 'exclusion' ? exclusionLabel : null;
     const { data } =
-      labelKind === 'audition' && auditionLabel
-        ? await api.from('absence_labels').update(fields).eq('id', auditionLabel.id).select('*').single()
+      replaced
+        ? await api.from('absence_labels').update(fields).eq('id', replaced.id).select('*').single()
         : await api
             .from('absence_labels')
             .insert({
               ...fields,
               project_id: project.id,
               kind: labelKind,
-              // The audition rule is always shown to participants.
-              is_public: labelKind === 'audition' || labelPublic,
+              // The audition and exclusion rules are always shown to participants.
+              is_public: labelKind !== 'tag' || labelPublic,
               position: labels.length,
             })
             .select('*')
@@ -532,6 +570,7 @@ export const AbsencesPage = () => {
           <button
             key={label.id}
             type="button"
+            aria-pressed={activeLabelId === label.id}
             onClick={() => applyLabel(label)}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors duration-150',
@@ -540,7 +579,7 @@ export const AbsencesPage = () => {
                 : 'border-border text-text-secondary hover:text-text hover:bg-surface-muted',
             )}
           >
-            {label.kind === 'audition' ? <Mic size={13} /> : <Bookmark size={13} />}
+            <LabelIcon kind={label.kind} size={13} />
             {label.name}
           </button>
         ))}
@@ -574,7 +613,6 @@ export const AbsencesPage = () => {
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">{t('absenceConditions')}</h2>
-            <p className="mt-1 text-sm text-text-secondary">{t('absenceConditionsHint')}</p>
           </div>
           <button
             type="button"
@@ -680,11 +718,14 @@ export const AbsencesPage = () => {
               }
               name={`${row.member.first_name} ${row.member.last_name}`.trim()}
               tags={
-                row.member.status === 'archived' ? (
-                  <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-text-tertiary">
-                    {t('archived')}
-                  </span>
-                ) : null
+                <>
+                  {row.member.status === 'archived' ? (
+                    <span className="rounded-md border border-border px-1.5 py-0.5 text-xs text-text-tertiary">
+                      {t('archived')}
+                    </span>
+                  ) : null}
+                  {excludedIds.has(row.member.id) ? <ExcludedPill label={t('excluded')} /> : null}
+                </>
               }
             >
               {row.member.email && <span className="min-w-0 break-all">{row.member.email}</span>}
@@ -747,7 +788,7 @@ export const AbsencesPage = () => {
             autoFocus
           />
           <div role="radiogroup" aria-label={t('labelKind')} className="space-y-2">
-            {(['tag', 'audition'] as const).map((kind) => (
+            {(['tag', 'audition', 'exclusion'] as const).map((kind) => (
               <label key={kind} className="flex cursor-pointer items-start gap-3">
                 <input
                   type="radio"
@@ -758,15 +799,17 @@ export const AbsencesPage = () => {
                 />
                 <span>
                   <span className="block text-sm font-medium">
-                    {kind === 'tag' ? t('labelKindTag') : t('auditionRule')}
+                    {kind === 'tag' ? t('labelKindTag') : kind === 'audition' ? t('auditionRule') : t('exclusionRule')}
                   </span>
-                  <span className="mt-0.5 block text-sm text-text-secondary">
-                    {kind === 'tag'
-                      ? t('labelKindTagHint')
-                      : auditionLabel
-                        ? t('auditionRuleReplaces').replace('{name}', auditionLabel.name)
-                        : t('auditionRuleHint')}
-                  </span>
+                  {/* Only worth a line when saving replaces the existing rule. */}
+                  {(() => {
+                    const replaced = kind === 'audition' ? auditionLabel : kind === 'exclusion' ? exclusionLabel : null;
+                    return replaced ? (
+                      <span className="mt-0.5 block text-sm text-text-secondary">
+                        {t('auditionRuleReplaces').replace('{name}', replaced.name)}
+                      </span>
+                    ) : null;
+                  })()}
                 </span>
               </label>
             ))}
@@ -779,12 +822,7 @@ export const AbsencesPage = () => {
               checked={labelPublic}
               onChange={(e) => setLabelPublic(e.target.checked)}
             />
-            <span>
-              <span className="block text-sm font-medium">{t('publicLabel')}</span>
-              <span className="mt-0.5 block text-sm text-text-secondary">
-                {t('publicLabelHint')}
-              </span>
-            </span>
+            <span className="block text-sm font-medium">{t('publicLabel')}</span>
           </label>
           )}
         </form>

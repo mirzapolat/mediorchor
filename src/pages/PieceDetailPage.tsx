@@ -411,7 +411,7 @@ export const PieceDetailPage = () => {
   // The wrapper is always rendered so the score isn't re-mounted. Tall
   // enough that the player sits at the bottom even on short pages.
   return (
-    <div className={fullscreen ? 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-bg' : undefined}>
+    <div className={fullscreen ? 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-bg pb-[env(safe-area-inset-bottom)]' : undefined}>
       {exitButton}
       <div
         className={cn(

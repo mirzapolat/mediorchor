@@ -110,9 +110,7 @@ export const EventProgramPage = () => {
             onChange={() => setNoteSaved(false)}
             onBlur={(e) => void saveProgramNote(e.target.value)}
           />
-          <p className="mt-2 text-xs text-text-secondary">
-            {noteSaved ? `✓ ${t('saved')}` : t('programHint')}
-          </p>
+          {noteSaved && <p className="mt-2 text-xs text-text-secondary">✓ {t('saved')}</p>}
         </Card>
 
         {pieces.length === 0 ? (

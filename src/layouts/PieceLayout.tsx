@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { loadPieceInScope } from '@/lib/pieceFiles';
 import { usePieceScope } from './pieceScope';
 import type { Piece } from '@/types';
+import { PAGE_PADDING } from '@/lib/pagePadding';
 
 // What the piece pages share through the layout: the piece as shown in the
 // sidebar, kept current when its configuration changes it.
@@ -119,7 +120,7 @@ export const PieceLayout = () => {
           description={piece.description.trim() || null}
         />
       }
-      contentClassName="p-4 sm:p-6 lg:p-8"
+      contentClassName={PAGE_PADDING}
     >
       <Outlet context={{ ...parent, pieceScope: scope, pieceLayout: { piece, patchPiece } }} />
     </NavShell>

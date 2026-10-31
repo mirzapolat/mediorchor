@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, CheckCircle2, LockKeyhole, LogIn, UserRound } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, LayoutDashboard, LockKeyhole, LogIn, UserPlus, UserRound, Zap } from 'lucide-react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Button, buttonClasses } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -53,7 +53,17 @@ export const PublicCheckinPage = () => {
   const [asGuest, setAsGuest] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  // Not on the member list: the check-in waits for the project's managers.
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  // Guests are invited to create an account, when the instance allows it.
+  const [selfSignup, setSelfSignup] = useState(false);
+  useEffect(() => {
+    if (!submitted || user) return;
+    void api.rpc('get_public_config').then(({ data }) => {
+      setSelfSignup(Boolean((data as { allow_self_signup?: boolean } | null)?.allow_self_signup));
+    });
+  }, [submitted, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +104,7 @@ export const PublicCheckinPage = () => {
     const result = data as SubmitResult;
     if (result.state === 'success') {
       track('check-in', { as: accountMode ? 'account' : 'guest' });
+      setPending(result.recognized === false);
       setSubmitted(true);
     } else if (result.state === 'stopped') {
       setInfo({
@@ -137,21 +148,61 @@ export const PublicCheckinPage = () => {
                 <div className="py-7 text-center" role="status">
                   <CheckCircle2 size={42} className="mx-auto text-success" />
                   <h2 className="mt-4 text-lg font-semibold">{t('checkInSuccess')}</h2>
+                  {pending && accountMode ? (
+                    <p className="mt-2 text-sm text-text-secondary">{t('checkInPendingReview')}</p>
+                  ) : null}
                   {/* Checked in with an account: asked once for contact
                       details, if not yet (people who only check in may never
                       open the app). */}
                   {accountMode && <WelcomeContactsPrompt afterCheckIn />}
-                  {/* With an account: on to the project, if wanted. */}
-                  {accountMode && active.project_id && (
-                    <Link
-                      to={`/projects/${active.project_id}`}
-                      onClick={() => track('check-in-to-project')}
-                      className={buttonClasses('secondary', 'mt-6')}
-                    >
-                      {t('checkInToProject')}
-                      <ArrowRight size={16} />
-                    </Link>
-                  )}
+                  {/* With an account: on to the dashboard or the project. */}
+                  {user ? (
+                    <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                      <Link
+                        to="/dashboard"
+                        onClick={() => track('check-in-to-dashboard')}
+                        className={buttonClasses('primary')}
+                      >
+                        <LayoutDashboard size={16} />
+                        {t('checkInToDashboard')}
+                      </Link>
+                      {accountMode && active.project_id && !pending && (
+                        <Link
+                          to={`/projects/${active.project_id}`}
+                          onClick={() => track('check-in-to-project')}
+                          className={buttonClasses('secondary')}
+                        >
+                          {t('checkInToProject')}
+                          <ArrowRight size={16} />
+                        </Link>
+                      )}
+                    </div>
+                  ) : selfSignup && active.allow_account_checkin ? (
+                    // Guests: an account makes the next check-in one tap and
+                    // shows their attendance as it is recorded.
+                    <div className="mt-6 rounded-2xl border border-border bg-surface-subtle p-4 text-left">
+                      <p className="font-semibold">{t('checkInAccountPitch')}</p>
+                      <ul className="mt-2 space-y-1.5 text-sm text-text-secondary">
+                        <li className="flex items-center gap-2">
+                          <Zap size={15} className="shrink-0 text-accent" />
+                          {t('checkInAccountFaster')}
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Activity size={15} className="shrink-0 text-accent" />
+                          {t('checkInAccountLive')}
+                        </li>
+                      </ul>
+                      <Link
+                        to="/login"
+                        state={{ from: location.pathname, mode: 'signup' }}
+                        onClick={() => track('check-in-signup')}
+                        className={buttonClasses('primary', 'mt-4 w-full')}
+                      >
+                        <UserPlus size={16} />
+                        {t('signUp')}
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               ) : accountMode && active.me ? (
                 // Known member linked to this account: one-tap check-in.

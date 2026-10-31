@@ -271,7 +271,6 @@ export const WeekendParticipantsPage = () => {
           {unassigned.length > 0 && (
             <section>
               {sectionLabel('weekendSectionUnassigned', unassigned.length)}
-              <p className="-mt-1 mb-2 text-xs text-text-tertiary">{t('weekendSectionUnassignedHint')}</p>
               <ul className="space-y-2">
                 {unassigned.map((p) => (
                   <li
@@ -708,8 +707,7 @@ const ImportDialog = ({
                   <p className="text-sm text-text-secondary">{t('emptyCsv')}</p>
                 ) : (
                   <div>
-                    <h3 className="mb-1 text-sm font-semibold">{t('mapColumns')}</h3>
-                    <p className="mb-3 text-xs text-text-tertiary">{t('mapColumnsVisualHint')}</p>
+                    <h3 className="mb-3 text-sm font-semibold">{t('mapColumns')}</h3>
                     <ColumnMapper
                       headers={parsed.headers}
                       rows={parsed.rows.slice(0, CSV_PREVIEW_ROWS)}

@@ -532,34 +532,31 @@ const SettingsSection = ({ draft, update, groupNames }: SectionProps & { groupNa
       <div className="grid gap-3 lg:grid-cols-2">
         <ToggleCard
           title={t('participantsSettings')}
-          hint={t('participantsSettingsHint')}
           toggles={[
-            ['allow_account_access', 'allowAccountAccess', 'allowAccountAccessHint'],
-            ['allow_participant_pieces', 'allowParticipantPieces', 'allowParticipantPiecesHint'],
-            ['show_weekend', 'showWeekend', 'showWeekendHint'],
-            ['show_concerts', 'showConcerts', 'showConcertsHint'],
-            ['show_surveys', 'showSurveys', 'showSurveysHint'],
-            ['show_responsibles', 'showResponsibles', 'showResponsiblesHint'],
+            ['allow_account_access', 'allowAccountAccess'],
+            ['allow_participant_pieces', 'allowParticipantPieces'],
+            ['show_weekend', 'showWeekend'],
+            ['show_concerts', 'showConcerts'],
+            ['show_surveys', 'showSurveys'],
+            ['show_responsibles', 'showResponsibles'],
           ]}
           values={s}
           onToggle={toggle}
         />
         <ToggleCard
           title={t('checkinSettings')}
-          hint={t('checkinSettingsHint')}
           toggles={[
-            ['allow_account_checkin', 'allowAccountCheckin', 'allowAccountCheckinHint'],
-            ['allow_guest_checkin', 'allowGuestCheckin', 'allowGuestCheckinHint'],
+            ['allow_account_checkin', 'allowAccountCheckin'],
+            ['allow_guest_checkin', 'allowGuestCheckin'],
           ]}
           values={s}
           onToggle={toggle}
         />
         <ToggleCard
           title={t('signupSettings')}
-          hint={t('signupSettingsHint')}
           toggles={[
-            ['allow_account_signup', 'allowAccountSignup', 'allowAccountSignupHint'],
-            ['allow_guest_signup', 'allowGuestSignup', 'allowGuestSignupHint'],
+            ['allow_account_signup', 'allowAccountSignup'],
+            ['allow_guest_signup', 'allowGuestSignup'],
           ]}
           values={s}
           onToggle={toggle}
@@ -592,7 +589,6 @@ const SettingsSection = ({ draft, update, groupNames }: SectionProps & { groupNa
         </ToggleCard>
         <ToggleCard
           title={t('projectEmailSettings')}
-          hint={t('projectEmailSettingsHint')}
           toggles={[
             ['notify_registration_received', 'notifyRegistrationReceived', 'notifyRegistrationReceivedHint'],
             ['notify_checkin_confirmation', 'notifyCheckinConfirmation', 'notifyCheckinConfirmationHint'],

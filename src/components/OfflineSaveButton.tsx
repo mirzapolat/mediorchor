@@ -86,7 +86,6 @@ export const OfflineSaveButton = ({ projectId }: { projectId: string }) => {
         busy={busy}
         disabled={!online && !meta}
         onClick={() => (meta ? setOpen((v) => !v) : setConfirming(true))}
-        hint={meta ? undefined : t('saveOfflineHint')}
         statusTone={error ? 'danger' : meta && !busy ? 'success' : 'muted'}
         status={
           error

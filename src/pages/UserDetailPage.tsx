@@ -188,7 +188,7 @@ export const UserDetailPage = () => {
 
       <Card className="max-w-xl">
         <p className="font-medium">{t('role')}</p>
-        <p className="text-sm text-text-secondary mt-0.5">{isSelf ? t('roleSelfHint') : t('roleHint')}</p>
+        {isSelf && <p className="text-sm text-text-secondary mt-0.5">{t('roleSelfHint')}</p>}
         <div role="radiogroup" aria-label={t('role')} className="mt-4 space-y-2">
           {ROLES.map((role) => {
             const selected = user.role === role;

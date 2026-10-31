@@ -19,7 +19,10 @@ export const LoginPage = () => {
   const location = useLocation();
   // Deep link the user originally requested before being sent to /login.
   const from = safeRedirectPath((location.state as { from?: string } | null)?.from);
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  // A link may open the sign-up form directly (e.g. after a guest check-in).
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(() =>
+    (location.state as { mode?: string } | null)?.mode === 'signup' ? 'signup' : 'signin',
+  );
   // "Forgot password" sent (the answer is the same whether the address exists).
   const [resetSent, setResetSent] = useState(false);
   const [allowSelfSignup, setAllowSelfSignup] = useState(false);
@@ -203,11 +206,9 @@ export const LoginPage = () => {
               subtitle={
                 mfaStep
                   ? t('mfaStepSubtitle')
-                  : mode === 'signup'
-                    ? t('signUpSubtitle')
-                    : mode === 'forgot'
-                      ? t('forgotPasswordSubtitle')
-                      : t('loginSubtitle')
+                  : mode === 'forgot'
+                    ? t('forgotPasswordSubtitle')
+                    : undefined
               }
             />
 

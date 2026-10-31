@@ -14,11 +14,11 @@ import { nightsLabel, useWeekendContext, weekendDayLabels, type RoomsStatus } fr
 const sectionLabel = 'text-xs font-semibold uppercase tracking-wide text-text-tertiary';
 
 // One setting: what it is and why, with its control.
-const Row = ({ title, hint, children }: { title: ReactNode; hint: string; children: ReactNode }) => (
+const Row = ({ title, hint, children }: { title: ReactNode; hint?: string; children: ReactNode }) => (
   <div className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
     <div className="min-w-0 flex-1 basis-64">
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">{title}</p>
-      <p className="mt-0.5 text-sm text-text-secondary">{hint}</p>
+      {hint && <p className="mt-0.5 text-sm text-text-secondary">{hint}</p>}
     </div>
     <div className="flex flex-wrap gap-2">{children}</div>
   </div>
@@ -77,7 +77,6 @@ export const WeekendSettingsPage = () => {
                   <ReleasePill released={weekend.details_published} />
                 </>
               }
-              hint={t('weekendDetailsReleaseHint')}
             >
               {weekend.details_published ? (
                 <Button

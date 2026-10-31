@@ -15,17 +15,17 @@ import {
   Settings2,
   Square,
   Trash2,
+  UserRound,
   UserRoundCheck,
-  UserX,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
-import { DataTable, MobileMeta, renderCell, type Column } from '@/components/DataTable';
 import { EmptyState } from '@/components/EmptyState';
 import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
-import { RowActionButton } from '@/components/RowActionButton';
+import { OverflowMenu } from '@/components/OverflowMenu';
+import { cn } from '@/lib/cn';
 import { PageSpinner } from '@/components/Spinner';
 import { useEventContext } from '@/layouts/eventContext';
 import { useI18n } from '@/lib/i18n';
@@ -34,6 +34,7 @@ import { api } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import type { AttendanceStatus, CheckinSubmission, EventCheckin, Member } from '@/types';
 import { GroupPill } from '@/components/GroupPill';
+import { useAuth } from '@/hooks/useAuth';
 
 type CheckinStatus = Extract<AttendanceStatus, 'attended' | 'excused'>;
 type CopyFeedback = 'link' | 'image' | 'error' | null;
@@ -138,23 +139,58 @@ const qrSvgToPng = (svg: SVGSVGElement) =>
     image.src = objectUrl;
   });
 
-// A labelled action button for check-in cards on phones.
-const MobileActionButton = ({ onClick, children }: { onClick: () => void; children: ReactNode }) => (
+// An action of an unrecognized check-in: icon and word, or only the icon
+// (with `label` for screen readers).
+const MobileActionButton = ({ onClick, label, children }: { onClick: () => void; label?: string; children: ReactNode }) => (
   <button
     type="button"
+    aria-label={label}
+    title={label}
     onClick={(e) => {
       e.stopPropagation();
       onClick();
     }}
-    className="flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-muted hover:text-text"
+    className={cn(
+      'flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface text-xs font-medium text-text-secondary transition-colors hover:bg-surface-subtle hover:text-text',
+      label ? 'w-10' : 'px-2',
+    )}
   >
     {children}
   </button>
 );
 
+// One check-in: name, group and time on one line (never wraps).
+// `accountLabel`: marks an unrecognized check-in made with an account (it is
+// linked to the member it gets assigned to).
+const SubmissionLine = ({ row, time, accountLabel }: { row: CheckinSubmission; time: string; accountLabel?: string }) => (
+  <div className="flex min-w-0 items-center gap-2">
+    <span className="min-w-0 flex-1 truncate text-base font-medium" title={`${row.first_name} ${row.last_name}`}>
+      {row.first_name} {row.last_name}
+    </span>
+    {accountLabel && row.user_id ? (
+      <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-surface-muted px-1.5 py-px text-[10px] font-semibold text-text-secondary">
+        <UserRound size={10} />
+        {accountLabel}
+      </span>
+    ) : null}
+    {row.group_name ? (
+      <span className="min-w-0 max-w-[40%] flex-shrink truncate">
+        <GroupPill name={row.group_name} />
+      </span>
+    ) : null}
+    <span className="flex-shrink-0 text-xs tabular-nums text-text-tertiary">{time}</span>
+  </div>
+);
+
 export const EventCheckinPage = () => {
   const { project, event, reloadCheckinWarnings } = useEventContext();
   const { lang, t } = useI18n();
+  const { user } = useAuth();
+  // What one may do with unrecognized check-ins: the project's setting holds
+  // for Stimmeltern, higher roles may do all (the server checks the same).
+  const checkinRight = user?.role === 'section_lead' ? project.section_lead_checkin : 'create';
+  const canAssign = checkinRight !== 'none';
+  const canCreate = checkinRight === 'create';
   const [checkin, setCheckin] = useState<EventCheckin | null>(null);
   const [submissions, setSubmissions] = useState<CheckinSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,52 +310,8 @@ export const EventCheckinPage = () => {
 
   const unrecognized = useMemo(() => submissions.filter((row) => !row.recognized), [submissions]);
   const recognized = useMemo(() => submissions.filter((row) => row.recognized), [submissions]);
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(localeOf(lang), {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }),
-    [lang],
-  );
-  const columns = useMemo<Column<CheckinSubmission>[]>(
-    () => [
-      {
-        id: 'name',
-        header: t('name'),
-        accessor: (row) => `${row.last_name} ${row.first_name}`,
-        render: (row) => `${row.first_name} ${row.last_name}`,
-      },
-      {
-        id: 'group',
-        header: t('group'),
-        accessor: (row) => row.group_name,
-        render: (row) => <GroupPill name={row.group_name} />,
-      },
-      {
-        id: 'submitted',
-        header: t('submittedAt'),
-        accessor: (row) => row.submitted_at,
-        render: (row) => (
-          <span className="text-text-secondary whitespace-nowrap">
-            {dateFormatter.format(new Date(row.submitted_at))}
-          </span>
-        ),
-        className: 'w-px',
-      },
-    ],
-    [dateFormatter, t],
-  );
-
-  // Phones: a check-in's name with its group beside it.
-  const nameAndGroup = (row: CheckinSubmission) => (
-    <div className="flex min-w-0 items-center justify-between gap-2">
-      <span className="min-w-0 truncate text-base font-medium">
-        {row.first_name} {row.last_name}
-      </span>
-      <span className="flex-shrink-0">{renderCell(columns, 'group', row)}</span>
-    </div>
-  );
+  // A rehearsal's check-ins all happen on its day: the time is enough.
+  const timeFormatter = useMemo(() => new Intl.DateTimeFormat(localeOf(lang), { timeStyle: 'short' }), [lang]);
 
   if (loading) return <PageSpinner />;
   if (!checkin) return null;
@@ -353,190 +345,190 @@ export const EventCheckinPage = () => {
     }
   };
 
+  const shareButtons = [
+    { icon: Copy, label: t('copyLinkShort'), onClick: () => void copyLink(), nudge: false },
+    { icon: Image, label: t('copyImageShort'), onClick: () => void copyImage(), nudge: false },
+    {
+      icon: Maximize2,
+      label: t('fullscreenShort'),
+      onClick: () => {
+        track('checkin-share', { kind: 'fullscreen' });
+        setNudgeFullscreen(false);
+        setFullscreenOpen(true);
+      },
+      nudge: nudgeFullscreen,
+    },
+  ];
+
   return (
     <>
       <h1 className="sr-only">{t('checkIn')}</h1>
-      <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="secondary" onClick={() => setConfigOpen(true)} className="sm:flex-shrink-0">
-          <Settings2 size={16} />
-          {t('configuration')}
-        </Button>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" disabled={busy} onClick={reset}>
-            <RotateCcw size={16} />
-            {t('clearFilters')}
-          </Button>
-          <Button variant={checkin.is_active ? 'accent' : 'primary'} disabled={busy} onClick={toggleActive}>
+      {/* Phones: the code card first, then the numbers and the lists. Wide
+          screens: the code stays beside the lists. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
+        <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5 lg:sticky lg:top-6">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
+                checkin.is_active ? 'bg-success-soft text-success-strong' : 'bg-surface-muted text-text-tertiary',
+              )}
+              role="status"
+            >
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  checkin.is_active ? 'animate-pulse bg-success' : 'bg-text-tertiary',
+                )}
+              />
+              {checkin.is_active ? t('checkInActive') : t('checkInStopped')}
+            </span>
+            <div className="ml-auto">
+              <OverflowMenu
+                label={t('configuration')}
+                items={[
+                  { icon: Settings2, label: t('configuration'), onSelect: () => setConfigOpen(true) },
+                  { icon: RotateCcw, label: t('newCheckinCode'), onSelect: () => void reset(), disabled: busy, separated: true },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* An active code sits on paper (light in dark mode too) so it scans
+              well. Tapping it starts/stops the check-in, like the button below. */}
+          <button
+            type="button"
+            onClick={toggleActive}
+            disabled={busy}
+            aria-label={checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
+            title={checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
+            className="mx-auto mt-4 block w-full max-w-[200px] rounded-xl sm:max-w-[280px] transition-transform active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait"
+          >
+            <div ref={qrContainerRef} className="relative rounded-xl border border-border bg-paper p-4">
+              <QRCodeSVG
+                value={publicUrl}
+                size={264}
+                level="H"
+                marginSize={0}
+                imageSettings={qrImageSettings}
+                className={cn('h-auto w-full', !checkin.is_active && 'opacity-15')}
+              />
+              {!checkin.is_active ? (
+                <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-white shadow-sm">
+                    <Lock size={24} />
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </button>
+
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={publicUrl}
+            className="mx-auto mt-3 block max-w-[280px] truncate text-center text-xs text-text-tertiary underline-offset-2 hover:text-text hover:underline"
+          >
+            {publicUrl.replace(/^https?:\/\//, '')}
+          </a>
+
+          <Button
+            variant={checkin.is_active ? 'accent' : 'primary'}
+            disabled={busy}
+            onClick={toggleActive}
+            className="mt-4 h-11 w-full"
+          >
             {checkin.is_active ? <Square size={15} /> : <Play size={16} />}
             {checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
           </Button>
-        </div>
-      </div>
 
-      <section className="flex flex-col items-center text-center py-4 mb-12">
-        {/* An active code sits on paper (light in dark mode too) so it scans well.
-            Clicking the code starts/stops the check-in, like the button above. */}
-        <button
-          type="button"
-          onClick={toggleActive}
-          disabled={busy}
-          aria-label={checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
-          title={checkin.is_active ? t('stopCheckIn') : t('startCheckIn')}
-          className="rounded-xl transition-transform hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait"
-        >
-          <div
-            ref={qrContainerRef}
-            className="relative rounded-xl border border-border bg-paper p-5 shadow-sm"
-          >
-            <QRCodeSVG
-              value={publicUrl}
-              size={264}
-              level="H"
-              marginSize={0}
-              imageSettings={qrImageSettings}
-              className={`h-auto w-[264px] max-w-full ${checkin.is_active ? '' : 'opacity-15'}`}
-            />
-            {!checkin.is_active ? (
-              <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-                <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-white border border-border shadow-sm">
-                  <Lock size={24} />
-                </span>
-              </div>
-            ) : null}
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {shareButtons.map(({ icon: Icon, label, onClick, nudge }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onClick}
+                className={cn(
+                  'flex h-14 flex-col items-center justify-center gap-1 rounded-lg border border-border text-xs font-medium text-text-secondary transition-colors hover:bg-surface-subtle hover:text-text',
+                  nudge && 'nudge-pulse',
+                )}
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
           </div>
-        </button>
-        <div
-          className={`mt-5 inline-flex items-center gap-2 text-sm font-medium ${
-            checkin.is_active ? 'text-success-strong' : 'text-text-secondary'
-          }`}
-        >
-          <span
-            className={`h-2 w-2 rounded-full ${checkin.is_active ? 'bg-success' : 'bg-text-tertiary'}`}
-          />
-          {checkin.is_active ? t('checkInActive') : t('checkInStopped')}
-        </div>
-        <p className="mt-2 text-sm text-text-secondary">{t('checkInLinkHint')}</p>
-        <a
-          href={publicUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-1 max-w-full truncate text-sm text-text-tertiary underline underline-offset-2 hover:text-text"
-        >
-          {publicUrl}
-        </a>
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <Button variant="secondary" onClick={copyLink}>
-            <Copy size={16} />
-            {t('copyCheckInLink')}
-          </Button>
-          <Button variant="secondary" onClick={copyImage}>
-            <Image size={16} />
-            {t('copyQrImage')}
-          </Button>
-          <Button
-            variant="secondary"
-            className={nudgeFullscreen ? 'nudge-pulse' : undefined}
-            onClick={() => {
-              track('checkin-share', { kind: 'fullscreen' });
-              setNudgeFullscreen(false);
-              setFullscreenOpen(true);
-            }}
-          >
-            <Maximize2 size={16} />
-            {t('showFullscreen')}
-          </Button>
-        </div>
-        {copyFeedback ? (
-          <p
-            className={`mt-3 text-sm ${copyFeedback === 'error' ? 'text-danger-strong' : 'text-text-secondary'}`}
-            role="status"
-          >
-            {copyFeedback === 'link'
-              ? t('linkCopied')
-              : copyFeedback === 'image'
-                ? t('imageCopied')
-                : t('clipboardError')}
-          </p>
-        ) : null}
-      </section>
-
-      <div className="space-y-10">
-        {unrecognized.length > 0 ? (
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <UserX size={18} className="text-text-secondary" />
-              <h2 className="text-lg font-semibold">{t('unrecognizedCheckIns')}</h2>
-              <span className="inline-flex items-center gap-1 rounded-md bg-danger-soft px-1.5 py-0.5 text-xs font-semibold text-danger-strong">
-                <AlertTriangle size={12} />
-                {t('unrecognizedWarning').replace('{n}', String(unrecognized.length))}
-              </span>
-            </div>
-            <DataTable
-              rows={unrecognized}
-              columns={columns}
-              getRowId={(row) => row.id}
-              actions={(row) => (
-                <>
-                  <RowActionButton label={t('assignCheckIn')} onClick={() => setAssigningSubmission(row)}>
-                    <UserRoundCheck size={15} />
-                  </RowActionButton>
-                  <RowActionButton label={t('saveAsNewMember')} onClick={() => setCreatingFromSubmission(row)}>
-                    <Plus size={15} />
-                  </RowActionButton>
-                  <RowActionButton label={t('delete')} onClick={() => removeSubmission(row.id)}>
-                    <Trash2 size={15} />
-                  </RowActionButton>
-                </>
-              )}
-              emptyMessage={t('noUnrecognizedCheckIns')}
-              emptyIcon={UserX}
-              // Phones: name and group on top, the time, then the three
-              // actions as labelled buttons.
-              hideMobileActions
-              mobileCard={(row) => (
-                <>
-                  {nameAndGroup(row)}
-                  <MobileMeta>{renderCell(columns, 'submitted', row)}</MobileMeta>
-                  <div className="mt-3 grid grid-cols-3 gap-1.5">
-                    <MobileActionButton onClick={() => setAssigningSubmission(row)}>
-                      <UserRoundCheck size={15} />
-                      {t('assignCheckInShort')}
-                    </MobileActionButton>
-                    <MobileActionButton onClick={() => setCreatingFromSubmission(row)}>
-                      <Plus size={15} />
-                      {t('saveAsNewMemberShort')}
-                    </MobileActionButton>
-                    <MobileActionButton onClick={() => removeSubmission(row.id)}>
-                      <Trash2 size={15} />
-                      {t('delete')}
-                    </MobileActionButton>
-                  </div>
-                </>
-              )}
-            />
-          </section>
-        ) : null}
-
-        <section>
-          <div className="mb-4 flex items-center gap-2">
-            <CheckCircle2 size={18} className="text-success-strong" />
-            <h2 className="text-lg font-semibold">{t('successfulCheckIns')}</h2>
-            <span className="text-sm text-text-tertiary">{recognized.length}</span>
-          </div>
-          <DataTable
-            rows={recognized}
-            columns={columns}
-            getRowId={(row) => row.id}
-            emptyMessage={t('noSuccessfulCheckIns')}
-            emptyIcon={CheckCircle2}
-            mobileCard={(row) => (
-              <>
-                {nameAndGroup(row)}
-                <MobileMeta>{renderCell(columns, 'submitted', row)}</MobileMeta>
-              </>
-            )}
-          />
+          {copyFeedback ? (
+            <p
+              className={cn('mt-3 text-center text-sm', copyFeedback === 'error' ? 'text-danger-strong' : 'text-text-secondary')}
+              role="status"
+            >
+              {copyFeedback === 'link' ? t('linkCopied') : copyFeedback === 'image' ? t('imageCopied') : t('clipboardError')}
+            </p>
+          ) : null}
         </section>
+
+        <div className="min-w-0 space-y-6">
+          {unrecognized.length > 0 ? (
+            <section>
+              <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-danger-strong">
+                <AlertTriangle size={13} />
+                {t('unrecognizedCheckIns')} · {unrecognized.length}
+              </h2>
+              <ul className="space-y-2">
+                {unrecognized.map((row) => (
+                  <li key={row.id} className="rounded-2xl border border-border bg-surface p-3">
+                    <SubmissionLine
+                      row={row}
+                      time={timeFormatter.format(new Date(row.submitted_at))}
+                      accountLabel={t('checkinWithAccount')}
+                    />
+                    {canAssign ? (
+                      <div className={cn('mt-3 grid gap-1.5', canCreate ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-[1fr_auto]')}>
+                        <MobileActionButton onClick={() => setAssigningSubmission(row)}>
+                          <UserRoundCheck size={15} />
+                          {t('assignCheckInShort')}
+                        </MobileActionButton>
+                        {canCreate ? (
+                          <MobileActionButton onClick={() => setCreatingFromSubmission(row)}>
+                            <Plus size={15} />
+                            {t('saveAsNewMemberShort')}
+                          </MobileActionButton>
+                        ) : null}
+                        <MobileActionButton onClick={() => removeSubmission(row.id)} label={t('delete')}>
+                          <Trash2 size={15} />
+                        </MobileActionButton>
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+              {t('successfulCheckIns')} · {recognized.length}
+            </h2>
+            {recognized.length === 0 ? (
+              <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-4 py-10 text-center">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-muted text-text-tertiary">
+                  <CheckCircle2 size={20} />
+                </span>
+                <p className="mt-3 font-semibold">{t('noSuccessfulCheckIns')}</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+                {recognized.map((row) => (
+                  <li key={row.id} className="px-3 py-2.5 sm:px-4">
+                    <SubmissionLine row={row} time={timeFormatter.format(new Date(row.submitted_at))} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
 
       <CheckinConfigModal
@@ -576,7 +568,6 @@ export const EventCheckinPage = () => {
 
       <CreateMemberFromCheckinModal
         submission={creatingFromSubmission}
-        projectId={event.project_id}
         onClose={() => setCreatingFromSubmission(null)}
         onCreated={async () => {
           setCreatingFromSubmission(null);
@@ -591,12 +582,10 @@ export const EventCheckinPage = () => {
 // assigns the submission to it. The data is prefilled but editable before saving.
 const CreateMemberFromCheckinModal = ({
   submission,
-  projectId,
   onClose,
   onCreated,
 }: {
   submission: CheckinSubmission | null;
-  projectId: string;
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) => {
@@ -622,27 +611,12 @@ const CreateMemberFromCheckinModal = ({
     if (!submission || !valid) return;
     setSaving(true);
     setError('');
-    const { data: member, error: insertError } = await api
-      .from('members')
-      .insert({
-        project_id: projectId,
-        first_name: first.trim(),
-        last_name: last.trim(),
-        group_name: groupName.trim() || null,
-        status: 'active',
-      })
-      .select()
-      .single();
-
-    if (insertError || !member) {
-      setSaving(false);
-      setError(t('assignmentError'));
-      return;
-    }
-
-    const { error: rpcError } = await api.rpc('assign_checkin_submission', {
+    // One server call: the member and the assignment are saved together.
+    const { error: rpcError } = await api.rpc('create_member_from_checkin', {
       p_submission_id: submission.id,
-      p_member_id: (member as Member).id,
+      p_first_name: first.trim(),
+      p_last_name: last.trim(),
+      p_group_name: groupName.trim(),
     });
     setSaving(false);
     if (rpcError) {
@@ -669,7 +643,6 @@ const CreateMemberFromCheckinModal = ({
       }
     >
       <div className="space-y-4">
-        <p className="text-sm text-text-secondary">{t('saveAsNewMemberHint')}</p>
         <div className="grid grid-cols-2 gap-3">
           <Input label={t('firstName')} value={first} onChange={(e) => setFirst(e.target.value)} autoFocus />
           <Input label={t('lastName')} value={last} onChange={(e) => setLast(e.target.value)} />
@@ -766,9 +739,6 @@ const AssignCheckinModal = ({
     <Modal open={Boolean(submission)} title={t('assignCheckIn')} onClose={onClose}>
       {submission ? (
         <>
-          <p className="text-sm text-text-secondary">
-            {t('assignCheckInHint')}
-          </p>
           <div className="rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm">
             <span className="font-medium">
               {submission.first_name} {submission.last_name}
@@ -873,7 +843,7 @@ const FullscreenQrCode = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-white px-6 py-12 text-center"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-white px-6 pt-12 pb-[max(3rem,env(safe-area-inset-bottom))] text-center"
       role="dialog"
       aria-modal="true"
       aria-label={t('showFullscreen')}
@@ -1005,10 +975,7 @@ const CheckinConfigModal = ({
             onChange={(e) => setLogo(e.target.checked)}
             className="mt-0.5 accent-black"
           />
-          <span>
-            <span className="block text-sm font-medium">{t('showLogoInQr')}</span>
-            <span className="mt-0.5 block text-sm text-text-secondary">{t('showLogoInQrHint')}</span>
-          </span>
+          <span className="block text-sm font-medium">{t('showLogoInQr')}</span>
         </label>
       ) : null}
     </Modal>

@@ -3,6 +3,7 @@ import { NoAccess } from '@/components/NoAccess';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/hooks/useAuth';
 import type { PieceScope } from './pieceScope';
+import { PAGE_PADDING } from '@/lib/pagePadding';
 
 // The collection of all pieces (dashboard tab "Stücke"): for admins and the
 // 'all' pieces permission. Its piece pages are the same as inside a project.
@@ -19,7 +20,7 @@ export const GlobalPiecesLayout = () => {
     canDelete: true,
   };
   return (
-    <div className={cn(pieceOpen ? 'h-full' : 'max-w-[1400px] p-4 sm:p-6 lg:p-8')}>
+    <div className={cn(pieceOpen ? 'h-full' : `max-w-[1400px] ${PAGE_PADDING}`)}>
       <Outlet context={{ pieceScope }} />
     </div>
   );
