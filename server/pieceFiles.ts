@@ -610,11 +610,26 @@ export const runPieceFileMaintenance = (options: { dryRun?: boolean } = {}): Mai
       `select file_path as key from piece_files where file_path is not null
        union select json_extract(link_preview, '$.image') from piece_files where link_preview is not null
        union select json_extract(row, '$.file_path') from piece_file_trash
-       union select json_extract(json_extract(row, '$.link_preview'), '$.image') from piece_file_trash`,
+       union select json_extract(json_extract(row, '$.link_preview'), '$.image') from piece_file_trash
+       -- Pieces (and their file trash) waiting in the Papierkorb (trash.ts).
+       union select json_extract(data, '$.file_path') from trash_rows where table_name = 'piece_files'
+       union select json_extract(json_extract(data, '$.link_preview'), '$.image') from trash_rows where table_name = 'piece_files'
+       union select json_extract(json_extract(data, '$.row'), '$.file_path') from trash_rows where table_name = 'piece_file_trash'
+       union select json_extract(json_extract(json_extract(data, '$.row'), '$.link_preview'), '$.image')
+         from trash_rows where table_name = 'piece_file_trash'`,
     )
     .all() as { key: string | null }[];
   for (const { key } of keys) if (key) referenced.add(key);
-  const fileIds = new Set((db.prepare('select id from piece_files').all() as { id: string }[]).map((r) => r.id));
+  const fileIds = new Set(
+    (
+      db
+        .prepare(
+          `select id from piece_files
+           union select json_extract(data, '$.id') from trash_rows where table_name = 'piece_files'`,
+        )
+        .all() as { id: string }[]
+    ).map((r) => r.id),
+  );
   const dayAgo = Date.now() - 24 * 3600 * 1000;
   let dirs: fs.Dirent[] = [];
   try {

@@ -1222,7 +1222,17 @@ export const runFormFileMaintenance = () => {
     for (const f of stale) db.prepare('delete from form_files where id = ?').run(f.id);
   })();
   removeObjects(stale.map((f) => f.file_path));
-  const referenced = new Set((db.prepare('select file_path from form_files').all() as { file_path: string }[]).map((r) => r.file_path));
+  // Uploads of surveys waiting in the Papierkorb (trash.ts) stay too.
+  const referenced = new Set(
+    (
+      db
+        .prepare(
+          `select file_path from form_files
+           union select json_extract(data, '$.file_path') from trash_rows where table_name = 'form_files'`,
+        )
+        .all() as { file_path: string }[]
+    ).map((r) => r.file_path),
+  );
   const dayAgo = Date.now() - 24 * 3600 * 1000;
   let dirs: fs.Dirent[] = [];
   try {

@@ -7,7 +7,7 @@ import {
   Check,
   Eye,
   EyeOff,
-  FolderKanban,
+  Layers,
   GripVertical,
   ListChecks,
   Mail,
@@ -41,7 +41,7 @@ type WidgetId = 'participation' | 'upcoming' | 'surveys' | 'weekends' | 'concert
 // Every widget, in its default order. A widget added here later shows up on
 // everyone's dashboard after the ones they arranged.
 const WIDGETS: { id: WidgetId; title: TranslationKey; icon: LucideIcon }[] = [
-  { id: 'participation', title: 'widgetParticipation', icon: FolderKanban },
+  { id: 'participation', title: 'widgetParticipation', icon: Layers },
   { id: 'upcoming', title: 'widgetUpcoming', icon: CalendarClock },
   { id: 'surveys', title: 'widgetSurveys', icon: ListChecks },
   { id: 'weekends', title: 'widgetWeekends', icon: Tent },

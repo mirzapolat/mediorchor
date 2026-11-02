@@ -6,6 +6,7 @@ import { db, authUid, ApiError } from './db.ts';
 import { canAccessProject, isProjectParticipant } from './policies.ts';
 import { openFormsFor } from './forms.ts';
 import { missingRoomsFor, weekendNav } from './weekends.ts';
+import { trashCount } from './trash.ts';
 
 type Args = Record<string, unknown>;
 
@@ -25,6 +26,8 @@ const project_nav = (args: Args) => {
     exists(`select 1 from projects where id = ? and ${column}`);
   return {
     manager,
+    // What of the project waits in the Papierkorb (managers only).
+    trash: manager ? trashCount(pid) : 0,
     // At least one published concert.
     concerts:
       manager ||

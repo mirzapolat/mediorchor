@@ -103,10 +103,6 @@ export const queryPieceFiles = async (pieceId: string): Promise<{ files: PieceFi
 
 export const loadPieceFiles = async (pieceId: string): Promise<PieceFile[]> => (await queryPieceFiles(pieceId)).files;
 
-// Stored objects of a file row: its file, or a link's preview image.
-const storedPaths = (file: Pick<PieceFile, 'file_path' | 'link_preview'>): string[] =>
-  [file.file_path, file.link_preview?.image ?? null].filter((p): p is string => Boolean(p));
-
 // Has the server read (again) what a link points to; the new preview, or
 // the reason it couldn't.
 export const fetchLinkPreview = async (fileId: string): Promise<{ preview: LinkPreview | null; error?: string }> => {
@@ -334,12 +330,11 @@ export const addPieceToProject = async (projectId: string, pieceId: string, posi
 export const removePieceFromProject = async (projectId: string, pieceId: string) =>
   api.from('project_pieces').delete().eq('project_id', projectId).eq('piece_id', pieceId);
 
-// Deletes a piece from the collection (and so from every project); its file
-// rows cascade, the stored objects are removed here.
+// Deletes a piece from the collection (and so from every project). It goes
+// to the Papierkorb with its files (server/trash.ts); the stored objects are
+// removed by the server once the entry is gone.
 export const deletePiece = async (pieceId: string): Promise<void> => {
-  const files = await loadPieceFiles(pieceId);
   await api.from('pieces').delete().eq('id', pieceId);
-  void removePieceFiles(files.flatMap(storedPaths));
 };
 
 // The loaders below are shared by the pages and the offline download, so the

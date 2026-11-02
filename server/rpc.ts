@@ -28,6 +28,7 @@ import { FORM_PUBLIC_WRITE_FUNCTIONS, FORM_READ_FUNCTIONS, formFunctions } from 
 import { WEEKEND_PUBLIC_WRITE_FUNCTIONS, WEEKEND_READ_FUNCTIONS, weekendFunctions } from './weekends.ts';
 import { onboardingFunctions } from './onboarding.ts';
 import { NOTIFICATION_READ_FUNCTIONS, notificationFunctions } from './notificationCenter.ts';
+import { TRASH_READ_FUNCTIONS, trashFunctions } from './trash.ts';
 
 type Args = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -1255,6 +1256,7 @@ const functions: Record<string, (args: Args) => unknown> = {
   ...weekendFunctions,
   ...onboardingFunctions,
   ...notificationFunctions,
+  ...trashFunctions,
 };
 
 // Public functions are rate limited by the HTTP layer.
@@ -1287,6 +1289,7 @@ export const READ_ONLY_FUNCTIONS = new Set([
   ...FORM_READ_FUNCTIONS,
   ...WEEKEND_READ_FUNCTIONS,
   ...NOTIFICATION_READ_FUNCTIONS,
+  ...TRASH_READ_FUNCTIONS,
 ]);
 
 // Must run inside asUser().

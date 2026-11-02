@@ -18,8 +18,7 @@ const de: Messages = {
   unarchive: 'Wiederherstellen',
   archiveInstead: 'Stattdessen archivieren',
   deletePermanently: 'Endgültig löschen',
-  deleteProjectWarning:
-    '„{name}“ wird mit allen Proben, Anwesenheiten, Mitgliedern und Anmeldungen endgültig gelöscht. Die Stücke bleiben in der Stückesammlung. Das kann nicht rückgängig gemacht werden.',
+  deleteProjectWarning: "„{name}“ wird mit allen Proben, Anwesenheiten, Mitgliedern und Anmeldungen gelöscht. Die Stücke bleiben in der Stückesammlung. Das Projekt bleibt 30 Tage im Papierkorb.",
   archiveInsteadHint: 'Lieber archivieren? Dabei bleibt alles erhalten.',
   deleteProjectHint: 'Löscht das Projekt mit allen Daten endgültig.',
   add: 'Hinzufügen',
@@ -515,8 +514,7 @@ const de: Messages = {
   newCalendar: 'Neuer Kalender',
   editCalendar: 'Kalender bearbeiten',
   deleteCalendar: 'Kalender löschen',
-  deleteCalendarConfirm:
-    '„{name}“ löschen? Die eigenen Events darin werden mitgelöscht, Proben bleiben in ihren Projekten. Abonnierte Kalender-Apps erhalten keine Termine mehr.',
+  deleteCalendarConfirm: "„{name}“ löschen? Die eigenen Events darin werden mitgelöscht, Proben bleiben in ihren Projekten. Abonnierte Kalender-Apps erhalten keine Termine mehr. Der Kalender bleibt 30 Tage im Papierkorb.",
   noCalendars: 'Noch keine Kalender.',
   calendarNamePlaceholder: 'z. B. Chor-Saison 2026',
   assignProjects: 'Projekte zuordnen…',
@@ -909,8 +907,7 @@ const de: Messages = {
   notSetUpYet: 'Noch nicht eingerichtet',
   exactBars: 'Taktgenau',
   voiceSingular: 'Stimme',
-  confirmDeletePiece:
-    'Dieses Stück mitsamt allen Dateien und Notizen endgültig löschen? Es verschwindet aus allen Projekten. Dies kann nicht rückgängig gemacht werden.',
+  confirmDeletePiece: "Dieses Stück mitsamt allen Dateien und Notizen löschen? Es verschwindet aus allen Projekten und bleibt 30 Tage im Papierkorb.",
   createAndSetUp: 'Erstellen & einrichten',
   deletePiece: 'Stück löschen',
   // Piece collection shared by all projects
@@ -1463,7 +1460,7 @@ const de: Messages = {
   noMembersInGroup: 'Keine Mitglieder in dieser Gruppe',
   groupNameTaken: 'Eine Gruppe mit diesem Namen gibt es bereits.',
   groupRenameHint: 'Umbenennen wird bei allen Mitgliedern übernommen.',
-  confirmDeleteGroup: 'Die Gruppe wird gelöscht. {n} Mitglieder haben danach keine Gruppe mehr.',
+  confirmDeleteGroup: "Die Gruppe kommt in den Papierkorb. {n} Mitglieder haben bis zur Wiederherstellung keine Gruppe.",
   activate: 'Aktivieren',
   deactivate: 'Deaktivieren',
   registrationActive: 'Anmeldung ist aktiv',
@@ -1486,8 +1483,7 @@ const de: Messages = {
   selectionDrawResult: 'Ausgelost und übertragen: {n}',
   selectionAndMore: 'und {n} weitere',
   selectedCount: '{n} ausgewählt',
-  confirmBulkDeleteRegistrations:
-    'Ausgewählte Anmeldungen endgültig löschen? Dies kann nicht rückgängig gemacht werden.',
+  confirmBulkDeleteRegistrations: "Ausgewählte Anmeldungen löschen? Sie bleiben 30 Tage im Papierkorb.",
   transferred: 'Übertragen',
   notTransferred: 'Offen',
   autoTransfer: 'Automatisch übertragen',
@@ -1654,7 +1650,7 @@ const de: Messages = {
   concertUnpublishedToast: 'Veröffentlichung zurückgenommen',
   concertArchivedToast: 'Konzert archiviert',
   concertDeleteHint: 'Löscht Konzert, Programm und Aufnahmen.',
-  concertDeleteConfirm: '„{name}“ mit Programm und Aufnahmen endgültig löschen? Das kann nicht rückgängig gemacht werden.',
+  concertDeleteConfirm: "„{name}“ mit Programm und Aufnahmen löschen? Es bleibt 30 Tage im Papierkorb.",
   concertProgram: 'Programm',
   concertProgramEmpty: 'Noch kein Programm.',
   concertBreak: 'Pause',
@@ -1912,7 +1908,7 @@ const de: Messages = {
   surveyPublishNewVersionHint: 'Wird Version {n}. Bisherige Antworten behalten ihre Version.',
   surveyPublishEditorialHint: 'Nur Formulierungen: die aktuelle Version wird korrigiert.',
   surveyPublishFirstHint: 'Danach kann geantwortet werden.',
-  surveyDeleteConfirm: '„{name}“ mit allen {n} Antworten endgültig löschen? Das kann nicht rückgängig gemacht werden. Archivieren behält alles.',
+  surveyDeleteConfirm: "„{name}“ mit allen {n} Antworten löschen? Es bleibt 30 Tage im Papierkorb. Archivieren behält alles.",
   surveyPreviewMobile: 'Handy',
   surveyPreviewDesktop: 'Desktop',
   surveyPreviewAgain: 'Noch einmal',
@@ -2357,7 +2353,7 @@ const de: Messages = {
   onbSummary: 'Zusammenfassung',
 
   // Confirmations
-  confirmDelete: 'Wirklich endgültig löschen? Dies kann nicht rückgängig gemacht werden.',
+  confirmDelete: "Wirklich löschen? Es bleibt 30 Tage im Papierkorb.",
 
   // Notification center
   notifications: "Benachrichtigungen",
@@ -2455,6 +2451,41 @@ const de: Messages = {
   notifChannelsHint: "Push und E-Mail kommen zusätzlich in die App.",
   notifSetAll: "Alle auf …",
   notifSetArea: "Alle in „{area}“",
+
+  // Papierkorb
+  trashBinHint: "Gelöschtes bleibt 30 Tage hier und kommt beim Wiederherstellen mit allem zurück, was dazugehörte.",
+  trashBinEmpty: "Der Papierkorb ist leer",
+  trashEmptyHint: "Gelöschtes bleibt 30 Tage hier.",
+  trashRestore: "Wiederherstellen",
+  trashRestored: "„{name}“ wiederhergestellt",
+  trashEmptyAll: "Papierkorb leeren",
+  trashEmptyAllConfirm: "Alle {n} Einträge endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+  trashPurgeConfirm: "„{name}“ endgültig löschen? Das kann nicht rückgängig gemacht werden.",
+  trashDeletedBy: "gelöscht am {date} von {name}",
+  trashDeletedAt: "gelöscht am {date}",
+  trashDaysLeft: "noch {n} Tage",
+  trashConflict: "Lässt sich nicht wiederherstellen: Es gibt inzwischen etwas mit demselben Namen.",
+  trashParentMissing: "Stelle zuerst das Projekt wieder her, zu dem es gehört.",
+  trashKind_projects: "Projekt",
+  trashKind_events: "Probe",
+  trashKind_members: "Mitglied",
+  trashKind_project_groups: "Gruppe",
+  trashKind_forms: "Umfrage",
+  trashKind_concerts: "Konzert",
+  trashKind_registration_pages: "Anmeldeseite",
+  trashKind_registrations: "Anmeldung",
+  trashKind_absence_labels: "Label",
+  trashKind_pieces: "Stück",
+  trashKind_calendars: "Kalender",
+  trashContent_members: "Mitglieder: {n}",
+  trashContent_events: "Proben: {n}",
+  trashContent_attendance: "Anwesenheiten: {n}",
+  trashContent_form_responses: "Antworten: {n}",
+  trashContent_registrations: "Anmeldungen: {n}",
+  trashContent_project_pieces: "Projekte: {n}",
+  trashContent_piece_files: "Dateien: {n}",
+  trashContent_concert_recordings: "Aufnahmen: {n}",
+  trashContent_calendar_events: "Termine: {n}",
 };
 
 export default de;

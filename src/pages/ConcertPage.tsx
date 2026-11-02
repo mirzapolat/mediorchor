@@ -299,7 +299,7 @@ export const ConcertPage = () => {
             <p className="min-w-0 flex-1 text-sm text-text-secondary">{t('concertDeleteHint')}</p>
             <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
               <Trash2 size={15} />
-              {t('deletePermanently')}
+              {t('delete')}
             </Button>
           </div>
         </section>
@@ -307,9 +307,9 @@ export const ConcertPage = () => {
 
       <ConfirmDialog
         open={confirmDelete}
-        title={t('deletePermanently')}
+        title={t('delete')}
         message={t('concertDeleteConfirm').replace('{name}', concert.title)}
-        confirmLabel={t('deletePermanently')}
+        confirmLabel={t('delete')}
         destructive
         onConfirm={() => void remove()}
         onCancel={() => setConfirmDelete(false)}

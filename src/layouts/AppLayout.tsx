@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Outlet, useMatch } from 'react-router-dom';
-import { CalendarDays, FolderKanban, LayoutDashboard, Music, ShieldCheck } from 'lucide-react';
+import { CalendarDays, Layers, LayoutDashboard, Music, ShieldCheck, Trash2 } from 'lucide-react';
 import { SidebarActionLink, useSidebar } from '@/components/Sidebar';
 import { NavShell } from '@/components/NavShell';
 import { cn } from '@/lib/cn';
@@ -9,6 +10,7 @@ import { config } from '@/lib/config';
 import { AppLogo } from '@/components/AppLogo';
 import { FadingText } from '@/components/FadingText';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { api, TRASH_CHANGED } from '@/lib/api';
 
 // `withActions`: the header's right side holds the admin icon next to the
 // collapse toggle, so leave room for both.
@@ -27,9 +29,25 @@ const AppHeader = ({ withActions }: { withActions: boolean }) => {
   );
 };
 
+// Entries in the Papierkorb the account may restore (those who manage
+// projects); counted again whenever something is deleted or restored.
+const useTrashCount = (enabled: boolean) => {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const load = () =>
+      void api.rpc('trash_count').then(({ data }) => setCount(typeof data === 'number' ? data : 0));
+    load();
+    window.addEventListener(TRASH_CHANGED, load);
+    return () => window.removeEventListener(TRASH_CHANGED, load);
+  }, [enabled]);
+  return enabled ? count : 0;
+};
+
 export const AppLayout = () => {
   const { t } = useI18n();
-  const { canEditCalendars, isAdmin, hasFullPieceAccess, hasDashboard } = useAuth();
+  const { canEditCalendars, isAdmin, hasFullPieceAccess, hasDashboard, canAccessAllProjects } = useAuth();
+  const trashCount = useTrashCount(canAccessAllProjects);
   // Setting up a piece takes the whole screen, without the sidebar.
   // An open piece brings its own sidebar (PieceLayout), or none in the
   // full-screen trainer.
@@ -52,9 +70,11 @@ export const AppLayout = () => {
       }
       items={[
         hasDashboard && { to: '/dashboard', label: t('dashboard'), icon: LayoutDashboard },
-        { to: '/projects', end: true, label: t('projects'), icon: FolderKanban },
+        { to: '/projects', end: true, label: t('projects'), icon: Layers },
         hasFullPieceAccess && { to: '/pieces', label: t('pieces'), icon: Music },
         canEditCalendars && { to: '/calendar', label: t('calendars'), icon: CalendarDays },
+        // Only while something waits in it.
+        trashCount > 0 && { to: '/trash', label: t('trash'), icon: Trash2 },
       ]}
       contentClassName=""
     >

@@ -13,6 +13,7 @@
 import { db, decodeRow, encodeValue, getTableMeta, authUid, ApiError, forbidden, type TableMeta } from './db.ts';
 import { policies, isAdmin, type TablePolicy } from './policies.ts';
 import { auditNote } from './audit.ts';
+import { isTrashable, moveToTrash } from './trash.ts';
 
 type Filter = [column: string, operator: string, value: unknown];
 
@@ -414,6 +415,8 @@ const runWrite = (meta: TableMeta, req: DbRequest): DbResponse => {
     case 'delete': {
       const rowids = targetRowids(meta, 'delete', req.filters);
       const data = returning(meta, req, rowids);
+      // Projects, Proben, members, pieces, surveys, ... go to the trash first.
+      if (isTrashable(meta.name)) moveToTrash(meta.name, rowids);
       if (rowids.length) {
         db.prepare(`delete from ${meta.name} where rowid in (select value from json_each(?))`).run(
           JSON.stringify(rowids),

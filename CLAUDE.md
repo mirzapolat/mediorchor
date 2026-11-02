@@ -113,4 +113,10 @@ and Tailwind's palette classes.
   key passes `isCanonicalKey`/`pieceObjectPath` before touching the disk.
 - **Migrations:** new numbered file in `server/migrations/`, applied on
   start; never edit an applied one.
+- **Papierkorb:** deleting through the data API snapshots the row and
+  everything that cascades with it (`server/trash.ts`, `TRASHABLE`). A new
+  table whose accidental deletion would hurt goes into `TRASHABLE`; a new
+  file-storage sweeper must keep keys still referenced from `trash_rows`
+  (see `runPieceFileMaintenance`). Don't remove stored files in the client
+  when deleting a trashable row.
 - Run `npm run lint` before finishing (types + theme check).

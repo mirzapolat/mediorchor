@@ -653,7 +653,9 @@ A piece can pin bars to when they really start: `[{bar, label, at}]` — played-
 
 **Markdown** — a deliberately small subset is supported everywhere Markdown appears: headings (1–3 levels), bullet and numbered lists, bold, italic, inline code, and links. Links are only rendered as clickable for `http`, `https`, `mailto` and in-app paths. Text is always escaped.
 
-**Destructive actions** always go through a confirmation dialog with an explicit warning that they cannot be undone.
+**Papierkorb** — deleting a project, Probe, member, group, survey, concert, registration page or registration, absence label, piece or calendar moves it to the trash instead, together with everything that went with it (attendance, answers, uploads, files, programme entries, links from other rows, a deleted group's name on its members). It stays 30 days and can be restored as it was, or deleted for good earlier (single entries or "Empty trash"); stored files stay until then. Those who manage projects find it in the project's sidebar (that project's entries) and in the main sidebar (everything they may restore: projects for Verwaltung, pieces, calendars); both entries only show while something is in it. Restoring is refused when something with the same name exists meanwhile, and a project's entries wait while the project itself is in the trash. Restoring sends no notifications.
+
+**Destructive actions** go through a confirmation dialog; where the trash catches them it says so ("stays in the trash for 30 days"), otherwise it warns that they cannot be undone.
 
 **Name splitting** — wherever a single display name must become first/last, the split happens at the **last space**; single-token names get an empty last name. This heuristic is used identically for account names, CSV imports and registration prefills.
 

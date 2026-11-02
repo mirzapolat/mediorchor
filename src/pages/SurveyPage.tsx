@@ -151,7 +151,7 @@ export const SurveyPage = () => {
       ? { icon: ArchiveRestore, label: t('lifecycleRestore'), onSelect: () => void setState('restore') }
       : { icon: Archive, label: t('lifecycleArchive'), onSelect: () => void setState('archive', 'restore') },
     { icon: Copy, label: t('duplicate'), onSelect: () => void duplicate(), separated: true },
-    { icon: Trash2, label: t('deletePermanently'), onSelect: () => setConfirmDelete(true) },
+    { icon: Trash2, label: t('delete'), onSelect: () => setConfirmDelete(true) },
   ];
 
   return (
@@ -276,9 +276,9 @@ export const SurveyPage = () => {
 
       <ConfirmDialog
         open={confirmDelete}
-        title={t('deletePermanently')}
+        title={t('delete')}
         message={t('surveyDeleteConfirm').replace('{name}', form.title).replace('{n}', String(detail.responses))}
-        confirmLabel={t('deletePermanently')}
+        confirmLabel={t('delete')}
         destructive
         onConfirm={() => void remove()}
         onCancel={() => setConfirmDelete(false)}

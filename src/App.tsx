@@ -84,6 +84,7 @@ import { PublicCalendarPage } from '@/pages/PublicCalendarPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
 import { NotificationsLayout, NotificationsPage } from '@/pages/NotificationsPage';
+import { ProjectTrashPage, TrashPage } from '@/pages/TrashPage';
 
 export const App = () => {
   const { session, user, loading, mfaSetupRequired, soleProjectId, hasDashboard } = useAuth();
@@ -158,6 +159,7 @@ export const App = () => {
               <Route path="dashboard" element={hasDashboard ? <DashboardPage /> : <Navigate to="/projects" replace />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="calendar" element={<CalendarPage />} />
+              <Route path="trash" element={<TrashPage />} />
             </Route>
 
             {/* The piece collection shared by all projects. */}
@@ -273,6 +275,7 @@ export const App = () => {
             <Route path="groups" element={<GroupsPage />} />
             <Route path="groups/:groupId" element={<GroupDetailPage />} />
             <Route path="settings" element={<ProjectSettingsPage />} />
+            <Route path="trash" element={<ProjectTrashPage />} />
           </Route>
         </Route>
 

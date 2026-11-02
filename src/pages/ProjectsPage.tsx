@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderKanban, Archive, ArchiveRestore, Check, Minus, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Layers, Archive, ArchiveRestore, Check, Minus, Pencil, Trash2, Users } from 'lucide-react';
 import { DeleteProjectDialog } from '@/components/DeleteProjectDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { PageSpinner } from '@/components/Spinner';
@@ -202,7 +202,7 @@ export const ProjectsPage = () => {
             )}
           </>
         )}
-        emptyIcon={FolderKanban}
+        emptyIcon={Layers}
         // Settings, archiving and deletion need Verwaltung; Stimmeltern only
         // work with a project's content.
         actions={

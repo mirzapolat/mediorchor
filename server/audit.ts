@@ -112,6 +112,11 @@ const SKIP_TABLES = new Set([
   'notification_queue',
   'notification_marks',
   'push_subscriptions',
+  // Snapshots of deleted rows (survey answers included); the deletion and
+  // the restore are logged as the actions they are.
+  'trash',
+  'trash_rows',
+  'trash_values',
   // Survey answers never reach the log: what people answered, when they
   // drafted, what they uploaded and that they took part (server/forms.ts
   // records only that a response came in).

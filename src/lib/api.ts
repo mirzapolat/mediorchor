@@ -91,8 +91,16 @@ const request = async <T>(
     if (response.status === 401 && currentSession) emit('SIGNED_OUT', null);
     return { data: null, error };
   }
+  // Deleting, restoring or emptying changes what the Papierkorb holds: the
+  // sidebars count it again (see TRASH_CHANGED).
+  const action = (body as { action?: string } | undefined)?.action;
+  if ((path === '/api/db' && action === 'delete') || /^\/api\/rpc\/trash_(restore|purge|empty)$/.test(path)) {
+    window.dispatchEvent(new Event(TRASH_CHANGED));
+  }
   return { data: payload as T, error: null };
 };
+
+export const TRASH_CHANGED = 'app:trash-changed';
 
 // ---------------------------------------------------------------------------
 // Query builder (PostgREST-style subset, executed by server/rest.ts)

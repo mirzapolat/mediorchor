@@ -22,6 +22,7 @@ import { webhookRoutes } from './webhooks.ts';
 import { calendarFeedRoutes } from './calendarFeed.ts';
 import { rateLimit } from './ratelimit.ts';
 import { startNotifications } from './notifications.ts';
+import { startTrashJobs } from './trash.ts';
 import { mailEnabled } from './mail.ts';
 import { brandIndexHtml, clientConfig, webManifest } from './branding.ts';
 import { auditNote, auditRequests, installAuditTriggers } from './audit.ts';
@@ -232,6 +233,7 @@ startPieceFileMaintenance();
 startConcertFileMaintenance();
 startFormJobs();
 startNotifications();
+startTrashJobs();
 
 const server = serve({ fetch: app.fetch, port: env.port }, (info) => {
   console.log(`mediorchor listening on http://localhost:${info.port}`);

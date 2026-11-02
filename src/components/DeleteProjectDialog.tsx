@@ -56,7 +56,7 @@ export const DeleteProjectDialog = ({
           )}
           <Button variant="accent" onClick={() => void run('delete')} disabled={busy} className="whitespace-nowrap">
             <Trash2 size={15} />
-            {t('deletePermanently')}
+            {t('delete')}
           </Button>
         </div>
       }

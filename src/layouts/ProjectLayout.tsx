@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { CreatedSummary } from '@/pages/ProjectOnboardingPage';
-import { BarChart3, CalendarDays, CalendarX2, ClipboardList, ListChecks, Music, Music2, Tags, Tent, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, ListChecks, Music, Music2, Tags, Tent, Trash2, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
 import { useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { Avatar } from '@/components/Avatar';
@@ -9,7 +9,7 @@ import { PageSpinner } from '@/components/Spinner';
 import { NoAccess } from '@/components/NoAccess';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
-import { api } from '@/lib/api';
+import { api, TRASH_CHANGED } from '@/lib/api';
 import { useProjectContext } from '@/layouts/projectContext';
 import type { PieceScope } from '@/layouts/pieceScope';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
@@ -26,8 +26,10 @@ interface ProjectNav {
   weekend: boolean;
   // Confirmed for a published weekend but no room chosen yet.
   room_missing: number;
+  // Entries of the project in the Papierkorb (managers).
+  trash: number;
 }
-const EMPTY_NAV: ProjectNav = { concerts: false, surveys: false, open_surveys: 0, weekend: false, room_missing: 0 };
+const EMPTY_NAV: ProjectNav = { concerts: false, surveys: false, open_surveys: 0, weekend: false, room_missing: 0, trash: 0 };
 
 // Without `onBack` (a participant of a single project) there is no project
 // list to go back to.
@@ -162,6 +164,10 @@ export const ProjectLayout = () => {
 
   useEffect(() => {
     void loadNav();
+    // Something was deleted or restored: the Papierkorb entry may come or go.
+    const onTrash = () => void loadNav();
+    window.addEventListener(TRASH_CHANGED, onTrash);
+    return () => window.removeEventListener(TRASH_CHANGED, onTrash);
   }, [loadNav]);
 
   useEffect(() => {
@@ -243,6 +249,8 @@ export const ProjectLayout = () => {
         canManage && { to: `${base}/statistics`, label: t('statistics'), icon: BarChart3, ...visibleTo(false) },
         canManage &&
           canManageProjects && { to: `${base}/settings`, label: t('settings'), icon: Settings, ...visibleTo(false) },
+        // Only while something of the project waits in it.
+        canManage && nav.trash > 0 && { to: `${base}/trash`, label: t('trash'), icon: Trash2, ...visibleTo(false) },
       ]}
       // A participant of a single project has no project list to go back to.
       back={soleProjectId ? null : { to: '/projects', label: t('projects') }}

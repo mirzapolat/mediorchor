@@ -179,7 +179,11 @@ export const runConcertFileMaintenance = () => {
       db
         .prepare(
           `select file_path as key from concert_recordings where file_path is not null
-           union select json_extract(row, '$.file_path') from concert_recording_trash`,
+           union select json_extract(row, '$.file_path') from concert_recording_trash
+           -- Concerts (and projects) waiting in the Papierkorb (trash.ts).
+           union select json_extract(data, '$.file_path') from trash_rows where table_name = 'concert_recordings'
+           union select json_extract(json_extract(data, '$.row'), '$.file_path')
+             from trash_rows where table_name = 'concert_recording_trash'`,
         )
         .all() as { key: string | null }[]
     )

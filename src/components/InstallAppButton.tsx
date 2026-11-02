@@ -37,9 +37,9 @@ export const InstallAppButton = () => {
       <button
         type="button"
         onClick={() => void open()}
-        className="nudge-pulse ml-1.5 inline-flex h-9 items-center gap-1.5 rounded-full bg-accent/10 px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="nudge-pulse ml-1.5 inline-flex h-7 items-center gap-1 rounded-full bg-accent/10 px-2.5 text-[11px] font-semibold text-accent transition-colors hover:bg-accent/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <Download size={14} className="flex-shrink-0" />
+        <Download size={12} className="flex-shrink-0" />
         {t('installAppShort')}
       </button>
       <Modal open={helpOpen} title={t('installApp')} onClose={() => setHelpOpen(false)}>
