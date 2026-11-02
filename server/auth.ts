@@ -287,15 +287,15 @@ const isApproved = (userId: string) => {
   return !row || Boolean(row.approved);
 };
 
-// With "require 2FA" on, every account with access to all projects (Stimmeltern,
-// Verwaltung, Admin) must have a verified factor; until then only 2FA setup
-// (and signing out) works.
-const isPrivileged = (userId: string) => {
-  const row = db.prepare('select role from app_users where id = ?').get(userId) as { role: string } | undefined;
-  return Boolean(row && row.role !== 'participant');
-};
+// Accounts whose role the admin requires 2FA for must have a verified factor;
+// until then only 2FA setup (and signing out) works.
+const userRole = (userId: string) =>
+  (db.prepare('select role from app_users where id = ?').get(userId) as { role: string } | undefined)?.role;
 
-export const mfaRequiredFor = (userId: string) => instanceSettings().requireAdmin2fa && isPrivileged(userId);
+export const mfaRequiredFor = (userId: string) => {
+  const role = userRole(userId);
+  return Boolean(role && instanceSettings().mfaRequiredRoles.includes(role));
+};
 
 export const mfaSetupRequired = (userId: string) => mfaRequiredFor(userId) && !hasSecondFactor(userId);
 

@@ -55,7 +55,7 @@ app.use('/api/*', async (c, next) => {
   c.res.headers.set('Cache-Control', c.req.path.startsWith('/api/calendar-feed/') ? 'no-cache' : 'no-store');
 });
 
-// With "require 2FA" on, a privileged account without a second factor may only
+// An account whose role requires 2FA but has no second factor yet may only
 // set one up (under /api/auth) and use the public forms until it has one.
 const PUBLIC_FUNCTIONS = new Set([
   'get_public_config',

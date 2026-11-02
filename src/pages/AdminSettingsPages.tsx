@@ -17,12 +17,14 @@ import { PhotoCropper } from '@/components/PhotoCropper';
 import { AppLogo } from '@/components/AppLogo';
 import { channels as channelsOf } from '@/lib/branding';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLES } from '@/lib/roles';
+import type { UserRole } from '@/types';
 
 interface Settings {
   allow_self_signup: boolean;
   signup_requires_approval: boolean;
   signup_allowed_domains: string;
-  require_admin_2fa: boolean;
+  mfa_required_roles: string;
   allow_email_2fa: boolean;
   session_days: number | null;
   single_project_focus: boolean;
@@ -55,7 +57,7 @@ export const AdminSecurityPage = () => {
       api
         .from('app_settings')
         .select(
-          'allow_self_signup, signup_requires_approval, signup_allowed_domains, require_admin_2fa, allow_email_2fa, session_days, single_project_focus',
+          'allow_self_signup, signup_requires_approval, signup_allowed_domains, mfa_required_roles, allow_email_2fa, session_days, single_project_focus',
         )
         .eq('id', 1)
         .maybeSingle(),
@@ -133,17 +135,15 @@ export const AdminSecurityPage = () => {
         <Card className="space-y-4">
           <h2 className="text-base font-medium">{t('securitySection')}</h2>
           <ToggleRow
-            label={t('require2fa')}
-            hint={t('require2faHint')}
-            checked={settings.require_admin_2fa}
-            onChange={(v) => void update('security', { require_admin_2fa: v })}
-          />
-          <ToggleRow
             label={t('allowEmail2fa')}
             hint={mailEnabled ? t('allowEmail2faHint') : `${t('allowEmail2faHint')} ${t('allowEmail2faNoMail')}`}
             checked={settings.allow_email_2fa}
             disabled={!mailEnabled && !settings.allow_email_2fa}
             onChange={(v) => void update('security', { allow_email_2fa: v })}
+          />
+          <RequiredRolesRow
+            value={settings.mfa_required_roles}
+            onChange={(v) => void update('security', { mfa_required_roles: v })}
           />
           <div className="space-y-2 border-t border-border pt-4">
             <Input
@@ -225,6 +225,52 @@ export const AdminLegalPage = ({ kind }: { kind: LegalKind }) => {
         <LegalPageCard key={kind} kind={kind} />
       </div>
     </>
+  );
+};
+
+const ROLE_LABEL: Record<UserRole, TranslationKey> = {
+  participant: 'roleParticipant',
+  section_lead: 'roleSectionLead',
+  manager: 'roleManager',
+  music_director: 'roleMusicDirector',
+  admin: 'roleAdmin',
+};
+
+// 2FA required per role: one chip per role, stored as 'manager,admin'.
+const RequiredRolesRow = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
+  const { t } = useI18n();
+  const selected = new Set(value.split(',').filter(Boolean));
+  const toggle = (role: UserRole) => {
+    const next = new Set(selected);
+    if (next.has(role)) next.delete(role);
+    else next.add(role);
+    onChange(ROLES.filter((r) => next.has(r)).join(','));
+  };
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <span className="block font-medium">{t('require2fa')}</span>
+      <div className="flex flex-wrap gap-2">
+        {ROLES.map((role) => {
+          const on = selected.has(role);
+          return (
+            <button
+              key={role}
+              type="button"
+              aria-pressed={on}
+              onClick={() => toggle(role)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-sm transition-colors',
+                on
+                  ? 'border-accent bg-accent/10 text-text'
+                  : 'border-border text-text-secondary hover:bg-surface-subtle',
+              )}
+            >
+              {t(ROLE_LABEL[role])}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 

@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ApiError, authUid, db, nowIso } from './db.ts';
 import { env } from './env.ts';
-import { MAX_SESSION_DAYS, MIN_SESSION_DAYS } from './settings.ts';
+import { MAX_SESSION_DAYS, MIN_SESSION_DAYS, parseRoleList } from './settings.ts';
 import { hasSecondFactor } from './mfa.ts';
 import { isLanguage } from '../shared/languages.ts';
 import { CONTACT_LABEL_MAX, CONTACT_VALUE_MAX, isContactKind } from '../shared/contactKinds.ts';
@@ -361,10 +361,18 @@ export const policies: Record<string, TablePolicy> = {
     check: isAdmin,
     delete: isAdmin,
     validateUpdate: (oldRow, patch, { uid }) => {
-      // Turning on required 2FA needs it on the admin's own account first, or
-      // they'd lock themselves out.
-      if (patch.require_admin_2fa && !oldRow.require_admin_2fa) {
-        if (!hasSecondFactor(uid)) {
+      if ('mfa_required_roles' in patch) {
+        if (typeof patch.mfa_required_roles !== 'string') throw new ApiError('Invalid roles', 400, '23514');
+        const roles = parseRoleList(patch.mfa_required_roles);
+        if (roles.some((r) => !(ROLES as readonly string[]).includes(r))) {
+          throw new ApiError('Unknown role', 400, '23514');
+        }
+        // Requiring 2FA for the admin's own role needs it on their own account
+        // first, or they'd lock themselves out.
+        const own = (db.prepare('select role from app_users where id = ?').get(uid) as { role: string } | undefined)
+          ?.role;
+        const before = parseRoleList(String(oldRow.mfa_required_roles ?? ''));
+        if (own && roles.includes(own) && !before.includes(own) && !hasSecondFactor(uid)) {
           throw new ApiError('Enable two-factor authentication on your own account first', 400, 'mfa_self_required');
         }
       }

@@ -237,6 +237,7 @@ const COLUMNS: Record<string, Words> = {
   cancelled: { de: 'Abgesagt', en: 'Cancelled', fi: 'Peruttu' },
   allow_self_signup: { de: 'Selbstregistrierung', en: 'Self sign-up', fi: 'Rekisteröityminen' },
   require_admin_2fa: { de: '2FA Pflicht', en: '2FA required', fi: '2FA pakollinen' },
+  mfa_required_roles: { de: '2FA Pflicht für', en: '2FA required for', fi: '2FA pakollinen' },
   session_days: { de: 'Sitzungsdauer (Tage)', en: 'Session length (days)', fi: 'Istunnon pituus (päivää)' },
 };
 
