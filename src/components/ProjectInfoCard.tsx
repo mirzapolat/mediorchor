@@ -68,7 +68,7 @@ export const ProjectInfoCard = ({ projectId, canEdit }: { projectId: string; can
           {t('addProjectInfo')}
         </button>
       ) : (
-        <Card className="max-w-3xl mb-4 sm:mb-6 max-sm:p-4">
+        <Card className="max-w-5xl mb-4 sm:mb-6 max-sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <h2 className="text-base font-medium">{t('projectInfo')}</h2>
             {canEdit && (

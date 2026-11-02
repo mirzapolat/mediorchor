@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Ban, Bookmark, ChevronDown, CircleCheck, LogIn, LogOut, Mic } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
+import { CardColumns } from '@/components/CardColumns';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { PageSpinner } from '@/components/Spinner';
@@ -11,7 +12,7 @@ import { EventWhen } from '@/components/EventWhen';
 import { EventProgram } from '@/components/EventProgram';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ProjectInfoCard } from '@/components/ProjectInfoCard';
-import { GroupResponsiblesCard } from '@/components/GroupResponsiblesCard';
+import { GroupResponsiblesSection } from '@/components/GroupResponsiblesCard';
 import { loadMyGroupResponsibles, type MyGroupResponsibles } from '@/lib/groupResponsibles';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
@@ -54,6 +55,8 @@ export const MyParticipationPage = () => {
   });
   const [busy, setBusy] = useState(false);
   const [groupSaved, setGroupSaved] = useState(false);
+  // A group change waiting for confirmation.
+  const [pendingGroup, setPendingGroup] = useState<string | null>(null);
   // Both lists start with the first few entries and expand on demand.
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [showAllPast, setShowAllPast] = useState(false);
@@ -284,7 +287,9 @@ export const MyParticipationPage = () => {
           </form>
         </Card>
       ) : (
-        <div className="space-y-4 sm:space-y-6 max-w-3xl">
+        // Two balanced columns on wide screens (one on phones, tablets and
+        // small laptops, where the sidebar leaves too little room).
+        <CardColumns className="lg:columns-1 xl:columns-2">
           <Card className="max-sm:p-4">
             <h2 className="text-base font-medium mb-1">{t('upcomingEvents')}</h2>
             {upcoming.length === 0 ? (
@@ -424,17 +429,22 @@ export const MyParticipationPage = () => {
             )}
           </Card>
 
-          {responsibles && <GroupResponsiblesCard data={responsibles} />}
-
-          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2">
-            <Card className="flex flex-col gap-3 max-sm:p-4">
+          {/* The own group: choosing it, and who looks after it. */}
+          <Card className="flex flex-col gap-3 max-sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-base font-medium">{t('myGroup')}</h2>
               {groups.length > 0 ? (
-                <div className="flex items-center gap-3 sm:max-w-xs">
+                <div className="flex items-center gap-3 sm:w-64">
                   <div className="min-w-0 flex-1">
                     <Select
+                      aria-label={t('myGroup')}
                       value={member?.group_name ?? ''}
-                      onChange={(e) => changeGroup(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        // Choosing a first group is no change; switching is confirmed.
+                        if (member?.group_name && next !== member.group_name) setPendingGroup(next);
+                        else void changeGroup(next);
+                      }}
                     >
                       {!member?.group_name && (
                         <option value="" disabled>
@@ -453,26 +463,42 @@ export const MyParticipationPage = () => {
               ) : (
                 <p className="text-sm text-text-tertiary">{t('noGroupsAvailable')}</p>
               )}
-            </Card>
+            </div>
+            {responsibles && <GroupResponsiblesSection data={responsibles} />}
+          </Card>
 
-            <Card className="flex flex-col items-start gap-3 max-sm:p-4">
-              <div>
-                <h2 className="text-base font-medium">{t('leaveProject')}</h2>
-                <p className="text-sm text-text-secondary mt-1">{t('leaveProjectHint')}</p>
-              </div>
-              <Button
-                variant="accent"
-                className="w-full sm:w-auto"
-                onClick={() => setConfirmLeave(true)}
-                disabled={busy}
-              >
-                <LogOut size={15} />
-                {t('leaveProject')}
-              </Button>
-            </Card>
-          </div>
-        </div>
+          <Card className="flex flex-col gap-3 max-sm:p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-medium">{t('leaveProject')}</h2>
+              <p className="text-sm text-text-secondary mt-1">{t('leaveProjectHint')}</p>
+            </div>
+            <Button
+              variant="accent"
+              className="w-full flex-shrink-0 sm:w-auto"
+              onClick={() => setConfirmLeave(true)}
+              disabled={busy}
+            >
+              <LogOut size={15} />
+              {t('leaveProject')}
+            </Button>
+          </Card>
+        </CardColumns>
       )}
+
+      <ConfirmDialog
+        open={pendingGroup !== null}
+        title={t('changeGroupTitle')}
+        message={t('changeGroupConfirm')
+          .replace('{from}', member?.group_name ?? '')
+          .replace('{to}', pendingGroup ?? '')}
+        confirmLabel={t('changeGroupAction')}
+        onConfirm={() => {
+          const next = pendingGroup;
+          setPendingGroup(null);
+          if (next) void changeGroup(next);
+        }}
+        onCancel={() => setPendingGroup(null)}
+      />
 
       <ConfirmDialog
         open={confirmLeave}
