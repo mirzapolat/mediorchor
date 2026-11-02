@@ -5,6 +5,7 @@ import './index.css';
 import { App } from './App';
 import { I18nProvider } from '@/lib/i18n';
 import { AuthProvider } from '@/hooks/useAuth';
+import { NotificationsProvider } from '@/hooks/useNotifications';
 import { applyBranding } from '@/lib/branding';
 import { ThemeProvider } from '@/lib/theme';
 import { initPwa } from '@/lib/pwa';
@@ -18,11 +19,13 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <I18nProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <ErrorBoundary fullScreen>
-              <App />
-            </ErrorBoundary>
-          </BrowserRouter>
+          <NotificationsProvider>
+            <BrowserRouter>
+              <ErrorBoundary fullScreen>
+                <App />
+              </ErrorBoundary>
+            </BrowserRouter>
+          </NotificationsProvider>
         </AuthProvider>
       </I18nProvider>
     </ThemeProvider>

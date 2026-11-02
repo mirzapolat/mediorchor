@@ -83,6 +83,7 @@ import { PublicCheckinPage } from '@/pages/PublicCheckinPage';
 import { PublicCalendarPage } from '@/pages/PublicCalendarPage';
 import { PublicRegistrationPage } from '@/pages/PublicRegistrationPage';
 import { MfaSetupGate } from '@/pages/MfaSetupGate';
+import { NotificationsLayout, NotificationsPage } from '@/pages/NotificationsPage';
 
 export const App = () => {
   const { session, user, loading, mfaSetupRequired, soleProjectId, hasDashboard } = useAuth();
@@ -180,6 +181,12 @@ export const App = () => {
         )}
 
         {/* Admin-only administration — isolated in its own sidebar layout. */}
+        {/* The notification center (bell in every sidebar and the mobile header). */}
+        <Route path="notifications" element={<NotificationsLayout />}>
+          <Route index element={<NotificationsPage view="open" />} />
+          <Route path="done" element={<NotificationsPage view="done" />} />
+        </Route>
+
         <Route path="account" element={<AccountLayout />}>
           <Route index element={<Navigate to="profile" replace />} />
           <Route path="profile" element={<AccountProfilePage />} />

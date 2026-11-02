@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
 type Range = '7d' | '30d' | '90d' | '12m';
-type Kind = 'account' | 'reminder' | 'status' | 'weekly' | 'test' | 'confirmation';
+type Kind = 'account' | 'notification' | 'test' | 'confirmation';
 
 interface Bucket {
   key: string; // YYYY-MM-DD or YYYY-MM, in the viewer's local time
@@ -31,9 +31,7 @@ interface MailStats {
 // kinds happen to be present (tokens in index.css, validated for CVD).
 const SERIES: Record<Kind, { color: string; swatch: string; label: TranslationKey }> = {
   account: { color: 'bg-chart-1', swatch: 'bg-chart-1', label: 'mailKindAccount' },
-  reminder: { color: 'bg-chart-2', swatch: 'bg-chart-2', label: 'mailKindReminder' },
-  status: { color: 'bg-chart-3', swatch: 'bg-chart-3', label: 'mailKindStatus' },
-  weekly: { color: 'bg-chart-4', swatch: 'bg-chart-4', label: 'mailKindWeekly' },
+  notification: { color: 'bg-chart-2', swatch: 'bg-chart-2', label: 'mailKindNotification' },
   test: { color: 'bg-chart-5', swatch: 'bg-chart-5', label: 'mailKindTest' },
   confirmation: { color: 'bg-chart-6', swatch: 'bg-chart-6', label: 'mailKindConfirmation' },
 };

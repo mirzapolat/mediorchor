@@ -107,7 +107,11 @@ const SKIP_TABLES = new Set([
   'mail_log',
   'confirmation_log',
   'notification_log',
-  'notification_outbox',
+  'notifications',
+  'notification_prefs',
+  'notification_queue',
+  'notification_marks',
+  'push_subscriptions',
   // Survey answers never reach the log: what people answered, when they
   // drafted, what they uploaded and that they took part (server/forms.ts
   // records only that a response came in).

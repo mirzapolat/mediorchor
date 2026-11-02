@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, ShieldCheck, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Bell, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { SidebarNavItem, type NavItem } from './SidebarNav';
 import { SidebarFooter } from './SidebarFooter';
@@ -13,6 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { rememberReturn } from '@/lib/navReturn';
 import { InstallAppButton } from './InstallAppButton';
 import { PAGE_PADDING } from '@/lib/pagePadding';
+import { useNotifications } from '@/hooks/useNotifications';
+import { UnreadBadge, useBellLabel } from './NotificationCenter';
 
 export interface NavBack {
   to: string;
@@ -101,11 +103,16 @@ export const MobileAppHeader = ({ back }: { back: NavBack | null }) => {
   const { pathname, search } = useLocation();
   const here = pathname + search;
   const name = user?.name || t('account');
+  const { unread } = useNotifications();
+  const bellLabel = useBellLabel();
+  // Equal slots left and right keep the brand in the middle; room for the
+  // bell and account (and admin).
+  const slot = isAdmin ? 'w-[8.5rem]' : 'w-[6.25rem]';
 
   return (
     <header className="relative z-30 flex-shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)] md:hidden">
       <div className="relative flex h-14 items-center justify-between px-1.5">
-        <div className="flex w-[6.25rem] items-center">
+        <div className={cn('flex items-center', slot)}>
           {back ? (
             <Link to={back.to} className={iconButton} aria-label={`${t('back')}: ${back.label}`} title={back.label}>
               <ArrowLeft size={20} />
@@ -118,13 +125,28 @@ export const MobileAppHeader = ({ back }: { back: NavBack | null }) => {
 
         <Link
           to="/"
-          className="absolute left-1/2 top-1/2 flex max-w-[calc(100%-13rem)] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-lg px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className={cn(
+            'absolute left-1/2 top-1/2 flex -translate-x-1/2',
+            isAdmin ? 'max-w-[calc(100%-17.5rem)]' : 'max-w-[calc(100%-13rem)]',
+            '-translate-y-1/2 items-center gap-2 rounded-lg px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+          )}
         >
           <AppLogo className="h-5 w-5 flex-shrink-0" />
           <span className="truncate font-semibold">{config.appName}</span>
         </Link>
 
-        <div className="flex w-[6.25rem] items-center justify-end">
+        <div className={cn('flex items-center justify-end', slot)}>
+          <HeaderIconLink
+            to="/notifications"
+            label={bellLabel}
+            active={pathname.startsWith('/notifications')}
+            onClick={() => rememberReturn('notifications', here)}
+          >
+            <span className="relative">
+              <Bell size={20} />
+              <UnreadBadge count={unread} className="-right-2 -top-2" />
+            </span>
+          </HeaderIconLink>
           {isAdmin && (
             <HeaderIconLink
               to="/admin"

@@ -6,9 +6,11 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { FadingText } from './FadingText';
 import { useAuth } from '@/hooks/useAuth';
+import { NotificationBell } from './NotificationCenter';
 
 // Shared bottom section for every sidebar: an account card
-// (avatar, name, email → account settings) with sign-out as an icon button.
+// (avatar, name, email → account settings) with the notification bell and
+// sign-out as icon buttons.
 export const SidebarFooter = () => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
@@ -47,6 +49,7 @@ export const SidebarFooter = () => {
           >
             <Avatar name={name} photoUrl={user?.photo_url} size={30} />
           </NavLink>
+          <NotificationBell />
           {signOutButton}
         </div>
       ) : (
@@ -66,6 +69,7 @@ export const SidebarFooter = () => {
               {user?.email && <FadingText className="block text-xs text-text-tertiary">{user.email}</FadingText>}
             </span>
           </NavLink>
+          <NotificationBell />
           {signOutButton}
         </div>
       )}

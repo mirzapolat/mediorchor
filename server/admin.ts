@@ -203,7 +203,9 @@ adminRoutes.post('/admin-smtp-test', async (c) => {
 // recipients or content.
 // ---------------------------------------------------------------------------
 
-const MAIL_KINDS = ['account', 'reminder', 'status', 'weekly', 'test', 'confirmation'] as const;
+// Reminders, status notices and weekly overviews were separate kinds before
+// the notification center; they count as notifications.
+const MAIL_KINDS = ['account', 'notification', 'test', 'confirmation'] as const;
 const RANGES = {
   '7d': { days: 7, bucket: 'day' },
   '30d': { days: 30, bucket: 'day' },
@@ -243,9 +245,11 @@ adminRoutes.post('/admin-mail-stats', async (c) => {
   const fmt = bucket === 'day' ? '%Y-%m-%d' : '%Y-%m';
   const rows = db
     .prepare(
-      `select strftime('${fmt}', sent_at, ? || ' minutes') as bucket, kind, ok, count(*) as n
+      `select strftime('${fmt}', sent_at, ? || ' minutes') as bucket,
+              case when kind in ('reminder', 'status', 'weekly') then 'notification' else kind end as kind,
+              ok, count(*) as n
        from mail_log where sent_at >= ?
-       group by bucket, kind, ok`,
+       group by 1, 2, ok`,
     )
     .all(`${offset >= 0 ? '+' : ''}${offset}`, since.toISOString()) as { bucket: string; kind: string; ok: number; n: number }[];
 

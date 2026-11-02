@@ -117,7 +117,7 @@ const transportFor = (config: SmtpConfig) => {
 };
 
 // What an email was for, in the sending statistics (mail_log.kind).
-export type MailKind = 'account' | 'reminder' | 'status' | 'weekly' | 'test' | 'confirmation';
+export type MailKind = 'account' | 'reminder' | 'status' | 'weekly' | 'test' | 'confirmation' | 'notification';
 
 // Error class only (nodemailer code like EAUTH, or the SMTP status); never the
 // message, which can contain the recipient's address.
@@ -199,17 +199,6 @@ export const sendConfirmEmailChange = (to: string, link: string, lang: Language 
 
 export const sendPasswordReset = (to: string, link: string, lang: Language | null) =>
   sendLocalized(to, lang, (m) => m.passwordReset(link));
-
-export const sendPendingSignupNotice = (
-  to: string,
-  lang: Language | null,
-  name: string,
-  email: string,
-  baseUrl?: string,
-) =>
-  sendLocalized(to, lang, (m) =>
-    m.pendingSignup(`${name || email} (${email})`, baseUrl ? `${baseUrl}/admin/users` : null),
-  );
 
 export const sendTwoFactorCode = (to: string, code: string, lang: Language | null) =>
   sendLocalized(to, lang, (m) => m.twoFactorCode(code));

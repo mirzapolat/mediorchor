@@ -13,8 +13,8 @@ import {
   sendConfirmEmailChange,
   sendConfirmSignup,
   sendPasswordReset,
-  sendPendingSignupNotice,
 } from './mail.ts';
+import { enqueue } from './notificationQueue.ts';
 import { queueSignupWelcome } from './confirmations.ts';
 import { rateLimit } from './ratelimit.ts';
 import { splitName } from './fieldMatching.ts';
@@ -198,6 +198,12 @@ const startSession = (c: Context, userId: string, verified: boolean) => {
     now,
     verified ? now : null,
   );
+  // A sign-in to an account that was used before (not the first one after
+  // signing up) is worth a notice to its owner.
+  const seen = db.prepare('select last_seen_at from auth_users where id = ?').get(userId) as
+    | { last_seen_at: string | null }
+    | undefined;
+  if (seen?.last_seen_at) enqueue('security_login', userId, { device: deviceLabel(c.req.header('user-agent')) });
   db.prepare('update auth_users set last_seen_at = ? where id = ?').run(now, userId);
   setSessionCookie(c, token, days);
   // Every sign-in is an entry in the audit log, whoever it is.
@@ -321,28 +327,35 @@ const assertCanRemoveMethod = (userId: string, method: string) => {
   }
 };
 
-// Admins learn about sign-ups waiting for approval (when email works).
-const notifyAdminsOfPendingSignup = async (name: string, email: string) => {
-  if (!mailEnabled()) return;
-  const admins = db
-    .prepare(
-      `select au.email, u.language from app_users u join auth_users au on au.id = u.id
-       where u.role = 'admin' and au.email_confirmed_at is not null`,
-    )
-    .all() as { email: string; language: string | null }[];
-  for (const admin of admins) {
-    try {
-      await sendPendingSignupNotice(
-        admin.email,
-        isLanguage(admin.language) ? admin.language : null,
-        name,
-        email,
-        env.publicUrl,
-      );
-    } catch (err) {
-      console.error('Sending approval notice failed:', err);
-    }
-  }
+// Admins learn about sign-ups waiting for approval (notification center).
+const notifyAdminsOfPendingSignup = (userId: string) => enqueue('signup_pending', userId);
+
+// "Chrome on macOS" for the sign-in notice; good enough to tell devices apart.
+const deviceLabel = (ua: string | undefined) => {
+  if (!ua) return null;
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+      ? 'Opera'
+      : /Firefox\//.test(ua)
+        ? 'Firefox'
+        : /Chrome\//.test(ua)
+          ? 'Chrome'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : null;
+  const os = /iPhone|iPad/.test(ua)
+    ? 'iOS'
+    : /Android/.test(ua)
+      ? 'Android'
+      : /Mac OS X|Macintosh/.test(ua)
+        ? 'macOS'
+        : /Windows/.test(ua)
+          ? 'Windows'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : null;
+  return [browser, os].filter(Boolean).join(' · ') || null;
 };
 
 // ---------------------------------------------------------------------------
@@ -615,7 +628,6 @@ authRoutes.post('/signup', async (c) => {
   const approved = !settings.requiresApproval;
   const password = validatePassword(input.password);
   const { firstName, lastName } = nameInput(input);
-  const name = `${firstName} ${lastName}`.trim();
   // The interface language at sign-up, so emails match it from the start.
   const language = isLanguage(input.language) ? input.language : null;
   const next = safeRedirectPath(typeof input.redirect === 'string' ? input.redirect : null);
@@ -629,7 +641,7 @@ authRoutes.post('/signup', async (c) => {
     if (existing) throw new ApiError('User already registered', 422, 'user_already_exists');
     const id = await createAccount({ email, password, firstName, lastName, confirmed: true, approved, language });
     if (!approved) {
-      void notifyAdminsOfPendingSignup(name, email);
+      notifyAdminsOfPendingSignup(id);
       return c.json({ ...sessionPayload(null), approval_pending: true });
     }
     startSession(c, id, true);
@@ -692,13 +704,11 @@ authRoutes.get('/confirm', (c) => {
   })();
   if (!ok) return c.redirect('/login');
   if (row.kind === 'confirm_signup') queueSignupWelcome(row.user_id);
+  if (row.kind === 'email_change') enqueue('security_change', row.user_id, { what: 'email' });
   // Confirmed, but an admin still has to approve the account.
   if (!isApproved(row.user_id)) {
     if (row.kind === 'confirm_signup') {
-      const account = db.prepare('select name from app_users where id = ?').get(row.user_id) as
-        | { name: string }
-        | undefined;
-      void notifyAdminsOfPendingSignup(account?.name ?? '', row.email);
+      notifyAdminsOfPendingSignup(row.user_id);
     }
     return c.redirect('/login?pending=1');
   }
@@ -759,6 +769,7 @@ authRoutes.post('/password-reset', async (c) => {
     );
     db.prepare('delete from auth_sessions where user_id = ?').run(reset.user_id);
   })();
+  enqueue('security_change', reset.user_id, { what: 'password' });
   return c.json({ ok: true });
 });
 
@@ -778,6 +789,7 @@ authRoutes.patch('/user', async (c) => {
     // Sign out every other device.
     const token = getCookie(c, COOKIE) ?? '';
     db.prepare('delete from auth_sessions where user_id = ? and token_hash <> ?').run(user.id, sha256(token));
+    enqueue('security_change', user.id, { what: 'password' });
   }
 
   if (input.email !== undefined) {
@@ -795,6 +807,7 @@ authRoutes.patch('/user', async (c) => {
           db.prepare('update auth_users set email = ? where id = ?').run(email, user.id);
           db.prepare('update app_users set email = ? where id = ?').run(email, user.id);
         })();
+        enqueue('security_change', user.id, { what: 'email' });
       }
     }
   }
@@ -867,6 +880,7 @@ authRoutes.post('/mfa/verify', async (c) => {
   if (!factor) throw new ApiError('Factor not found', 404, 'mfa_factor_not_found');
   useTotpCode(factor, String(code ?? ''));
   db.prepare(`update auth_factors set status = 'verified' where id = ?`).run(factor.id);
+  enqueue('security_change', user.id, { what: 'mfa_added' });
   return c.json({ ok: true });
 });
 
@@ -883,6 +897,7 @@ authRoutes.post('/mfa/unenroll', async (c) => {
     requireRecentAuth(user);
   }
   db.prepare('delete from auth_factors where id = ?').run(factor.id);
+  if (factor.status === 'verified') enqueue('security_change', user.id, { what: 'mfa_removed' });
   return c.json({ ok: true });
 });
 
@@ -901,6 +916,7 @@ authRoutes.post('/mfa/passkeys', async (c) => {
   const challenge = getChallenge(input.challenge_id, ['passkey_register']);
   if (challenge.user_id !== user.id) throw new ApiError('Invalid confirmation', 400, 'mfa_challenge_expired');
   await registerPasskey(challenge, input.credential, input.name, baseUrl(c));
+  enqueue('security_change', user.id, { what: 'mfa_added' });
   return c.json({ ok: true });
 });
 
@@ -913,6 +929,7 @@ authRoutes.post('/mfa/passkeys/remove', async (c) => {
   if (count === 1) assertCanRemoveMethod(user.id, 'passkey');
   requireRecentAuth(user);
   db.prepare('delete from auth_passkeys where id = ?').run(String(id));
+  enqueue('security_change', user.id, { what: 'mfa_removed' });
   return c.json({ ok: true });
 });
 
@@ -952,6 +969,7 @@ authRoutes.post('/mfa/email/verify', async (c) => {
   if (challenge.user_id !== user.id) throw new ApiError('Invalid confirmation', 400, 'mfa_challenge_expired');
   await verifyProof(challenge, { ...input, method: 'email' }, baseUrl(c));
   setEmail2fa(user.id, true);
+  enqueue('security_change', user.id, { what: 'mfa_added' });
   return c.json({ ok: true });
 });
 
@@ -959,7 +977,9 @@ authRoutes.post('/mfa/email/disable', (c) => {
   const user = requireSession(c);
   if (mfaMethods(user.id).includes('email')) assertCanRemoveMethod(user.id, 'email');
   requireRecentAuth(user);
+  const had = mfaMethods(user.id).includes('email');
   setEmail2fa(user.id, false);
+  if (had) enqueue('security_change', user.id, { what: 'mfa_removed' });
   return c.json({ ok: true });
 });
 

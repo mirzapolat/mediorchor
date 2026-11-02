@@ -35,15 +35,6 @@ const de: MailTexts = {
       'Der Link ist 1 Stunde gültig. Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren.',
     ],
   }),
-  pendingSignup: (who, approveUrl) => ({
-    subject: 'Neues Konto wartet auf Freigabe',
-    lines: [
-      hallo(),
-      '',
-      `${who} hat sich registriert und wartet auf deine Freigabe.`,
-      ...(approveUrl ? ['', `Freigeben: ${approveUrl}`] : []),
-    ],
-  }),
   twoFactorCode: (code) => ({
     subject: 'Dein Bestätigungscode',
     lines: [
@@ -127,6 +118,86 @@ const de: MailTexts = {
   formYes: 'Ja',
   formNo: 'Nein',
   formFiles: (n: number) => (n === 1 ? '1 Datei' : `${n} Dateien`),
+
+  greeting: hallo,
+  notificationEmailFooter: (settings: string | null) =>
+    `Du erhältst diese E-Mail, weil du für diese Benachrichtigung E-Mail gewählt hast.${settings ? ` Ändern: ${settings}` : ''}`,
+  roleNames: {
+    participant: 'Teilnehmer',
+    section_lead: 'Stimmeltern',
+    manager: 'Verwaltung',
+    music_director: 'Musikalische Leitung',
+    admin: 'Admin',
+  },
+  notify: {
+    event_reminder: (event, project, when) => ({ title: `Erinnerung: ${event}`, body: `${when} · ${project}` }),
+    event_new: (n, event, project, when) =>
+      n === 1
+        ? { title: `Neue Probe: ${event}`, body: `${when} · ${project}` }
+        : { title: `${n} neue Proben`, body: project },
+    event_changed: (event, project, when, location) => ({
+      title: `Probe geändert: ${event}`,
+      body: `Jetzt ${when}${location ? `, ${location}` : ''} · ${project}`,
+    }),
+    event_cancelled: (event, project, when) => ({ title: `Probe entfällt: ${event}`, body: `${when} · ${project}` }),
+    attendance_changed: (event, project, when, excused) => ({
+      title: excused ? `Du wurdest entschuldigt: ${event}` : `Als abwesend eingetragen: ${event}`,
+      body: `${when} · ${project}`,
+    }),
+    weekly_overview: (lines) => ({ title: 'Deine Proben diese Woche', body: lines.join('\n') }),
+    project_added: (project) => ({
+      title: `Du bist jetzt in ${project}`,
+      body: 'Proben, Stücke und mehr findest du im Projekt.',
+    }),
+    project_info: (project) => ({ title: `Neues in ${project}`, body: 'Die Projektinfo wurde aktualisiert.' }),
+    piece_added: (n, piece, project) =>
+      n === 1 ? { title: `Neues Stück: ${piece}`, body: project } : { title: `${n} neue Stücke`, body: project },
+    concert_published: (concert, project, when) => ({ title: `Konzert: ${concert}`, body: `${when} · ${project}` }),
+    weekend_published: (weekend, project, when) => ({
+      title: `Probenwochenende: ${weekend}`,
+      body: when ? `${when} · ${project}` : project,
+    }),
+    weekend_rooms: (weekend, project) => ({ title: `Zimmer wählen: ${weekend}`, body: project }),
+    survey_new: (survey, project, closes) => ({
+      title: `Neue Umfrage: ${survey}`,
+      body: closes ? `Bis ${closes} · ${project}` : project,
+    }),
+    survey_deadline: (survey, project, closes) => ({
+      title: `Umfrage endet bald: ${survey}`,
+      body: `Bis ${closes} · ${project}`,
+    }),
+    registration_new: (n, page, project) => ({
+      title: n === 1 ? `Neue Anmeldung: ${page}` : `${n} neue Anmeldungen: ${page}`,
+      body: project,
+    }),
+    checkin_unrecognized: (n, event, project) => ({
+      title: n === 1 ? `Unerkannter Check-in: ${event}` : `${n} unerkannte Check-ins: ${event}`,
+      body: project,
+    }),
+    group_absence: (names, event, when, group) => ({
+      title: names.length === 1 ? `${names[0]} ist entschuldigt: ${event}` : `${names.length} entschuldigt: ${event}`,
+      body: `${when} · ${group}${names.length > 1 ? ` · ${names.join(', ')}` : ''}`,
+    }),
+    signup_pending: (names) => ({
+      title: names.length === 1 ? `Konto wartet auf Freigabe: ${names[0]}` : `${names.length} Konten warten auf Freigabe`,
+      body: names.length > 1 ? names.join(', ') : 'Freigeben oder ablehnen in der Benutzerliste.',
+    }),
+    account_role: (role) => ({ title: `Deine Rolle ist jetzt ${role}`, body: 'Damit hat sich geändert, was du sehen und bearbeiten kannst.' }),
+    security_login: (device, when) => ({
+      title: 'Neue Anmeldung bei deinem Konto',
+      body: `${device} · ${when}. Nicht du? Ändere dein Passwort und melde das Gerät ab.`,
+    }),
+    security_change: (what) => ({
+      title: {
+        password: 'Dein Passwort wurde geändert',
+        email: 'Deine E-Mail-Adresse wurde geändert',
+        mfa_added: 'Eine Anmeldemethode wurde hinzugefügt',
+        mfa_removed: 'Eine Anmeldemethode wurde entfernt',
+      }[what],
+      body: 'Warst du das nicht, ändere sofort dein Passwort.',
+    }),
+  },
+  unknownDevice: 'Unbekanntes Gerät',
 };
 
 export default de;

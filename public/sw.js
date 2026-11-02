@@ -144,3 +144,74 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(networkFirst(request));
   }
 });
+
+// ---------------------------------------------------------------------------
+// Push notifications (server/notifications.ts sends them; the account turns
+// them on per device in Account → Notifications).
+// ---------------------------------------------------------------------------
+
+// Tells open windows to load the notification count and lists again.
+const tellClients = async () => {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of windows) client.postMessage({ type: 'notification' });
+};
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: event.data ? event.data.text() : '' };
+  }
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { link: data.link || '/notifications', id: data.id || null },
+  };
+  // Merged notifications (same tag) replace the message on the device.
+  if (data.tag) Object.assign(options, { tag: data.tag, renotify: true });
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(data.title || self.registration.scope, options),
+      typeof data.unread === 'number' && self.navigator.setAppBadge
+        ? self.navigator.setAppBadge(data.unread).catch(() => undefined)
+        : undefined,
+      tellClients(),
+    ]),
+  );
+});
+
+// A tap opens where the notification is about (in an open window if there is
+// one) and marks it read.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const { link, id } = event.notification.data || {};
+  const target = new URL(link || '/notifications', self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil(
+    (async () => {
+      if (id) {
+        await fetch('/api/rpc/notifications_mark', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [id], read: true }),
+        }).catch(() => undefined);
+      }
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const client = windows.find((c) => new URL(c.url).origin === self.location.origin);
+      if (client) {
+        await client.focus();
+        try {
+          await client.navigate(target.href);
+        } catch {
+          client.postMessage({ type: 'navigate', path: target.pathname + target.search });
+        }
+        await tellClients();
+        return;
+      }
+      await self.clients.openWindow(target.href);
+    })(),
+  );
+});

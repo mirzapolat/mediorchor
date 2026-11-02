@@ -2,7 +2,7 @@
 // from through the header icons (mobile navigation). Kept per tab in
 // sessionStorage, so moving between their own pages doesn't lose it; a direct
 // visit has none and falls back to the start page.
-export type ReturnSection = 'account' | 'admin';
+export type ReturnSection = 'account' | 'admin' | 'notifications';
 
 const key = (section: ReturnSection) => `anwesenheit.return.${section}`;
 

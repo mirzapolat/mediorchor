@@ -28,15 +28,6 @@ const fi: MailTexts = {
       'Linkki on voimassa 1 tunnin. Jos et pyytänyt tätä, voit jättää tämän viestin huomiotta.',
     ],
   }),
-  pendingSignup: (who, approveUrl) => ({
-    subject: 'Uusi tili odottaa hyväksyntää',
-    lines: [
-      hei(),
-      '',
-      `${who} on rekisteröitynyt ja odottaa hyväksyntääsi.`,
-      ...(approveUrl ? ['', `Hyväksy: ${approveUrl}`] : []),
-    ],
-  }),
   twoFactorCode: (code) => ({
     subject: 'Vahvistuskoodisi',
     lines: [
@@ -120,6 +111,86 @@ const fi: MailTexts = {
   formYes: 'Kyllä',
   formNo: 'Ei',
   formFiles: (n: number) => (n === 1 ? '1 tiedosto' : `${n} tiedostoa`),
+
+  greeting: hei,
+  notificationEmailFooter: (settings: string | null) =>
+    `Saat tämän sähköpostin, koska valitsit sähköpostin tälle ilmoitukselle.${settings ? ` Muuta: ${settings}` : ''}`,
+  roleNames: {
+    participant: 'Osallistuja',
+    section_lead: 'Stemmanjohtaja',
+    manager: 'Hallinto',
+    music_director: 'Musiikillinen johtaja',
+    admin: 'Ylläpitäjä',
+  },
+  notify: {
+    event_reminder: (event, project, when) => ({ title: `Muistutus: ${event}`, body: `${when} · ${project}` }),
+    event_new: (n, event, project, when) =>
+      n === 1
+        ? { title: `Uusi harjoitus: ${event}`, body: `${when} · ${project}` }
+        : { title: `${n} uutta harjoitusta`, body: project },
+    event_changed: (event, project, when, location) => ({
+      title: `Harjoitus muuttui: ${event}`,
+      body: `Nyt ${when}${location ? `, ${location}` : ''} · ${project}`,
+    }),
+    event_cancelled: (event, project, when) => ({ title: `Harjoitus peruttu: ${event}`, body: `${when} · ${project}` }),
+    attendance_changed: (event, project, when, excused) => ({
+      title: excused ? `Sinut merkittiin poissaolevaksi luvalla: ${event}` : `Merkitty poissaolevaksi: ${event}`,
+      body: `${when} · ${project}`,
+    }),
+    weekly_overview: (lines) => ({ title: 'Harjoituksesi tällä viikolla', body: lines.join('\n') }),
+    project_added: (project) => ({
+      title: `Sinut lisättiin projektiin ${project}`,
+      body: 'Harjoitukset, kappaleet ja muut löytyvät projektista.',
+    }),
+    project_info: (project) => ({ title: `Uutta: ${project}`, body: 'Projektin tiedot päivitettiin.' }),
+    piece_added: (n, piece, project) =>
+      n === 1 ? { title: `Uusi kappale: ${piece}`, body: project } : { title: `${n} uutta kappaletta`, body: project },
+    concert_published: (concert, project, when) => ({ title: `Konsertti: ${concert}`, body: `${when} · ${project}` }),
+    weekend_published: (weekend, project, when) => ({
+      title: `Harjoitusviikonloppu: ${weekend}`,
+      body: when ? `${when} · ${project}` : project,
+    }),
+    weekend_rooms: (weekend, project) => ({ title: `Valitse huone: ${weekend}`, body: project }),
+    survey_new: (survey, project, closes) => ({
+      title: `Uusi kysely: ${survey}`,
+      body: closes ? `${closes} asti · ${project}` : project,
+    }),
+    survey_deadline: (survey, project, closes) => ({
+      title: `Kysely sulkeutuu pian: ${survey}`,
+      body: `${closes} asti · ${project}`,
+    }),
+    registration_new: (n, page, project) => ({
+      title: n === 1 ? `Uusi ilmoittautuminen: ${page}` : `${n} uutta ilmoittautumista: ${page}`,
+      body: project,
+    }),
+    checkin_unrecognized: (n, event, project) => ({
+      title: n === 1 ? `Tunnistamaton kirjautuminen: ${event}` : `${n} tunnistamatonta kirjautumista: ${event}`,
+      body: project,
+    }),
+    group_absence: (names, event, when, group) => ({
+      title: names.length === 1 ? `${names[0]} on poissa luvalla: ${event}` : `${names.length} poissa luvalla: ${event}`,
+      body: `${when} · ${group}${names.length > 1 ? ` · ${names.join(', ')}` : ''}`,
+    }),
+    signup_pending: (names) => ({
+      title: names.length === 1 ? `Tili odottaa hyväksyntää: ${names[0]}` : `${names.length} tiliä odottaa hyväksyntää`,
+      body: names.length > 1 ? names.join(', ') : 'Hyväksy tai hylkää käyttäjäluettelossa.',
+    }),
+    account_role: (role) => ({ title: `Roolisi on nyt ${role}`, body: 'Se, mitä voit nähdä ja muokata, muuttui.' }),
+    security_login: (device, when) => ({
+      title: 'Uusi kirjautuminen tilillesi',
+      body: `${device} · ${when}. Etkö se ollut sinä? Vaihda salasanasi ja kirjaa laite ulos.`,
+    }),
+    security_change: (what) => ({
+      title: {
+        password: 'Salasanasi vaihdettiin',
+        email: 'Sähköpostiosoitteesi vaihdettiin',
+        mfa_added: 'Kirjautumistapa lisättiin',
+        mfa_removed: 'Kirjautumistapa poistettiin',
+      }[what],
+      body: 'Jos se et ollut sinä, vaihda salasanasi heti.',
+    }),
+  },
+  unknownDevice: 'Tuntematon laite',
 };
 
 export default fi;

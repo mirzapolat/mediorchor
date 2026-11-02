@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell,
   Check,
   Copy,
   Download,
@@ -36,6 +35,7 @@ import { Modal } from '@/components/Modal';
 import { CodeInput } from '@/components/CodeInput';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { mfaErrorMessage } from '@/components/SecondFactorForm';
+import { NotificationSettings } from '@/components/NotificationSettings';
 import { useI18n } from '@/lib/i18n';
 import { api, type ApiError, type DeviceSession, type MfaFactors } from '@/lib/api';
 import { track } from '@/lib/analytics';
@@ -256,7 +256,7 @@ export const AccountNotificationsPage = () => {
   return (
     <>
       <PageHeader title={t('accountNotifications')} />
-      <NotificationsCard />
+      <NotificationSettings />
     </>
   );
 };
@@ -996,65 +996,6 @@ const AppearanceCard = () => {
           );
         })}
       </div>
-    </Card>
-  );
-};
-
-// Email notifications (opt-in); they need the server's SMTP setup.
-const NotificationsCard = () => {
-  const { t } = useI18n();
-  const { user, refreshUser } = useAuth();
-  const [mailEnabled, setMailEnabled] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    void api.rpc('get_public_config').then(({ data }) =>
-      setMailEnabled(Boolean((data as { mail_enabled?: boolean } | null)?.mail_enabled)),
-    );
-  }, []);
-
-  if (!user || mailEnabled === null) return null;
-
-  const toggles = [
-    ['notify_reminders', 'notifyReminders', 'notifyRemindersHint'],
-    ['notify_status', 'notifyStatus', 'notifyStatusHint'],
-    ['notify_weekly', 'notifyWeekly', 'notifyWeeklyHint'],
-  ] as const;
-
-  const toggle = async (key: (typeof toggles)[number][0], value: boolean) => {
-    await api.from('app_users').update({ [key]: value }).eq('id', user.id);
-    await refreshUser();
-  };
-
-  return (
-    <Card className="space-y-4">
-      <div>
-        <h2 className="text-base font-medium flex items-center gap-2">
-          <Bell size={17} className="text-text-secondary" />
-          {t('notifications')}
-        </h2>
-        {!mailEnabled && <p className="text-sm text-text-secondary mt-1">{t('notificationsUnavailable')}</p>}
-      </div>
-      {toggles.map(([key, label, hint]) => (
-        <label
-          key={key}
-          className={cn(
-            'flex items-center justify-between gap-4 border-t border-border pt-4',
-            mailEnabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
-          )}
-        >
-          <span>
-            <span className="block font-medium">{t(label)}</span>
-            <span className="block text-sm text-text-secondary mt-0.5">{t(hint)}</span>
-          </span>
-          <input
-            type="checkbox"
-            className="h-4 w-4 flex-shrink-0 accent-black"
-            checked={user[key]}
-            disabled={!mailEnabled}
-            onChange={(e) => void toggle(key, e.target.checked)}
-          />
-        </label>
-      ))}
     </Card>
   );
 };

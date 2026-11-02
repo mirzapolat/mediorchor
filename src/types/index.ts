@@ -27,9 +27,11 @@ export interface AppUser {
   photo_prompted_at: string | null; // when the one-time photo prompt was shown (null = not yet)
   contacts_prompted_at: string | null; // when the one-time contact details prompt was shown (null = not yet)
   approved: boolean; // false = self sign-up waiting for admin approval
-  notify_reminders: boolean; // email: reminder before a Probe (opt-in)
-  notify_status: boolean; // email: someone marked me excused/absent (opt-in)
-  notify_weekly: boolean; // email: Monday overview (opt-in)
+  // Former email switches; replaced by the notification settings
+  // (notification_prefs, migration 0082) and no longer read.
+  notify_reminders: boolean;
+  notify_status: boolean;
+  notify_weekly: boolean;
   language: Language | null; // for emails; the UI language is per device
   home_page: HomePage; // where `/` and signing in lead
   dashboard_layout: DashboardWidgetState[]; // widget order and visibility

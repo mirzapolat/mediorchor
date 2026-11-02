@@ -919,7 +919,7 @@ export const weekendNav = (projectId: string, uid: string, manager: boolean, par
   };
 };
 
-const roomMissing = (weekendId: string, uid: string) => {
+export const roomMissing = (weekendId: string, uid: string) => {
   const mine = myEntry(weekendId, uid);
   if (!mine) return false;
   const hasRooms = db.prepare('select 1 from weekend_rooms where weekend_id = ? limit 1').get(weekendId);
