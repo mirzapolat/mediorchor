@@ -372,6 +372,8 @@ html.standalone body {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   /* A looping animation at 0.01ms would flicker; keep the strands still. */
   .floating-paths path { animation: none !important; stroke-dasharray: none; }
+  /* The notes move by SVG animation, which CSS can't stop: leave them out. */
+  .floating-paths .fp-notes { display: none; }
   .otp-caret { animation: none !important; }
   /* No pulse: a still ring marks the button for as long as the nudge lasts. */
   .dot-field::before, .dot-field::after { animation: none !important; }
