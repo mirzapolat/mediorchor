@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { CreatedSummary } from '@/pages/ProjectOnboardingPage';
 import { BarChart3, CalendarDays, CalendarX2, ClipboardList, ListChecks, Music, Music2, Tags, Tent, Trash2, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
-import { useSidebar } from '@/components/Sidebar';
+import { RAIL, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
@@ -36,30 +36,26 @@ const EMPTY_NAV: ProjectNav = { concerts: false, surveys: false, open_surveys: 0
 const ProjectHeader = ({ project, onBack }: { project: Project; onBack?: () => void }) => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
+  const backTip = useRailTip(t('projects'));
   return (
     <>
       {onBack && (
         <button
           onClick={onBack}
-          title={collapsed ? t('projects') : undefined}
+          {...backTip}
           className={cn(
-            'flex items-center h-14 border-b border-border text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150',
-            collapsed ? 'justify-center px-0' : 'gap-2 px-5',
+            'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
+            RAIL.icon16,
           )}
         >
-          <ArrowLeft size={16} />
-          {!collapsed && <span>{t('projects')}</span>}
+          <ArrowLeft size={16} className="flex-shrink-0" />
+          <FadingText className={sidebarLabel(collapsed)}>{t('projects')}</FadingText>
         </button>
       )}
 
-      <div
-        className={cn(
-          'flex items-center border-b border-border',
-          collapsed ? 'justify-center px-0 py-4' : 'gap-2.5 px-5 py-4',
-        )}
-      >
-        <Avatar name={project.name} photoUrl={project.image_url} size={collapsed ? 32 : 28} square />
-        {!collapsed && <FadingText className="font-semibold">{project.name}</FadingText>}
+      <div className={cn('flex flex-shrink-0 items-center gap-2.5 border-b border-border py-3', RAIL.tile)}>
+        <Avatar name={project.name} photoUrl={project.image_url} size={32} square />
+        <FadingText className={cn('font-semibold', sidebarLabel(collapsed))}>{project.name}</FadingText>
       </div>
     </>
   );

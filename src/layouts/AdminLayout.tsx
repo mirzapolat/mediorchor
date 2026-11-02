@@ -16,7 +16,7 @@ export const AdminLayout = () => {
 
   return (
     <NavShell
-      header={<SidebarSectionHeader icon={ShieldCheck} title={t('adminSettings')} />}
+      header={<SidebarSectionHeader icon={ShieldCheck} title={t('adminSettings')} backTo={returnPath('admin')} />}
       items={[
         { to: '/admin/users', label: t('users'), icon: Users },
         { to: '/admin/branding', label: t('branding'), icon: Palette },

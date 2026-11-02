@@ -21,7 +21,7 @@ export const NotificationsLayout = () => {
   const { unread } = useNotifications();
   return (
     <NavShell
-      header={<SidebarSectionHeader icon={Bell} title={t('notifications')} />}
+      header={<SidebarSectionHeader icon={Bell} title={t('notifications')} backTo={returnPath('notifications')} />}
       items={[
         { to: '/notifications', end: true, label: t('notifOpen'), icon: Bell, badge: unread },
         { to: '/notifications/done', label: t('notifDone'), icon: Inbox },

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useMatch } from 'react-router-dom';
+import { Outlet, useLocation, useMatch } from 'react-router-dom';
+import { rememberReturn } from '@/lib/navReturn';
 import { CalendarDays, Layers, LayoutDashboard, Music, ShieldCheck, Trash2 } from 'lucide-react';
-import { SidebarActionLink, useSidebar } from '@/components/Sidebar';
+import { RAIL, SidebarActionLink, sidebarLabel, useSidebar } from '@/components/Sidebar';
 import { NavShell } from '@/components/NavShell';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
@@ -12,19 +13,20 @@ import { FadingText } from '@/components/FadingText';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { api, TRASH_CHANGED } from '@/lib/api';
 
-// `withActions`: the header's right side holds the admin icon next to the
-// collapse toggle, so leave room for both.
+// `withActions`: the header's right side holds the admin icon, so leave
+// room for it.
 const AppHeader = ({ withActions }: { withActions: boolean }) => {
   const { collapsed } = useSidebar();
   return (
     <div
       className={cn(
-        'flex items-center h-14 border-b border-border',
-        collapsed ? 'justify-center px-0' : cn('gap-2.5 pl-5', withActions ? 'pr-20' : 'pr-12'),
+        'flex h-14 flex-shrink-0 items-center gap-2.5 border-b border-border',
+        RAIL.icon20,
+        withActions && 'pr-12',
       )}
     >
       <AppLogo className="h-5 w-5 flex-shrink-0" />
-      {!collapsed && <FadingText className="font-semibold">{config.appName}</FadingText>}
+      <FadingText className={cn('font-semibold', sidebarLabel(collapsed))}>{config.appName}</FadingText>
     </div>
   );
 };
@@ -48,6 +50,7 @@ export const AppLayout = () => {
   const { t } = useI18n();
   const { canEditCalendars, isAdmin, hasFullPieceAccess, hasDashboard, canAccessAllProjects } = useAuth();
   const trashCount = useTrashCount(canAccessAllProjects);
+  const { pathname, search } = useLocation();
   // Setting up a piece takes the whole screen, without the sidebar.
   // An open piece brings its own sidebar (PieceLayout), or none in the
   // full-screen trainer.
@@ -66,7 +69,14 @@ export const AppLayout = () => {
     <NavShell
       header={<AppHeader withActions={isAdmin} />}
       sidebarActions={
-        isAdmin ? <SidebarActionLink to="/admin" label={t('adminConfig')} icon={ShieldCheck} /> : undefined
+        isAdmin ? (
+          <SidebarActionLink
+            to="/admin"
+            label={t('adminConfig')}
+            icon={ShieldCheck}
+            onClick={() => rememberReturn('admin', pathname + search)}
+          />
+        ) : undefined
       }
       items={[
         hasDashboard && { to: '/dashboard', label: t('dashboard'), icon: LayoutDashboard },

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, FileMusic, FolderOpen, Info, Mic, Music, Settings, Workflow } from 'lucide-react';
-import { useSidebar } from '@/components/Sidebar';
+import { RAIL, SidebarFold, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { FadingText } from '@/components/FadingText';
 import { PageSpinner } from '@/components/Spinner';
@@ -25,34 +25,38 @@ export const usePieceLayout = () => useOutletContext<{ pieceLayout: PieceLayoutC
 const PieceHeader = ({ piece, onBack }: { piece: Piece; onBack: () => void }) => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
+  const backTip = useRailTip(t('pieces'));
   return (
     <>
       <button
         onClick={onBack}
-        title={collapsed ? t('pieces') : undefined}
+        {...backTip}
         className={cn(
-          'flex h-14 items-center border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
-          collapsed ? 'justify-center px-0' : 'gap-2 px-5',
+          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
+          RAIL.icon16,
         )}
       >
-        <ArrowLeft size={16} />
-        {!collapsed && <span>{t('pieces')}</span>}
+        <ArrowLeft size={16} className="flex-shrink-0" />
+        <FadingText className={sidebarLabel(collapsed)}>{t('pieces')}</FadingText>
       </button>
 
-      {collapsed ? (
-        <div className="flex items-center justify-center border-b border-border py-4">
-          <Music size={20} className="text-text-secondary" />
-        </div>
-      ) : (
-        <div className="border-b border-border px-5 py-4">
+      <div className={cn('flex flex-shrink-0 items-start gap-2.5 border-b border-border py-3', RAIL.tile)}>
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
+          <Music size={16} />
+        </span>
+        <div className={cn('min-w-0 flex-1 pt-1', sidebarLabel(collapsed))}>
           <FadingText className="block font-semibold">{piece.name}</FadingText>
-          {piece.composer && <p className="mt-0.5 truncate text-sm text-text-secondary">{piece.composer}</p>}
-          {/* The short description, as on the pieces list. */}
-          {piece.description.trim() && (
-            <p className="mt-1.5 line-clamp-3 text-xs text-text-tertiary">{piece.description.trim()}</p>
+          {(piece.composer || piece.description.trim()) && (
+            <SidebarFold>
+              {piece.composer && <p className="mt-0.5 truncate text-sm text-text-secondary">{piece.composer}</p>}
+              {/* The short description, as on the pieces list. */}
+              {piece.description.trim() && (
+                <p className="mt-1.5 line-clamp-3 text-xs text-text-tertiary">{piece.description.trim()}</p>
+              )}
+            </SidebarFold>
           )}
         </div>
-      )}
+      </div>
     </>
   );
 };

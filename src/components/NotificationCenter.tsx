@@ -17,7 +17,8 @@ import {
 import { Toast, useToast } from './Toast';
 import { track } from '@/lib/analytics';
 import { Spinner } from './Spinner';
-import { useSidebar } from './Sidebar';
+import { useRailTip, useSidebar } from './Sidebar';
+import { rememberReturn } from '@/lib/navReturn';
 
 // ---------------------------------------------------------------------------
 // The feed: one list (open or done, optionally one area) with paging and the
@@ -405,6 +406,7 @@ export const NotificationBell = () => {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = useBellLabel();
+  const tip = useRailTip(label);
 
   // Closes when the page changes (a notification was opened).
   useEffect(() => setOpen(false), [pathname]);
@@ -415,8 +417,9 @@ export const NotificationBell = () => {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        title={label}
+        title={collapsed ? undefined : label}
         aria-label={label}
+        {...tip}
         aria-expanded={open}
         aria-haspopup="dialog"
         className={cn(
@@ -496,7 +499,10 @@ const NotificationPanel = ({ anchor, onClose }: { anchor: RefObject<HTMLButtonEl
           )}
           <Link
             to="/account/notifications"
-            onClick={onClose}
+            onClick={() => {
+              rememberReturn('account', window.location.pathname + window.location.search);
+              onClose();
+            }}
             title={t('notifSettings')}
             aria-label={t('notifSettings')}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-muted hover:text-text"
@@ -509,7 +515,10 @@ const NotificationPanel = ({ anchor, onClose }: { anchor: RefObject<HTMLButtonEl
         </div>
         <Link
           to="/notifications"
-          onClick={onClose}
+          onClick={() => {
+            rememberReturn('notifications', window.location.pathname + window.location.search);
+            onClose();
+          }}
           className="flex h-11 flex-shrink-0 items-center justify-center border-t border-border text-sm font-medium text-text-secondary hover:bg-surface-subtle hover:text-text"
         >
           {t('notifShowAll')}

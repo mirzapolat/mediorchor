@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, Outlet, useParams } from 'react-router-dom';
 import { ArrowLeft, BedDouble, CalendarDays, FileText, MapPin, Settings, Tent, UsersRound } from 'lucide-react';
-import { useSidebar } from '@/components/Sidebar';
+import { RAIL, SidebarFold, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { FadingText } from '@/components/FadingText';
 import { PageSpinner } from '@/components/Spinner';
@@ -104,39 +104,43 @@ const WeekendHeader = ({
   back: { to: string; label: string };
 }) => {
   const { collapsed } = useSidebar();
+  const backTip = useRailTip(back.label);
   return (
     <>
       <Link
         to={back.to}
-        title={collapsed ? back.label : undefined}
+        {...backTip}
         className={cn(
-          'flex h-14 items-center border-b border-border text-sm font-medium text-text-secondary transition-colors hover:text-text',
-          collapsed ? 'justify-center px-0' : 'gap-2 px-5',
+          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
+          RAIL.icon16,
         )}
       >
-        <ArrowLeft size={16} />
-        {!collapsed && <FadingText>{back.label}</FadingText>}
+        <ArrowLeft size={16} className="flex-shrink-0" />
+        <FadingText className={sidebarLabel(collapsed)}>{back.label}</FadingText>
       </Link>
-      <div className={cn('border-b border-border', collapsed ? 'flex justify-center py-4' : 'px-5 py-4')}>
-        {collapsed ? (
-          <Tent size={20} className="text-text-secondary" />
-        ) : (
-          <>
-            <FadingText className="block font-semibold">{weekend.title}</FadingText>
-            {dates && (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-text-secondary">
-                <CalendarDays size={13} />
-                {dates}
-              </p>
-            )}
-            {weekend.location && (
-              <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-text-secondary">
-                <MapPin size={13} className="flex-shrink-0" />
-                <span className="truncate">{weekend.location}</span>
-              </p>
-            )}
-          </>
-        )}
+      <div className={cn('flex flex-shrink-0 items-start gap-2.5 border-b border-border py-3', RAIL.tile)}>
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
+          <Tent size={16} />
+        </span>
+        <div className={cn('min-w-0 flex-1 pt-1', sidebarLabel(collapsed))}>
+          <FadingText className="block font-semibold">{weekend.title}</FadingText>
+          {(dates || weekend.location) && (
+            <SidebarFold>
+              {dates && (
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-text-secondary">
+                  <CalendarDays size={13} />
+                  {dates}
+                </p>
+              )}
+              {weekend.location && (
+                <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-text-secondary">
+                  <MapPin size={13} className="flex-shrink-0" />
+                  <span className="truncate">{weekend.location}</span>
+                </p>
+              )}
+            </SidebarFold>
+          )}
+        </div>
       </div>
     </>
   );

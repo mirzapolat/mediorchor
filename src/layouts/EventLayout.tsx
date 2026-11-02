@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { NoAccess } from '@/components/NoAccess';
 import { CheckSquare, Settings, ArrowLeft, CalendarDays, Clock, ListMusic, QrCode } from 'lucide-react';
-import { useSidebar } from '@/components/Sidebar';
+import { RAIL, SidebarFold, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { PageSpinner } from '@/components/Spinner';
 import { cn } from '@/lib/cn';
@@ -34,34 +34,36 @@ const EventMeta = ({ event }: { event: Event }) =>
 const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
+  const backTip = useRailTip(t('events'));
   return (
     <>
       <button
         onClick={onBack}
-        title={collapsed ? t('events') : undefined}
+        {...backTip}
         className={cn(
-          'flex items-center h-14 border-b border-border text-sm font-medium text-text-secondary hover:text-text transition-colors duration-150',
-          collapsed ? 'justify-center px-0' : 'gap-2 px-5',
+          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
+          RAIL.icon16,
         )}
       >
-        <ArrowLeft size={16} />
-        {!collapsed && <span>{t('events')}</span>}
+        <ArrowLeft size={16} className="flex-shrink-0" />
+        <FadingText className={sidebarLabel(collapsed)}>{t('events')}</FadingText>
       </button>
 
-      {collapsed ? (
-        <div className="flex items-center justify-center py-4 border-b border-border">
-          <CheckSquare size={20} className="text-text-secondary" />
-        </div>
-      ) : (
-        <div className="px-5 py-4 border-b border-border">
+      <div className={cn('flex flex-shrink-0 items-start gap-2.5 border-b border-border py-3', RAIL.tile)}>
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
+          <CheckSquare size={16} />
+        </span>
+        <div className={cn('min-w-0 flex-1 pt-1', sidebarLabel(collapsed))}>
           <FadingText className="block font-semibold">{event.name}</FadingText>
           {(event.date || event.time) && (
-            <div className="mt-1 text-sm text-text-secondary">
-              <EventMeta event={event} />
-            </div>
+            <SidebarFold>
+              <div className="mt-1 text-sm text-text-secondary">
+                <EventMeta event={event} />
+              </div>
+            </SidebarFold>
           )}
         </div>
-      )}
+      </div>
     </>
   );
 };

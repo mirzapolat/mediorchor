@@ -12,7 +12,7 @@ export const AccountLayout = () => {
 
   return (
     <NavShell
-      header={<SidebarSectionHeader icon={CircleUserRound} title={t('account')} />}
+      header={<SidebarSectionHeader icon={CircleUserRound} title={t('account')} backTo={returnPath('account')} />}
       items={[
         { to: '/account/profile', label: t('accountProfile'), icon: UserRound },
         { to: '/account/security', label: t('loginSecurity'), icon: KeyRound },
