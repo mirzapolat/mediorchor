@@ -1,6 +1,6 @@
 // Installable app (PWA): service worker registration and the install prompt.
 
-import { track } from './analytics';
+import { track, trackSoon } from './analytics';
 import { initPullToRefresh } from './pullToRefresh';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -32,9 +32,40 @@ const blockEdgeSwipe = () => {
   );
 };
 
+// How the app is used: the installed app, a phone or tablet browser, or a
+// desktop browser.
+export type AppMode = 'pwa' | 'mobile-browser' | 'desktop-browser';
+
+const isMobileDevice = () => {
+  // Chromium says so directly; elsewhere the user agent (iPads included).
+  if ((navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData?.mobile) return true;
+  return isIos() || /Android|Mobi/i.test(navigator.userAgent);
+};
+
+export const appMode = (): AppMode => (isInstalled() ? 'pwa' : isMobileDevice() ? 'mobile-browser' : 'desktop-browser');
+
+// Counts openings of the app per mode (Umami event "app-open"): each start,
+// and coming back after a while in the background — an installed app is
+// rarely started anew, it is resumed.
+const RESUME_AFTER = 30 * 60 * 1000;
+
+const trackAppOpens = () => {
+  trackSoon('app-open', { mode: appMode() });
+  let hiddenAt: number | null = null;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+    } else if (hiddenAt !== null && Date.now() - hiddenAt >= RESUME_AFTER) {
+      hiddenAt = null;
+      track('app-open', { mode: appMode() });
+    }
+  });
+};
+
 // Chrome/Edge/Android offer installation through this event; it may fire
 // before any page that shows an install button is mounted, so keep it.
 export const initPwa = () => {
+  trackAppOpens();
   if (isInstalled()) {
     blockEdgeSwipe();
     // No reload button in the installed app: pulling down reloads instead.

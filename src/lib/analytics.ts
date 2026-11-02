@@ -69,22 +69,28 @@ const toPath = (url: string) => {
   return { ...payload, url: normalizePath(path), referrer };
 };
 
+// Runs `send` now, or once the tracker script has loaded (on the first page
+// load it may not have run yet).
+const whenReady = (send: () => void) => {
+  if (umami()) {
+    send();
+    return;
+  }
+  document.getElementById('umami-script')?.addEventListener('load', send, { once: true });
+};
+
 // Pageviews are sent by hand (data-auto-track="false") for each route.
-export const trackPageview = (pathname: string) => {
-  const send = () => {
+export const trackPageview = (pathname: string) =>
+  whenReady(() => {
     try {
       umami()?.track((props) => ({ ...props, url: pathname }));
     } catch {
       // Analytics must never break the app.
     }
-  };
-  if (umami()) {
-    send();
-    return;
-  }
-  // First page load: the tracker script may not have run yet.
-  document.getElementById('umami-script')?.addEventListener('load', send, { once: true });
-};
+  });
+
+// Like `track`, but also for events sent while the page is still loading.
+export const trackSoon = (event: string, data?: Props) => whenReady(() => track(event, data));
 
 // Buckets a count so the property stays low-cardinality.
 export const sizeBucket = (n: number) => (n <= 10 ? '1-10' : n <= 50 ? '11-50' : '51+');
