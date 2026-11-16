@@ -123,7 +123,7 @@ export const GroupsPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} />
             <HeaderAction
               icon={Plus}
               label={t('newGroup')}
@@ -138,6 +138,7 @@ export const GroupsPage = () => {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <DataTable
+        sorting={tf.sorting}
           rows={groups}
           columns={columns}
           getRowId={(g) => g.id}

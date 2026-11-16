@@ -181,7 +181,7 @@ export const UsersPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
             <HeaderAction icon={Plus} label={t('newUser')} onClick={() => setFormOpen(true)} />
           </>
         }
@@ -190,6 +190,7 @@ export const UsersPage = () => {
       {error && <p className="text-sm text-accent mb-4">{error}</p>}
 
       <DataTable
+        sorting={tf.sorting}
         rows={users}
         columns={columns}
         getRowId={(u) => u.id}

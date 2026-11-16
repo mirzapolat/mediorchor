@@ -77,6 +77,16 @@ Reference implementations — copy from these rather than inventing:
   with the file icon), an empty input as quiet "Datei hierher ziehen".
 - **Empty states:** dashed `rounded-2xl` box, round muted icon, one bold
   line, one short hint. "Add" affordances as a full-width dashed button.
+- **Search & filter:** `SearchField` (the pill) with `matchesQuery` from
+  `src/lib/search.ts` (accents/case ignored, every word must match); for
+  tables `TableFilterMenu` + `useTableFilters` — pass `sorting={tf.sorting}`
+  to both it and the `DataTable` so phones get the sort button next to
+  "Filter". Choices that are several at once: chips (`rounded-full`,
+  selected `bg-black text-white`) in a row that scrolls on phones.
+- **Practice player:** `.liquid-glass` (index.css) for its floating
+  controls and panels; playback only through `usePracticePlayer` →
+  `src/lib/playback/engine.ts` (one AudioWorklet mixes every voice on one
+  playhead — never add `<audio>` elements for practice tracks).
 - **Long help** (e.g. the MuseScore export commands) goes into a
   `<details>` disclosure with a one-line summary, not inline.
 - **Settings pages:** fields side by side (`sm:grid-cols-2`); destructive

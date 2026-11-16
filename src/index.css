@@ -379,3 +379,100 @@ html.standalone body {
   .dot-field::before, .dot-field::after { animation: none !important; }
   .nudge-pulse { animation: none !important; box-shadow: 0 0 0 3px rgb(var(--c-accent) / 0.45); }
 }
+
+/* ---------------------------------------------------------------------------
+   Liquid glass (the practice player, its buttons and panels): a translucent
+   pane that blurs and saturates what lies behind it, with a bright rim on
+   top and a soft inner glow, floating on a soft shadow. In @layer components
+   so utilities (hover:, rounded-…) still apply.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .liquid-glass {
+    background-color: rgb(var(--c-surface) / 0.56);
+    -webkit-backdrop-filter: blur(24px) saturate(190%);
+    backdrop-filter: blur(24px) saturate(190%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(var(--c-surface) / 0.95),
+      inset 0 0 0 1px rgb(var(--c-surface) / 0.45),
+      inset 0 -10px 24px -18px rgb(var(--c-surface) / 0.9),
+      0 0 0 0.5px rgb(var(--c-scrim) / 0.06),
+      0 12px 32px -12px rgb(var(--c-scrim) / 0.3),
+      0 2px 6px -2px rgb(var(--c-scrim) / 0.12);
+  }
+  /* Denser, for panels with a lot of text (the mixer). */
+  .liquid-glass-strong {
+    background-color: rgb(var(--c-surface) / 0.78);
+  }
+  :root[data-theme='dark'] .liquid-glass {
+    background-color: rgb(var(--c-surface) / 0.5);
+    box-shadow:
+      inset 0 1px 0 0 rgb(var(--c-text) / 0.16),
+      inset 0 0 0 1px rgb(var(--c-text) / 0.07),
+      inset 0 -10px 24px -18px rgb(var(--c-text) / 0.12),
+      0 0 0 0.5px rgb(var(--c-scrim) / 0.5),
+      0 14px 36px -12px rgb(var(--c-scrim) / 0.7);
+  }
+  :root[data-theme='dark'] .liquid-glass-strong {
+    background-color: rgb(var(--c-surface) / 0.72);
+  }
+  /* Pressed-in state of a glass toggle. */
+  .liquid-glass-on {
+    background-color: rgb(var(--c-black) / 0.9);
+    color: rgb(var(--c-white));
+  }
+}
+
+/* Volume sliders of the mixer: a thin track filled up to the thumb
+   (--fill, 0–100%), a round white thumb. */
+.mixer-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2rem;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.mixer-range::-webkit-slider-runnable-track {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    rgb(var(--c-black)) 0 var(--fill, 0%),
+    rgb(var(--c-text-tertiary) / 0.3) var(--fill, 0%) 100%
+  );
+}
+.mixer-range::-moz-range-track {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: rgb(var(--c-text-tertiary) / 0.3);
+}
+.mixer-range::-moz-range-progress {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: rgb(var(--c-black));
+}
+.mixer-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -0.5625rem;
+  height: 1.5rem;
+  width: 1.5rem;
+  border-radius: 9999px;
+  background: rgb(var(--c-paper));
+  box-shadow: 0 1px 4px rgb(var(--c-scrim) / 0.3), 0 0 0 0.5px rgb(var(--c-scrim) / 0.1);
+}
+.mixer-range::-moz-range-thumb {
+  height: 1.5rem;
+  width: 1.5rem;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(var(--c-paper));
+  box-shadow: 0 1px 4px rgb(var(--c-scrim) / 0.3);
+}
+.mixer-range:disabled {
+  opacity: 0.4;
+}
+.mixer-range:focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+  border-radius: 9999px;
+}

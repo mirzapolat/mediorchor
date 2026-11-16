@@ -559,13 +559,41 @@ export const AbsencesPage = () => {
 
   return (
     <>
+      {/* Search, sort, filters and the exports act on the results below. */}
       <PageHeader
         title={t('absences')}
-        subtitle={`${matchingRows.length} ${t('matchingMembers').toLowerCase()}`}
+        inlineActions
+        actions={
+          <>
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={boundFilters} />
+            <OverflowMenu
+              label={t('exportMenu')}
+              buttonIcon={Download}
+              items={[
+                { icon: FileDown, label: t('downloadCsv'), onSelect: downloadCsv, disabled: visibleRows.length === 0 },
+                {
+                  icon: FileText,
+                  label: exportingPdf ? t('loading') : t('downloadPdf'),
+                  onSelect: () => void downloadPdf(),
+                  disabled: visibleRows.length === 0 || exportingPdf,
+                },
+                {
+                  icon: ClipboardCopy,
+                  label: t('copyNameList'),
+                  onSelect: () => void copyNames(),
+                  disabled: visibleRows.length === 0,
+                  separated: true,
+                },
+                { icon: AtSign, label: t('copyEmailList'), onSelect: () => void copyEmails(), disabled: emails.length === 0 },
+              ]}
+            />
+          </>
+        }
       />
 
-      {/* Quick access: saved condition presets */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* Quick access: saved condition presets, one row of chips that
+          scrolls sideways on phones; new and manage at its end. */}
+      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden">
         {labels.map((label) => (
           <button
             key={label.id}
@@ -573,10 +601,10 @@ export const AbsencesPage = () => {
             aria-pressed={activeLabelId === label.id}
             onClick={() => applyLabel(label)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors duration-150',
+              'inline-flex h-9 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors duration-150',
               activeLabelId === label.id
-                ? 'border-text bg-text text-white'
-                : 'border-border text-text-secondary hover:text-text hover:bg-surface-muted',
+                ? 'border-black bg-black text-white'
+                : 'border-border bg-surface text-text-secondary hover:bg-surface-muted hover:text-text',
             )}
           >
             <LabelIcon kind={label.kind} size={13} />
@@ -589,10 +617,10 @@ export const AbsencesPage = () => {
           title={t('newLabel')}
           onClick={startDraft}
           className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-md border transition-colors duration-150',
+            'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
             editorOpen
-              ? 'border-text bg-text text-white'
-              : 'border-border text-text-secondary hover:bg-surface-muted hover:text-text',
+              ? 'border-black bg-black text-white'
+              : 'border-dashed border-border-strong text-text-secondary hover:bg-surface-muted hover:text-text',
           )}
         >
           <Plus size={15} />
@@ -602,7 +630,7 @@ export const AbsencesPage = () => {
           aria-label={t('manageLabels')}
           title={t('manageLabels')}
           onClick={() => setLabelSettingsOpen(true)}
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary transition-colors duration-150 hover:bg-surface-muted hover:text-text"
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors duration-150 hover:bg-surface-muted hover:text-text"
         >
           <Settings2 size={15} />
         </button>
@@ -656,42 +684,12 @@ export const AbsencesPage = () => {
       </Card>
       )}
 
-      {/* Search, filters and exports apply to the results table below. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 className="min-w-0 flex-1 basis-0 truncate text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-          {t('matchingMembers')} · {visibleRows.length}
-        </h2>
-        {/* The exports in one menu, so the row never runs out of room. */}
-        <div className="contents">
-          <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={boundFilters} />
-          <OverflowMenu
-            label={t('exportMenu')}
-            buttonIcon={Download}
-            items={[
-              { icon: FileDown, label: t('downloadCsv'), onSelect: downloadCsv, disabled: visibleRows.length === 0 },
-              {
-                icon: FileText,
-                label: exportingPdf ? t('loading') : t('downloadPdf'),
-                onSelect: () => void downloadPdf(),
-                disabled: visibleRows.length === 0 || exportingPdf,
-              },
-              {
-                icon: ClipboardCopy,
-                label: t('copyNameList'),
-                onSelect: () => void copyNames(),
-                disabled: visibleRows.length === 0,
-                separated: true,
-              },
-              { icon: AtSign, label: t('copyEmailList'), onSelect: () => void copyEmails(), disabled: emails.length === 0 },
-            ]}
-          />
-        </div>
-      </div>
       {exportMessage ? (
         <p className="mb-4 text-sm text-text-secondary" role="status">{exportMessage}</p>
       ) : null}
 
       <DataTable
+        sorting={tf.sorting}
         rows={matchingRows}
         columns={columns}
         getRowId={getResultRowId}

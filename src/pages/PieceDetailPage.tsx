@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { MapPin, Maximize2, Minimize2, Music, Settings2 } from 'lucide-react';
+import { MapPin, Maximize2, Music, Settings2, X } from 'lucide-react';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
 import { OverflowMenu } from '@/components/OverflowMenu';
@@ -9,6 +9,7 @@ import { NoAccess } from '@/components/NoAccess';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
+import { PracticeButtons, glassButton } from '@/components/PlayerControls';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n } from '@/lib/i18n';
@@ -179,6 +180,15 @@ export const PieceDetailPage = () => {
   }, []);
   const fullscreenRef = useRef(fullscreen);
   fullscreenRef.current = fullscreen;
+  // The fullscreen player's height, so the score's end can scroll above it.
+  const [playerHeight, setPlayerHeight] = useState(0);
+  const observer = useRef<ResizeObserver | null>(null);
+  const playerRef = useCallback((el: HTMLDivElement | null) => {
+    observer.current?.disconnect();
+    if (!el) return;
+    observer.current = new ResizeObserver(() => setPlayerHeight(el.offsetHeight));
+    observer.current.observe(el);
+  }, []);
   const loopActiveRef = useRef(false);
   loopActiveRef.current = Boolean(picking || loop);
 
@@ -288,33 +298,29 @@ export const PieceDetailPage = () => {
   const nothingYet = !score && bars.length === 0 && tracks.length === 0;
   const setUpUrl = `${base}/${piece.id}/setup`;
 
-  const playerBar =
-    tracks.length > 0 && !editingAnchors ? (
-      <PiecePlayerBar
-        player={player}
-        tracks={tracks}
-        picking={picking}
-        onPickingChange={setPicking}
-        floating={isDesktop}
-        // Only meaningful while the score with marked bars is on screen.
-        follow={score && hasAnchors ? { on: follow, onChange: setFollow } : undefined}
-      />
-    ) : null;
+  const followToggle = score && hasAnchors ? { on: follow, onChange: setFollow } : undefined;
+  const hasPlayer = tracks.length > 0 && !editingAnchors;
+  const placement = fullscreen ? (isDesktop ? 'dock' : 'sheet') : isDesktop ? 'floating' : 'sticky';
+  const playerBar = hasPlayer ? (
+    <PiecePlayerBar player={player} picking={picking} onPickingChange={setPicking} placement={placement} />
+  ) : null;
 
-  // Above the score, on the right: fullscreen and the editors' marker
-  // placing (no title: the sidebar names the page).
+  // Above the score: the practice buttons (mixer, following, metronome) on
+  // the left; fullscreen and the editors' marker placing on the right (no
+  // title: the sidebar names the page).
   const toolbar = (
-    <div className="mb-2 flex items-center justify-end gap-3">
-      <div className="flex items-center gap-1">
+    <div className="mb-3 flex items-center justify-between gap-3">
+      {hasPlayer ? <PracticeButtons player={player} follow={followToggle} /> : <span />}
+      <div className="flex items-center gap-2">
         {!nothingYet && (
           <button
             type="button"
             onClick={enterFullscreen}
             aria-label={t('fullscreen')}
             title={`${t('fullscreen')} (F)`}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text"
+            className={glassButton}
           >
-            <Maximize2 size={17} />
+            <Maximize2 size={18} />
           </button>
         )}
         {canEdit && score && labels.length > 0 && canPlaceBars && (
@@ -396,35 +402,62 @@ export const PieceDetailPage = () => {
     </>
   );
 
-  const exitButton = fullscreen && (
-    <button
-      type="button"
-      onClick={exitFullscreen}
-      className="fixed left-3 top-3 z-[80] inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-surface/70 px-3.5 text-sm font-medium text-text shadow-md backdrop-blur-xl transition-colors hover:bg-surface"
-    >
-      <Minimize2 size={15} />
-      {t('exitFullscreen')}
-    </button>
-  );
-
-  // In fullscreen the page lifts above the whole app (sidebars, top bar).
-  // The wrapper is always rendered so the score isn't re-mounted. Tall
-  // enough that the player sits at the bottom even on short pages.
+  // Fullscreen: the score fills the screen and scrolls under glass — the
+  // practice buttons top left, ✕ top right, the player on the bottom edge.
+  // One tree for both modes, so the score isn't re-mounted (re-rendered)
+  // when switching.
   return (
-    <div className={fullscreen ? 'fixed inset-0 z-[70] overflow-y-auto overscroll-contain bg-bg pb-[env(safe-area-inset-bottom)]' : undefined}>
-      {exitButton}
+    <div
+      className={
+        fullscreen
+          ? 'fixed inset-0 z-[70] bg-bg'
+          : // Tall enough that the player sits at the bottom even on short pages.
+            'flex min-h-[calc(100dvh-9rem)] flex-col sm:min-h-[calc(100dvh-10rem)] md:min-h-[calc(100dvh-3rem)] lg:min-h-[calc(100dvh-4rem)]'
+      }
+    >
       <div
-        className={cn(
-          'flex flex-col',
-          fullscreen
-            ? 'mx-auto min-h-[100dvh] max-w-6xl px-4 pb-4 pt-14 sm:px-6 sm:pb-6 lg:px-8 lg:pt-16'
-            : 'min-h-[calc(100dvh-9rem)] sm:min-h-[calc(100dvh-10rem)] md:min-h-[calc(100dvh-3rem)] lg:min-h-[calc(100dvh-4rem)]',
-        )}
+        className={fullscreen ? 'h-full overflow-y-auto overscroll-contain' : 'contents'}
+        style={fullscreen ? { paddingBottom: playerHeight + (isDesktop ? 40 : 16) } : undefined}
       >
-        {!fullscreen && toolbar}
-        <div className="mb-6 flex-1">{scoreContent}</div>
-        {playerBar}
+        <div
+          className={
+            fullscreen ? 'mx-auto max-w-6xl px-3 pt-[calc(env(safe-area-inset-top)+4.25rem)] sm:px-6 lg:px-8' : 'contents'
+          }
+        >
+          {!fullscreen && toolbar}
+          <div className={fullscreen ? undefined : 'mb-6 flex-1'}>{scoreContent}</div>
+        </div>
       </div>
+      {fullscreen && (
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex items-start justify-between gap-2 px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-5">
+          <div className="pointer-events-auto">
+            {hasPlayer && <PracticeButtons player={player} follow={followToggle} />}
+          </div>
+          <button
+            type="button"
+            onClick={exitFullscreen}
+            aria-label={t('exitFullscreen')}
+            title={`${t('exitFullscreen')} (Esc)`}
+            className={cn(glassButton, 'pointer-events-auto')}
+          >
+            <X size={20} />
+          </button>
+        </div>
+      )}
+      {playerBar &&
+        (fullscreen ? (
+          <div
+            ref={playerRef}
+            className={cn(
+              'fixed inset-x-0 z-[80]',
+              isDesktop ? 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))] mx-auto w-full max-w-3xl px-6' : 'bottom-0',
+            )}
+          >
+            {playerBar}
+          </div>
+        ) : (
+          playerBar
+        ))}
     </div>
   );
 };

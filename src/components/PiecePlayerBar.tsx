@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { Pause, Play, Repeat, SkipBack, SkipForward, SlidersHorizontal, X } from 'lucide-react';
-import { PLAYBACK_RATES, type PracticePlayer } from '@/hooks/usePracticePlayer';
+import { useRef, type PointerEvent } from 'react';
+import { Pause, Play, Repeat, SkipBack, SkipForward, X } from 'lucide-react';
+import { SpeedButton } from './PlayerControls';
+import type { PracticePlayer } from '@/hooks/usePracticePlayer';
 import { formatTime } from '@/lib/pieceTimeline';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
-import type { PlayerTrack } from '@/lib/pieceFiles';
 
 // Loop-section picking: waiting for the first bar, or for the last one.
 export type LoopPicking = null | { from: number | null };
 
 const iconButton =
-  'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-text-secondary sm:h-11 sm:w-11 ' +
-  'hover:bg-surface-hover hover:text-text transition-colors duration-150 disabled:opacity-40';
+  'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-text ' +
+  'hover:bg-surface/70 active:scale-95 transition-[transform,background-color] duration-150 disabled:opacity-40';
 
 // Seek bar with the loop section and (when they fit) bar ticks drawn in. The
 // thumb carries the current bar number, so no separate status line is needed.
@@ -50,7 +50,7 @@ const SeekBar = ({ player }: { player: PracticePlayer }) => {
       onPointerUp={() => (dragging.current = false)}
       onPointerCancel={() => (dragging.current = false)}
     >
-      <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-surface-hover">
+      <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-text-tertiary/25">
         {loop && bars[loop.from] && bars[loop.to] && (
           <div
             className="absolute inset-y-0 bg-danger/30"
@@ -89,171 +89,63 @@ const SeekBar = ({ player }: { player: PracticePlayer }) => {
   );
 };
 
-// A row of options in the settings panel, the chosen one filled.
-const Segmented = <T,>({
-  label,
-  options,
-  value,
-  onChange,
-  compact = false,
-}: {
-  label: string;
-  // Smaller labels, for many options.
-  compact?: boolean;
-  options: Array<{ value: T; label: ReactNode }>;
-  value: T;
-  onChange: (value: T) => void;
-}) => (
-  <div className="space-y-1.5">
-    <div className="text-xs font-medium text-text-secondary">{label}</div>
-    <div role="radiogroup" aria-label={label} className="flex gap-1 rounded-full bg-surface-hover p-0.5">
-      {options.map((o) => (
-        <button
-          key={String(o.value)}
-          type="button"
-          role="radio"
-          aria-checked={o.value === value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'h-8 min-w-0 flex-1 whitespace-nowrap rounded-full font-medium tabular-nums transition-colors duration-150',
-            compact ? 'px-0.5 text-xs' : 'px-2 text-sm',
-            o.value === value ? 'bg-black text-white shadow-sm' : 'text-text-secondary hover:text-text',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  </div>
-);
+// Where the player sits:
+// - sticky:   the page on phones, a bar across the bottom of the screen;
+// - floating: the page on desktop, a box over the score column;
+// - sheet:    fullscreen on phones, glass reaching the screen's bottom edge
+//             (no gap below it), rounded on top;
+// - dock:     fullscreen on desktop, a floating glass box.
+export type PlayerPlacement = 'sticky' | 'floating' | 'sheet' | 'dock';
 
-// Playback settings behind one button: speed, metronome and the other
-// voices (the last two only when the voice has such recordings), and the
-// score following along. Opens upwards; closes on a click outside or Escape.
-const PlayerSettings = ({
-  player,
-  follow,
-}: {
-  player: PracticePlayer;
-  follow?: { on: boolean; onChange: (on: boolean) => void };
-}) => {
+// The play button; while the heard voices load, a ring shows how far.
+const PlayButton = ({ player }: { player: PracticePlayer }) => {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const { metronome, otherVoices, rate } = player;
-  // Something differs from plain playback: shown on the button.
-  const changed = rate !== 1 || (metronome.available && metronome.on) || (otherVoices.available && otherVoices.quiet);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: globalThis.PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      setOpen(false);
-      ref.current?.querySelector('button')?.focus();
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
+  const { playing, waiting, loadingProgress } = player;
+  const r = 26;
+  const c = 2 * Math.PI * r;
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label={t('playerSettings')}
-        title={t('playerSettings')}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className={cn(
-          'relative flex h-9 min-w-[2.25rem] items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium tabular-nums transition-colors duration-150',
-          open ? 'bg-black text-white' : 'text-text-secondary hover:bg-surface-hover hover:text-text',
-        )}
-      >
-        <SlidersHorizontal size={16} />
-        {rate !== 1 && <span>{rate}×</span>}
-        {changed && rate === 1 && !open && (
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-black ring-2 ring-surface" />
-        )}
-      </button>
-      {open && (
-        <div
-          role="dialog"
-          aria-label={t('playerSettings')}
-          className="absolute bottom-full right-0 z-40 mb-2 w-[min(19rem,calc(100vw-2rem))] space-y-3 rounded-2xl border border-border bg-surface p-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)]"
-        >
-          <Segmented
-            label={t('playbackSpeed')}
-            options={PLAYBACK_RATES.map((r) => ({ value: r, label: `${r}×` }))}
-            value={rate}
-            onChange={player.setRate}
-            compact
+    <button
+      type="button"
+      onClick={player.toggle}
+      aria-label={playing || waiting ? t('pause') : t('play')}
+      aria-busy={waiting || undefined}
+      className="relative flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-lg transition-[transform,background-color] duration-150 hover:bg-black-hover active:scale-95"
+    >
+      {waiting && (
+        <svg viewBox="0 0 56 56" className="absolute inset-0 -rotate-90" aria-hidden="true">
+          <circle cx="28" cy="28" r={r} fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+          <circle
+            cx="28"
+            cy="28"
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - Math.max(0.04, loadingProgress))}
+            className="transition-[stroke-dashoffset] duration-200"
           />
-          {metronome.available && (
-            <Segmented
-              label={t('metronome')}
-              options={[
-                { value: false, label: t('off') },
-                { value: true, label: t('on') },
-              ]}
-              value={metronome.on}
-              onChange={metronome.setOn}
-            />
-          )}
-          {otherVoices.available && (
-            <Segmented
-              label={t('otherVoices')}
-              options={[
-                { value: false, label: t('othersMuted') },
-                { value: true, label: t('othersQuiet') },
-              ]}
-              value={otherVoices.quiet}
-              onChange={otherVoices.setQuiet}
-            />
-          )}
-          {follow && (
-            <Segmented
-              label={t('followScore')}
-              options={[
-                { value: false, label: t('off') },
-                { value: true, label: t('on') },
-              ]}
-              value={follow.on}
-              onChange={follow.onChange}
-            />
-          )}
-        </div>
+        </svg>
       )}
-    </div>
+      {playing || waiting ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+    </button>
   );
 };
 
 export const PiecePlayerBar = ({
   player,
-  tracks,
   picking,
   onPickingChange,
-  floating = false,
-  follow,
+  placement = 'sticky',
 }: {
   player: PracticePlayer;
-  tracks: PlayerTrack[];
   picking: LoopPicking;
   onPickingChange: (picking: LoopPicking) => void;
-  // Desktop: a rounded box hovering over the score column. Otherwise a bar
-  // across the bottom of the screen.
-  floating?: boolean;
-  // Toggle for the score scrolling along; hidden when there is nothing to follow.
-  follow?: { on: boolean; onChange: (on: boolean) => void };
+  placement?: PlayerPlacement;
 }) => {
   const { t } = useI18n();
-  const { track, bars, currentBar, loop, playing } = player;
+  const { bars, currentBar, loop } = player;
   const hasBars = bars.length > 0;
 
   // Other plays of the same bar (repeats), to hop between them.
@@ -265,90 +157,53 @@ export const PiecePlayerBar = ({
         ? bars[loop.from].shown
         : `${bars[loop.from].shown}–${bars[loop.to].shown}`
       : null;
-  const showTopRow = tracks.length > 1 || (sameLabel.length > 1 && currentBar);
 
   return (
     <div
       className={cn(
-        // Frosted glass: the score shows through, blurred.
-        'sticky z-30 bg-surface/60 backdrop-blur-xl backdrop-saturate-150',
-        floating
-          ? // A little wider than the score column below it.
-            'bottom-[calc(1.5rem+env(safe-area-inset-bottom))] -mx-4 mt-6 rounded-2xl border border-border/60 px-5 py-2.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)]'
-          : // The negative bottom margin cancels the page padding (PAGE_PADDING),
-            // safe area included, so the bar reaches the screen's edge.
-            'bottom-0 -mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom))] mt-auto border-t border-border/60 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-6 sm:-mb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:-mx-8 lg:-mb-[calc(2rem+env(safe-area-inset-bottom))] lg:px-8',
+        'liquid-glass z-30',
+        placement === 'floating' &&
+          // A little wider than the score column below it.
+          'sticky bottom-[calc(1.5rem+env(safe-area-inset-bottom))] -mx-4 mt-6 rounded-[28px] px-5 py-2.5',
+        placement === 'sticky' &&
+          // The negative bottom margin cancels the page padding (PAGE_PADDING),
+          // safe area included, so the bar reaches the screen's edge.
+          'sticky bottom-0 -mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom))] mt-auto rounded-t-[28px] px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2.5 sm:-mx-6 sm:-mb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:-mx-8 lg:-mb-[calc(2rem+env(safe-area-inset-bottom))] lg:px-8',
+        placement === 'sheet' && 'rounded-b-none rounded-t-[28px] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3',
+        placement === 'dock' && 'rounded-[28px] px-5 py-3',
       )}
     >
       {picking && (
         // Instruction while picking a loop, floating above the controls so
         // they don't grow.
-        <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-danger px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg">
+        <div className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-danger px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg">
           {picking.from == null ? t('pickLoopStart') : t('pickLoopEnd')}
         </div>
       )}
-      <div className={cn('space-y-1.5', !floating && 'mx-auto max-w-3xl')}>
-        {showTopRow && (
-          // Voices centred; the repeat-pass switch (when shown) sits right
-          // without pushing them off centre.
-          <div className="grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2">
-            <span />
-            <div
-              role="tablist"
-              aria-label={t('voices')}
-              className="-mx-1 min-w-0 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]"
-            >
-              <div className="mx-auto flex w-max gap-1.5">
-                {tracks.length > 1 &&
-                  tracks.map((tr) => (
-                    <button
-                      key={tr.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={tr.id === track?.id}
-                      onClick={() => player.selectTrack(tr.id)}
-                      className={cn(
-                        'h-8 flex-shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors duration-150',
-                        tr.id === track?.id
-                          ? 'border-black bg-black text-white'
-                          : 'border-border bg-surface/60 text-text-secondary hover:text-text',
-                      )}
-                    >
-                      {tr.title || t('fileKindAudio')}
-                    </button>
-                  ))}
-              </div>
-            </div>
-            {sameLabel.length > 1 && currentBar ? (
-              // The current bar is played more than once (repeat): hop between passes.
-              <div className="flex items-center justify-end gap-1" aria-label={t('repeatPass')}>
-                {sameLabel.map((b) => (
-                  <button
-                    key={b.index}
-                    type="button"
-                    onClick={() => player.playBar(b.index)}
-                    title={`${b.occurrence}. ${t('pass')}`}
-                    className={cn(
-                      'h-7 min-w-[2rem] rounded-full border px-2 text-xs font-medium tabular-nums transition-colors duration-150',
-                      b.index === currentBar.index
-                        ? 'border-black bg-black text-white'
-                        : 'border-border text-text-secondary hover:text-text',
-                    )}
-                  >
-                    {b.occurrence}.
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <span />
-            )}
+      <div className={cn('space-y-1.5', (placement === 'sticky' || placement === 'sheet') && 'mx-auto max-w-3xl')}>
+        {!player.supported && <p className="text-center text-sm text-danger">{t('playbackUnsupported')}</p>}
+        {sameLabel.length > 1 && currentBar && (
+          // The current bar is played more than once (repeat): hop between passes.
+          <div className="flex items-center justify-center gap-1" aria-label={t('repeatPass')}>
+            {sameLabel.map((b) => (
+              <button
+                key={b.index}
+                type="button"
+                onClick={() => player.playBar(b.index)}
+                title={`${b.occurrence}. ${t('pass')}`}
+                className={cn(
+                  'h-7 min-w-[2rem] rounded-full px-2 text-xs font-medium tabular-nums transition-colors duration-150',
+                  b.index === currentBar.index ? 'bg-black text-white' : 'bg-surface/50 text-text-secondary hover:text-text',
+                )}
+              >
+                {b.occurrence}.
+              </button>
+            ))}
           </div>
         )}
 
         <div className="flex items-center gap-2">
-          <span className="w-10 flex-shrink-0 text-xs tabular-nums text-text-secondary">
-            {formatTime(player.time)}
-          </span>
+          <span className="w-10 flex-shrink-0 text-xs tabular-nums text-text-secondary">{formatTime(player.time)}</span>
           <div className="min-w-0 flex-1">
             <SeekBar player={player} />
           </div>
@@ -357,65 +212,49 @@ export const PiecePlayerBar = ({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-1">
-          <button
-            type="button"
-            disabled={!hasBars}
-            onClick={() => {
-              if (loop) player.setLoop(null);
-              else onPickingChange(picking ? null : { from: null });
-            }}
-            aria-pressed={Boolean(picking || loop)}
-            aria-label={loop ? t('endLoop') : picking ? t('cancel') : t('loopSection')}
-            title={loop ? t('endLoop') : t('loopSection')}
-            className={cn(
-              'flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium tabular-nums transition-colors duration-150 disabled:opacity-40',
-              picking || loop
-                ? 'bg-danger text-white hover:bg-danger-strong'
-                : 'text-text-secondary hover:bg-surface-hover hover:text-text',
-            )}
-          >
-            {picking ? <X size={16} /> : <Repeat size={16} />}
-            {loopLabel ? (
-              <>
-                <span>{loopLabel}</span>
-                <X size={14} className="-mr-1 opacity-80" />
-              </>
-            ) : (
-              <span className="hidden sm:inline">{picking ? t('cancel') : t('loopShort')}</span>
-            )}
-          </button>
+        {/* Loop · back, play, forward · speed: the outer two share the room
+            equally, so play stays in the middle. */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
+          <div className="flex justify-start">
+            <button
+              type="button"
+              disabled={!hasBars}
+              onClick={() => {
+                if (loop) player.setLoop(null);
+                else onPickingChange(picking ? null : { from: null });
+              }}
+              aria-pressed={Boolean(picking || loop)}
+              aria-label={loop ? t('endLoop') : picking ? t('cancel') : t('loopSection')}
+              title={loop ? t('endLoop') : t('loopSection')}
+              className={cn(
+                'flex h-10 flex-shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium tabular-nums transition-[transform,background-color] duration-150 active:scale-95 disabled:opacity-40',
+                picking || loop ? 'bg-danger text-white hover:bg-danger-strong' : 'text-text-secondary hover:bg-surface/70 hover:text-text',
+              )}
+            >
+              {picking ? <X size={16} /> : <Repeat size={16} />}
+              {loopLabel ? (
+                <>
+                  <span>{loopLabel}</span>
+                  <X size={14} className="-mr-1 opacity-80" />
+                </>
+              ) : (
+                <span className="hidden sm:inline">{picking ? t('cancel') : t('loopShort')}</span>
+              )}
+            </button>
+          </div>
 
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={player.prevBar}
-              aria-label={hasBars ? t('previousBar') : t('back')}
-              className={iconButton}
-            >
+            <button type="button" onClick={player.prevBar} aria-label={hasBars ? t('previousBar') : t('back')} className={iconButton}>
               <SkipBack size={20} />
             </button>
-            <button
-              type="button"
-              onClick={player.toggle}
-              aria-label={playing ? t('pause') : t('play')}
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-md transition-colors duration-150 hover:bg-black-hover"
-            >
-              {playing ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
-            </button>
-            <button
-              type="button"
-              onClick={player.nextBar}
-              disabled={!hasBars}
-              aria-label={t('nextBar')}
-              className={iconButton}
-            >
+            <PlayButton player={player} />
+            <button type="button" onClick={player.nextBar} disabled={!hasBars} aria-label={t('nextBar')} className={iconButton}>
               <SkipForward size={20} />
             </button>
           </div>
 
-          <div className="flex flex-shrink-0 items-center gap-1">
-            <PlayerSettings player={player} follow={follow} />
+          <div className="flex justify-end">
+            <SpeedButton player={player} />
           </div>
         </div>
       </div>

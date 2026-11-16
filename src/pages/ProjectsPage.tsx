@@ -171,7 +171,7 @@ export const ProjectsPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
             {canManageProjects && (
               <HeaderAction icon={Plus} label={t('newProject')} onClick={() => navigate('/projects/new')} />
             )}
@@ -180,6 +180,7 @@ export const ProjectsPage = () => {
       />
 
       <DataTable
+        sorting={tf.sorting}
         rows={projects}
         columns={columns}
         getRowId={(p) => p.id}

@@ -203,9 +203,10 @@ export const MemberDetailPage = () => {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="min-w-0 flex-1 basis-0 text-lg font-semibold">{t('attendance')}</h2>
-        <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+        <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
       </div>
       <DataTable
+        sorting={tf.sorting}
         rows={history}
         getRowId={(h) => h.event.id}
         onRowClick={(h) => navigate(`/projects/${project.id}/events/${h.event.id}`)}

@@ -20,9 +20,9 @@ import {
   type PieceOverviewFile,
   type ProjectPieceItem,
 } from '@/lib/pieceFiles';
-import { pieceDuration } from '@/lib/pieceTimeline';
 import { useProjectContext } from '@/layouts/projectContext';
 import { usePieceScope } from '@/layouts/pieceScope';
+import { matchesQuery } from '@/lib/search';
 
 // The project's pieces as a concert programme, a table across the page:
 // title, composer, length, whether it can be practised with
@@ -79,30 +79,14 @@ export const PiecesPage = () => {
   if (loading) return <PageSpinner />;
 
   const visible = query
-    ? pieces.filter((p) => `${p.name} ${p.composer} ${p.description}`.toLowerCase().includes(query))
+    ? pieces.filter((p) => matchesQuery(`${p.name} ${p.composer} ${p.description}`, query))
     : pieces;
 
-  // Programme length from the pieces whose bar timing is known.
-  const durations = pieces.map((p) => pieceDuration(p));
-  const known = durations.filter((d): d is number => d != null);
-  const total = known.reduce((a, b) => a + b, 0);
-  const subtitle =
-    pieces.length === 0
-      ? undefined
-      : [
-          `${pieces.length} ${pieces.length === 1 ? t('pieceSingular') : t('pieces')}`,
-          known.length > 0
-            ? `${known.length < pieces.length ? t('atLeast') + ' ' : ''}${Math.round(total / 60)} ${t('minutesShort')}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
 
   return (
     <>
       <PageHeader
         title={t('pieces')}
-        subtitle={subtitle}
         inlineActions
         actions={
           <>

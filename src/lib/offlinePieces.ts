@@ -15,6 +15,7 @@ import { OFFLINE_FILES_CACHE, OFFLINE_META_PREFIX } from './offlineStore';
 // The PDF renderer is loaded on demand; fetch it now (the service worker
 // keeps build files), or an offline piece page couldn't show its score.
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import mixerWorkletUrl from '@/lib/playback/mixer.worklet.ts?worker&url';
 
 export interface OfflineMeta {
   savedAt: string;
@@ -61,10 +62,12 @@ export const saveProjectOffline = async (
   // Ask the browser not to evict the files under storage pressure.
   void navigator.storage?.persist?.().catch(() => false);
 
-  // Code the piece page only loads when needed (score view, PDF worker).
+  // Code the piece page only loads when needed (score view, PDF worker,
+  // the player's audio mixer).
   await Promise.all([
     import('@/components/PdfScoreView'),
     fetch(pdfWorkerUrl).then((r) => r.blob()),
+    fetch(mixerWorkletUrl).then((r) => r.blob()),
   ]);
 
   const { pieces } = await loadPiecesOverview(projectId);

@@ -527,6 +527,7 @@ export const RegistrationPageDetail = () => {
       )}
 
       <DataTable
+        sorting={tf.sorting}
         rows={registrations}
         columns={columns}
         getRowId={(r) => r.id}
@@ -563,7 +564,7 @@ export const RegistrationPageDetail = () => {
         }
         toolbar={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
             {selectedIds.length > 0 ? (
               <>
                 <span className="text-sm text-text-secondary">

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Check } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
-import { Select } from '@/components/Input';
+import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/EmptyState';
 import { PageSpinner } from '@/components/Spinner';
 import { AttendanceChart, type ChartColumn, type ChartSeries } from '@/components/AttendanceChart';
@@ -43,7 +43,8 @@ export const StatisticsPage = () => {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [groupFilter, setGroupFilter] = useState('');
+  // Groups shown (none picked: all of them); several can be picked.
+  const [groupFilter, setGroupFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -124,11 +125,14 @@ export const StatisticsPage = () => {
     (rosterByGroup[NO_GROUP] ?? 0) > 0 ||
     attendance.some((a) => memberGroup.get(a.member_id) === NO_GROUP);
   const filterOptions = allSeries.filter((s) => !s.muted || hasNoGroup);
-  const activeFilter = filterOptions.some((s) => s.key === groupFilter) ? groupFilter : '';
+  const picked = groupFilter.filter((key) => filterOptions.some((s) => s.key === key));
+  const pickedKey = picked.join('|');
+  const togglePicked = (key: string) =>
+    setGroupFilter((list) => (list.includes(key) ? list.filter((k) => k !== key) : [...list, key]));
 
   const series = useMemo(
-    () => (activeFilter ? allSeries.filter((s) => s.key === activeFilter) : allSeries),
-    [allSeries, activeFilter],
+    () => (pickedKey ? allSeries.filter((s) => pickedKey.split('|').includes(s.key)) : allSeries),
+    [allSeries, pickedKey],
   );
 
   const columns = useMemo<ChartColumn[]>(
@@ -170,7 +174,7 @@ export const StatisticsPage = () => {
   // the chart's colours.
   const groupRates = useMemo(
     () =>
-      allSeries
+      series
         .map((s) => {
           let present = 0;
           let possible = 0;
@@ -183,7 +187,7 @@ export const StatisticsPage = () => {
           return { series: s, present, possible, rate: possible ? present / possible : 0 };
         })
         .filter((r) => r.possible > 0),
-    [allSeries, events, byEvent, rosterByGroup],
+    [series, events, byEvent, rosterByGroup],
   );
 
   const percent = new Intl.NumberFormat(localeOf(lang), {
@@ -198,27 +202,42 @@ export const StatisticsPage = () => {
 
   return (
     <>
-      <PageHeader
-        title={t('statistics')}
-        actions={
-          events.length > 0 && filterOptions.length > 1 ? (
-            <div className="min-w-[200px]">
-              <Select
-                aria-label={t('group')}
-                value={activeFilter}
-                onChange={(e) => setGroupFilter(e.target.value)}
+      <PageHeader title={t('statistics')} />
+
+      {/* The groups as chips: tap to show only them (several at once),
+          again to drop one; "All" shows everyone. Scrolls on phones. */}
+      {events.length > 0 && filterOptions.length > 1 && (
+        <div
+          role="group"
+          aria-label={t('group')}
+          className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
+        >
+          <button
+            type="button"
+            aria-pressed={picked.length === 0}
+            onClick={() => setGroupFilter([])}
+            className={cn(chip, picked.length === 0 ? chipOn : chipOff)}
+          >
+            {t('allGroups')}
+          </button>
+          {filterOptions.map((s) => {
+            const on = picked.includes(s.key);
+            return (
+              <button
+                key={s.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => togglePicked(s.key)}
+                className={cn(chip, on ? chipOn : chipOff)}
               >
-                <option value="">{t('allGroups')}</option>
-                {filterOptions.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : undefined
-        }
-      />
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]" style={swatch(s)} />
+                {s.label}
+                {on && <Check size={14} className="-mr-0.5" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {events.length === 0 ? (
         <EmptyState icon={BarChart3} message={t('noStatistics')} />
@@ -239,7 +258,7 @@ export const StatisticsPage = () => {
             <AttendanceChart columns={columns} series={series} />
           </Card>
 
-          {!activeFilter && groupRates.length > 1 && (
+          {picked.length !== 1 && groupRates.length > 1 && (
             <Card>
               <h2 className="mb-4 font-semibold">{t('attendanceRateByGroup')}</h2>
               <ul className="space-y-3">
@@ -247,17 +266,13 @@ export const StatisticsPage = () => {
                   <li key={s.key}>
                     <button
                       type="button"
-                      onClick={() => setGroupFilter(s.key)}
+                      onClick={() => setGroupFilter([s.key])}
                       className="group grid w-full grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3 text-left text-sm"
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <span
                           className="h-2.5 w-2.5 flex-shrink-0 rounded-[3px]"
-                          style={
-                            s.muted
-                              ? { background: 'repeating-linear-gradient(45deg, #cfcfcf 0 2px, #ececec 2px 5px)' }
-                              : { backgroundColor: s.color }
-                          }
+                          style={swatch(s)}
                         />
                         <span className="truncate text-text-secondary group-hover:text-text">{s.label}</span>
                       </span>
@@ -289,6 +304,15 @@ export const StatisticsPage = () => {
     </>
   );
 };
+
+// A group's colour square (hatched for members without a group).
+const swatch = (s: ChartSeries) =>
+  s.muted ? { background: 'repeating-linear-gradient(45deg, #cfcfcf 0 2px, #ececec 2px 5px)' } : { backgroundColor: s.color };
+
+const chip =
+  'inline-flex h-9 flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors duration-150';
+const chipOn = 'border-black bg-black text-white';
+const chipOff = 'border-border bg-surface text-text-secondary hover:bg-surface-muted hover:text-text';
 
 const StatCard = ({ label, value }: { label: string; value: string }) => (
   <Card>

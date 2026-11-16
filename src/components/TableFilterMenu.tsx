@@ -1,9 +1,36 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { Check, ChevronDown, ListFilter, X } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ListFilter, X } from 'lucide-react';
 import type { FilterDef } from './DataTable';
 import { SearchField } from './SearchField';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
+
+// A table's sort order, shared by the DataTable (which sorts and reports
+// its sortable columns) and the TableFilterMenu (which offers it on phones,
+// behind a button next to "Filter").
+export interface SortState {
+  id: string;
+  dir: 'asc' | 'desc';
+}
+
+export interface TableSorting {
+  sort: SortState | null;
+  setSort: (sort: SortState | null) => void;
+  options: Array<{ id: string; label: string }>;
+  setOptions: (options: Array<{ id: string; label: string }>) => void;
+}
+
+export const useTableSorting = (): TableSorting => {
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [options, setOptionsState] = useState<Array<{ id: string; label: string }>>([]);
+  // Only a real change re-renders (the table reports on every render).
+  const setOptions = useCallback(
+    (next: Array<{ id: string; label: string }>) =>
+      setOptionsState((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next)),
+    [],
+  );
+  return useMemo(() => ({ sort, setSort, options, setOptions }), [sort, options, setOptions]);
+};
 
 export interface FilterMenuFilter {
   id: string;
@@ -19,7 +46,8 @@ export interface FilterMenuFilter {
 //   const tf = useTableFilters({ status: 'active' });
 //   const filters = tf.bind(defs);
 //   <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
-//   <DataTable filters={filters} query={tf.query} hideToolbar ... />
+//   <DataTable filters={filters} query={tf.query} sorting={tf.sorting} hideToolbar ... />
+// (and `sorting={tf.sorting}` on the TableFilterMenu: the sort button on phones).
 // bind is stable while the values are unchanged, so pages that memoize their
 // filters (e.g. with onVisibleRowsChange) can memoize the bound ones too. A
 // definition that brings its own value/onChange (shared with a chart, say)
@@ -28,6 +56,7 @@ export const useTableFilters = (initial: Record<string, string> = {}) => {
   const [defaults] = useState(initial);
   const [query, setQuery] = useState('');
   const [values, setValues] = useState(initial);
+  const sorting = useTableSorting();
   const bind = useCallback(
     <T,>(defs: FilterDef<T>[]): (FilterDef<T> & FilterMenuFilter)[] =>
       defs.map((f) => ({
@@ -38,7 +67,7 @@ export const useTableFilters = (initial: Record<string, string> = {}) => {
       })),
     [defaults, values],
   );
-  return { query, setQuery, bind };
+  return { query, setQuery, bind, sorting };
 };
 
 // Search and filters of a list, as on the files page: an always visible
@@ -59,6 +88,7 @@ export const TableFilterMenu = ({
   canReset = false,
   searchClassName = 'order-last w-full sm:order-none sm:w-56',
   showSearch = true,
+  sorting,
 }: {
   query: string;
   onQueryChange: (query: string) => void;
@@ -69,6 +99,9 @@ export const TableFilterMenu = ({
   canReset?: boolean;
   searchClassName?: string;
   showSearch?: boolean;
+  // Phones: the table's sort order behind a button (desktop sorts by the
+  // column headers).
+  sorting?: TableSorting;
 }) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -131,6 +164,7 @@ export const TableFilterMenu = ({
   return (
     <>
       {showSearch && <SearchField value={query} onChange={onQueryChange} placeholder={placeholder} className={searchClassName} />}
+      {sorting && sorting.options.length > 0 && <SortMenu sorting={sorting} />}
       {(filters.length > 0 || canReset) && (
         <div ref={rootRef} className="relative">
           <button
@@ -199,5 +233,99 @@ export const TableFilterMenu = ({
         </div>
       )}
     </>
+  );
+};
+
+// Closes on a press outside and on Escape.
+const useDismiss = (open: boolean, close: () => void, ref: RefObject<HTMLElement>) => {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) closeRef.current();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, ref]);
+};
+
+// Phones only: the sort order as a menu (a second tap on the chosen column
+// turns the direction), like the files page's "Sortieren nach".
+const SortMenu = ({ sorting }: { sorting: TableSorting }) => {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState<CSSProperties>({});
+  useDismiss(open, () => setOpen(false), root);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = button.current?.getBoundingClientRect();
+    if (!rect) return;
+    const gutter = 16;
+    const width = Math.min(240, window.innerWidth - 2 * gutter);
+    const left = Math.min(Math.max(rect.right - width, gutter), window.innerWidth - gutter - width);
+    const top = rect.bottom + 6;
+    setPosition({ top, left, width, maxHeight: window.innerHeight - top - gutter });
+  }, [open]);
+  const { sort, setSort, options } = sorting;
+  const row =
+    'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-surface-muted focus:bg-surface-muted focus:outline-none';
+  const Arrow = sort?.dir === 'desc' ? ArrowDown : ArrowUp;
+  return (
+    <div ref={root} className="relative sm:hidden">
+      <button
+        ref={button}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={t('sortBy')}
+        title={t('sortBy')}
+        className={cn(
+          'relative flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface transition-colors duration-150 hover:bg-surface-muted',
+          open && 'bg-surface-muted',
+        )}
+      >
+        <ArrowUpDown size={16} />
+        {sort && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-bg bg-accent" />}
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={t('sortBy')}
+          style={position}
+          className="fixed z-[70] overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-1 shadow-lg"
+        >
+          <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{t('sortBy')}</p>
+          <button type="button" aria-pressed={!sort} onClick={() => setSort(null)} className={cn(row, !sort && 'font-medium')}>
+            <Check size={15} className={cn('flex-shrink-0', sort ? 'invisible' : 'text-text')} />
+            <span className="flex-1">{t('sortDefault')}</span>
+          </button>
+          {options.map((o) => {
+            const active = sort?.id === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setSort(active ? { id: o.id, dir: sort?.dir === 'asc' ? 'desc' : 'asc' } : { id: o.id, dir: 'asc' })}
+                className={cn(row, active && 'font-medium')}
+              >
+                <Check size={15} className={cn('flex-shrink-0', active ? 'text-text' : 'invisible')} />
+                <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                {active && <Arrow size={14} className="text-text-secondary" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 };

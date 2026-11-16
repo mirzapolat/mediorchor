@@ -234,7 +234,7 @@ export const MembersPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
             <OverflowMenu
               label={t('importExport')}
               buttonIcon={ArrowDownUp}
@@ -274,6 +274,7 @@ export const MembersPage = () => {
       />
 
       <DataTable
+        sorting={tf.sorting}
         rows={members}
         columns={columns}
         getRowId={(m) => m.id}

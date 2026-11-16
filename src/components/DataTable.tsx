@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, type LucideIcon } from 'lucide-react';
-import { TableFilterMenu } from './TableFilterMenu';
+import { TableFilterMenu, useTableSorting, type TableSorting } from './TableFilterMenu';
 import { EmptyState } from './EmptyState';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -68,6 +68,9 @@ interface DataTableProps<T> {
   // the built-in search and filter controls (a custom `toolbar` still shows).
   query?: string;
   hideToolbar?: boolean;
+  // Shared sort order (useTableFilters().sorting): the page's TableFilterMenu
+  // then offers it on phones instead of the table's own sort row.
+  sorting?: TableSorting;
   // Phones: the body of a row's card (actions still go top right). Without
   // it the first column is the title and the others labelled fields.
   mobileCard?: (row: T) => ReactNode;
@@ -131,6 +134,7 @@ export function DataTable<T>({
   onReorder,
   toolbar,
   query: controlledQuery,
+  sorting,
   hideToolbar = false,
   mobileCard,
   hideMobileActions = false,
@@ -144,8 +148,19 @@ export function DataTable<T>({
   const reorderable = Boolean(onReorder);
   const [ownQuery, setQuery] = useState('');
   const query = controlledQuery ?? ownQuery;
-  const [sortId, setSortId] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const ownSorting = useTableSorting();
+  const sharing = sorting ?? ownSorting;
+  const sortId = sharing.sort?.id ?? null;
+  const sortDir: SortDir = sharing.sort?.dir ?? 'asc';
+  // The sortable columns, for the phone sort menu.
+  const sortOptions = reorderable
+    ? []
+    : columns.filter((c) => c.sortable ?? Boolean(c.accessor)).map((c) => ({ id: c.id, label: c.header }));
+  const sortOptionsKey = JSON.stringify(sortOptions);
+  useEffect(() => {
+    sharing.setOptions(JSON.parse(sortOptionsKey) as typeof sortOptions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortOptionsKey, sharing.setOptions]);
   const [ownFilterValues, setOwnFilterValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(filters.map((f) => [f.id, f.defaultValue ?? ''])),
   );
@@ -192,17 +207,14 @@ export function DataTable<T>({
 
   // Click cycles: none → asc → desc → none.
   const toggleSort = (id: string) => {
-    if (sortId !== id) {
-      setSortId(id);
-      setSortDir('asc');
-    } else if (sortDir === 'asc') {
-      setSortDir('desc');
-    } else {
-      setSortId(null);
-    }
+    if (sortId !== id) sharing.setSort({ id, dir: 'asc' });
+    else if (sortDir === 'asc') sharing.setSort({ id, dir: 'desc' });
+    else sharing.setSort(null);
   };
 
   const showControls = !hideToolbar && (Boolean(search) || filters.length > 0);
+  // Phones: the sort order sits behind a button next to "Filter".
+  const sortInMenu = Boolean(sorting) || showControls;
   const hasToolbar = showControls || Boolean(toolbar);
   const selectable = Boolean(onSelectedIdsChange);
   const selectedSet = new Set(selectedIds ?? []);
@@ -249,6 +261,7 @@ export function DataTable<T>({
               }))}
               onReset={onClearFilters}
               canReset={Boolean(highlightRowId) && pinHighlight && Boolean(onClearFilters)}
+              sorting={ownSorting}
             />
           )}
           {toolbar && <div className="ml-auto flex flex-wrap items-center gap-2">{toolbar}</div>}
@@ -260,7 +273,7 @@ export function DataTable<T>({
       ) : isPhone ? (
         <>
           {/* Phones: sorting and "select all" replace the column headers. */}
-          {(selectable || (!reorderable && columns.some((c) => c.sortable ?? Boolean(c.accessor)))) && (
+          {(selectable || (!sortInMenu && !reorderable && columns.some((c) => c.sortable ?? Boolean(c.accessor)))) && (
             <div className="mb-2 flex items-center justify-between gap-3">
               {selectable ? (
                 <label className="flex items-center gap-2 text-sm text-text-secondary">
@@ -278,7 +291,7 @@ export function DataTable<T>({
               ) : (
                 <span />
               )}
-              {!reorderable && (
+              {!reorderable && !sortInMenu && (
                 <label className="flex min-w-0 items-center gap-1.5 text-sm text-text-secondary">
                   <ArrowUpDown size={14} className="flex-shrink-0" />
                   <select
@@ -286,8 +299,7 @@ export function DataTable<T>({
                     value={sortId ? `${sortId}:${sortDir}` : ''}
                     onChange={(e) => {
                       const [id, dir] = e.target.value.split(':');
-                      setSortId(id || null);
-                      if (dir) setSortDir(dir as SortDir);
+                      sharing.setSort(id ? { id, dir: (dir as SortDir) || 'asc' } : null);
                     }}
                     className="min-w-0 max-w-[13rem] truncate bg-transparent bg-[length:14px_14px] bg-[position:right_0_center] py-1 pr-5 text-sm font-medium text-text focus:outline-none"
                   >

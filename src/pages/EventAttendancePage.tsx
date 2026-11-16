@@ -200,12 +200,13 @@ export const EventAttendancePage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
           </>
         }
       />
 
       <DataTable
+        sorting={tf.sorting}
         rows={rows}
         columns={columns}
         getRowId={(r) => r.member.id}

@@ -216,7 +216,7 @@ export const EventsPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu
+            <TableFilterMenu sorting={tf.sorting}
               query={tf.query}
               onQueryChange={tf.setQuery}
               filters={filters}
@@ -227,6 +227,7 @@ export const EventsPage = () => {
       />
 
       <DataTable
+        sorting={tf.sorting}
         rows={events}
         columns={columns}
         getRowId={(ev) => ev.id}

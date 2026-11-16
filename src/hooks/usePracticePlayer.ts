@@ -1,31 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { pieceFileUrl, trackRecording, trackRecordingChoice } from '@/lib/pieceFiles';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { pieceFileUrl } from '@/lib/pieceFiles';
 import { track as trackEvent } from '@/lib/analytics';
-import { barIndexAt, resolveBars, type PlayedBar } from '@/lib/pieceTimeline';
+import { barIndexAt, resolveBars, syncedDuration, type PlayedBar } from '@/lib/pieceTimeline';
+import { PlaybackEngine, playbackSupported, type SourceStatus } from '@/lib/playback/engine';
 import type { Piece } from '@/types';
 import type { PlayerTrack } from '@/lib/pieceFiles';
 
 export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
 
 const METRONOME_KEY = 'mediorchor.metronome';
-const QUIET_KEY = 'mediorchor.othersQuiet';
-
-// A remembered switch; on until someone turned it off.
-const readFlag = (key: string): boolean => {
-  try {
-    return localStorage.getItem(key) !== '0';
-  } catch {
-    return true;
-  }
-};
-
-const storeFlag = (key: string, on: boolean) => {
-  try {
-    localStorage.setItem(key, on ? '1' : '0');
-  } catch {
-    /* storage unavailable */
-  }
-};
+const mixKey = (pieceId: string) => `mediorchor.mix.${pieceId}`;
+const DEFAULT_VOLUME = 0.8;
 
 // A loop section in played-bar indices (inclusive).
 export interface LoopRange {
@@ -33,300 +18,310 @@ export interface LoopRange {
   to: number;
 }
 
-// Where to continue once another recording has loaded, and whether to keep
-// playing: another voice restarts the bar (its lead-in and length may
-// differ); another mix of the same voice (click, background voices)
-// continues at the exact time.
-interface PendingSwitch {
-  bar: number;
-  time: number;
-  resume: boolean;
-  exact: boolean;
+// A voice's setting in the mixer.
+export interface ChannelSetting {
+  on: boolean;
+  volume: number; // 0…1
 }
 
-// Drives practice playback for a piece: one <audio> element that switches
-// between the voice tracks while keeping the position, bar-accurate jumps,
-// a loop section, playback speed, the voice's recording with or without
-// metronome click and other voices, and the phone's lock-screen controls.
-export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  if (audioRef.current === null && typeof Audio !== 'undefined') {
-    audioRef.current = new Audio();
-    audioRef.current.preload = 'metadata';
+// A voice as the mixer shows it.
+export interface MixerVoice extends ChannelSetting {
+  id: string;
+  title: string;
+  status: SourceStatus;
+  progress: number;
+  // Carries the metronome click right now.
+  click: boolean;
+}
+
+const readJson = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
   }
+};
 
-  const [trackId, setTrackId] = useState<string | null>(null);
-  const [time, setTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [rate, setRateState] = useState(1);
-  const [loop, setLoopState] = useState<LoopRange | null>(null);
-  // The wanted mix (click; other voices quiet instead of muted), picking
-  // one of the voice's recordings; remembered per browser.
-  const [metronomeOn, setMetronomeOn] = useState(() => readFlag(METRONOME_KEY));
-  const [quietOn, setQuietOn] = useState(() => readFlag(QUIET_KEY));
+const writeJson = (key: string, value: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable */
+  }
+};
 
-  const track = tracks.find((t) => t.id === trackId) ?? tracks[0] ?? null;
-  const offset = track?.offset_s ?? 0;
+// A voice's recordings for the mixer: the plain one (the voice alone, else
+// the closest there is) and, when there is one, the same with the click.
+// "Others quiet" mixes are only a fallback now: the mixer sets the others.
+const voiceRecordings = (track: PlayerTrack) => {
+  const r = track.recordings;
+  const plain = r.file_id ?? r.quiet_file_id ?? r.click_file_id ?? r.quiet_click_file_id ?? null;
+  const click = r.click_file_id ?? r.quiet_click_file_id ?? null;
+  const plainHasClick = plain != null && (plain === r.click_file_id || plain === r.quiet_click_file_id);
+  return { plain, click, plainHasClick };
+};
+
+const DEFAULT_CHANNEL: ChannelSetting = { on: true, volume: DEFAULT_VOLUME };
+
+// Perceived loudness follows the slider better squared.
+const gainOf = (c: ChannelSetting) => (c.on ? c.volume * c.volume : 0);
+
+// Practice playback of a piece: all its voices mixed in sync (each switched
+// on or off and at its own volume), the metronome click, bar-accurate jumps,
+// a loop section, slower or faster with the pitch kept, and the phone's
+// lock-screen controls. See src/lib/playback/engine.ts.
+export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) => {
+  const [engine, setEngine] = useState<PlaybackEngine | null>(null);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const supported = useMemo(() => playbackSupported(), []);
+
+  useEffect(() => {
+    if (!supported) return;
+    const e = new PlaybackEngine();
+    e.onChange = rerender;
+    setEngine(e);
+    return () => {
+      e.onChange = () => undefined;
+      e.destroy();
+    };
+  }, [supported]);
+
+  // Mixer settings, remembered per piece and browser.
+  const pieceId = piece?.id ?? '';
+  const [channels, setChannels] = useState<Record<string, ChannelSetting>>({});
+  useEffect(() => {
+    if (pieceId) setChannels(readJson(mixKey(pieceId), {}));
+  }, [pieceId]);
+  const channelOf = useCallback((id: string): ChannelSetting => channels[id] ?? DEFAULT_CHANNEL, [channels]);
+  const updateChannels = useCallback(
+    (fn: (prev: Record<string, ChannelSetting>) => Record<string, ChannelSetting>) => {
+      setChannels((prev) => {
+        const next = fn(prev);
+        if (pieceId) writeJson(mixKey(pieceId), next);
+        return next;
+      });
+    },
+    [pieceId],
+  );
+
+  const [metronomeOn, setMetronomeOnState] = useState(() => readJson<number>(METRONOME_KEY, 1) !== 0);
+  const setMetronomeOn = useCallback((on: boolean) => {
+    setMetronomeOnState(on);
+    writeJson(METRONOME_KEY, on ? 1 : 0);
+  }, []);
+
+  // Which recording each voice plays. With the metronome on, one heard
+  // voice that has a click version plays that (the loudest one), so the
+  // click is there once, whatever is switched on.
+  const recordings = useMemo(() => tracks.map((t) => ({ track: t, ...voiceRecordings(t) })), [tracks]);
+  const carrier = useMemo(() => {
+    if (!metronomeOn) return null;
+    let best: { id: string; volume: number } | null = null;
+    for (const r of recordings) {
+      const c = channelOf(r.track.id);
+      if (!r.click || r.plainHasClick || !c.on || c.volume <= 0) continue;
+      if (!best || c.volume > best.volume) best = { id: r.track.id, volume: c.volume };
+    }
+    return best?.id ?? null;
+  }, [metronomeOn, recordings, channelOf]);
+  const metronomeAvailable = recordings.some((r) => r.click && !r.plainHasClick);
+
+  const engineVoices = useMemo(
+    () =>
+      recordings.map((r) => {
+        const path = r.track.id === carrier ? r.click : r.plain;
+        return {
+          id: r.track.id,
+          url: path ? pieceFileUrl(path) : null,
+          leadIn: r.track.offset_s ?? 0,
+          gain: gainOf(channelOf(r.track.id)),
+        };
+      }),
+    [recordings, carrier, channelOf],
+  );
+
+  const leadIn = engineVoices.reduce((m, v) => Math.max(m, v.leadIn), 0);
+  // The piece lasts at least until its last bar ends.
+  const timelineEnd = useMemo(() => {
+    const d = syncedDuration(piece?.timeline ?? null, piece?.bar_sync ?? null);
+    return d != null ? leadIn + d : 0;
+  }, [piece?.timeline, piece?.bar_sync, leadIn]);
+
+  useEffect(() => {
+    if (!engine) return;
+    engine.mono = tracks.length > 2;
+    engine.setVoices(engineVoices, timelineEnd);
+  }, [engine, engineVoices, timelineEnd, tracks.length]);
+
+  const duration = engine?.duration ?? 0;
+  const playing = engine?.playing ?? false;
+  const waiting = engine?.waiting ?? false;
+  const rate = engine?.rate ?? 1;
 
   const bars = useMemo(
-    () => resolveBars(piece?.timeline ?? null, duration, offset, piece?.bar_shift ?? 0, piece?.bar_sync ?? null),
-    [piece?.timeline, duration, offset, piece?.bar_shift, piece?.bar_sync],
+    () => resolveBars(piece?.timeline ?? null, duration, leadIn, piece?.bar_shift ?? 0, piece?.bar_sync ?? null),
+    [piece?.timeline, duration, leadIn, piece?.bar_shift, piece?.bar_sync],
   );
-  const currentIndex = barIndexAt(bars, time);
-  const currentBar: PlayedBar | null = currentIndex >= 0 ? bars[currentIndex] : null;
 
-  // Each mix is a recording of its own. A switch only shows when the voice
-  // has recordings on both of its sides, and it shows what is actually
-  // playing (the wanted mix may be missing, then the closest one plays).
-  const rec = track?.recordings ?? {};
-  const metronomeAvailable =
-    Boolean(rec.click_file_id || rec.quiet_click_file_id) && Boolean(rec.file_id || rec.quiet_file_id);
-  const quietAvailable =
-    Boolean(rec.quiet_file_id || rec.quiet_click_file_id) && Boolean(rec.file_id || rec.click_file_id);
-  const current = trackRecordingChoice(track, quietOn, metronomeOn);
-  const filePath = current?.path ?? null;
-  const clickPlaying = current?.click ?? metronomeOn;
-  const quietPlaying = current?.quiet ?? quietOn;
-
-  // Latest values for the event handlers / animation loop.
-  const live = useRef({ bars, loop, currentIndex });
-  live.current = { bars, loop, currentIndex };
-  const pendingSwitch = useRef<PendingSwitch | null>(null);
-  // Whether the current track's metadata (and so its bars) is known.
-  const metaLoaded = useRef(false);
-  const playTracked = useRef(false);
-
-  // Load the selected recording; continue at the same musical position.
+  // The position, smooth while playing.
+  const [time, setTime] = useState(0);
+  const enginePos = engine?.position ?? 0;
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !filePath) return;
-    const src = pieceFileUrl(filePath);
-    if (audio.src.endsWith(src)) return;
-    metaLoaded.current = false;
-    audio.src = src;
-    audio.defaultPlaybackRate = rate;
-    audio.playbackRate = rate;
-    setDuration(0);
-  }, [filePath]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const checkLoop = () => {
-      const { bars: b, loop: l } = live.current;
-      if (!l || audio.paused || !b[l.to]) return;
-      if (audio.currentTime >= b[l.to].end - 0.03) {
-        audio.currentTime = b[l.from].start;
-      }
-    };
-
-    const onMeta = () => {
-      const d = Number.isFinite(audio.duration) ? audio.duration : 0;
-      metaLoaded.current = d > 0;
-      setDuration(d);
-    };
-    const onTime = () => {
-      checkLoop();
-      setTime(audio.currentTime);
-    };
-    const onPlay = () => {
-      setPlaying(true);
-      // Once per piece visit, whether started by click, key or bar tap.
-      if (!playTracked.current) {
-        playTracked.current = true;
-        trackEvent('practice-play');
-      }
-    };
-    const onPause = () => setPlaying(false);
-    const onEnded = () => {
-      const { bars: b, loop: l } = live.current;
-      if (l && b[l.from]) {
-        audio.currentTime = b[l.from].start;
-        void audio.play();
-      } else {
-        setPlaying(false);
-      }
-    };
-
-    audio.addEventListener('loadedmetadata', onMeta);
-    audio.addEventListener('durationchange', onMeta);
-    audio.addEventListener('timeupdate', onTime);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audio.addEventListener('ended', onEnded);
-
-    // Smooth position while playing (timeupdate only fires ~4×/s); the
-    // timeupdate handler keeps loops working when the screen is locked.
+    if (!engine) return;
+    if (!playing) {
+      setTime(engine.position);
+      return;
+    }
     let raf = 0;
     const tick = () => {
-      if (!audio.paused) {
-        checkLoop();
-        setTime(audio.currentTime);
-      }
+      setTime(engine.position);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [engine, playing, enginePos]);
 
-    return () => {
-      cancelAnimationFrame(raf);
-      audio.removeEventListener('loadedmetadata', onMeta);
-      audio.removeEventListener('durationchange', onMeta);
-      audio.removeEventListener('timeupdate', onTime);
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('ended', onEnded);
-    };
-  }, [piece?.timeline, track?.offset_s]);
+  const currentIndex = barIndexAt(bars, time);
+  const currentBar: PlayedBar | null = currentIndex >= 0 ? bars[currentIndex] : null;
 
-  // Stop when leaving the page.
+  const [loop, setLoopState] = useState<LoopRange | null>(null);
+  const live = useRef({ bars, loop, currentIndex, engine });
+  live.current = { bars, loop, currentIndex, engine };
+
+  // The loop section in seconds, again whenever the bars move.
   useEffect(() => {
-    const audio = audioRef.current;
-    return () => {
-      audio?.pause();
-    };
-  }, []);
+    if (!engine) return;
+    const from = loop ? bars[loop.from] : undefined;
+    const to = loop ? bars[loop.to] : undefined;
+    engine.setLoop(from && to ? { from: from.start, to: to.end } : null);
+  }, [engine, loop, bars]);
 
   const setLoop = useCallback((range: LoopRange | null) => {
-    // Update the live copy right away: a seek in the same handler must
-    // already see the new section.
+    // The live copy right away: a seek in the same handler sees it.
     live.current.loop = range;
     setLoopState(range);
+    const { engine: e, bars: b } = live.current;
+    const from = range ? b[range.from] : undefined;
+    const to = range ? b[range.to] : undefined;
+    e?.setLoop(from && to ? { from: from.start, to: to.end } : null);
   }, []);
 
   // Seeking out of the loop section ends the loop.
   const seek = useCallback(
     (t: number) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-      const { bars: b, loop: l } = live.current;
+      const { engine: e, bars: b, loop: l } = live.current;
+      if (!e) return;
       if (l && b[l.from] && b[l.to] && (t < b[l.from].start - 0.01 || t >= b[l.to].end)) setLoop(null);
-      audio.currentTime = Math.max(0, t);
-      setTime(audio.currentTime);
+      e.seek(Math.max(0, t));
+      setTime(e.position);
     },
     [setLoop],
   );
 
+  const playTracked = useRef(false);
+  const voiceCount = tracks.length;
   const play = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const { bars: b, loop: l } = live.current;
+    const { engine: e, bars: b, loop: l } = live.current;
+    if (!e) return;
     // Starting outside the loop section starts at its beginning.
-    if (l && b[l.from] && (audio.currentTime < b[l.from].start || audio.currentTime >= b[l.to].end)) {
-      audio.currentTime = b[l.from].start;
+    const now = e.position;
+    if (l && b[l.from] && b[l.to] && (now < b[l.from].start || now >= b[l.to].end)) e.seek(b[l.from].start);
+    e.play();
+    if (!playTracked.current) {
+      playTracked.current = true;
+      trackEvent('practice-play', { voices: voiceCount > 4 ? '5+' : String(voiceCount) });
     }
-    void audio.play();
-  }, []);
+  }, [voiceCount]);
 
-  const pause = useCallback(() => audioRef.current?.pause(), []);
+  const pause = useCallback(() => live.current.engine?.pause(), []);
 
   const toggle = useCallback(() => {
-    if (audioRef.current?.paused) play();
-    else pause();
-  }, [play, pause]);
+    const e = live.current.engine;
+    if (!e) return;
+    if (e.playing || e.waiting) e.pause();
+    else play();
+  }, [play]);
 
   const playBar = useCallback(
     (index: number) => {
       const bar = live.current.bars[index];
       if (!bar) return;
       seek(bar.start);
-      void audioRef.current?.play();
+      play();
     },
-    [seek],
+    [seek, play],
   );
 
   // Like a music player's "previous": back to the start of the current bar,
   // or to the previous bar when already right at its start.
   const prevBar = useCallback(() => {
-    const audio = audioRef.current;
-    const { bars: b, currentIndex: i } = live.current;
-    if (!audio || b.length === 0) return;
+    const { engine: e, bars: b, currentIndex: i } = live.current;
+    if (!e || b.length === 0) return;
     if (i < 0) return seek(0);
-    const intoBar = audio.currentTime - b[i].start;
-    const target = intoBar > 0.6 * (audio.playbackRate || 1) || i === 0 ? i : i - 1;
+    const intoBar = e.position - b[i].start;
+    const target = intoBar > 0.6 * (e.rate || 1) || i === 0 ? i : i - 1;
     seek(b[target].start);
   }, [seek]);
 
   const nextBar = useCallback(() => {
     const { bars: b, currentIndex: i } = live.current;
     if (b.length === 0) return;
-    const target = Math.min(b.length - 1, i + 1);
-    seek(b[target].start);
+    seek(b[Math.min(b.length - 1, i + 1)].start);
   }, [seek]);
 
-  // Remembers where to continue and stops until the next recording has loaded.
-  const holdPosition = useCallback((exact: boolean) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    pendingSwitch.current = {
-      bar: live.current.currentIndex,
-      time: audio.currentTime,
-      resume: !audio.paused,
-      exact,
+  const setRate = useCallback((value: number) => live.current.engine?.setRate(value), []);
+
+  // Mixer.
+  const mixerVoices: MixerVoice[] = recordings.map((r, i) => {
+    const c = channelOf(r.track.id);
+    const src = engine?.source(engineVoices[i]?.url ?? null) ?? null;
+    return {
+      id: r.track.id,
+      title: r.track.title,
+      on: c.on,
+      volume: c.volume,
+      status: src?.status ?? 'loading',
+      progress: src?.progress ?? 0,
+      click: r.track.id === carrier || (r.plainHasClick && c.on),
     };
-    audio.pause();
-  }, []);
-
-  // Switching voices restarts the current bar on the new track, just like
-  // tapping it, so recording and bar display start in step.
-  const selectTrack = useCallback(
+  });
+  const setChannel = useCallback(
+    (id: string, patch: Partial<ChannelSetting>) =>
+      updateChannels((prev) => ({ ...prev, [id]: { ...(prev[id] ?? DEFAULT_CHANNEL), ...patch } })),
+    [updateChannels],
+  );
+  // Only this voice on; pressed again: everyone on.
+  const solo = useCallback(
+    (id: string) =>
+      updateChannels((prev) => {
+        const alone = tracks.every((t) => (t.id === id) === (prev[t.id]?.on ?? true));
+        const next: Record<string, ChannelSetting> = {};
+        for (const t of tracks) next[t.id] = { ...(prev[t.id] ?? DEFAULT_CHANNEL), on: alone || t.id === id };
+        return next;
+      }),
+    [tracks, updateChannels],
+  );
+  const resetMix = useCallback(() => updateChannels(() => ({})), [updateChannels]);
+  const retry = useCallback(
     (id: string) => {
-      if (id === track?.id) return;
-      const next = tracks.find((t) => t.id === id);
-      if (trackRecording(next ?? null, quietOn, metronomeOn) !== filePath) holdPosition(false);
-      setTrackId(id);
+      const url = engineVoices.find((v) => v.id === id)?.url;
+      if (url) engine?.retry(url);
     },
-    [track?.id, tracks, quietOn, metronomeOn, filePath, holdPosition],
+    [engine, engineVoices],
   );
 
-  // Runs once the new recording's bars are known.
-  useEffect(() => {
-    const target = pendingSwitch.current;
-    const audio = audioRef.current;
-    if (!target || !audio || !metaLoaded.current || duration <= 0) return;
-    pendingSwitch.current = null;
-    if (target.exact) {
-      seek(Math.min(target.time, duration));
-      if (target.resume) void audio.play();
-      return;
-    }
-    const bar = bars[target.bar];
-    if (bar && target.resume) return playBar(target.bar);
-    seek(bar ? bar.start : Math.min(target.time, duration));
-    if (target.resume) void audio.play();
-  }, [bars, duration, playBar, seek]);
-
-  const setRate = useCallback((value: number) => {
-    setRateState(value);
-    const audio = audioRef.current;
-    if (!audio) return;
-    // A newly loaded track starts at the default rate.
-    audio.defaultPlaybackRate = value;
-    audio.playbackRate = value;
-    // Practice at a slower tempo keeps the pitch (default, but be explicit).
-    audio.preservesPitch = true;
-  }, []);
-
-  // A voice's recordings share their timing, so another mix continues at
-  // the exact same moment.
-  const setMix = useCallback(
-    (quiet: boolean, click: boolean) => {
-      if (trackRecording(track, quiet, click) !== filePath) holdPosition(true);
-      setQuietOn(quiet);
-      setMetronomeOn(click);
-      storeFlag(QUIET_KEY, quiet);
-      storeFlag(METRONOME_KEY, click);
-    },
-    [track, filePath, holdPosition],
-  );
+  const heard = mixerVoices.filter((v) => v.on && v.volume > 0);
+  const loadingProgress =
+    heard.length > 0 ? heard.reduce((s, v) => s + (v.status === 'loading' ? v.progress : 1), 0) / heard.length : 1;
+  const soleTitle = heard.length === 1 ? heard[0].title : null;
 
   // Lock-screen / headset controls on phones.
   useEffect(() => {
     if (!('mediaSession' in navigator) || !piece) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: piece.name,
-      artist: [track?.title, piece.composer].filter(Boolean).join(' · '),
+      artist: [soleTitle, piece.composer].filter(Boolean).join(' · '),
     });
     const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
       ['play', play],
@@ -351,17 +346,34 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
         }
       }
     };
-  }, [piece, track?.title, play, pause, prevBar, nextBar, seek]);
+  }, [piece, soleTitle, play, pause, prevBar, nextBar, seek]);
+
+  // Position on the lock screen; on state changes is enough (the system
+  // runs it on by itself).
+  const wholeSecond = Math.round(time);
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+    if (duration <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({ duration, playbackRate: rate, position: Math.min(wholeSecond, duration) });
+    } catch {
+      /* unsupported */
+    }
+  }, [playing, rate, duration, wholeSecond]);
 
   return {
-    track,
-    selectTrack,
+    supported: supported && !engine?.unsupported,
     bars,
     currentIndex,
     currentBar,
     time,
     duration,
     playing,
+    // Play was pressed and waits for the heard voices to load.
+    waiting,
+    // 0…1: how far the heard voices are loaded.
+    loadingProgress,
     play,
     pause,
     toggle,
@@ -374,17 +386,22 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
     loop,
     setLoop,
     metronome: {
-      on: clickPlaying,
-      setOn: (on: boolean) => setMix(quietPlaying, on),
-      // The current voice has recordings with and without click.
+      on: metronomeOn,
+      setOn: setMetronomeOn,
+      // Some voice has a recording with click (and one without).
       available: metronomeAvailable,
+      // A voice that is switched on carries the click right now.
+      audible: mixerVoices.some((v) => v.click),
     },
-    // Other voices quietly in the background instead of muted.
-    otherVoices: {
-      quiet: quietPlaying,
-      setQuiet: (quiet: boolean) => setMix(quiet, clickPlaying),
-      // The current voice has recordings solo and with the others.
-      available: quietAvailable,
+    mixer: {
+      voices: mixerVoices,
+      setOn: (id: string, on: boolean) => setChannel(id, { on }),
+      setVolume: (id: string, volume: number) => setChannel(id, volume > 0 ? { volume, on: true } : { volume }),
+      solo,
+      reset: resetMix,
+      retry,
+      // Something differs from everyone on at the default volume.
+      changed: Object.keys(channels).length > 0,
     },
   };
 };

@@ -14,6 +14,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { deletePiece, loadPiecesWithRecordings } from '@/lib/pieceFiles';
 import type { Piece, PieceCredit } from '@/types';
+import { matchesQuery } from '@/lib/search';
 
 const ACTIONS_WIDTH = 'w-[4.5rem]';
 
@@ -82,7 +83,7 @@ export const GlobalPiecesPage = () => {
   const visible = pieces.filter(
     (p) =>
       filters.every((f) => !f.value || f.predicate(p, f.value)) &&
-      (!query || `${p.name} ${p.composer} ${p.description} ${creditNames(p)}`.toLowerCase().includes(query)),
+      matchesQuery(`${p.name} ${p.composer} ${p.description} ${creditNames(p)}`, query),
   );
 
   return (

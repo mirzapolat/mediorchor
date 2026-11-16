@@ -167,7 +167,7 @@ export const RegistrationsPage = () => {
         inlineActions
         actions={
           <>
-            <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
+            <TableFilterMenu sorting={tf.sorting} query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
             <HeaderAction
               icon={Plus}
               label={t('newRegistrationPage')}
@@ -181,6 +181,7 @@ export const RegistrationsPage = () => {
       />
 
       <DataTable
+        sorting={tf.sorting}
         rows={pages}
         columns={columns}
         getRowId={(p) => p.id}
