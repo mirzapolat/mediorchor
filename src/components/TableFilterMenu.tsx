@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { Search, X } from 'lucide-react';
+import { Check, ChevronDown, ListFilter, X } from 'lucide-react';
 import type { FilterDef } from './DataTable';
+import { SearchField } from './SearchField';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
@@ -40,9 +41,15 @@ export const useTableFilters = (initial: Record<string, string> = {}) => {
   return { query, setQuery, bind };
 };
 
-// Search and filters of a DataTable collapsed into one icon button with a
-// popover, for page headers. A dot on the button marks a search or a filter
-// that differs from its default, so a narrowed list never goes unnoticed.
+// Search and filters of a list, as on the files page: an always visible
+// search pill and, when there is something to filter, one "Filter" menu
+// button. A dot on the button marks a filter that differs from its default,
+// so a narrowed list never goes unnoticed.
+//
+// It renders two siblings (no wrapper), so in a wrapping row (`flex-wrap`)
+// the search takes a full-width line of its own on phones
+// (`order-last w-full`) and sits inline from `sm` on. Pass `searchClassName`
+// to size it differently.
 export const TableFilterMenu = ({
   query,
   onQueryChange,
@@ -50,6 +57,8 @@ export const TableFilterMenu = ({
   placeholder,
   onReset,
   canReset = false,
+  searchClassName = 'order-last w-full sm:order-none sm:w-56',
+  showSearch = true,
 }: {
   query: string;
   onQueryChange: (query: string) => void;
@@ -58,6 +67,8 @@ export const TableFilterMenu = ({
   // Extra state to clear on reset (e.g. a pinned row) and whether it is set.
   onReset?: () => void;
   canReset?: boolean;
+  searchClassName?: string;
+  showSearch?: boolean;
 }) => {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -73,9 +84,9 @@ export const TableFilterMenu = ({
       const rect = buttonRef.current?.getBoundingClientRect();
       if (!rect) return;
       const gutter = 16;
-      const width = Math.min(320, window.innerWidth - 2 * gutter);
+      const width = Math.min(260, window.innerWidth - 2 * gutter);
       const left = Math.min(Math.max(rect.right - width, gutter), window.innerWidth - gutter - width);
-      const top = rect.bottom + 8;
+      const top = rect.bottom + 6;
       setPosition({ top, left, width, maxHeight: window.innerHeight - top - gutter });
     };
     place();
@@ -90,8 +101,7 @@ export const TableFilterMenu = ({
 
   // A filter without options (e.g. no groups yet) has nothing to choose.
   const filters = allFilters.filter((f) => f.options.length > 0);
-  const modified =
-    query.trim() !== '' || filters.some((f) => f.value !== (f.defaultValue ?? ''));
+  const filtered = filters.some((f) => f.value !== (f.defaultValue ?? ''));
 
   useEffect(() => {
     if (!open) return;
@@ -110,102 +120,84 @@ export const TableFilterMenu = ({
   }, [open]);
 
   const reset = () => {
-    onQueryChange('');
     for (const f of filters) f.onChange(f.defaultValue ?? '');
     onReset?.();
   };
 
+  const sectionTitle = 'px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary';
+  const row =
+    'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-surface-muted focus:bg-surface-muted focus:outline-none';
+
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-label={t('searchAndFilter')}
-        title={t('searchAndFilter')}
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'relative flex h-9 w-9 items-center justify-center rounded-md border transition-colors duration-150',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-1',
-          open ? 'border-black bg-surface-muted text-text' : 'border-border bg-white text-text-secondary hover:bg-surface-muted hover:text-text',
-        )}
-      >
-        <Search size={16} />
-        {modified && (
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-bg bg-accent" />
-        )}
-      </button>
-
-      {open && (
-        <div
-          style={position}
-          className="fixed z-30 overflow-y-auto overscroll-contain rounded-md border border-border bg-surface p-3 shadow-lg"
-        >
-          <div className="relative">
-            <Search
-              size={15}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
-            />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') setOpen(false);
-              }}
-              placeholder={placeholder ?? t('search')}
-              className="w-full rounded-md border border-border bg-white py-2 pl-9 pr-8 text-base placeholder:text-text-tertiary focus:border-black focus:outline-none sm:text-sm"
-            />
-            {query && (
-              <button
-                type="button"
-                aria-label={t('clearFilters')}
-                onClick={() => onQueryChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-text-tertiary hover:text-text"
-              >
-                <X size={14} />
-              </button>
+    <>
+      {showSearch && <SearchField value={query} onChange={onQueryChange} placeholder={placeholder} className={searchClassName} />}
+      {(filters.length > 0 || canReset) && (
+        <div ref={rootRef} className="relative">
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            title={t('filter')}
+            className={cn(
+              'relative inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium transition-colors duration-150 hover:bg-surface-muted max-sm:w-9 max-sm:px-0',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-1',
+              open && 'bg-surface-muted',
             )}
-          </div>
+          >
+            <ListFilter size={16} />
+            <span className="hidden sm:inline">{t('filter')}</span>
+            <ChevronDown size={15} className={cn('hidden text-text-secondary transition-transform duration-150 sm:inline', open && 'rotate-180')} />
+            {(filtered || canReset) && (
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-bg bg-accent" />
+            )}
+          </button>
 
-          {filters.map((f) => (
-            <div key={f.id} className="mt-3">
-              <p className="mb-1.5 text-xs font-medium text-text-secondary">{f.label}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[{ value: '', label: t('all') }, ...f.options].map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    aria-pressed={f.value === o.value}
-                    onClick={() => f.onChange(o.value)}
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 text-sm font-medium transition-colors duration-150',
-                      f.value === o.value
-                        ? 'border-black bg-black text-white'
-                        : 'border-border bg-white text-text-secondary hover:text-text',
-                    )}
-                  >
-                    {o.label}
+          {open && (
+            <div
+              role="dialog"
+              aria-label={t('filter')}
+              style={position}
+              className="fixed z-[70] overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-1 shadow-lg"
+            >
+              {filters.map((f, i) => (
+                <div key={f.id}>
+                  {i > 0 && <div role="separator" className="-mx-1 my-1 border-t border-border" />}
+                  <p className={sectionTitle}>{f.label}</p>
+                  {[{ value: '', label: t('all') }, ...f.options].map((o) => {
+                    const active = f.value === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => f.onChange(o.value)}
+                        className={cn(row, active && 'font-medium')}
+                      >
+                        <Check size={15} className={cn('flex-shrink-0', active ? 'text-text' : 'invisible')} />
+                        <span className="min-w-0 flex-1 truncate" title={o.label}>
+                          {o.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+
+              {(filtered || canReset) && (
+                <>
+                  <div role="separator" className="-mx-1 my-1 border-t border-border" />
+                  <button type="button" onClick={reset} className={cn(row, 'text-text-secondary')}>
+                    <X size={15} />
+                    {t('clearFilters')}
                   </button>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {(modified || canReset) && (
-            <div className="mt-3 border-t border-border pt-2">
-              <button
-                type="button"
-                onClick={reset}
-                className="inline-flex items-center gap-1.5 py-1 text-sm font-medium text-text-tertiary transition-colors duration-150 hover:text-text"
-              >
-                <X size={14} />
-                {t('clearFilters')}
-              </button>
+                </>
+              )}
             </div>
           )}
         </div>
       )}
-    </div>
+    </>
   );
 };

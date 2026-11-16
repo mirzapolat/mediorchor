@@ -8,7 +8,6 @@ import {
   Pencil,
   Plus,
   Repeat,
-  Search,
   StickyNote,
   Trash2,
   Undo2,
@@ -24,6 +23,8 @@ import { api } from '@/lib/api';
 import { GROUP_PALETTE, paletteColor } from '@/lib/groupColors';
 import { formatDay, shiftedEnd, timeRange, type CalendarData, type CalendarEntry } from '@/lib/calendar';
 import type { Calendar, CalendarEvent, CalendarEventException, CalendarRepeat } from '@/types';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 // --- Day preview -----------------------------------------------------------------
 
@@ -222,9 +223,8 @@ export const CalendarFormModal = ({
 
   // Active projects first, archived ones after; filtered by the search.
   const projects = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return [...data.projects]
-      .filter((p) => !q || p.name.toLowerCase().includes(q))
+      .filter((p) => matchesQuery(p.name, query))
       .sort((a, b) => Number(a.status === 'archived') - Number(b.status === 'archived') || a.name.localeCompare(b.name));
   }, [data.projects, query]);
 
@@ -354,16 +354,9 @@ export const CalendarFormModal = ({
             <p className="text-xs text-text-tertiary">{t('selectedCount').replace('{n}', String(selected.size))}</p>
           </div>
           <div className="rounded-md border border-border">
-            <label className="flex items-center gap-2 border-b border-border px-3 py-2 text-text-secondary">
-              <Search size={15} />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('search')}
-                aria-label={t('search')}
-                className="w-full bg-transparent text-sm text-text placeholder:text-text-tertiary focus:outline-none"
-              />
-            </label>
+            <div className="border-b border-border p-2">
+              <SearchField value={query} onChange={setQuery} />
+            </div>
             <ul className="max-h-64 overflow-y-auto py-1">
               {projects.length === 0 && <li className="px-3 py-3 text-sm text-text-tertiary">{t('noProjects')}</li>}
               {projects.map((p) => (

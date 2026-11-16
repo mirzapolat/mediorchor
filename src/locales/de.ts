@@ -84,6 +84,8 @@ const de: Messages = {
   actions: 'Aktionen',
   clearFilters: 'Zurücksetzen',
   searchAndFilter: 'Suchen & filtern',
+  clearSearch: 'Suche leeren',
+  filter: 'Filter',
   showMore: 'Mehr anzeigen',
   showLess: 'Weniger anzeigen',
   collapse: 'Einklappen',

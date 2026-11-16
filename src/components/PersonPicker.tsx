@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import type { PersonOption } from '@/types';
+import { SearchField } from '@/components/SearchField';
 
 // Picks accounts (e.g. who looks after a group): the chosen ones as chips,
 // below a search over name and email. With a project its active members
@@ -95,9 +96,8 @@ export const PersonPicker = ({
         </ul>
       )}
       <div className="relative">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-        <input
-          type="search"
+        <SearchField
+          size="lg"
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
@@ -105,8 +105,8 @@ export const PersonPicker = ({
           placeholder={t('personSearchPlaceholder')}
           value={query}
           onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
+          onChange={(value) => {
+            setQuery(value);
             setOpen(true);
           }}
           onKeyDown={(e) => {
@@ -123,7 +123,6 @@ export const PersonPicker = ({
               setOpen(false);
             }
           }}
-          className="w-full rounded-md border border-border bg-white py-2 pl-9 pr-3 text-base placeholder:text-text-tertiary focus:border-black focus:outline-none max-md:min-h-11"
         />
         {open && (options.length > 0 || loading || query.trim()) && (
           <ul

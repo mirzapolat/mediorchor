@@ -201,8 +201,8 @@ export const MemberDetailPage = () => {
         </div>
       </div>
 
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{t('attendance')}</h2>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="min-w-0 flex-1 basis-0 text-lg font-semibold">{t('attendance')}</h2>
         <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={filters} />
       </div>
       <DataTable

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { CreatedSummary } from '@/pages/ProjectOnboardingPage';
-import { BarChart3, CalendarDays, CalendarX2, ClipboardList, ListChecks, Music, Music2, Tags, Tent, Trash2, UserRound, Users, Settings, ArrowLeft } from 'lucide-react';
-import { RAIL, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
+import { BarChart3, CalendarDays, CalendarX2, ClipboardList, ListChecks, Music, Music2, Tags, Tent, Trash2, UserRound, Users, Settings } from 'lucide-react';
+import { RAIL, sidebarLabel, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { Avatar } from '@/components/Avatar';
 import { PageSpinner } from '@/components/Spinner';
@@ -15,6 +15,7 @@ import type { PieceScope } from '@/layouts/pieceScope';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { useAuth } from '@/hooks/useAuth';
 import { FadingText } from '@/components/FadingText';
+import { SidebarBackLink } from '@/components/SidebarBackLink';
 import type { Project } from '@/types';
 
 // What project_nav (server/projectNav.ts) says about the newer areas.
@@ -31,26 +32,14 @@ interface ProjectNav {
 }
 const EMPTY_NAV: ProjectNav = { concerts: false, surveys: false, open_surveys: 0, weekend: false, room_missing: 0, trash: 0 };
 
-// Without `onBack` (a participant of a single project) there is no project
+// Without `back` (a participant of a single project) there is no project
 // list to go back to.
-const ProjectHeader = ({ project, onBack }: { project: Project; onBack?: () => void }) => {
-  const { t } = useI18n();
+const ProjectHeader = ({ project, back }: { project: Project; back?: { to: string; label: string } }) => {
   const { collapsed } = useSidebar();
-  const backTip = useRailTip(t('projects'));
   return (
     <>
-      {onBack && (
-        <button
-          onClick={onBack}
-          {...backTip}
-          className={cn(
-            'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
-            RAIL.icon16,
-          )}
-        >
-          <ArrowLeft size={16} className="flex-shrink-0" />
-          <FadingText className={sidebarLabel(collapsed)}>{t('projects')}</FadingText>
-        </button>
+      {back && (
+        <SidebarBackLink fallback={back} scope={`/projects/${project.id}`} />
       )}
 
       <div className={cn('flex flex-shrink-0 items-center gap-2.5 border-b border-border py-3', RAIL.tile)}>
@@ -197,7 +186,7 @@ export const ProjectLayout = () => {
 
   return (
     <NavShell
-      header={<ProjectHeader project={project} onBack={soleProjectId ? undefined : () => navigate('/projects')} />}
+      header={<ProjectHeader project={project} back={soleProjectId ? undefined : { to: '/projects', label: t('projects') }} />}
       items={[
         canParticipate && {
           to: `${base}/participation`,
@@ -250,6 +239,7 @@ export const ProjectLayout = () => {
       ]}
       // A participant of a single project has no project list to go back to.
       back={soleProjectId ? null : { to: '/projects', label: t('projects') }}
+      scope={base}
       context={
         <MobileContext
           image={<Avatar name={project.name} photoUrl={project.image_url} size={40} square />}

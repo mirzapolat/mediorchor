@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, X, type LucideIcon } from 'lucide-react';
-import { Input, Select } from './Input';
+import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, GripVertical, type LucideIcon } from 'lucide-react';
+import { TableFilterMenu } from './TableFilterMenu';
 import { EmptyState } from './EmptyState';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
+import { matchesQuery } from '@/lib/search';
 
 export interface Column<T> {
   id: string;
@@ -161,8 +162,7 @@ export function DataTable<T>({
       const v = filterValues[f.id] ?? '';
       if (v) out = out.filter((r) => f.predicate(r, v));
     }
-    const q = query.trim().toLowerCase();
-    if (q && search) out = out.filter((r) => search(r).toLowerCase().includes(q));
+    if (query.trim() && search) out = out.filter((r) => matchesQuery(search(r), query));
     if (sortId && !reorderable) {
       const col = columns.find((c) => c.id === sortId);
       if (col?.accessor) {
@@ -204,17 +204,6 @@ export function DataTable<T>({
 
   const showControls = !hideToolbar && (Boolean(search) || filters.length > 0);
   const hasToolbar = showControls || Boolean(toolbar);
-  const hasActiveFilters =
-    query.trim() !== '' ||
-    filters.some((f) => (filterValues[f.id] ?? '') !== '') ||
-    (Boolean(highlightRowId) && pinHighlight);
-
-  const clearAll = () => {
-    setQuery('');
-    for (const f of filters) setFilterValue(f, '');
-    onClearFilters?.();
-  };
-
   const selectable = Boolean(onSelectedIdsChange);
   const selectedSet = new Set(selectedIds ?? []);
   const allVisibleSelected =
@@ -243,42 +232,24 @@ export function DataTable<T>({
   return (
     <>
       {hasToolbar && (
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          {showControls && search && (
-            <div className="w-full sm:w-64">
-              <Input
-                placeholder={searchPlaceholder ?? t('search')}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-          )}
-          {showControls && filters.map((f) => (
-            <div key={f.id} className="min-w-[150px]">
-              <Select
-                label={f.label}
-                value={filterValues[f.id] ?? ''}
-                onChange={(e) => setFilterValue(f, e.target.value)}
-              >
-                <option value="">{t('all')}</option>
-                {f.options.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ))}
-          {showControls && hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearAll}
-              title={t('clearFilters')}
-              className="inline-flex items-center gap-1.5 px-2 py-2 text-sm font-medium text-text-tertiary hover:text-text transition-colors duration-150"
-            >
-              <X size={15} />
-              {t('clearFilters')}
-            </button>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {showControls && (
+            <TableFilterMenu
+              query={query}
+              onQueryChange={setQuery}
+              showSearch={Boolean(search)}
+              placeholder={searchPlaceholder}
+              searchClassName="w-full sm:w-64"
+              filters={filters.map((f) => ({
+                id: f.id,
+                label: f.label,
+                options: f.options,
+                value: filterValues[f.id] ?? '',
+                onChange: (value: string) => setFilterValue(f, value),
+              }))}
+              onReset={onClearFilters}
+              canReset={Boolean(highlightRowId) && pinHighlight && Boolean(onClearFilters)}
+            />
           )}
           {toolbar && <div className="ml-auto flex flex-wrap items-center gap-2">{toolbar}</div>}
         </div>

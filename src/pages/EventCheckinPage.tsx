@@ -35,6 +35,7 @@ import { track } from '@/lib/analytics';
 import type { AttendanceStatus, CheckinSubmission, EventCheckin, Member } from '@/types';
 import { GroupPill } from '@/components/GroupPill';
 import { useAuth } from '@/hooks/useAuth';
+import { SearchField } from '@/components/SearchField';
 
 type CheckinStatus = Extract<AttendanceStatus, 'attended' | 'excused'>;
 type CopyFeedback = 'link' | 'image' | 'error' | null;
@@ -745,12 +746,7 @@ const AssignCheckinModal = ({
             </span>
             <span className="text-text-secondary"> · {submission.group_name}</span>
           </div>
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('search')}
-            autoFocus
-          />
+          <SearchField value={query} onChange={setQuery} size="lg" autoFocus />
           {error ? (
             <p className="text-sm text-danger-strong" role="alert">
               {error}

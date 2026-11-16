@@ -10,7 +10,6 @@ import {
   FileArchive,
   ListTree,
   Paperclip,
-  Search,
   Table2,
   Trash2,
   UsersRound,
@@ -32,6 +31,8 @@ import { savesViaShare } from '@/lib/saveFile';
 import { formatBytes } from '@/lib/concerts';
 import { formDate, type FormDetail, type FormResponse, type FormResults, type FormSummaryItem } from '@/lib/forms';
 import { DISPLAY_TYPES, answerText, instantRunoff, type ItemType, type SnapshotItem } from '@shared/forms';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 type View = 'summary' | 'single' | 'table';
 
@@ -124,16 +125,13 @@ export const SurveyResults = ({ detail, onChanged }: { detail: FormDetail; onCha
 
   const shown = useMemo(() => {
     if (!results) return [];
-    const q = query.trim().toLowerCase();
     return results.responses.filter((r) => {
       if (filter) {
         const v = r.answers[filter.item];
         const hit = Array.isArray(v) ? v.includes(filter.value) : String(v) === filter.value;
         if (!hit) return false;
       }
-      if (!q) return true;
-      const hay = [r.respondent?.name, r.respondent?.email, ...columns.map((c) => text(r, c))].join(' ').toLowerCase();
-      return hay.includes(q);
+      return matchesQuery([r.respondent?.name, r.respondent?.email, ...columns.map((c) => text(r, c))].join(' '), query);
     });
   }, [results, filter, query, columns, text]);
 
@@ -224,17 +222,7 @@ export const SurveyResults = ({ detail, onChanged }: { detail: FormDetail; onCha
                 </button>
               ))}
             </div>
-            <div className="relative min-w-0 flex-1">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('surveySearchAnswers')}
-                aria-label={t('surveySearchAnswers')}
-                className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm focus:border-black focus:outline-none max-md:h-11"
-              />
-            </div>
+            <SearchField value={query} onChange={setQuery} placeholder={t('surveySearchAnswers')} className="min-w-0 flex-1" />
             {filterable.length > 0 && (
               <select
                 value={filter ? `${filter.item}|${filter.value}` : ''}

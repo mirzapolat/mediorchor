@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { recordLocation } from '@/lib/navHistory';
 import { safeRedirectPath } from '@shared/safePath';
 import { trackPageview } from '@/lib/analytics';
 import { PageSpinner } from '@/components/Spinner';
@@ -93,6 +94,8 @@ export const App = () => {
   useEffect(() => {
     trackPageview(location.pathname);
   }, [location.pathname]);
+  // Remember which page each history entry shows, for the back buttons.
+  useEffect(() => recordLocation(), [location.key]);
 
   if (
     location.pathname.startsWith('/check-in/') ||

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ImagePlus, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { AppLogo } from '@/components/AppLogo';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -29,6 +29,8 @@ import { fromLocalInput, toLocalInput } from '@/lib/registrationDeadline';
 import { track } from '@/lib/analytics';
 import type { StoredCondition } from '@/lib/absenceConditions';
 import type { PersonOption, RegistrationHeaderMode } from '@/types';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 // --- the draft ----------------------------------------------------------------
 
@@ -950,9 +952,8 @@ const PiecesSection = ({ draft, update }: SectionProps) => {
   }, []);
   const matches = useMemo(() => {
     const chosen = new Set(draft.pieces.map((p) => p.piece_id).filter(Boolean));
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return catalog.filter((p) => !chosen.has(p.id) && `${p.name} ${p.composer}`.toLowerCase().includes(q)).slice(0, 8);
+    if (!query.trim()) return [];
+    return catalog.filter((p) => !chosen.has(p.id) && matchesQuery(`${p.name} ${p.composer}`, query)).slice(0, 8);
   }, [query, catalog, draft.pieces]);
   const set = (pieces: DraftPiece[]) => update({ pieces });
   const inputClass =
@@ -962,17 +963,7 @@ const PiecesSection = ({ draft, update }: SectionProps) => {
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <p className="mb-1.5 text-sm font-medium">{t('onbFromLibrary')}</p>
-          <div className="relative">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('onbSearchPieces')}
-              aria-label={t('onbFromLibrary')}
-              className={cn(inputClass, 'w-full pl-9')}
-            />
-          </div>
+          <SearchField value={query} onChange={setQuery} placeholder={t('onbSearchPieces')} aria-label={t('onbFromLibrary')} size="lg" />
           {matches.length > 0 && (
             <ul className="mt-1 rounded-xl border border-border bg-surface p-1">
               {matches.map((p) => (

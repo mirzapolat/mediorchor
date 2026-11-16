@@ -16,7 +16,7 @@ export const AdminLayout = () => {
 
   return (
     <NavShell
-      header={<SidebarSectionHeader icon={ShieldCheck} title={t('adminSettings')} backTo={returnPath('admin')} />}
+      header={<SidebarSectionHeader icon={ShieldCheck} title={t('adminSettings')} backTo={returnPath('admin')} scope="/admin" />}
       items={[
         { to: '/admin/users', label: t('users'), icon: Users },
         { to: '/admin/branding', label: t('branding'), icon: Palette },
@@ -28,6 +28,7 @@ export const AdminLayout = () => {
       ]}
       // Back to where the settings were opened from (header icon), else home.
       back={{ to: returnPath('admin'), label: t('back') }}
+      scope="/admin"
       context={<MobileContext icon={ShieldCheck} title={t('adminSettings')} />}
       contentClassName={`max-w-[1400px] ${PAGE_PADDING}`}
     >

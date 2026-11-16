@@ -21,13 +21,14 @@ export const NotificationsLayout = () => {
   const { unread } = useNotifications();
   return (
     <NavShell
-      header={<SidebarSectionHeader icon={Bell} title={t('notifications')} backTo={returnPath('notifications')} />}
+      header={<SidebarSectionHeader icon={Bell} title={t('notifications')} backTo={returnPath('notifications')} scope="/notifications" />}
       items={[
         { to: '/notifications', end: true, label: t('notifOpen'), icon: Bell, badge: unread },
         { to: '/notifications/done', label: t('notifDone'), icon: Inbox },
         { to: '/account/notifications', label: t('notifSettings'), icon: Settings },
       ]}
       back={{ to: returnPath('notifications'), label: t('back') }}
+      scope="/notifications"
       contentClassName={`max-w-3xl ${PAGE_PADDING}`}
     >
       <Outlet />

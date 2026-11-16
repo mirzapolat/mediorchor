@@ -657,12 +657,12 @@ export const AbsencesPage = () => {
       )}
 
       {/* Search, filters and exports apply to the results table below. */}
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="min-w-0 flex-1 basis-0 truncate text-xs font-semibold uppercase tracking-wide text-text-tertiary">
           {t('matchingMembers')} · {visibleRows.length}
         </h2>
         {/* The exports in one menu, so the row never runs out of room. */}
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="contents">
           <TableFilterMenu query={tf.query} onQueryChange={tf.setQuery} filters={boundFilters} />
           <OverflowMenu
             label={t('exportMenu')}

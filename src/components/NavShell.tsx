@@ -11,6 +11,7 @@ import { config } from '@/lib/config';
 import { useI18n } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
 import { rememberReturn } from '@/lib/navReturn';
+import { useBack } from '@/hooks/useBack';
 import { InstallAppButton } from './InstallAppButton';
 import { PAGE_PADDING } from '@/lib/pagePadding';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -33,6 +34,7 @@ export const NavShell = ({
   sidebarActions,
   items,
   back,
+  scope: areaScope,
   context,
   contentClassName = `max-w-[1400px] ${PAGE_PADDING}`,
   children,
@@ -42,6 +44,9 @@ export const NavShell = ({
   items: Array<NavItem | false | null | undefined | ''>;
   // One level up from this area (none: the space stays empty).
   back?: NavBack | null;
+  // The area's base path; back skips the area's own pages (default: the
+  // path all `items` share).
+  scope?: string;
   context?: ReactNode;
   contentClassName?: string;
   children: ReactNode;
@@ -51,12 +56,16 @@ export const NavShell = ({
   const pages = items.filter((item): item is NavItem => Boolean(item));
   // A page below one of the area's pages (a member, a user) goes back to it.
   const owner = deepestPage(pages, pathname);
-  const up: NavBack | null =
-    owner && trimSlash(pathname) !== trimSlash(owner.to) ? { to: owner.to, label: owner.label } : (back ?? null);
+  const below = Boolean(owner && trimSlash(pathname) !== trimSlash(owner.to));
+  const up: NavBack | null = below && owner ? { to: owner.to, label: owner.label } : (back ?? null);
+  // Back returns to the page the user came from: before this page (a member
+  // opened from the absences list), or before this area (a piece's tabs
+  // don't count); `up` only when this tab's history doesn't know.
+  const scope = below ? pathname : (areaScope ?? areaOf(pages, pathname));
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <MobileAppHeader back={up} />
+      <MobileAppHeader back={up} scope={scope} />
 
       <Sidebar actions={sidebarActions}>
         {header}
@@ -91,14 +100,29 @@ const deepestPage = (pages: NavItem[], pathname: string) => {
   return best;
 };
 
+// The path all of an area's pages lie under (a piece's, a project's).
+export const areaOf = (pages: NavItem[], pathname: string) => {
+  if (pages.length === 0) return pathname;
+  const split = (p: string) => trimSlash(p).split('/').filter(Boolean);
+  let common = split(pages[0].to);
+  for (const page of pages.slice(1)) {
+    const parts = split(page.to);
+    let i = 0;
+    while (i < common.length && i < parts.length && common[i] === parts[i]) i++;
+    common = common.slice(0, i);
+  }
+  return `/${common.join('/')}`;
+};
+
 // 44 × 44 px hit area for the icon buttons of the mobile header.
 const iconButton =
   'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-text-secondary transition-colors duration-150 hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
 // Back on the left, the brand in the exact middle of the screen (positioned,
 // so the icons on the right can't push it aside), account and admin right.
-export const MobileAppHeader = ({ back }: { back: NavBack | null }) => {
+export const MobileAppHeader = ({ back, scope }: { back: NavBack | null; scope: string }) => {
   const { t } = useI18n();
+  const backTo = useBack(back ?? { to: '/', label: '' }, scope);
   const { user, isAdmin } = useAuth();
   const { pathname, search } = useLocation();
   const here = pathname + search;
@@ -114,7 +138,7 @@ export const MobileAppHeader = ({ back }: { back: NavBack | null }) => {
       <div className="relative flex h-14 items-center justify-between px-1.5">
         <div className={cn('flex items-center', slot)}>
           {back ? (
-            <Link to={back.to} className={iconButton} aria-label={`${t('back')}: ${back.label}`} title={back.label}>
+            <Link to={backTo.to} onClick={backTo.go} className={iconButton} aria-label={backTo.label === t('back') ? backTo.label : `${t('back')}: ${backTo.label}`} title={backTo.label}>
               <ArrowLeft size={20} />
             </Link>
           ) : pathname === '/dashboard' ? (

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useParams } from 'react-router-dom';
 import { NoAccess } from '@/components/NoAccess';
-import { CheckSquare, Settings, ArrowLeft, CalendarDays, Clock, ListMusic, QrCode } from 'lucide-react';
-import { RAIL, SidebarFold, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
+import { CheckSquare, Settings, CalendarDays, Clock, ListMusic, QrCode } from 'lucide-react';
+import { RAIL, SidebarFold, sidebarLabel, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { PageSpinner } from '@/components/Spinner';
 import { cn } from '@/lib/cn';
@@ -10,6 +10,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { FadingText } from '@/components/FadingText';
+import { SidebarBackLink } from '@/components/SidebarBackLink';
 import type { Event, Project } from '@/types';
 
 // Date and time of the Probe (sidebar header and mobile context).
@@ -31,23 +32,11 @@ const EventMeta = ({ event }: { event: Event }) =>
     </span>
   ) : null;
 
-const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) => {
-  const { t } = useI18n();
+const EventHeader = ({ event, back, scope }: { event: Event; back: { to: string; label: string }; scope: string }) => {
   const { collapsed } = useSidebar();
-  const backTip = useRailTip(t('events'));
   return (
     <>
-      <button
-        onClick={onBack}
-        {...backTip}
-        className={cn(
-          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
-          RAIL.icon16,
-        )}
-      >
-        <ArrowLeft size={16} className="flex-shrink-0" />
-        <FadingText className={sidebarLabel(collapsed)}>{t('events')}</FadingText>
-      </button>
+      <SidebarBackLink fallback={back} scope={scope} />
 
       <div className={cn('flex flex-shrink-0 items-start gap-2.5 border-b border-border py-3', RAIL.tile)}>
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
@@ -74,7 +63,6 @@ const EventHeader = ({ event, onBack }: { event: Event; onBack: () => void }) =>
 export const EventLayout = () => {
   const { t } = useI18n();
   const { projectId, eventId } = useParams();
-  const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [event, setEvent] = useState<Event | null>(null);
   const [unrecognizedCount, setUnrecognizedCount] = useState(0);
@@ -130,7 +118,7 @@ export const EventLayout = () => {
 
   return (
     <NavShell
-      header={<EventHeader event={event} onBack={() => navigate(`/projects/${project.id}/events`)} />}
+      header={<EventHeader event={event} back={{ to: `/projects/${project.id}/events`, label: t('events') }} scope={base} />}
       items={[
         { to: base, end: true, label: t('attendance'), icon: CheckSquare },
         { to: `${base}/program`, label: t('program'), icon: ListMusic },
@@ -138,6 +126,7 @@ export const EventLayout = () => {
         { to: `${base}/settings`, label: t('settings'), icon: Settings },
       ]}
       back={{ to: `/projects/${project.id}/events`, label: t('events') }}
+      scope={base}
       context={<MobileContext icon={CheckSquare} title={event.name} meta={<EventMeta event={event} />} />}
     >
       <ProjectGroupsProvider projectId={project.id}>

@@ -83,6 +83,8 @@ const en = {
   actions: 'Actions',
   clearFilters: 'Reset',
   searchAndFilter: 'Search & filter',
+  clearSearch: 'Clear search',
+  filter: 'Filter',
   showMore: 'Show more',
   showLess: 'Show less',
   collapse: 'Collapse',

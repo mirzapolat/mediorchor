@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Search, UserRound, X } from 'lucide-react';
+import { UserRound, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Input, Select } from './Input';
@@ -7,6 +7,7 @@ import { Avatar } from './Avatar';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import type { Member } from '@/types';
+import { SearchField } from '@/components/SearchField';
 
 interface AccountResult {
   id: string;
@@ -172,17 +173,16 @@ export const MemberForm = ({
               </div>
             ) : (
               <>
-                <Input
-                  label={
-                    <span className="inline-flex items-center gap-1.5">
-                      <Search size={13} />
-                      {`${t('searchAccount')} (${t('optional')})`}
-                    </span>
-                  }
-                  value={accountQuery}
-                  onChange={(e) => setAccountQuery(e.target.value)}
-                  placeholder={t('searchAccountPlaceholder')}
-                />
+                <div>
+                  <p className="mb-1.5 text-sm font-medium">{`${t('searchAccount')} (${t('optional')})`}</p>
+                  <SearchField
+                    size="lg"
+                    value={accountQuery}
+                    onChange={setAccountQuery}
+                    placeholder={t('searchAccountPlaceholder')}
+                    aria-label={t('searchAccount')}
+                  />
+                </div>
                 {accountResults.length > 0 ? (
                   <div className="max-h-44 space-y-0.5 overflow-y-auto">
                     {accountResults.map((account) => (

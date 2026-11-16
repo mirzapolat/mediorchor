@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Check, FilePlus2, Plus, Search, X } from 'lucide-react';
+import { Check, FilePlus2, Plus, X } from 'lucide-react';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { fileIcon, fileTone } from './PieceFileParts';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import type { PieceFile } from '@/types';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 // The file nodes of a piece's "Konfiguration": a card per file the editors
 // added, and the dialog that adds uploaded files as nodes.
@@ -101,8 +103,7 @@ export const AddFileNodes = ({ available, onAdd }: { available: PieceFile[]; onA
   const [picked, setPicked] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? available.filter((f) => `${fileTitle(f)} ${f.file_name ?? ''}`.toLowerCase().includes(q)) : available;
+    return query.trim() ? available.filter((f) => matchesQuery(`${fileTitle(f)} ${f.file_name ?? ''}`, query)) : available;
   }, [available, query]);
 
   const close = () => {
@@ -149,18 +150,7 @@ export const AddFileNodes = ({ available, onAdd }: { available: PieceFile[]; onA
       >
         <div className="space-y-3">
           {available.length > 6 && (
-            <label className="relative block">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input
-                autoFocus
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('filesSearch')}
-                aria-label={t('filesSearch')}
-                className="h-10 w-full rounded-lg border border-border bg-surface-subtle pl-9 pr-3 text-base focus:border-black focus:bg-surface focus:outline-none sm:text-sm"
-              />
-            </label>
+            <SearchField autoFocus size="lg" value={query} onChange={setQuery} placeholder={t('filesSearch')} />
           )}
           {shown.length === 0 ? (
             <p className="py-6 text-center text-sm text-text-secondary">{t('filesNoMatches')}</p>

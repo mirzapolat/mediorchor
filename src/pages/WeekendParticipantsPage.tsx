@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BedDouble, CalendarRange, CircleHelp, ClipboardPaste, FileUp, Link2, Plus, RotateCcw, Search, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
+import { BedDouble, CalendarRange, CircleHelp, ClipboardPaste, FileUp, Link2, Plus, RotateCcw, Trash2, Upload, UserRound, UsersRound } from 'lucide-react';
 import { FileDropzone } from '@/components/FileDropzone';
 import { ColumnMapper, WEEKEND_TARGETS, type WeekendMapTarget } from '@/components/FieldMapper';
 import { guessAssignment } from '@/components/MemberImport';
@@ -20,6 +20,8 @@ import { useProjectGroups } from '@/hooks/useProjectGroups';
 import { formDate } from '@/lib/forms';
 import { nightsLabel, useWeekendContext, type WeekendImport, type WeekendParticipant } from '@/lib/weekends';
 import type { PersonOption } from '@/types';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 interface MemberOption {
   id: string;
@@ -199,9 +201,8 @@ export const WeekendParticipantsPage = () => {
 
   // Three parts: imported lines nobody is assigned to yet (to assign or
   // delete), then everyone without a room, then everyone in a room.
-  const q = query.trim().toLowerCase();
   const matches = (p: WeekendParticipant) =>
-    !q || `${p.name} ${p.email ?? ''} ${p.source_name ?? ''} ${p.group_name ?? ''}`.toLowerCase().includes(q);
+    matchesQuery(`${p.name} ${p.email ?? ''} ${p.source_name ?? ''} ${p.group_name ?? ''}`, query);
   const unassigned = participants.filter((p) => p.kind === 'pending' && matches(p));
   const listed = participants.filter((p) => p.kind !== 'pending');
   const withoutRoom = listed.filter((p) => !rooms.has(p.id));
@@ -256,17 +257,7 @@ export const WeekendParticipantsPage = () => {
         </div>
       ) : (
         <>
-          <div className="relative sm:max-w-sm">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('search')}
-              aria-label={t('search')}
-              className="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-3 text-sm"
-            />
-          </div>
+          <SearchField value={query} onChange={setQuery} className="sm:max-w-sm" />
 
           {unassigned.length > 0 && (
             <section>

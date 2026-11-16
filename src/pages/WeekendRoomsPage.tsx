@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeftRight, BedDouble, ChevronRight, Copy, LogOut, Search } from 'lucide-react';
+import { ArrowLeftRight, BedDouble, ChevronRight, Copy, LogOut } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
@@ -20,6 +20,8 @@ import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { contactKindLabel } from '@/lib/contacts';
 import { useWeekendContext, type Room, type RoomPerson, type RoomsStatus, type RoomsView } from '@/lib/weekends';
 import type { AccountContact } from '@/types';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 type Share = 'private' | 'weekend' | 'room';
 
@@ -217,8 +219,7 @@ export const WeekendRoomsPage = () => {
       : []),
   ];
 
-  const q = poolQuery.trim().toLowerCase();
-  const pool = view.unassigned.filter((p) => !q || `${p.name} ${p.group_name ?? ''}`.toLowerCase().includes(q));
+  const pool = view.unassigned.filter((p) => matchesQuery(`${p.name} ${p.group_name ?? ''}`, poolQuery));
   const poolDrop = drag.dragging?.from != null && drag.over != null && drag.over.room === null;
   const manage = manager
     ? {
@@ -281,17 +282,12 @@ export const WeekendRoomsPage = () => {
               <span className="text-xs tabular-nums text-text-tertiary">{view.unassigned.length}</span>
             </div>
             {view.unassigned.length > 8 && (
-              <div className="relative mt-2">
-                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                <input
-                  type="search"
-                  value={poolQuery}
-                  onChange={(e) => setPoolQuery(e.target.value)}
-                  placeholder={t('search')}
-                  aria-label={`${t('search')}: ${t('roomUnassigned')}`}
-                  className="h-9 w-full rounded-lg border border-border bg-surface pl-8 pr-2 text-sm"
-                />
-              </div>
+              <SearchField
+                value={poolQuery}
+                onChange={setPoolQuery}
+                aria-label={`${t('search')}: ${t('roomUnassigned')}`}
+                className="mt-2"
+              />
             )}
             {view.unassigned.length === 0 ? (
               <p className="px-1 py-5 text-center text-sm text-text-tertiary">{drag.dragging ? t('roomPoolDrop') : t('roomPoolEmpty')}</p>

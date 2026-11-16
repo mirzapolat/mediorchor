@@ -12,7 +12,7 @@ export const AccountLayout = () => {
 
   return (
     <NavShell
-      header={<SidebarSectionHeader icon={CircleUserRound} title={t('account')} backTo={returnPath('account')} />}
+      header={<SidebarSectionHeader icon={CircleUserRound} title={t('account')} backTo={returnPath('account')} scope="/account" />}
       items={[
         { to: '/account/profile', label: t('accountProfile'), icon: UserRound },
         { to: '/account/security', label: t('loginSecurity'), icon: KeyRound },
@@ -23,6 +23,7 @@ export const AccountLayout = () => {
       ]}
       // Back to where the settings were opened from (header icon), else home.
       back={{ to: returnPath('account'), label: t('back') }}
+      scope="/account"
       context={<MobileContext icon={CircleUserRound} title={t('account')} />}
       contentClassName={`max-w-3xl ${PAGE_PADDING}`}
     >

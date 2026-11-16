@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, FileMusic, FolderOpen, Info, Mic, Music, Settings, Workflow } from 'lucide-react';
-import { RAIL, SidebarFold, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
+import { Outlet, useOutletContext, useParams } from 'react-router-dom';
+import { BarChart3, FileMusic, FolderOpen, Info, Mic, Music, Settings, Workflow } from 'lucide-react';
+import { RAIL, SidebarFold, sidebarLabel, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { FadingText } from '@/components/FadingText';
+import { SidebarBackLink } from '@/components/SidebarBackLink';
 import { PageSpinner } from '@/components/Spinner';
 import { NoAccess } from '@/components/NoAccess';
 import { useI18n } from '@/lib/i18n';
@@ -22,23 +23,11 @@ export interface PieceLayoutContext {
 
 export const usePieceLayout = () => useOutletContext<{ pieceLayout: PieceLayoutContext }>().pieceLayout;
 
-const PieceHeader = ({ piece, onBack }: { piece: Piece; onBack: () => void }) => {
-  const { t } = useI18n();
+const PieceHeader = ({ piece, back, scope }: { piece: Piece; back: { to: string; label: string }; scope: string }) => {
   const { collapsed } = useSidebar();
-  const backTip = useRailTip(t('pieces'));
   return (
     <>
-      <button
-        onClick={onBack}
-        {...backTip}
-        className={cn(
-          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
-          RAIL.icon16,
-        )}
-      >
-        <ArrowLeft size={16} className="flex-shrink-0" />
-        <FadingText className={sidebarLabel(collapsed)}>{t('pieces')}</FadingText>
-      </button>
+      <SidebarBackLink fallback={back} scope={scope} />
 
       <div className={cn('flex flex-shrink-0 items-start gap-2.5 border-b border-border py-3', RAIL.tile)}>
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
@@ -70,7 +59,6 @@ export const PieceLayout = () => {
   const parent = useOutletContext<Record<string, unknown>>();
   const scope = usePieceScope();
   const { pieceId } = useParams();
-  const navigate = useNavigate();
   const [piece, setPiece] = useState<Piece | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -98,7 +86,7 @@ export const PieceLayout = () => {
 
   return (
     <NavShell
-      header={<PieceHeader piece={piece} onBack={() => navigate(scope.base)} />}
+      header={<PieceHeader piece={piece} back={{ to: scope.base, label: t('pieces') }} scope={base} />}
       items={[
         { to: base, end: true, label: t('pieceSheetPage'), icon: FileMusic },
         // Only once a MusicXML is on the trainer node (configuration).
@@ -116,6 +104,7 @@ export const PieceLayout = () => {
         },
       ]}
       back={{ to: scope.base, label: t('pieces') }}
+      scope={base}
       context={
         <MobileContext
           icon={Music}

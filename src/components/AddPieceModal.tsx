@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Spinner } from './Spinner';
 import { useI18n } from '@/lib/i18n';
 import { addPieceToProject, loadPieceCatalog } from '@/lib/pieceFiles';
 import type { Piece } from '@/types';
+import { matchesQuery } from '@/lib/search';
+import { SearchField } from '@/components/SearchField';
 
 type CatalogPiece = Pick<Piece, 'id' | 'name' | 'composer'>;
 
@@ -48,8 +50,7 @@ export const AddPieceModal = ({
     onAdded();
   };
 
-  const q = query.trim().toLowerCase();
-  const shown = (catalog ?? []).filter((p) => !q || `${p.name} ${p.composer}`.toLowerCase().includes(q));
+  const shown = (catalog ?? []).filter((p) => matchesQuery(`${p.name} ${p.composer}`, query));
 
   return (
     <Modal
@@ -82,17 +83,7 @@ export const AddPieceModal = ({
         </p>
       ) : (
         <>
-          <label className="relative mb-2 block">
-            <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('search')}
-              aria-label={t('search')}
-              autoFocus
-              className="h-9 w-full rounded-md border border-border bg-surface pl-8 pr-2 text-base focus:border-black focus:outline-none sm:text-sm"
-            />
-          </label>
+          <SearchField autoFocus size="lg" value={query} onChange={setQuery} className="mb-2" />
           {shown.length === 0 ? (
             <p className="py-4 text-sm text-text-secondary">{t('noResults')}</p>
           ) : (

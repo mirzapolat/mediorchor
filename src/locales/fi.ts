@@ -82,6 +82,8 @@ const fi: Messages = {
   actions: 'Toiminnot',
   clearFilters: 'Tyhjennä',
   searchAndFilter: 'Haku ja suodatus',
+  clearSearch: 'Tyhjennä haku',
+  filter: 'Suodatin',
   showMore: 'Näytä lisää',
   showLess: 'Näytä vähemmän',
   collapse: 'Pienennä',

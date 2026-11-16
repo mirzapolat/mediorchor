@@ -1,29 +1,31 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, type LucideIcon } from 'lucide-react';
-import { RAIL, sidebarLabel, useRailTip, useSidebar } from './Sidebar';
+import { type LucideIcon } from 'lucide-react';
+import { RAIL, sidebarLabel, useSidebar } from './Sidebar';
 import { FadingText } from './FadingText';
+import { SidebarBackLink } from './SidebarBackLink';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 // Top of a section's own sidebar (account, admin, notifications): a back link
-// to where the section was opened from (`backTo`; else the start page — for a
+// to the page before the section (else `backTo`, else the start page — for a
 // participant of a single project: that project, named), then the section's
 // icon and title. Icons keep their place when the sidebar collapses.
 export const SidebarSectionHeader = ({
   icon: Icon,
   title,
   backTo = '/',
+  scope,
 }: {
   icon: LucideIcon;
   title: string;
   backTo?: string;
+  // The section's base path ("/account"): back skips its own pages.
+  scope: string;
 }) => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
-  const navigate = useNavigate();
   const { soleProjectId } = useAuth();
   const [projectName, setProjectName] = useState<string | null>(null);
 
@@ -44,21 +46,10 @@ export const SidebarSectionHeader = ({
   }, [soleProjectId]);
 
   const backLabel = (backTo === '/' && soleProjectId && projectName) || t('back');
-  const tip = useRailTip(backLabel);
 
   return (
     <>
-      <button
-        onClick={() => navigate(backTo)}
-        {...tip}
-        className={cn(
-          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors hover:text-text',
-          RAIL.icon16,
-        )}
-      >
-        <ArrowLeft size={16} className="flex-shrink-0" />
-        <FadingText className={sidebarLabel(collapsed)}>{backLabel}</FadingText>
-      </button>
+      <SidebarBackLink fallback={{ to: backTo, label: backLabel }} scope={scope} />
 
       <div className={cn('flex flex-shrink-0 items-center gap-2.5 border-b border-border py-3', RAIL.tile)}>
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">

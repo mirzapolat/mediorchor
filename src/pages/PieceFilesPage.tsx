@@ -38,7 +38,6 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
-  Search,
   Share,
   Trash2,
   Upload,
@@ -77,6 +76,8 @@ import {
   trashPieceFiles,
 } from '@/lib/pieceFiles';
 import type { PieceFile, PieceFileFolder, PieceFileTrashEntry } from '@/types';
+import { SearchField } from '@/components/SearchField';
+import { matchesQuery } from '@/lib/search';
 
 type View = 'grid' | 'list';
 type SortKey = 'manual' | 'name' | 'modified' | 'size' | 'type';
@@ -116,7 +117,6 @@ const idOf = (item: Item) => (item.kind === 'folder' ? item.folder.id : item.fil
 const byPosition = <T extends { position: number; created_at: string }>(a: T, b: T) =>
   a.position - b.position || a.created_at.localeCompare(b.created_at);
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 // A link without its own name (or named like its address) shows the
 // linked page's title.
@@ -574,7 +574,7 @@ export const PieceFilesPage = () => {
   // Searching looks through every folder.
   const searching = query.trim().length > 0;
   const items = searching
-    ? allItems.filter((i) => visible(i) && fold(itemName(i)).includes(fold(query.trim()))).sort(compare)
+    ? allItems.filter((i) => visible(i) && matchesQuery(itemName(i), query)).sort(compare)
     : itemsIn(current);
   const reorderable = canEdit && sort.key === 'manual' && !searching;
 
@@ -1819,17 +1819,7 @@ export const PieceFilesPage = () => {
         ) : (
           <>
             <h1 className="mr-auto text-xl font-bold sm:text-2xl">{t('files')}</h1>
-            <label className="relative order-last w-full sm:order-none sm:w-56">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('filesSearch')}
-                aria-label={t('filesSearch')}
-                className="h-9 w-full rounded-full border border-border bg-surface-subtle pl-9 pr-3 text-base focus:border-black focus:bg-surface focus:outline-none sm:text-sm"
-              />
-            </label>
+            <SearchField value={query} onChange={setQuery} placeholder={t('filesSearch')} className="order-last w-full sm:order-none sm:w-56" />
             <ViewMenu
               view={view}
               onView={setView}

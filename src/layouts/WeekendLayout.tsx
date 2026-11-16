@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, Outlet, useParams } from 'react-router-dom';
-import { ArrowLeft, BedDouble, CalendarDays, FileText, MapPin, Settings, Tent, UsersRound } from 'lucide-react';
-import { RAIL, SidebarFold, sidebarLabel, useRailTip, useSidebar } from '@/components/Sidebar';
+import { Navigate, Outlet, useParams } from 'react-router-dom';
+import { BedDouble, CalendarDays, FileText, MapPin, Settings, Tent, UsersRound } from 'lucide-react';
+import { RAIL, SidebarFold, sidebarLabel, useSidebar } from '@/components/Sidebar';
 import { MobileContext, NavShell } from '@/components/NavShell';
 import { FadingText } from '@/components/FadingText';
 import { PageSpinner } from '@/components/Spinner';
@@ -10,6 +10,7 @@ import { useProjectContext } from '@/layouts/projectContext';
 import { ProjectGroupsProvider } from '@/hooks/useProjectGroups';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
+import { SidebarBackLink } from '@/components/SidebarBackLink';
 import { useI18n } from '@/lib/i18n';
 import { useWeekendContext, weekendDates, type Weekend } from '@/lib/weekends';
 import { PAGE_PADDING } from '@/lib/pagePadding';
@@ -65,7 +66,7 @@ export const WeekendLayout = () => {
 
   return (
     <NavShell
-      header={<WeekendHeader weekend={weekend} dates={dates} back={back} />}
+      header={<WeekendHeader weekend={weekend} dates={dates} back={back} scope={base} />}
       items={[
         pages.details && { to: `${base}/details`, label: t('weekendDetails'), icon: FileText },
         pages.participants && { to: `${base}/participants`, label: t('weekendParticipants'), icon: UsersRound },
@@ -78,6 +79,7 @@ export const WeekendLayout = () => {
         pages.settings && { to: `${base}/settings`, label: t('settings'), icon: Settings },
       ]}
       back={back}
+      scope={base}
       context={
         <MobileContext
           icon={Tent}
@@ -98,26 +100,17 @@ const WeekendHeader = ({
   weekend,
   dates,
   back,
+  scope,
 }: {
   weekend: Weekend;
   dates: string | null;
   back: { to: string; label: string };
+  scope: string;
 }) => {
   const { collapsed } = useSidebar();
-  const backTip = useRailTip(back.label);
   return (
     <>
-      <Link
-        to={back.to}
-        {...backTip}
-        className={cn(
-          'flex h-14 flex-shrink-0 items-center gap-2 border-b border-border text-sm font-medium text-text-secondary transition-colors duration-150 hover:text-text',
-          RAIL.icon16,
-        )}
-      >
-        <ArrowLeft size={16} className="flex-shrink-0" />
-        <FadingText className={sidebarLabel(collapsed)}>{back.label}</FadingText>
-      </Link>
+      <SidebarBackLink fallback={back} scope={scope} />
       <div className={cn('flex flex-shrink-0 items-start gap-2.5 border-b border-border py-3', RAIL.tile)}>
         <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
           <Tent size={16} />
