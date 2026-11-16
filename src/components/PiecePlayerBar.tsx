@@ -158,17 +158,18 @@ export const PiecePlayerBar = ({
         : `${bars[loop.from].shown}–${bars[loop.to].shown}`
       : null;
 
-  return (
+  // Inline on the page (floating/sticky) the bar sits in a wrapper that also
+  // holds the blurred band behind it — a sibling, not a child, of the glass,
+  // since a backdrop filter inside another one would only blur the glass.
+  const inline = placement === 'floating' || placement === 'sticky';
+  const bar = (
     <div
       className={cn(
-        'liquid-glass z-30',
-        placement === 'floating' &&
-          // A little wider than the score column below it.
-          'sticky bottom-[calc(1.5rem+env(safe-area-inset-bottom))] -mx-4 mt-6 rounded-[28px] px-5 py-2.5',
+        'liquid-glass',
+        inline ? 'relative' : 'z-30',
+        placement === 'floating' && 'rounded-[28px] px-5 py-2.5',
         placement === 'sticky' &&
-          // The negative bottom margin cancels the page padding (PAGE_PADDING),
-          // safe area included, so the bar reaches the screen's edge.
-          'sticky bottom-0 -mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom))] mt-auto rounded-t-[28px] px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2.5 sm:-mx-6 sm:-mb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:-mx-8 lg:-mb-[calc(2rem+env(safe-area-inset-bottom))] lg:px-8',
+          'rounded-t-[28px] px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-6 lg:px-8',
         placement === 'sheet' && 'rounded-b-none rounded-t-[28px] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3',
         placement === 'dock' && 'rounded-[28px] px-5 py-3',
       )}
@@ -258,6 +259,31 @@ export const PiecePlayerBar = ({
           </div>
         </div>
       </div>
+    </div>
+  );
+
+  if (!inline) return bar;
+  return (
+    <div
+      className={cn(
+        'z-30',
+        placement === 'floating' && 'sticky bottom-[calc(1.5rem+env(safe-area-inset-bottom))] -mx-4 mt-6',
+        // The negative bottom margin cancels the page padding (PAGE_PADDING),
+        // safe area included, so the bar reaches the screen's edge.
+        placement === 'sticky' &&
+          'sticky bottom-0 -mx-4 -mb-[calc(1rem+env(safe-area-inset-bottom))] mt-auto sm:-mx-6 sm:-mb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:-mx-8 lg:-mb-[calc(2rem+env(safe-area-inset-bottom))]',
+      )}
+    >
+      <div
+        aria-hidden="true"
+        className={cn(
+          'score-scrim score-scrim-bottom absolute -top-12',
+          placement === 'floating'
+            ? '-inset-x-4 -bottom-[calc(1.5rem+env(safe-area-inset-bottom))]'
+            : 'inset-x-0 bottom-0',
+        )}
+      />
+      {bar}
     </div>
   );
 };

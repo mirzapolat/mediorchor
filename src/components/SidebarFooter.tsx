@@ -49,16 +49,36 @@ export const SidebarFooter = () => {
     // Keyed by the state: the other arrangement fades in while the panel
     // narrows or widens.
     <div key={collapsed ? 'rail' : 'card'} className="flex-shrink-0 animate-[fadein_200ms_ease-out] p-3">
-      {isAdmin && (
-        <div className={collapsed ? 'mb-1' : 'mb-2'}>
-          <SidebarNavItem
-            to="/admin"
-            label={t('adminConfig')}
-            icon={ShieldCheck}
-            onClick={() => rememberReturn('admin', pathname + search)}
-          />
-        </div>
-      )}
+      {isAdmin &&
+        (collapsed ? (
+          <div className="mb-1">
+            <SidebarNavItem
+              to="/admin"
+              label={t('adminConfig')}
+              icon={ShieldCheck}
+              onClick={() => rememberReturn('admin', pathname + search)}
+            />
+          </div>
+        ) : (
+          // Expanded: a card like the account card below it.
+          <div className="mb-2 rounded-xl border border-border bg-surface p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <NavLink
+              to="/admin"
+              onClick={() => rememberReturn('admin', pathname + search)}
+              className={({ isActive }) =>
+                cn(
+                  'flex min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors duration-150 hover:bg-surface-muted',
+                  isActive && 'bg-surface-hover',
+                )
+              }
+            >
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-secondary">
+                <ShieldCheck size={16} />
+              </span>
+              <FadingText className="block min-w-0 text-sm font-medium text-text">{t('adminConfig')}</FadingText>
+            </NavLink>
+          </div>
+        ))}
       {collapsed ? (
         <div className="flex flex-col items-center gap-1 border-t border-border pt-3">
           <NavLink

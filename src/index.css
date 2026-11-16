@@ -417,6 +417,50 @@ html.standalone body {
   :root[data-theme='dark'] .liquid-glass-strong {
     background-color: rgb(var(--c-surface) / 0.72);
   }
+  /* Score views: a soft blurred, dimmed band behind the floating controls
+     (top buttons, bottom player) so they don't sit directly on the notes.
+     No hard edge: the dim eases out, and the blur is progressive — a light
+     blur over the whole band, a stronger one only near the screen edge,
+     each faded out with a mask. Direction via --scrim-dir. */
+  .score-scrim {
+    --scrim-dir: to bottom;
+    --scrim-a: 0.16;
+    pointer-events: none;
+    background: linear-gradient(
+      var(--scrim-dir),
+      rgb(var(--c-scrim) / var(--scrim-a)) 0%,
+      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.8)) 25%,
+      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.5)) 50%,
+      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.2)) 75%,
+      transparent 100%
+    );
+  }
+  .score-scrim-bottom {
+    --scrim-dir: to top;
+  }
+  :root[data-theme='dark'] .score-scrim {
+    --scrim-a: 0.4;
+  }
+  .score-scrim::before,
+  .score-scrim::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    /* Own compositing layer (see .liquid-glass). */
+    transform: translateZ(0);
+  }
+  .score-scrim::before {
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    -webkit-mask-image: linear-gradient(var(--scrim-dir), black 0%, black 35%, transparent 100%);
+    mask-image: linear-gradient(var(--scrim-dir), black 0%, black 35%, transparent 100%);
+  }
+  .score-scrim::after {
+    -webkit-backdrop-filter: blur(7px);
+    backdrop-filter: blur(7px);
+    -webkit-mask-image: linear-gradient(var(--scrim-dir), black 0%, black 25%, transparent 65%);
+    mask-image: linear-gradient(var(--scrim-dir), black 0%, black 25%, transparent 65%);
+  }
   /* A glass toggle that is on: tinted with the accent, not filled. */
   .liquid-glass-on {
     background-color: rgb(var(--c-accent) / 0.2);

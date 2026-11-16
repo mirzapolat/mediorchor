@@ -10,7 +10,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, RotateCcw, ScrollText, SlidersVertical, Volume2, VolumeX, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronsDown, RotateCcw, SlidersVertical, Volume2, VolumeX, X } from 'lucide-react';
 import { PLAYBACK_RATES, type MixerVoice, type PracticePlayer } from '@/hooks/usePracticePlayer';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n } from '@/lib/i18n';
@@ -412,7 +412,7 @@ export const SpeedButton = ({ player }: { player: PracticePlayer }) => {
 // Following the score as it plays: a glass toggle (on the right side).
 export const FollowButton = ({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) => {
   const { t } = useI18n();
-  return <GlassButton icon={ScrollText} label={t('followScore')} active={on} onClick={() => onChange(!on)} />;
+  return <GlassButton icon={ChevronsDown} label={t('followScore')} active={on} onClick={() => onChange(!on)} />;
 };
 
 // The left group of glass buttons above the score: mixer and metronome
@@ -438,66 +438,24 @@ export const PracticeButtons = ({ player, children }: { player: PracticePlayer; 
   );
 };
 
-// Round glass button with the score's zoom in it; a tap offers going back
-// to 100 % or 80 %.
+// Round glass button with the score's zoom in it; a tap resets it — to the
+// full width (100 %) on phones, to 80 % on desktop.
 export const ZoomButton = ({ bridge }: { bridge: ZoomBridge }) => {
   const { t } = useI18n();
   const { zoom, ready } = useSyncExternalStore(bridge.subscribe, bridge.get);
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const style = useAnchored(open, button, 180, false);
-  useDismiss(open, () => setOpen(false), [button, panel]);
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   if (!ready) return null;
   const pct = Math.round(zoom * 100);
+  const target = isDesktop ? 0.8 : 1;
   return (
-    <>
-      <button
-        ref={button}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label={`${t('zoom')}: ${pct} %`}
-        title={t('resetZoom')}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className={cn(glassButton, 'text-[11px] font-semibold tabular-nums tracking-tight', open && 'liquid-glass-on')}
-      >
-        {pct}%
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panel}
-            role="dialog"
-            aria-label={t('zoom')}
-            style={style}
-            className="liquid-glass liquid-glass-strong fixed z-[95] overflow-y-auto rounded-3xl p-1.5"
-          >
-            <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{t('resetZoom')}</p>
-            {[1, 0.8].map((z) => {
-              const active = Math.abs(zoom - z) < 0.01;
-              return (
-                <button
-                  key={z}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => {
-                    bridge.set(z);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left text-base tabular-nums transition-colors duration-150 hover:bg-surface/70',
-                    active && 'font-semibold',
-                  )}
-                >
-                  <Check size={16} className={active ? 'text-text' : 'invisible'} />
-                  {Math.round(z * 100)} %
-                </button>
-              );
-            })}
-          </div>,
-          document.body,
-        )}
-    </>
+    <button
+      type="button"
+      onClick={() => bridge.set(target)}
+      aria-label={`${t('zoom')}: ${pct} % · ${t('resetZoom')}`}
+      title={`${t('resetZoom')} (${Math.round(target * 100)} %)`}
+      className={cn(glassButton, 'text-[11px] font-semibold tabular-nums tracking-tight')}
+    >
+      {pct}%
+    </button>
   );
 };

@@ -101,6 +101,11 @@ export const PieceDetailPage = () => {
   }, [canEdit, pieceId, score]);
 
   const player = usePracticePlayer(piece, tracks);
+  // Placing bars hides the player, so it must not keep playing unseen.
+  const { pause: pausePlayer } = player;
+  useEffect(() => {
+    if (wantsEditing) pausePlayer();
+  }, [wantsEditing, pausePlayer]);
   const { bars, currentBar, loop, playBar, setLoop, toggle, prevBar, nextBar } = player;
   const timeRef = useRef(player.time);
   timeRef.current = player.time;
@@ -304,7 +309,9 @@ export const PieceDetailPage = () => {
   const setUpUrl = `${base}/${piece.id}/setup`;
 
   const followToggle = score && hasAnchors ? { on: follow, onChange: setFollow } : undefined;
-  const hasPlayer = tracks.length > 0 && !editingAnchors;
+  // Placing bars: nothing over the score but the editor — no player, no
+  // buttons above it.
+  const hasPlayer = tracks.length > 0 && !wantsEditing;
   const placement = fullscreen ? (isDesktop ? 'dock' : 'sheet') : isDesktop ? 'floating' : 'sticky';
   const playerBar = hasPlayer ? (
     <PiecePlayerBar player={player} picking={picking} onPickingChange={setPicking} placement={placement} />
@@ -325,6 +332,12 @@ export const PieceDetailPage = () => {
   );
   const toolbar = (
     <div className="pointer-events-none sticky top-[3.5625rem] z-30 -mt-1 mb-3 flex items-center justify-between gap-3 py-1 md:top-3">
+      {/* Blurred band behind the buttons, reaching up to the screen edge
+          (md+) or the app header (phones) and fading towards the score. */}
+      <div
+        aria-hidden="true"
+        className="score-scrim score-scrim-top absolute -inset-x-4 -bottom-6 -top-1 -z-10 sm:-inset-x-6 md:-top-3 lg:-inset-x-8"
+      />
       <div className="pointer-events-auto">{hasPlayer && <PracticeButtons player={player} />}</div>
       <div className="pointer-events-auto flex items-center gap-2">
         {rightButtons}
@@ -438,15 +451,30 @@ export const PieceDetailPage = () => {
               : 'contents'
           }
         >
-          {!fullscreen && toolbar}
+          {!fullscreen && !wantsEditing && toolbar}
           <div className={fullscreen ? undefined : 'mb-6 flex-1'}>{scoreContent}</div>
         </div>
       </div>
       {fullscreen && (
+        <>
+          <div
+            aria-hidden="true"
+            className="score-scrim score-scrim-top fixed inset-x-0 top-0 z-[75] h-[calc(env(safe-area-inset-top)+5.5rem)]"
+          />
+          {playerBar && (
+            <div
+              aria-hidden="true"
+              className="score-scrim score-scrim-bottom fixed inset-x-0 bottom-0 z-[75]"
+              style={{ height: `calc(${playerHeight + (isDesktop ? 24 : 0) + 48}px + env(safe-area-inset-bottom))` }}
+            />
+          )}
+        </>
+      )}
+      {fullscreen && (
         <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex items-start justify-between gap-2 px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-5">
           <div className="pointer-events-auto">{hasPlayer && <PracticeButtons player={player} />}</div>
           <div className="pointer-events-auto flex items-center gap-2">
-            {rightButtons}
+            {!wantsEditing && rightButtons}
             <button
               type="button"
               onClick={exitFullscreen}
