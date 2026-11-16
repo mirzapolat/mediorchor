@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import { useRailTip, useSidebar } from './Sidebar';
 import { Avatar } from './Avatar';
 import { cn } from '@/lib/cn';
@@ -8,15 +8,17 @@ import { FadingText } from './FadingText';
 import { useAuth } from '@/hooks/useAuth';
 import { rememberReturn } from '@/lib/navReturn';
 import { NotificationBell } from './NotificationCenter';
+import { SidebarNavItem } from './SidebarNav';
 
-// Shared bottom section for every sidebar: an account card (avatar, name,
+// Shared bottom section for every sidebar: for admins the way to the admin
+// settings (a row like the pages above), then an account card (avatar, name,
 // email → account settings) with the notification bell and sign-out as icon
-// buttons; collapsed, the three stacked in the rail. Opening the account
-// remembers the page, so its back link returns there.
+// buttons; collapsed, the three stacked in the rail. Opening the account or
+// the admin settings remembers the page, so their back link returns there.
 export const SidebarFooter = () => {
   const { t } = useI18n();
   const { collapsed } = useSidebar();
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const name = user?.name || t('account');
@@ -47,6 +49,16 @@ export const SidebarFooter = () => {
     // Keyed by the state: the other arrangement fades in while the panel
     // narrows or widens.
     <div key={collapsed ? 'rail' : 'card'} className="flex-shrink-0 animate-[fadein_200ms_ease-out] p-3">
+      {isAdmin && (
+        <div className={collapsed ? 'mb-1' : 'mb-2'}>
+          <SidebarNavItem
+            to="/admin"
+            label={t('adminConfig')}
+            icon={ShieldCheck}
+            onClick={() => rememberReturn('admin', pathname + search)}
+          />
+        </div>
+      )}
       {collapsed ? (
         <div className="flex flex-col items-center gap-1 border-t border-border pt-3">
           <NavLink

@@ -10,6 +10,7 @@ import { applyBranding } from '@/lib/branding';
 import { ThemeProvider } from '@/lib/theme';
 import { initPwa } from '@/lib/pwa';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SavePrompt } from '@/components/SavePrompt';
 
 applyBranding();
 initPwa();
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
                 <App />
               </ErrorBoundary>
             </BrowserRouter>
+            <SavePrompt />
           </NotificationsProvider>
         </AuthProvider>
       </I18nProvider>

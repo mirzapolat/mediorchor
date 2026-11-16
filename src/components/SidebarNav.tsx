@@ -16,12 +16,13 @@ export interface NavItem {
   // participants don't need the hint.
   access?: 'participants';
   accessLabel?: string;
+  onClick?: () => void;
 }
 
 // One page of the area. The icon keeps its place when the sidebar collapses
 // (see RAIL); the label and counts fade, a dot on the icon stands in for the
 // count and the label shows next to the rail on hover.
-export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, badge = 0, access, accessLabel }: NavItem) => {
+export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, badge = 0, access, accessLabel, onClick }: NavItem) => {
   const { collapsed } = useSidebar();
   const hasWarning = warningCount > 0;
   const tip = useRailTip(hasWarning ? `${label} (${warningCount})` : badge > 0 ? `${label} (${badge})` : label);
@@ -29,6 +30,7 @@ export const SidebarNavItem = ({ to, label, icon: Icon, end, warningCount = 0, b
     <NavLink
       to={to}
       end={end}
+      onClick={onClick}
       {...tip}
       className={({ isActive }) =>
         cn(

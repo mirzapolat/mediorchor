@@ -32,6 +32,8 @@ import { EventWhen } from '@/components/EventWhen';
 import { SortableList } from '@/components/SortableList';
 import { LifecycleActions, LifecycleBadge, type LifecycleAction } from '@/components/Lifecycle';
 import { Toast, useToast } from '@/components/Toast';
+import { fetchFile, useFileTransfer } from '@/components/FileTransfer';
+import { savesViaShare } from '@/lib/saveFile';
 import { ConcertFields, concertPayload, type ConcertValues } from '@/components/ConcertForm';
 import { useProjectContext } from '@/layouts/projectContext';
 import { api } from '@/lib/api';
@@ -898,6 +900,8 @@ const RecordingRow = ({
   useEffect(() => setTitle(r.title), [r.title]);
   const name = r.title || r.file_name || r.url || '';
   const src = r.file_path ? concertFileUrl(r.file_path) : null;
+  // The installed iPhone app can't follow a download link (see saveFile).
+  const transfer = useFileTransfer();
   // Only web links become links (the server refuses others too).
   const href = r.url && /^https?:\/\//i.test(r.url) ? r.url : null;
 
@@ -988,10 +992,20 @@ const RecordingRow = ({
         <video controls preload="metadata" src={src} className="max-h-[60vh] w-full rounded-xl bg-scrim" />
       )}
       {src && !r.file_missing && !media && (
-        <a href={`${src}?download=${encodeURIComponent(r.file_name ?? '')}`} className="text-sm font-medium underline">
+        <a
+          href={`${src}?download=${encodeURIComponent(r.file_name ?? '')}`}
+          onClick={(e) => {
+            if (!savesViaShare()) return;
+            e.preventDefault();
+            const fileName = r.file_name || name;
+            void transfer.run({ name: fileName, load: async (signal, progress) => [await fetchFile(src, fileName, signal, progress)] }, 'download');
+          }}
+          className="text-sm font-medium underline"
+        >
           {t('download')}
         </a>
       )}
+      {transfer.dialog}
     </div>
   );
 };

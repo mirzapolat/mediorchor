@@ -8,6 +8,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -56,7 +57,9 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { sizeBucket, track } from '@/lib/analytics';
-import { shareFile, sharesDownloads } from '@/lib/pwa';
+import { canShareFiles, shareFiles, sharesFiles } from '@/lib/pwa';
+import { safeFileName } from '@/lib/zip';
+import { fetchFile, useFileTransfer, type TransferJob } from '@/components/FileTransfer';
 import { localeOf } from '@shared/languages';
 import {
   arrangePieceFiles,
@@ -405,10 +408,10 @@ const ViewMenu = ({
 };
 
 // A piece's "Dateien" as a file browser: folders opened with breadcrumbs, in
-// a grid or a list with columns. A click selects (Ctrl/⌘ and Shift add to
-// it), a double click — or a tap on touch screens — opens; right click shows
-// the actions. Everyone downloads what is public (a file, a folder or a
-// selection as one ZIP); the piece's editors upload (also whole folders,
+// a grid or a list with columns. A click (a tap) opens — on phones a file
+// goes to the share sheet; Ctrl/⌘ and Shift (a long press on touch screens)
+// select; right click and "⋯" show the actions. Everyone downloads or shares
+// what is public (a file, a folder or a selection as one ZIP); the piece's editors upload (also whole folders,
 // dropped anywhere), make folders and links, rename, replace a file by a new
 // version, switch items public or private, move them (dragging onto a folder
 // or a breadcrumb, or "Move to …") and delete them into the trash. Moves,
@@ -439,7 +442,7 @@ export const PieceFilesPage = () => {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [previewBusy, setPreviewBusy] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ id: number; text: string; undo?: () => Promise<void>; share?: File } | null>(null);
+  const [toast, setToast] = useState<{ id: number; text: string; undo?: () => Promise<void> } | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
   const [trash, setTrash] = useState<PieceFileTrashEntry[] | null>(null);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
@@ -480,10 +483,10 @@ export const PieceFilesPage = () => {
 
   // Something done, for a few seconds, with "Undo" when it can be.
   const toastTimer = useRef<number>();
-  const showToast = (text: string, undo?: () => Promise<void>, share?: File) => {
+  const showToast = (text: string, undo?: () => Promise<void>) => {
     window.clearTimeout(toastTimer.current);
     const id = Date.now();
-    setToast({ id, text, undo, share });
+    setToast({ id, text, undo });
     toastTimer.current = window.setTimeout(() => setToast((x) => (x?.id === id ? null : x)), 8000);
   };
 
@@ -876,12 +879,128 @@ export const PieceFilesPage = () => {
     track('files-purge', { count: sizeBucket(entries.length) });
   };
 
-  // --- opening and downloading --------------------------------------------------------
+  // --- opening, downloading and sharing ----------------------------------------------
 
-  // A file opens in the browser where it can (PDF, pictures, audio) and
-  // downloads otherwise; a link opens its page; a folder opens. In the
-  // installed iPhone app every file goes to the share sheet (see
-  // shareDownload): shown in the app window it has no way to share or save.
+  // On phones and tablets files go to the share sheet; on a desktop they
+  // are downloaded. What has to be loaded first (a file to share, a ZIP the
+  // server packs) shows the transfer popup.
+  const transfer = useFileTransfer();
+  const mobile = sharesFiles();
+
+  // The files (not links) in some items, folders walked through.
+  const filesOf = (targets: Item[]): PieceFile[] =>
+    targets.flatMap((i) =>
+      i.kind === 'folder' ? filesOf(itemsIn(i.folder.id)) : !isLink(i) && i.file.file_path ? [i.file] : [],
+    );
+  const downloadNameOf = (f: PieceFile) => pieceDownloadName(piece, f.title.trim(), f.file_name ?? f.file_path ?? '');
+
+  // A ZIP made by the server: of the open folder ('here') or of items.
+  const zipJob = (targets: Item[] | 'here'): TransferJob | null => {
+    const real = targets === 'here' ? null : targets.filter((i) => !isLink(i));
+    if (real && real.length === 0) return null;
+    const only = real?.[0];
+    const name = !real
+      ? [piece.name, ...trail.map((d) => d.name)].join(' – ')
+      : real.length === 1 && only
+        ? `${piece.name} – ${itemName(only)}`
+        : piece.name;
+    const url = !real
+      ? pieceZipUrl(piece.id, { folder: current }, name)
+      : real.length === 1 && only?.kind === 'folder'
+        ? pieceZipUrl(piece.id, { folder: only.folder.id }, name)
+        : pieceZipUrl(
+            piece.id,
+            {
+              folders: real.flatMap((i) => (i.kind === 'folder' ? [i.folder.id] : [])),
+              files: real.flatMap((i) => (i.kind === 'file' ? [i.file.id] : [])),
+            },
+            name,
+          );
+    return { name, zip: true, load: async (signal, progress) => [await fetchFile(url, `${safeFileName(name)}.zip`, signal, progress)] };
+  };
+
+  // One file as it is; folders or several as one ZIP.
+  const jobFor = (targets: Item[] | 'here'): TransferJob | null => {
+    const real = targets === 'here' ? null : targets.filter((i) => !isLink(i));
+    const only = real?.length === 1 && real[0].kind === 'file' ? real[0].file : null;
+    if (!only) return zipJob(targets);
+    const path = only.file_path;
+    if (!path) return null;
+    const name = downloadNameOf(only);
+    return { name, load: async (signal, progress) => [await fetchFile(pieceFileUrl(path), name, signal, progress)] };
+  };
+
+  // Sharing several: one ZIP where the system shares ZIPs (iPhone, iPad),
+  // else the files themselves (Android takes PDFs, audio, pictures, but no
+  // ZIPs).
+  const shareJob = (targets: Item[] | 'here'): TransferJob | null => {
+    const job = jobFor(targets);
+    if (!job?.zip || canShareFiles([new File([], 'a.zip', { type: 'application/zip' })])) return job;
+    const list = filesOf(targets === 'here' ? itemsIn(current) : targets);
+    if (list.length === 0) return null;
+    const used = new Set<string>();
+    const names = list.map((f) => {
+      const base = downloadNameOf(f);
+      let unique = base;
+      for (let n = 2; used.has(unique.toLowerCase()); n++) unique = base.replace(/(\.[^.]+)?$/, ` (${n})$1`);
+      used.add(unique.toLowerCase());
+      return unique;
+    });
+    const total = list.reduce((sum, f) => sum + (f.size ?? 0), 0) || null;
+    return {
+      name: job.name,
+      load: async (signal, progress) => {
+        const out: File[] = [];
+        let done = 0;
+        for (const [i, f] of list.entries()) {
+          const file = await fetchFile(pieceFileUrl(f.file_path as string), names[i], signal, (loaded) => progress(done + loaded, total));
+          done += file.size;
+          out.push(file);
+        }
+        return out;
+      },
+    };
+  };
+
+  // Download: on a desktop a single file goes straight to the browser; the
+  // rest (and everything on phones, where a file link would open inside the
+  // installed app) is loaded first and then saved.
+  const download = (targets: Item[] | 'here') => {
+    const real = targets === 'here' ? null : targets.filter((i) => !isLink(i));
+    const only = real?.length === 1 && real[0].kind === 'file' ? real[0].file : null;
+    if (only && !mobile) {
+      if (only.file_path) clickLink(pieceFileDownloadUrl(only.file_path, downloadNameOf(only)));
+    } else {
+      const job = jobFor(targets);
+      if (!job) return;
+      void transfer.run(job, 'download');
+    }
+    if (only) track('file-download', { kind: only.kind });
+    else track('files-zip', { count: sizeBucket(real?.length ?? 1), folders: !real || real.some((i) => i.kind === 'folder') });
+  };
+
+  // Share: a link as its address, files through the share sheet.
+  const share = (targets: Item[] | 'here') => {
+    const one = targets !== 'here' && targets.length === 1 ? targets[0] : null;
+    if (one?.kind === 'file' && one.file.kind === 'link') {
+      if (one.file.url) void shareFiles({ url: one.file.url, title: fileName(one.file) });
+      track('file-share', { kind: 'link' });
+      return;
+    }
+    const job = shareJob(targets);
+    if (!job) return;
+    void transfer.run(job, 'share');
+    if (one?.kind === 'file') track('file-share', { kind: one.file.kind });
+    else
+      track('files-share', {
+        count: sizeBucket(targets === 'here' ? 1 : targets.length),
+        folders: targets === 'here' || targets.some((i) => i.kind === 'folder'),
+      });
+  };
+
+  // A folder opens; a link opens its page; a file goes to the share sheet
+  // on phones, and on a desktop opens in the browser where it can (PDF,
+  // pictures, audio) and downloads otherwise.
   const openItem = (item: Item) => {
     if (item.kind === 'folder') return open(item.folder.id);
     const f = item.file;
@@ -891,53 +1010,11 @@ export const PieceFilesPage = () => {
       return;
     }
     if (!f.file_path) return;
-    if (INLINE.test(f.file_name ?? '') && !sharesDownloads()) {
+    if (mobile) return share([item]);
+    if (INLINE.test(f.file_name ?? '')) {
       clickLink(pieceFileUrl(f.file_path), true);
       track('file-open', { type: fileExt(f).slice(1).toLowerCase() || f.kind });
-    } else downloadItems([item]);
-  };
-
-  // One file downloads as it is; several, or folders, as one ZIP made by the
-  // server.
-  const downloadItems = (targets: Item[]) => {
-    const real = targets.filter((i) => !isLink(i));
-    if (real.length === 0) return;
-    const only = real[0];
-    if (real.length === 1 && only.kind === 'file') {
-      if (!only.file.file_path) return;
-      const name = pieceDownloadName(piece, only.file.title.trim(), only.file.file_name ?? only.file.file_path);
-      if (sharesDownloads()) void shareDownload(only.file.file_path, name, only.file.kind);
-      else clickLink(pieceFileDownloadUrl(only.file.file_path, name));
-      track('file-download', { kind: only.file.kind });
-      return;
-    }
-    const name = real.length === 1 ? `${piece.name} – ${itemName(only)}` : piece.name;
-    clickLink(
-      real.length === 1 && only.kind === 'folder'
-        ? pieceZipUrl(piece.id, { folder: only.folder.id }, name)
-        : pieceZipUrl(
-            piece.id,
-            {
-              folders: real.flatMap((i) => (i.kind === 'folder' ? [i.folder.id] : [])),
-              files: real.flatMap((i) => (i.kind === 'file' ? [i.file.id] : [])),
-            },
-            name,
-          ),
-    );
-    track('files-zip', { count: sizeBucket(real.length), folders: real.some((i) => i.kind === 'folder') });
-  };
-
-  // The installed iPhone app: the file goes to the share sheet instead. When
-  // loading it took longer than Safari keeps the tap, the toast asks for one.
-  const shareDownload = async (path: string, name: string, kind: string) => {
-    const response = await fetch(pieceFileUrl(path)).catch(() => null);
-    if (!response?.ok) return failed(response ? `HTTP ${response.status}` : 'Network error');
-    const blob = await response.blob();
-    const file = new File([blob], name, { type: blob.type });
-    const result = await shareFile(file);
-    if (result === 'retry') showToast(t('readyToShare'), undefined, file);
-    else if (result === 'unsupported') clickLink(pieceFileDownloadUrl(path, name));
-    if (result !== 'unsupported') track('file-share', { kind });
+    } else download([item]);
   };
 
   // Something to download in a folder (any file, in it or its folders).
@@ -949,15 +1026,24 @@ export const PieceFilesPage = () => {
   const toggle = (item: Item) =>
     setSelected((list) => (list.includes(keyOf(item)) ? list.filter((k) => k !== keyOf(item)) : [...list, keyOf(item)]));
 
+  // A click (a tap) opens; Ctrl/⌘ and Shift select on a desktop. On touch
+  // screens a long press selects, and while something is selected a tap
+  // adds to it or takes away.
+  const longPressed = useRef(false);
+  const pressTimer = useRef<number>();
+  const pressAt = useRef<{ x: number; y: number } | null>(null);
+  const endPress = () => {
+    window.clearTimeout(pressTimer.current);
+    pressAt.current = null;
+  };
+
   const onItemClick = (item: Item, e: MouseEvent) => {
     if (renaming === keyOf(item)) return;
-    const key = keyOf(item);
-    // Touch: a tap opens, unless something is being selected.
-    if (touch && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-      if (selected.length) toggle(item);
-      else openItem(item);
+    if (longPressed.current) {
+      longPressed.current = false;
       return;
     }
+    const key = keyOf(item);
     if (e.shiftKey && anchor.current) {
       const keys = items.map(keyOf);
       const [from, to] = [keys.indexOf(anchor.current), keys.indexOf(key)].sort((a, b) => a - b);
@@ -966,13 +1052,40 @@ export const PieceFilesPage = () => {
         return;
       }
     }
-    anchor.current = key;
-    if (e.metaKey || e.ctrlKey) toggle(item);
-    else setSelected([key]);
+    if (e.metaKey || e.ctrlKey || (touch && selected.length)) {
+      anchor.current = key;
+      toggle(item);
+      return;
+    }
+    openItem(item);
   };
+
+  const pressProps = (item: Item) => ({
+    onPointerDown: (e: ReactPointerEvent) => {
+      longPressed.current = false;
+      if (e.pointerType !== 'touch' || renaming === keyOf(item)) return;
+      pressAt.current = { x: e.clientX, y: e.clientY };
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = window.setTimeout(() => {
+        longPressed.current = true;
+        pressAt.current = null;
+        anchor.current = keyOf(item);
+        if (!selected.includes(keyOf(item))) toggle(item);
+        navigator.vibrate?.(10);
+      }, 450);
+    },
+    onPointerMove: (e: ReactPointerEvent) => {
+      const at = pressAt.current;
+      if (at && Math.hypot(e.clientX - at.x, e.clientY - at.y) > 10) endPress();
+    },
+    onPointerUp: endPress,
+    onPointerCancel: endPress,
+  });
 
   const onItemContextMenu = (item: Item, e: MouseEvent) => {
     e.preventDefault();
+    // Touch: a long press selects (see pressProps), no menu.
+    if (touch) return;
     const targets = selected.includes(keyOf(item)) ? selectedItems : [item];
     if (!selected.includes(keyOf(item))) setSelected([keyOf(item)]);
     setMenuAt({ x: e.clientX, y: e.clientY, items: targets });
@@ -1016,8 +1129,10 @@ export const PieceFilesPage = () => {
           : { icon: one.kind === 'folder' ? Folder : ExternalLink, label: t('openItem'), onSelect: () => openItem(one) },
       );
     }
-    if (targets.some((i) => !isLink(i))) {
-      out.push({ icon: Download, label: t('downloadFile'), onSelect: () => downloadItems(targets) });
+    const hasFiles = targets.some((i) => !isLink(i));
+    if (hasFiles) out.push({ icon: Download, label: t('downloadFile'), onSelect: () => download(targets) });
+    if (mobile && (hasFiles || (one && isLink(one)))) {
+      out.push({ icon: Share, label: t('shareFile'), onSelect: () => share(targets) });
     }
     if (!canEdit) return out;
     if (one?.kind === 'file' && one.file.kind === 'link') {
@@ -1270,7 +1385,7 @@ export const PieceFilesPage = () => {
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          downloadItems([{ kind: 'folder', folder }]);
+          download([{ kind: 'folder', folder }]);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
         aria-label={`${t('downloadZip')}: ${folder.name}`}
@@ -1303,15 +1418,15 @@ export const PieceFilesPage = () => {
     return [fileExt(item.file).slice(1).toUpperCase(), formatSize(item.file.size, locale)].filter(Boolean).join(' · ');
   };
 
-  // The element an item is: selectable, opens on double click, drags.
+  // The element an item is: opens on a click, selectable, drags.
   const itemProps = (item: Item, key: string, horizontal: boolean) => ({
     role: 'option' as const,
     'aria-selected': selected.includes(keyOf(item)),
     tabIndex: 0,
     onClick: (e: MouseEvent) => onItemClick(item, e),
-    onDoubleClick: () => !touch && renaming !== keyOf(item) && openItem(item),
     onContextMenu: (e: MouseEvent) => onItemContextMenu(item, e),
     onKeyDown: (e: KeyboardEvent) => onItemKey(item, e),
+    ...pressProps(item),
     ...dragProps(item),
     ...targetProps(key, item, horizontal),
   });
@@ -1329,7 +1444,7 @@ export const PieceFilesPage = () => {
         <div
           {...itemProps(item, key, true)}
           className={cn(
-            'group flex h-14 cursor-default select-none items-center gap-3 rounded-xl border px-3 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-black',
+            'group flex h-14 cursor-pointer select-none [-webkit-touch-callout:none] items-center gap-3 rounded-xl border px-3 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-black',
             isSelected ? 'border-accent bg-accent/10' : 'border-border bg-surface-subtle hover:bg-surface-hover',
             intoHere(key) && 'border-accent bg-accent/15',
           )}
@@ -1372,7 +1487,7 @@ export const PieceFilesPage = () => {
         <div
           {...itemProps(item, key, true)}
           className={cn(
-            'group flex cursor-default select-none flex-col overflow-hidden rounded-xl border bg-surface transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-black',
+            'group flex cursor-pointer select-none flex-col [-webkit-touch-callout:none] overflow-hidden rounded-xl border bg-surface transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-black',
             isSelected ? 'border-accent ring-1 ring-accent' : 'border-border hover:border-border-strong',
           )}
         >
@@ -1494,7 +1609,7 @@ export const PieceFilesPage = () => {
         <div
           {...itemProps(item, key, false)}
           className={cn(
-            'group flex min-h-[3.25rem] cursor-default select-none items-center gap-3 border-b border-border px-3 transition-colors duration-150 focus:outline-none focus-visible:bg-surface-hover',
+            'group flex min-h-[3.25rem] cursor-pointer select-none [-webkit-touch-callout:none] items-center gap-3 border-b border-border px-3 transition-colors duration-150 focus:outline-none focus-visible:bg-surface-hover',
             isSelected ? 'bg-accent/10' : 'hover:bg-surface-subtle',
             intoHere(key) && 'bg-accent/15',
           )}
@@ -1666,9 +1781,15 @@ export const PieceFilesPage = () => {
             </button>
             <span className="mr-2 text-sm font-medium">{t('selectedCount').replace('{n}', String(selectedItems.length))}</span>
             {selectedItems.some((i) => !isLink(i)) && (
-              <button type="button" onClick={() => downloadItems(selectedItems)} title={t('downloadZip')} className="flex h-8 items-center gap-1.5 rounded-full px-3 text-sm hover:bg-surface-hover">
+              <button type="button" onClick={() => download(selectedItems)} title={t('downloadZip')} className="flex h-8 items-center gap-1.5 rounded-full px-3 text-sm hover:bg-surface-hover">
                 <Download size={15} />
                 <span className="hidden sm:inline">{t('downloadZip')}</span>
+              </button>
+            )}
+            {mobile && selectedItems.some((i) => !isLink(i)) && (
+              <button type="button" onClick={() => share(selectedItems)} title={t('shareFile')} className="flex h-8 items-center gap-1.5 rounded-full px-3 text-sm hover:bg-surface-hover">
+                <Share size={15} />
+                <span className="hidden sm:inline">{t('shareFile')}</span>
               </button>
             )}
             {canEdit && (
@@ -1717,18 +1838,13 @@ export const PieceFilesPage = () => {
               onTrash={canEdit ? () => void openTrash() : undefined}
             />
             {hasAnyDownload && !searching && (
-              <Button
-                variant="secondary"
-                className="h-9"
-                onClick={() =>
-                  clickLink(pieceZipUrl(piece.id, { folder: current }, [piece.name, ...trail.map((d) => d.name)].join(' – ')))
-                }
-                aria-label={t('downloadZip')}
-                title={t('downloadZip')}
-              >
-                <Download size={15} />
-                <span className="hidden lg:inline">{t('downloadZip')}</span>
-              </Button>
+              <OverflowMenu
+                label={t('moreActions')}
+                items={[
+                  { icon: Download, label: t('downloadZip'), onSelect: () => download('here') },
+                  ...(mobile ? [{ icon: Share, label: t('shareFile'), onSelect: () => share('here') }] : []),
+                ]}
+              />
             )}
             {canEdit && (
               <>
@@ -1846,6 +1962,8 @@ export const PieceFilesPage = () => {
         )}
       </div>
 
+      {transfer.dialog}
+
       {menuAt && <PointMenu at={menuAt} items={actionsFor(menuAt.items)} onClose={() => setMenuAt(null)} />}
 
       {/* Done, with Undo. */}
@@ -1855,20 +1973,6 @@ export const PieceFilesPage = () => {
           className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl bg-black py-2.5 pl-4 pr-2 text-sm text-white shadow-lg"
         >
           <span className="min-w-0 truncate">{toast.text}</span>
-          {toast.share && (
-            <button
-              type="button"
-              onClick={() => {
-                const file = toast.share;
-                setToast(null);
-                if (file) void shareFile(file);
-              }}
-              className="flex h-8 items-center gap-1.5 rounded-lg px-3 font-semibold text-accent hover:bg-white/10"
-            >
-              <Share size={14} />
-              {t('shareFile')}
-            </button>
-          )}
           {toast.undo && (
             <button
               type="button"

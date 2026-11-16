@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n';
 import { track } from '@/lib/analytics';
 import { pieceFileUrl, type PieceOverviewFile } from '@/lib/pieceFiles';
 import { createZip, safeFileName } from '@/lib/zip';
+import { saveFile } from '@/lib/saveFile';
 import type { Piece } from '@/types';
 
 const isPdf = (f: PieceOverviewFile) =>
@@ -67,14 +68,8 @@ const useZipDownload = (zipName: string, trackEvent: string) => {
       }
       setMissing(skipped);
       if (zipFiles.length === 0) throw new Error('nothing');
-      const url = URL.createObjectURL(createZip(zipFiles));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${safeFileName(zipName)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      // In the installed iPhone app: the share sheet (see saveFile).
+      void saveFile(new File([createZip(zipFiles)], `${safeFileName(zipName)}.zip`, { type: 'application/zip' }));
       track(trackEvent);
     } catch {
       setError(true);

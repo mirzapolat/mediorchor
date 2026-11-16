@@ -117,18 +117,28 @@ export const isIos = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1);
 
-// The installed app on iPhone/iPad has no browser toolbar: a downloaded file
-// opens inside the app window with no way to share or save it. There the
-// share sheet ("Save to Files", AirDrop, Mail, …) takes the download's place.
-export const sharesDownloads = () => isInstalled() && isIos() && typeof navigator.canShare === 'function';
+// On phones and tablets (browser or installed app) files go to the share
+// sheet ("Save to Files", AirDrop, WhatsApp, …) when opened or shared; on a
+// desktop they are downloaded.
+export const sharesFiles = () => appMode() !== 'desktop-browser' && typeof navigator.canShare === 'function';
 
-// Shows the share sheet for one file. 'retry' when the tap that asked for it
-// expired while the file loaded (Safari then wants a new tap); 'unsupported'
-// when the system cannot share this file.
-export const shareFile = async (file: File): Promise<'done' | 'retry' | 'unsupported'> => {
-  if (!navigator.canShare?.({ files: [file] })) return 'unsupported';
+// Whether the system can share these files (Android, for one, refuses many
+// types — ZIPs, MuseScore files …).
+export const canShareFiles = (files: File[]) => {
   try {
-    await navigator.share({ files: [file] });
+    return files.length > 0 && navigator.canShare?.({ files }) === true;
+  } catch {
+    return false;
+  }
+};
+
+// Shows the share sheet for files (or a link). 'retry' when the tap that
+// asked for it expired while the files loaded (the browser then wants a new
+// tap); 'unsupported' when the system cannot share them.
+export const shareFiles = async (data: { files: File[] } | { url: string; title?: string }): Promise<'done' | 'retry' | 'unsupported'> => {
+  if ('files' in data ? !canShareFiles(data.files) : typeof navigator.share !== 'function') return 'unsupported';
+  try {
+    await navigator.share(data);
   } catch (error) {
     if (error instanceof DOMException && error.name === 'NotAllowedError') return 'retry';
     // AbortError: closed without choosing — done all the same.

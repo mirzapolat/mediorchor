@@ -27,6 +27,8 @@ import { cn } from '@/lib/cn';
 import { useI18n } from '@/lib/i18n';
 import { localeOf } from '@shared/languages';
 import { downloadBlob, filenamePart, toCsv } from '@/lib/absenceExports';
+import { fetchFile, useFileTransfer } from '@/components/FileTransfer';
+import { savesViaShare } from '@/lib/saveFile';
 import { formatBytes } from '@/lib/concerts';
 import { formDate, type FormDetail, type FormResponse, type FormResults, type FormSummaryItem } from '@/lib/forms';
 import { DISPLAY_TYPES, answerText, instantRunoff, type ItemType, type SnapshotItem } from '@shared/forms';
@@ -53,6 +55,8 @@ const FREE_TEXT: ItemType[] = ['short', 'long'];
 // exports. Names appear only where the form is named.
 export const SurveyResults = ({ detail, onChanged }: { detail: FormDetail; onChanged: () => Promise<void> }) => {
   const { t, lang } = useI18n();
+  // The installed iPhone app can't follow download links (see saveFile).
+  const transfer = useFileTransfer();
   const locale = localeOf(lang);
   const [results, setResults] = useState<FormResults | null>(null);
   const [view, setView] = useState<View>('summary');
@@ -152,7 +156,10 @@ export const SurveyResults = ({ detail, onChanged }: { detail: FormDetail; onCha
 
   const zip = () => {
     const ids = shown.filter((r) => filesOf(r).length > 0).map((r) => r.id);
-    window.location.href = `/api/forms/zip/${detail.form.id}?responses=${ids.join(',')}`;
+    const url = `/api/forms/zip/${detail.form.id}?responses=${ids.join(',')}`;
+    if (!savesViaShare()) return void (window.location.href = url);
+    const name = `${filenamePart(detail.form.title)}.zip`;
+    void transfer.run({ name, zip: true, load: async (signal, progress) => [await fetchFile(url, name, signal, progress)] }, 'download');
   };
 
   const remove = async () => {
@@ -184,6 +191,7 @@ export const SurveyResults = ({ detail, onChanged }: { detail: FormDetail; onCha
 
   return (
     <div className="space-y-4">
+      {transfer.dialog}
       <Participation results={results} />
 
       {results.responses.length === 0 ? (
@@ -647,15 +655,28 @@ const ReviewToggle = ({ on, onClick }: { on: boolean; onClick: () => void }) => 
 };
 
 // A response's file, opened through the guarded route (managers only).
-const FileLink = ({ id, name, size, locale }: { id: string; name: string; size: number; locale: string }) => (
-  <a
-    href={`/api/forms/file/${id}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="mt-1 flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm hover:bg-surface-subtle"
-  >
-    <Paperclip size={13} className="flex-shrink-0 text-text-tertiary" />
-    <span className="min-w-0 flex-1 truncate">{name}</span>
-    <span className="text-xs tabular-nums text-text-tertiary">{formatBytes(size, locale)}</span>
-  </a>
-);
+const FileLink = ({ id, name, size, locale }: { id: string; name: string; size: number; locale: string }) => {
+  // The installed iPhone app: to the share sheet instead (see saveFile).
+  const transfer = useFileTransfer();
+  return (
+    <>
+      <a
+        href={`/api/forms/file/${id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          if (!savesViaShare()) return;
+          e.preventDefault();
+          const url = `/api/forms/file/${id}`;
+          void transfer.run({ name, load: async (signal, progress) => [await fetchFile(url, name, signal, progress)] }, 'share');
+        }}
+        className="mt-1 flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm hover:bg-surface-subtle"
+      >
+        <Paperclip size={13} className="flex-shrink-0 text-text-tertiary" />
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className="text-xs tabular-nums text-text-tertiary">{formatBytes(size, locale)}</span>
+      </a>
+      {transfer.dialog}
+    </>
+  );
+};

@@ -1,3 +1,5 @@
+import { saveBlob } from './saveFile';
+
 export interface AbsenceExportRow {
   name: string;
   group: string;
@@ -113,11 +115,5 @@ export const filenamePart = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '') || 'projekt';
 
-export const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-};
+// Saves an export (the share sheet in the installed iPhone app, see saveFile).
+export const downloadBlob = (blob: Blob, filename: string) => void saveBlob(blob, filename);
