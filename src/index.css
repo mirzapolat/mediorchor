@@ -419,27 +419,23 @@ html.standalone body {
   }
   /* Score views: a soft blurred, dimmed band behind the floating controls
      (top buttons, bottom player) so they don't sit directly on the notes.
-     No hard edge: the dim eases out, and the blur is progressive — a light
-     blur over the whole band, a stronger one only near the screen edge,
-     each faded out with a mask. Direction via --scrim-dir. */
+     No hard edge anywhere: the blur is progressive (a light one with the dim
+     over the whole band, a stronger one only near the screen edge), each
+     faded out by a mask — towards the score (--scrim-dir) and, where the
+     band ends inside the page (next to the desktop sidebar), towards the
+     sides over --scrim-fade-x. The masks sit on the pseudo-elements, not
+     the band itself: a mask there would cut the backdrop off the blur. */
   .score-scrim {
     --scrim-dir: to bottom;
-    --scrim-a: 0.16;
+    --scrim-a: 0.2;
+    --scrim-fade-x: 0px;
     pointer-events: none;
-    background: linear-gradient(
-      var(--scrim-dir),
-      rgb(var(--c-scrim) / var(--scrim-a)) 0%,
-      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.8)) 25%,
-      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.5)) 50%,
-      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.2)) 75%,
-      transparent 100%
-    );
   }
   .score-scrim-bottom {
     --scrim-dir: to top;
   }
   :root[data-theme='dark'] .score-scrim {
-    --scrim-a: 0.4;
+    --scrim-a: 0.5;
   }
   .score-scrim::before,
   .score-scrim::after {
@@ -448,18 +444,29 @@ html.standalone body {
     inset: 0;
     /* Own compositing layer (see .liquid-glass). */
     transform: translateZ(0);
+    -webkit-mask-image: var(--scrim-mask-y),
+      linear-gradient(to right, transparent, black var(--scrim-fade-x), black calc(100% - var(--scrim-fade-x)), transparent);
+    mask-image: var(--scrim-mask-y),
+      linear-gradient(to right, transparent, black var(--scrim-fade-x), black calc(100% - var(--scrim-fade-x)), transparent);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
   }
   .score-scrim::before {
+    --scrim-mask-y: linear-gradient(var(--scrim-dir), black 0%, black 35%, transparent 100%);
+    background: linear-gradient(
+      var(--scrim-dir),
+      rgb(var(--c-scrim) / var(--scrim-a)) 0%,
+      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.75)) 30%,
+      rgb(var(--c-scrim) / calc(var(--scrim-a) * 0.4)) 60%,
+      transparent 100%
+    );
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
-    -webkit-mask-image: linear-gradient(var(--scrim-dir), black 0%, black 35%, transparent 100%);
-    mask-image: linear-gradient(var(--scrim-dir), black 0%, black 35%, transparent 100%);
   }
   .score-scrim::after {
+    --scrim-mask-y: linear-gradient(var(--scrim-dir), black 0%, black 25%, transparent 65%);
     -webkit-backdrop-filter: blur(7px);
     backdrop-filter: blur(7px);
-    -webkit-mask-image: linear-gradient(var(--scrim-dir), black 0%, black 25%, transparent 65%);
-    mask-image: linear-gradient(var(--scrim-dir), black 0%, black 25%, transparent 65%);
   }
   /* A glass toggle that is on: tinted with the accent, not filled. */
   .liquid-glass-on {

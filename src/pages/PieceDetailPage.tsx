@@ -336,7 +336,7 @@ export const PieceDetailPage = () => {
           (md+) or the app header (phones) and fading towards the score. */}
       <div
         aria-hidden="true"
-        className="score-scrim score-scrim-top absolute -inset-x-4 -bottom-6 -top-1 -z-10 sm:-inset-x-6 md:-top-3 lg:-inset-x-8"
+        className="score-scrim score-scrim-top absolute -inset-x-4 -bottom-6 -top-1 -z-10 sm:-inset-x-6 md:-top-3 md:[--scrim-fade-x:3rem] lg:-inset-x-8"
       />
       <div className="pointer-events-auto">{hasPlayer && <PracticeButtons player={player} />}</div>
       <div className="pointer-events-auto flex items-center gap-2">

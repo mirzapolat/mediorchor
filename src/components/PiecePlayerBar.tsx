@@ -279,7 +279,7 @@ export const PiecePlayerBar = ({
         className={cn(
           'score-scrim score-scrim-bottom absolute -top-12',
           placement === 'floating'
-            ? '-inset-x-4 -bottom-[calc(1.5rem+env(safe-area-inset-bottom))]'
+            ? '-inset-x-4 -bottom-[calc(1.5rem+env(safe-area-inset-bottom))] [--scrim-fade-x:3rem]'
             : 'inset-x-0 bottom-0',
         )}
       />
