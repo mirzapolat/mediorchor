@@ -11,6 +11,8 @@ export const PLAYBACK_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25];
 const METRONOME_KEY = 'mediorchor.metronome';
 const mixKey = (pieceId: string) => `mediorchor.mix.${pieceId}`;
 const DEFAULT_VOLUME = 0.8;
+// The metronome's level among the mixer settings.
+const METRONOME_CHANNEL = '__metronome';
 
 // A loop section in played-bar indices (inclusive).
 export interface LoopRange {
@@ -114,9 +116,21 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   // Which recording each voice plays. With the metronome on, one heard
   // voice that has a click version plays that (the loudest one), so the
   // click is there once, whatever is switched on.
-  const recordings = useMemo(() => tracks.map((t) => ({ track: t, ...voiceRecordings(t) })), [tracks]);
+  // Mixer mode: one recording per voice, the metronome a track of its own.
+  const mixerMode = piece?.track_mode === 'mixer';
+  const voiceTracks = useMemo(() => tracks.filter((t) => t.kind !== 'click'), [tracks]);
+  const clickTrack = mixerMode ? (tracks.find((t) => t.kind === 'click' && t.recordings.file_id) ?? null) : null;
+  const recordings = useMemo(
+    () =>
+      voiceTracks.map((t) => {
+        const r = voiceRecordings(t);
+        // Mixer mode has no click versions: never swap one in.
+        return mixerMode ? { track: t, ...r, click: null } : { track: t, ...r };
+      }),
+    [voiceTracks, mixerMode],
+  );
   const carrier = useMemo(() => {
-    if (!metronomeOn) return null;
+    if (!metronomeOn || mixerMode) return null;
     let best: { id: string; volume: number } | null = null;
     for (const r of recordings) {
       const c = channelOf(r.track.id);
@@ -124,22 +138,42 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
       if (!best || c.volume > best.volume) best = { id: r.track.id, volume: c.volume };
     }
     return best?.id ?? null;
-  }, [metronomeOn, recordings, channelOf]);
-  const metronomeAvailable = recordings.some((r) => r.click && !r.plainHasClick);
+  }, [metronomeOn, mixerMode, recordings, channelOf]);
+  const metronomeAvailable = clickTrack != null || recordings.some((r) => r.click && !r.plainHasClick);
 
-  const engineVoices = useMemo(
-    () =>
-      recordings.map((r) => {
-        const path = r.track.id === carrier ? r.click : r.plain;
-        return {
-          id: r.track.id,
-          url: path ? pieceFileUrl(path) : null,
-          leadIn: r.track.offset_s ?? 0,
-          gain: gainOf(channelOf(r.track.id)),
-        };
-      }),
-    [recordings, carrier, channelOf],
-  );
+  // The metronome's level (0…1), in both modes. Mixer mode: the metronome
+  // track's volume. Variants: a voice's recordings with and without click
+  // are the same but for the click, so playing both in sync and fading
+  // between them keeps the voice as loud and sets only the click (all the
+  // way up: the recording with click, as before).
+  const metronomeLevel = channels[METRONOME_CHANNEL]?.volume ?? (mixerMode ? DEFAULT_VOLUME : 1);
+  const clickShare = metronomeLevel * metronomeLevel;
+  const carrierClick = useMemo(() => {
+    const r = recordings.find((x) => x.track.id === carrier);
+    return r?.click ? pieceFileUrl(r.click) : null;
+  }, [recordings, carrier]);
+  const engineVoices = useMemo(() => {
+    const voices = recordings.flatMap((r) => {
+      const base = { leadIn: r.track.offset_s ?? 0 };
+      const gain = gainOf(channelOf(r.track.id));
+      const plain = { ...base, id: r.track.id, url: r.plain ? pieceFileUrl(r.plain) : null, gain };
+      if (r.track.id !== carrier || !r.click) return [plain];
+      return [
+        { ...plain, gain: gain * (1 - clickShare) },
+        { ...base, id: `${r.track.id}:click`, url: pieceFileUrl(r.click), gain: gain * clickShare },
+      ];
+    });
+    // The metronome track: on with the metronome switch, at its own level.
+    if (clickTrack?.recordings.file_id) {
+      voices.push({
+        id: clickTrack.id,
+        url: pieceFileUrl(clickTrack.recordings.file_id),
+        leadIn: clickTrack.offset_s ?? 0,
+        gain: metronomeOn ? clickShare : 0,
+      });
+    }
+    return voices;
+  }, [recordings, carrier, channelOf, clickTrack, metronomeOn, clickShare]);
 
   const leadIn = engineVoices.reduce((m, v) => Math.max(m, v.leadIn), 0);
   // The piece lasts at least until its last bar ends.
@@ -150,9 +184,9 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
 
   useEffect(() => {
     if (!engine) return;
-    engine.mono = tracks.length > 2;
+    engine.mono = engineVoices.length > 2;
     engine.setVoices(engineVoices, timelineEnd);
-  }, [engine, engineVoices, timelineEnd, tracks.length]);
+  }, [engine, engineVoices, timelineEnd]);
 
   const duration = engine?.duration ?? 0;
   const playing = engine?.playing ?? false;
@@ -220,7 +254,7 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   );
 
   const playTracked = useRef(false);
-  const voiceCount = tracks.length;
+  const voiceCount = voiceTracks.length;
   const play = useCallback(() => {
     const { engine: e, bars: b, loop: l } = live.current;
     if (!e) return;
@@ -273,9 +307,9 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   const setRate = useCallback((value: number) => live.current.engine?.setRate(value), []);
 
   // Mixer.
-  const mixerVoices: MixerVoice[] = recordings.map((r, i) => {
+  const mixerVoices: MixerVoice[] = recordings.map((r) => {
     const c = channelOf(r.track.id);
-    const src = engine?.source(engineVoices[i]?.url ?? null) ?? null;
+    const src = engine?.source(engineVoices.find((v) => v.id === r.track.id)?.url ?? null) ?? null;
     return {
       id: r.track.id,
       title: r.track.title,
@@ -295,12 +329,14 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
   const solo = useCallback(
     (id: string) =>
       updateChannels((prev) => {
-        const alone = tracks.every((t) => (t.id === id) === (prev[t.id]?.on ?? true));
+        const alone = voiceTracks.every((t) => (t.id === id) === (prev[t.id]?.on ?? true));
         const next: Record<string, ChannelSetting> = {};
-        for (const t of tracks) next[t.id] = { ...(prev[t.id] ?? DEFAULT_CHANNEL), on: alone || t.id === id };
+        for (const t of voiceTracks) next[t.id] = { ...(prev[t.id] ?? DEFAULT_CHANNEL), on: alone || t.id === id };
+        // The metronome track keeps its level.
+        if (prev[METRONOME_CHANNEL]) next[METRONOME_CHANNEL] = prev[METRONOME_CHANNEL];
         return next;
       }),
-    [tracks, updateChannels],
+    [voiceTracks, updateChannels],
   );
   const resetMix = useCallback(() => updateChannels(() => ({})), [updateChannels]);
   const retry = useCallback(
@@ -311,6 +347,7 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
     [engine, engineVoices],
   );
 
+  const metronomeUrl = clickTrack?.recordings.file_id ? pieceFileUrl(clickTrack.recordings.file_id) : carrierClick;
   const heard = mixerVoices.filter((v) => v.on && v.volume > 0);
   const loadingProgress =
     heard.length > 0 ? heard.reduce((s, v) => s + (v.status === 'loading' ? v.progress : 1), 0) / heard.length : 1;
@@ -390,8 +427,20 @@ export const usePracticePlayer = (piece: Piece | null, tracks: PlayerTrack[]) =>
       setOn: setMetronomeOn,
       // Some voice has a recording with click (and one without).
       available: metronomeAvailable,
-      // A voice that is switched on carries the click right now.
-      audible: mixerVoices.some((v) => v.click),
+      // The click is heard right now (a voice that is on carries it, or the
+      // metronome track plays).
+      audible: clickTrack ? metronomeOn : mixerVoices.some((v) => v.click),
+      // Its level (both modes) and, while one is needed, its recording's
+      // loading state.
+      volume: metronomeLevel,
+      setVolume: (volume: number) => setChannel(METRONOME_CHANNEL, { volume }),
+      source: metronomeUrl
+        ? {
+            status: (engine?.source(metronomeUrl)?.status ?? 'loading') as SourceStatus,
+            progress: engine?.source(metronomeUrl)?.progress ?? 0,
+            retry: () => engine?.retry(metronomeUrl),
+          }
+        : null,
     },
     mixer: {
       voices: mixerVoices,

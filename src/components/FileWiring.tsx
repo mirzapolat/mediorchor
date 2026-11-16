@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type PointerEvent, type ReactNode } from 'react';
 import { AudioLines as AudioLinesIcon, FileText, GripVertical, Mic, Ruler, Users, X, type LucideIcon } from 'lucide-react';
 import { fileIcon, fileTone } from '@/components/PieceFileParts';
 import { GroupPill } from '@/components/GroupPill';
@@ -11,6 +11,7 @@ import { isNotationFileName } from '@/lib/musicxml';
 import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import type { PieceFile, PieceTrack, ProjectGroup } from '@/types';
+import { MetronomeIcon } from './PlayerControls';
 
 // Where a file can be connected: the piece's score PDF, one of a voice's
 // four recordings, the bars' source (a MusicXML or MuseScore's bar timing
@@ -59,7 +60,7 @@ const NodeCard = ({
   children,
   ...rest
 }: {
-  icon: LucideIcon;
+  icon: LucideIcon | ComponentType<{ size?: number | string; 'aria-hidden'?: boolean }>;
   tone?: string;
   title: ReactNode;
   hint?: string;
@@ -132,9 +133,19 @@ export const FileWiring = ({
   onReorderFiles,
   onReorderTracks,
   onConnect,
+  mode = 'variants',
+  clickTrack = null,
+  voicesTop,
 }: {
   files: PieceFile[];
+  // The voices (not the metronome track).
   tracks: PieceTrack[];
+  // 'variants': four recordings per voice; 'mixer': one per voice plus the
+  // piece's metronome track (`clickTrack`), mixed in the player.
+  mode?: 'variants' | 'mixer';
+  clickTrack?: PieceTrack | null;
+  // Under the voices' label (the choice of mode).
+  voicesTop?: ReactNode;
   picks: Record<NodeTarget, string | null>;
   fileLabel: (file: PieceFile) => string;
   renderFile: (file: PieceFile) => ReactNode;
@@ -191,10 +202,14 @@ export const FileWiring = ({
   const fileDnd = useDragReorder(files, (f) => f.id, onReorderFiles, 8);
   const trackDnd = useDragReorder(tracks, (x) => x.id, onReorderTracks, 12);
 
+  // The recording inputs of a voice in this mode.
+  const voiceFields: readonly TrackRecordingField[] = mode === 'mixer' ? ['file_id'] : TRACK_RECORDING_FIELDS;
+  const allTracks = clickTrack ? [...tracks, clickTrack] : tracks;
+
   // Every connection: input → file.
   const connections: Array<{ target: WireTarget; fileId: string }> = [
-    ...tracks.flatMap((track) =>
-      TRACK_RECORDING_FIELDS.flatMap((field) =>
+    ...allTracks.flatMap((track) =>
+      (track.kind === 'click' ? (['file_id'] as const) : voiceFields).flatMap((field) =>
         track[field] ? [{ target: voiceTarget(track.id, field), fileId: track[field] as string }] : [],
       ),
     ),
@@ -307,7 +322,7 @@ export const FileWiring = ({
   const input = (target: WireTarget, label?: ReactNode, name = '') => {
     const voice = parseVoiceTarget(target);
     const fileId = voice
-      ? (tracks.find((x) => x.id === voice.trackId)?.[voice.field] ?? null)
+      ? (allTracks.find((x) => x.id === voice.trackId)?.[voice.field] ?? null)
       : picks[target as NodeTarget];
     const file = fileById(fileId);
     const fits = drawnFile ? accepts(drawnFile, target) : false;
@@ -484,10 +499,11 @@ export const FileWiring = ({
             {t('voicesTitle')}
             {tracks.length > 0 && <span className="ml-1.5 font-normal normal-case tracking-normal">{tracks.length}</span>}
           </SectionLabel>
+          {voicesTop}
           {tracks.length > 0 && (
             <ul className="flex flex-col gap-2">
               {tracks.map((track, index) => {
-                const recorded = TRACK_RECORDING_FIELDS.filter((field) => track[field]).length;
+                const recorded = voiceFields.filter((field) => track[field]).length;
                 return (
                   <li
                     key={track.id}
@@ -499,7 +515,13 @@ export const FileWiring = ({
                       icon={AudioLinesIcon}
                       tone="text-chart-4"
                       title={renderVoiceHeader(track)}
-                      status={`${recorded}/4 ${t('recordingsShort')}`}
+                      status={
+                        mode === 'mixer'
+                          ? recorded
+                            ? t('connected')
+                            : t('notConnected')
+                          : `${recorded}/4 ${t('recordingsShort')}`
+                      }
                       actions={
                         tracks.length > 1 && (
                           <span className="flex self-stretch opacity-40 transition-opacity duration-150 group-hover/node:opacity-100">
@@ -508,7 +530,8 @@ export const FileWiring = ({
                         )
                       }
                     >
-                      {TRACK_RECORDING_FIELDS.map((field) => {
+                      {mode === 'mixer' && input(voiceTarget(track.id, 'file_id'), t('slotRecording'))}
+                      {mode === 'variants' && TRACK_RECORDING_FIELDS.map((field) => {
                         const slot = SLOT_LABELS[field];
                         const full = slot.full.map((k) => t(k)).join(' – ');
                         return input(
@@ -531,6 +554,18 @@ export const FileWiring = ({
             </ul>
           )}
           {voicesBottom}
+          {/* Mixer mode: the piece's metronome, one more track to mix in. */}
+          {mode === 'mixer' && clickTrack && (
+            <NodeCard
+              icon={MetronomeIcon}
+              tone="text-chart-4"
+              title={t('metronome')}
+              hint={t('metronomeTrackHint')}
+              status={clickTrack.file_id ? t('connected') : t('notConnected')}
+            >
+              {input(voiceTarget(clickTrack.id, 'file_id'), t('slotRecording'))}
+            </NodeCard>
+          )}
         </section>
 
         {/* The singing trainer: a MusicXML connected here opens the piece for

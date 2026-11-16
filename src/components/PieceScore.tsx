@@ -15,6 +15,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 import { shiftBarLabel } from '@/lib/pieceTimeline';
 import type { BarAnchor } from '@/types';
+import type { ZoomBridge } from '@/lib/zoomBridge';
 
 // pdf.js is heavy; load it only when a piece actually shows a score.
 const PdfScoreView = lazy(() =>
@@ -38,6 +39,8 @@ interface PieceScoreProps {
   editing: boolean;
   onEditingDone: () => void;
   onAnchorsChange: (anchors: Anchors) => void;
+  // The zoom shown and set by a control outside (the page's zoom button).
+  zoomBridge?: ZoomBridge;
 }
 
 // A frame being drawn, moved or resized, in page fractions.
@@ -96,6 +99,7 @@ export const PieceScore = memo(
     editing,
     onEditingDone,
     onAnchorsChange,
+    zoomBridge,
   }: PieceScoreProps) => {
     const { t } = useI18n();
     const rootRef = useRef<HTMLDivElement>(null);
@@ -701,7 +705,7 @@ export const PieceScore = memo(
           </div>
         )}
         <Suspense fallback={<PageSpinner />}>
-          <PdfScoreView url={url} overlay={overlay} mousePan={!editing} onPinchStart={stopForPinch} />
+          <PdfScoreView url={url} overlay={overlay} mousePan={!editing} onPinchStart={stopForPinch} zoomBridge={zoomBridge} />
         </Suspense>
         <ConfirmDialog
           open={resetOpen}

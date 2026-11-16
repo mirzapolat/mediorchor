@@ -338,6 +338,10 @@ export interface Piece {
   // Archived pieces stay in their projects but can't be added to more.
   archived: boolean;
   created_at: string;
+  // How its practice recordings are set up: 'variants' — four exports per
+  // voice (others muted/quiet, without/with click); 'mixer' — one recording
+  // per voice plus a metronome track, mixed in the player.
+  track_mode: 'variants' | 'mixer';
 }
 
 // A piece in a project, at its place in the project's running order.
@@ -448,6 +452,8 @@ export interface PieceTrack {
   offset_s: number;
   // The voice's recordings are listed for download on the piece page.
   downloadable: boolean;
+  // 'click': the piece's metronome track (mixer mode; recording in file_id).
+  kind: 'voice' | 'click';
   position: number;
   created_at: string;
 }

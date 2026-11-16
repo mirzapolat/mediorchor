@@ -303,10 +303,30 @@ export const PieceSetupPage = () => {
   };
 
 
+  // The voices, and (mixer mode) the piece's metronome track.
+  const voiceTracks = tracks.filter((x) => x.kind !== 'click');
+  const clickTrack = tracks.find((x) => x.kind === 'click') ?? null;
+  const mixerMode = piece.track_mode === 'mixer';
+
+  // Switches how the recordings are set up. Mixer mode needs a metronome
+  // track (made once, kept when switching back, so nothing is lost).
+  const setTrackMode = async (mode: Piece['track_mode']) => {
+    if (mode === piece.track_mode) return;
+    void updatePiece({ track_mode: mode });
+    if (mode === 'mixer' && !clickTrack) {
+      const { data } = await api
+        .from('piece_tracks')
+        .insert({ piece_id: piece.id, title: t('metronome'), kind: 'click', position: tracks.length })
+        .select('*')
+        .single();
+      if (data) setTracks((ts) => [...ts, data as PieceTrack]);
+    }
+  };
+
   const addVoice = async () => {
     const { data } = await api
       .from('piece_tracks')
-      .insert({ piece_id: piece.id, title: '', position: tracks.length })
+      .insert({ piece_id: piece.id, title: '', position: voiceTracks.length })
       .select('*')
       .single();
     if (data) setTracks((ts) => [...ts, data as PieceTrack]);
@@ -320,9 +340,10 @@ export const PieceSetupPage = () => {
   };
 
   const reorderVoices = (next: PieceTrack[]) => {
-    setTracks(next.map((x, i) => ({ ...x, position: i })));
-    void persistOrder('piece_tracks', next);
-    arrangeAudio(next);
+    const all = clickTrack ? [...next, clickTrack] : next;
+    setTracks(all.map((x, i) => ({ ...x, position: i })));
+    void persistOrder('piece_tracks', all);
+    arrangeAudio(all);
   };
 
   // The file nodes in a new order (their own, apart from the "Dateien"
@@ -415,7 +436,8 @@ export const PieceSetupPage = () => {
   const placed = labels.filter((l) => piece.bar_anchors[l]).length;
   const expected = syncedDuration(timeline, piece.bar_sync);
   // Voices to fit the bars with: each with the first of its recordings.
-  const syncVoices: SyncVoice[] = tracks.flatMap((track) => {
+  // (The metronome track too in mixer mode: its clicks help fitting.)
+  const syncVoices: SyncVoice[] = (mixerMode ? tracks : voiceTracks).flatMap((track) => {
     const file = TRACK_RECORDING_FIELDS.map((field) => recordings.find((f) => f.id === track[field])).find(Boolean);
     return file?.file_path
       ? [{ id: track.id, title: track.title, path: file.file_path, offset: track.offset_s }]
@@ -513,7 +535,40 @@ export const PieceSetupPage = () => {
         <div className="pt-2 lg:col-span-2">
           <FileWiring
             files={nodeFiles}
-            tracks={tracks}
+            tracks={voiceTracks}
+            mode={piece.track_mode}
+            clickTrack={mixerMode ? clickTrack : null}
+            voicesTop={
+              <div className="space-y-1.5 pb-1">
+                <div
+                  role="radiogroup"
+                  aria-label={t('recordingMode')}
+                  className="flex gap-1 rounded-full bg-surface-muted p-0.5"
+                >
+                  {(
+                    [
+                      ['variants', t('recordingModeVariants')],
+                      ['mixer', t('recordingModeMixer')],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={piece.track_mode === value}
+                      onClick={() => void setTrackMode(value)}
+                      className={cn(
+                        'h-8 min-w-0 flex-1 truncate rounded-full px-3 text-sm font-medium transition-colors duration-150',
+                        piece.track_mode === value ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {mixerMode && <p className="text-xs text-text-tertiary">{t('recordingModeHint')}</p>}
+              </div>
+            }
             picks={{
               score: piece.score_file_id,
               bars: barsFileId,

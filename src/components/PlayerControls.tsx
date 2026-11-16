@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentType,
   type CSSProperties,
   type ReactNode,
@@ -14,6 +15,7 @@ import { PLAYBACK_RATES, type MixerVoice, type PracticePlayer } from '@/hooks/us
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
+import type { ZoomBridge } from '@/lib/zoomBridge';
 
 // The practice player's controls in Apple's "liquid glass" look (see
 // .liquid-glass in index.css): round glass buttons above the score (mixer,
@@ -48,7 +50,7 @@ export const GlassButton = ({
   icon: Icon,
   label,
   onClick,
-  active = false,
+  active,
   dot = false,
   title,
   buttonRef,
@@ -57,7 +59,7 @@ export const GlassButton = ({
   icon: IconType;
   label: string;
   onClick: () => void;
-  // A toggle that is on.
+  // Set (true/false) for a toggle; left out for a plain action.
   active?: boolean;
   // Something set differently (shown as a small dot).
   dot?: boolean;
@@ -223,29 +225,56 @@ const MixerBody = ({ player }: { player: PracticePlayer }) => {
         ))}
       </ul>
       {metronome.available && (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={metronome.on}
-          onClick={() => metronome.setOn(!metronome.on)}
-          className="mt-1.5 flex w-full items-center gap-3 rounded-2xl bg-surface/40 px-3 py-2.5 text-left"
-        >
-          <span
-            className={cn(
-              'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
-              metronome.on ? 'bg-black text-white' : 'bg-surface-muted text-text-tertiary',
-            )}
+        <div className={cn('mt-1.5 rounded-2xl px-3 pb-1.5 pt-2.5', metronome.on ? 'bg-surface/70' : 'bg-surface/30')}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={metronome.on}
+            onClick={() => metronome.setOn(!metronome.on)}
+            className="flex w-full items-center gap-3 text-left"
           >
-            <MetronomeIcon size={18} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-base font-semibold">{t('metronome')}</span>
-            {metronome.on && !metronome.audible && (
-              <span className="block truncate text-xs text-text-tertiary">{t('metronomeNoVoice')}</span>
-            )}
-          </span>
-          <span className="text-sm text-text-secondary">{metronome.on ? t('on') : t('off')}</span>
-        </button>
+            <span
+              className={cn(
+                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors duration-150',
+                metronome.on ? 'bg-black text-white shadow-sm' : 'bg-surface-muted text-text-tertiary',
+              )}
+            >
+              <MetronomeIcon size={18} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={cn('block text-base font-semibold', !metronome.on && 'text-text-secondary')}>{t('metronome')}</span>
+              <span className="block truncate text-xs tabular-nums text-text-tertiary">
+                {metronome.on && !metronome.audible
+                  ? t('metronomeNoVoice')
+                  : metronome.source?.status === 'loading'
+                    ? `${t('loading')} ${Math.round(metronome.source.progress * 100)} %`
+                    : `${Math.round(metronome.volume * 100)} %`}
+              </span>
+            </span>
+          </button>
+          {metronome.source?.status === 'error' && (
+            <button type="button" onClick={metronome.source.retry} className="mt-1 inline-flex items-center gap-1 text-xs text-danger">
+              <AlertTriangle size={12} />
+              {t('voiceLoadFailed')} · {t('retry')}
+            </button>
+          )}
+          {/* The click's own level (with recorded click versions: faded
+              between the voice's recordings with and without click). */}
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(metronome.volume * 100)}
+            aria-label={`${t('volume')}: ${t('metronome')}`}
+            onChange={(e) => {
+              metronome.setVolume(Number(e.target.value) / 100);
+              if (!metronome.on && Number(e.target.value) > 0) metronome.setOn(true);
+            }}
+            className="mixer-range w-full"
+            style={{ '--fill': `${metronome.on ? Math.round(metronome.volume * 100) : 0}%` } as CSSProperties}
+          />
+        </div>
       )}
     </>
   );
@@ -380,25 +409,20 @@ export const SpeedButton = ({ player }: { player: PracticePlayer }) => {
   );
 };
 
-// The row of glass buttons above the score: mixer, score following,
-// metronome (each only when it applies).
-export const PracticeButtons = ({
-  player,
-  follow,
-  children,
-}: {
-  player: PracticePlayer;
-  follow?: { on: boolean; onChange: (on: boolean) => void };
-  children?: ReactNode;
-}) => {
+// Following the score as it plays: a glass toggle (on the right side).
+export const FollowButton = ({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) => {
+  const { t } = useI18n();
+  return <GlassButton icon={ScrollText} label={t('followScore')} active={on} onClick={() => onChange(!on)} />;
+};
+
+// The left group of glass buttons above the score: mixer and metronome
+// (each only when it applies).
+export const PracticeButtons = ({ player, children }: { player: PracticePlayer; children?: ReactNode }) => {
   const { t } = useI18n();
   const { metronome } = player;
   return (
     <div className="flex items-center gap-2">
       {player.mixer.voices.length > 0 && <MixerButton player={player} />}
-      {follow && (
-        <GlassButton icon={ScrollText} label={t('followScore')} active={follow.on} onClick={() => follow.onChange(!follow.on)} />
-      )}
       {metronome.available && (
         <GlassButton
           icon={MetronomeIcon}
@@ -411,5 +435,69 @@ export const PracticeButtons = ({
       )}
       {children}
     </div>
+  );
+};
+
+// Round glass button with the score's zoom in it; a tap offers going back
+// to 100 % or 80 %.
+export const ZoomButton = ({ bridge }: { bridge: ZoomBridge }) => {
+  const { t } = useI18n();
+  const { zoom, ready } = useSyncExternalStore(bridge.subscribe, bridge.get);
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const style = useAnchored(open, button, 180, false);
+  useDismiss(open, () => setOpen(false), [button, panel]);
+  if (!ready) return null;
+  const pct = Math.round(zoom * 100);
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={`${t('zoom')}: ${pct} %`}
+        title={t('resetZoom')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className={cn(glassButton, 'text-[11px] font-semibold tabular-nums tracking-tight', open && 'liquid-glass-on')}
+      >
+        {pct}%
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panel}
+            role="dialog"
+            aria-label={t('zoom')}
+            style={style}
+            className="liquid-glass liquid-glass-strong fixed z-[95] overflow-y-auto rounded-3xl p-1.5"
+          >
+            <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">{t('resetZoom')}</p>
+            {[1, 0.8].map((z) => {
+              const active = Math.abs(zoom - z) < 0.01;
+              return (
+                <button
+                  key={z}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    bridge.set(z);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left text-base tabular-nums transition-colors duration-150 hover:bg-surface/70',
+                    active && 'font-semibold',
+                  )}
+                >
+                  <Check size={16} className={active ? 'text-text' : 'invisible'} />
+                  {Math.round(z * 100)} %
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 };

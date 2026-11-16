@@ -15,6 +15,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Minimize2 } from 'lucide-react';
 import { PageSpinner } from './Spinner';
 import { useI18n } from '@/lib/i18n';
+import type { ZoomBridge } from '@/lib/zoomBridge';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -36,6 +37,9 @@ interface PdfScoreViewProps {
   mousePan?: boolean;
   // Told when a two-finger gesture starts, so one-finger tools can let go.
   onPinchStart?: () => void;
+  // A zoom control outside the view: the zoom is reported there and set
+  // from there (the view's own zoom pill is left out then).
+  zoomBridge?: ZoomBridge;
 }
 
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
@@ -131,7 +135,7 @@ interface Session {
 // pinch with two fingers or on a trackpad, Ctrl/⌘ + scroll wheel, or
 // double-tap / double-click; a zoomed score pans by swiping, scrolling or
 // dragging with the mouse. A small pill shows the zoom and fits it back.
-export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: PdfScoreViewProps) => {
+export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart, zoomBridge }: PdfScoreViewProps) => {
   const { t } = useI18n();
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -430,10 +434,27 @@ export const PdfScoreView = ({ url, overlay, mousePan = true, onPinchStart }: Pd
 
   const shownZoom = liveZoom ?? zoom;
 
+  // Report the zoom to an outside control and let it zoom (around the
+  // middle of what is on screen).
+  useEffect(() => {
+    zoomBridge?.report(shownZoom);
+  }, [zoomBridge, shownZoom]);
+  useEffect(() => {
+    if (!zoomBridge) return;
+    zoomBridge.register((target) => {
+      const v = viewportRef.current?.getBoundingClientRect();
+      if (!v) return;
+      const top = Math.max(v.top, 0);
+      const bottom = Math.min(v.bottom, window.innerHeight);
+      animateTo(clampZoom(target), v.left + v.width / 2, (top + bottom) / 2);
+    });
+    return () => zoomBridge.register(null);
+  }, [zoomBridge, animateTo]);
+
   return (
     <div className="relative">
       {/* Zoom level + back to "fit" while zoomed (the only visible control). */}
-      {!isAt(shownZoom, homeZoom) && (
+      {!zoomBridge && !isAt(shownZoom, homeZoom) && (
         <div className="pointer-events-none sticky top-16 z-20 flex h-0 justify-end md:top-3">
           <button
             type="button"

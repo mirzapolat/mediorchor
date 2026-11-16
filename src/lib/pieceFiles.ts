@@ -154,6 +154,7 @@ export interface PlayerTrack {
   title: string;
   recordings: Partial<Record<TrackRecordingField, string>>;
   offset_s: number;
+  kind: PieceTrack['kind'];
 }
 
 // The playable voices (those with at least one recording), in order.
@@ -165,7 +166,7 @@ export const playerTracks = (tracks: PieceTrack[], files: PieceFile[]): PlayerTr
       if (path) recordings[field] = path;
     }
     if (Object.keys(recordings).length === 0) return [];
-    return [{ id: track.id, title: track.title, recordings, offset_s: track.offset_s }];
+    return [{ id: track.id, title: track.title, recordings, offset_s: track.offset_s, kind: track.kind ?? 'voice' }];
   });
 
 // The recording to play for the wanted mix; when the voice lacks it, the

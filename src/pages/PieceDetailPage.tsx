@@ -3,13 +3,13 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MapPin, Maximize2, Music, Settings2, X } from 'lucide-react';
 import { PageSpinner } from '@/components/Spinner';
 import { Button } from '@/components/Button';
-import { OverflowMenu } from '@/components/OverflowMenu';
 import { EmptyState } from '@/components/EmptyState';
 import { NoAccess } from '@/components/NoAccess';
 import { PieceScore } from '@/components/PieceScore';
 import { PieceBarGrid } from '@/components/PieceBarGrid';
 import { PiecePlayerBar, type LoopPicking } from '@/components/PiecePlayerBar';
-import { PracticeButtons, glassButton } from '@/components/PlayerControls';
+import { FollowButton, GlassButton, PracticeButtons, ZoomButton, glassButton } from '@/components/PlayerControls';
+import { ZoomBridge } from '@/lib/zoomBridge';
 import { usePracticePlayer } from '@/hooks/usePracticePlayer';
 import { useCanPlaceBars, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useI18n } from '@/lib/i18n';
@@ -62,6 +62,7 @@ export const PieceDetailPage = () => {
     }
   }, []);
   const [picking, setPicking] = useState<LoopPicking>(null);
+  const [zoomBridge] = useState(() => new ZoomBridge());
   // Bars are placed with a mouse or trackpad only, not on phones.
   const canPlaceBars = useCanPlaceBars();
   const wantsEditing = canEdit && canPlaceBars && searchParams.get('place') === '1';
@@ -144,9 +145,7 @@ export const PieceDetailPage = () => {
       const candidates = bars.filter((b) => b.label === label);
       if (candidates.length === 0) return;
       const now = timeRef.current;
-      const best = candidates.reduce((a, b) =>
-        Math.abs(b.start - now) < Math.abs(a.start - now) ? b : a,
-      );
+      const best = candidates.reduce((a, b) => (Math.abs(b.start - now) < Math.abs(a.start - now) ? b : a));
       tapIndex(best.index, shiftKey);
     },
     [bars, tapIndex],
@@ -230,7 +229,11 @@ export const PieceDetailPage = () => {
       if (!piece) return;
       setPiece({ ...piece, bar_anchors: anchors });
       // The query only runs once awaited/then'd.
-      void api.from('pieces').update({ bar_anchors: anchors }).eq('id', piece.id).then(() => undefined);
+      void api
+        .from('pieces')
+        .update({ bar_anchors: anchors })
+        .eq('id', piece.id)
+        .then(() => undefined);
     },
     [piece],
   );
@@ -256,7 +259,9 @@ export const PieceDetailPage = () => {
         { replace: true },
       );
     const take = async () => {
-      const { data, error } = await api.rpc('lock_piece_markers', { p_piece_id: pieceId });
+      const { data, error } = await api.rpc('lock_piece_markers', {
+        p_piece_id: pieceId,
+      });
       if (cancelled) return;
       const result = data as { locked: boolean; by?: string } | null;
       if (error || !result?.locked) {
@@ -305,13 +310,31 @@ export const PieceDetailPage = () => {
     <PiecePlayerBar player={player} picking={picking} onPickingChange={setPicking} placement={placement} />
   ) : null;
 
-  // Above the score: the practice buttons (mixer, following, metronome) on
-  // the left; fullscreen and the editors' marker placing on the right (no
-  // title: the sidebar names the page).
+  // The score's zoom, shown and set by the round button above it.
+  const zoomControl = score && !showGrid ? zoomBridge : null;
+
+  // Above the score, staying in view while it scrolls (glass over the
+  // score): mixer and metronome on the left; following, zoom, the editors'
+  // marker placing and fullscreen on the right (no title: the sidebar
+  // names the page).
+  const rightButtons = (
+    <>
+      {hasPlayer && followToggle && <FollowButton on={followToggle.on} onChange={followToggle.onChange} />}
+      {zoomControl && <ZoomButton bridge={zoomControl} />}
+    </>
+  );
   const toolbar = (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      {hasPlayer ? <PracticeButtons player={player} follow={followToggle} /> : <span />}
-      <div className="flex items-center gap-2">
+    <div className="pointer-events-none sticky top-[3.5625rem] z-30 -mt-1 mb-3 flex items-center justify-between gap-3 py-1 md:top-3">
+      <div className="pointer-events-auto">{hasPlayer && <PracticeButtons player={player} />}</div>
+      <div className="pointer-events-auto flex items-center gap-2">
+        {rightButtons}
+        {canEdit && score && labels.length > 0 && canPlaceBars && (
+          <GlassButton
+            icon={MapPin}
+            label={hasAnchors ? t('editMarkers') : t('placeBars')}
+            onClick={() => setSearchParams({ place: '1' }, { replace: true })}
+          />
+        )}
         {!nothingYet && (
           <button
             type="button"
@@ -322,18 +345,6 @@ export const PieceDetailPage = () => {
           >
             <Maximize2 size={18} />
           </button>
-        )}
-        {canEdit && score && labels.length > 0 && canPlaceBars && (
-          <OverflowMenu
-            label={t('moreActions')}
-            items={[
-              {
-                icon: MapPin,
-                label: hasAnchors ? t('editMarkers') : t('placeBars'),
-                onSelect: () => setSearchParams({ place: '1' }, { replace: true }),
-              },
-            ]}
-          />
         )}
       </div>
     </div>
@@ -396,6 +407,7 @@ export const PieceDetailPage = () => {
             editing={editingAnchors}
             onEditingDone={stopEditing}
             onAnchorsChange={saveAnchors}
+            zoomBridge={zoomBridge}
           />
         )
       )}
@@ -421,7 +433,9 @@ export const PieceDetailPage = () => {
       >
         <div
           className={
-            fullscreen ? 'mx-auto max-w-6xl px-3 pt-[calc(env(safe-area-inset-top)+4.25rem)] sm:px-6 lg:px-8' : 'contents'
+            fullscreen
+              ? 'mx-auto max-w-6xl px-3 pt-[calc(env(safe-area-inset-top)+4.25rem)] sm:px-6 lg:px-8'
+              : 'contents'
           }
         >
           {!fullscreen && toolbar}
@@ -430,18 +444,19 @@ export const PieceDetailPage = () => {
       </div>
       {fullscreen && (
         <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex items-start justify-between gap-2 px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] sm:px-5">
-          <div className="pointer-events-auto">
-            {hasPlayer && <PracticeButtons player={player} follow={followToggle} />}
+          <div className="pointer-events-auto">{hasPlayer && <PracticeButtons player={player} />}</div>
+          <div className="pointer-events-auto flex items-center gap-2">
+            {rightButtons}
+            <button
+              type="button"
+              onClick={exitFullscreen}
+              aria-label={t('exitFullscreen')}
+              title={`${t('exitFullscreen')} (Esc)`}
+              className={glassButton}
+            >
+              <X size={20} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={exitFullscreen}
-            aria-label={t('exitFullscreen')}
-            title={`${t('exitFullscreen')} (Esc)`}
-            className={cn(glassButton, 'pointer-events-auto')}
-          >
-            <X size={20} />
-          </button>
         </div>
       )}
       {playerBar &&
@@ -450,7 +465,9 @@ export const PieceDetailPage = () => {
             ref={playerRef}
             className={cn(
               'fixed inset-x-0 z-[80]',
-              isDesktop ? 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))] mx-auto w-full max-w-3xl px-6' : 'bottom-0',
+              isDesktop
+                ? 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))] mx-auto w-full max-w-3xl px-6'
+                : 'bottom-0',
             )}
           >
             {playerBar}
